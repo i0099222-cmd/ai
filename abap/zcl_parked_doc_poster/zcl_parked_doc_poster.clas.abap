@@ -1,3 +1,10 @@
+"! FBV0(임시전표 확정 전기)를 BDC(CALL TRANSACTION)로 구동하는 공통 클래스.
+"! ------------------------------------------------------------------
+"! 주의: CALL TRANSACTION은 ABAP Cloud(엄격 문법)에서 금지된 obsolete
+"! statement이다. 이 클래스는 반드시 Standard ABAP 언어버전 패키지에
+"! 두고, RAP behavior class(Cloud 언어버전)에서 호출할 수 있도록
+"! Local API로 Release해야 한다.
+"! ------------------------------------------------------------------
 CLASS zcl_parked_doc_poster DEFINITION
   PUBLIC
   FINAL
@@ -7,13 +14,14 @@ CLASS zcl_parked_doc_poster DEFINITION
     INTERFACES zif_parked_doc_poster.
 
   PRIVATE SECTION.
-    "! FM 1회 호출 단위(FM이 mass 처리 가능한지에 따라 회사코드/연도 단위로 묶어서 호출)
-    METHODS post_one_company
+    TYPES tt_bdcdata TYPE STANDARD TABLE OF bdcdata WITH DEFAULT KEY.
+
+    "! 임시전표 1건을 FBV0 BDC로 확정 전기한다.
+    METHODS post_one
       IMPORTING
-        iv_bukrs         TYPE bukrs
-        it_keys          TYPE zif_parked_doc_poster=>tt_key
+        is_key           TYPE zif_parked_doc_poster=>ty_key
       RETURNING
-        VALUE(rt_result) TYPE zif_parked_doc_poster=>tt_result.
+        VALUE(rs_result) TYPE zif_parked_doc_poster=>ty_result.
 
 ENDCLASS.
 
@@ -22,75 +30,55 @@ CLASS zcl_parked_doc_poster IMPLEMENTATION.
 
   METHOD zif_parked_doc_poster~post_all.
 
-    CHECK it_keys IS NOT INITIAL.
-
-    " FM이 회사코드 단위로 동작하는 경우가 많아 BUKRS 기준으로 묶어서 호출한다.
-    LOOP AT it_keys INTO DATA(ls_key) GROUP BY ls_key-bukrs
-         REFERENCE INTO DATA(lr_group).
-
-      DATA(lt_keys_of_bukrs) = VALUE zif_parked_doc_poster=>tt_key(
-        FOR <k> IN it_keys WHERE ( bukrs = lr_group->bukrs )
-        ( <k> )
-      ).
-
-      rt_result = VALUE #( BASE rt_result
-        ( LINES OF post_one_company(
-                    iv_bukrs = lr_group->bukrs
-                    it_keys  = lt_keys_of_bukrs ) ) ).
-
+    " FBV0는 BDC로 한 번에 문서 1건만 처리 가능하므로 키 단위로 순차 호출한다.
+    LOOP AT it_keys INTO DATA(ls_key).
+      APPEND post_one( ls_key ) TO rt_result.
     ENDLOOP.
 
   ENDMETHOD.
 
 
-  METHOD post_one_company.
+  METHOD post_one.
 
-    " ------------------------------------------------------------------
-    " 실제 확인된 시그니처(TABLES): T_VBKPF / T_MSG_TAB
-    " TODO: VBKPF 라인에 BUKRS/BELNR/GJAHR 외 추가 필드(BLART, BUDAT 등)가
-    " 필요한지 SE37에서 확인할 것. MSG_TAB_LINE의 실제 필드명(에러 판정에
-    " 쓰는 타입 필드 등)도 SE11에서 확인 후 아래 TODO 부분을 맞출 것.
-    " ------------------------------------------------------------------
-    DATA: lt_vbkpf  TYPE STANDARD TABLE OF vbkpf WITH DEFAULT KEY,
-          lt_return TYPE zif_parked_doc_poster=>tt_message.
+    " SHDB 녹화(FBV0) 기반 BDC 데이터.
+    " 화면1: SAPMF05V 0100  - 회사코드/전표번호/회계연도 입력 후 Enter(=ENTR)
+    " 화면2: SAPLF040 0700  - 헤더텍스트 확인 후 전기(=BU)
+    " TODO: 세금코드 경고 등 조건부로 추가 화면이 뜨는 케이스는 아직
+    " 반영 안 되어 있음 - 해당 케이스 재녹화 후 화면 블록 추가 필요.
+    DATA(lt_bdcdata) = VALUE tt_bdcdata(
+      ( program = 'SAPMF05V' dynpro = '0100' dynbegin = 'X' )
+      ( fnam = 'BDC_CURSOR'  fval = 'RF05V-BELNR' )
+      ( fnam = 'BDC_OKCODE'  fval = '=ENTR' )
+      ( fnam = 'RF05V-BUKRS' fval = is_key-bukrs )
+      ( fnam = 'RF05V-BELNR' fval = is_key-belnr )
+      ( fnam = 'RF05V-GJAHR' fval = is_key-gjahr )
 
-    lt_vbkpf = VALUE #(
-      FOR ls_key IN it_keys
-      ( bukrs = ls_key-bukrs
-        belnr = ls_key-belnr
-        gjahr = ls_key-gjahr ) ).
-
-    CALL FUNCTION 'PRELIMINARY_POSTING_POST_ALL'
-      TABLES
-        t_vbkpf   = lt_vbkpf
-        t_msg_tab = lt_return
-      EXCEPTIONS
-        OTHERS    = 1.
-
-    DATA(lv_has_error) = xsdbool( line_exists( lt_return[ msgty = 'E' ] )   " TODO: 실제 필드명(msgty 등) 확인
-                               OR line_exists( lt_return[ msgty = 'A' ] ) ).
-
-    IF sy-subrc = 0 AND lv_has_error = abap_false.
-      COMMIT WORK AND WAIT.
-    ELSE.
-      ROLLBACK WORK.
-    ENDIF.
-
-    " ------------------------------------------------------------------
-    " FM이 문서별 리턴을 구분할 수 있는 필드(예: 메시지 변수에 BELNR 포함)를
-    " 주는지 확인 후, 문서 단위 개별 성공/실패 판정이 필요하면 이 매핑을
-    " 보완할 것. 지금은 그룹(BUKRS) 전체 성공/실패를 각 문서에 동일 적용하는
-    " 단순 버전이며, 메시지 테이블은 가공 없이 그대로 각 결과에 실어 보낸다.
-    " ------------------------------------------------------------------
-    rt_result = VALUE #(
-      FOR ls_key IN it_keys
-      ( bukrs     = ls_key-bukrs
-        belnr     = ls_key-belnr
-        gjahr     = ls_key-gjahr
-        belnr_new = ls_key-belnr   " TODO: FM이 신규 확정전표 번호를 반환하면 그 값으로 교체
-        success   = xsdbool( lv_has_error = abap_false )
-        t_message = lt_return )
+      ( program = 'SAPLF040' dynpro = '0700' dynbegin = 'X' )
+      ( fnam = 'BDC_CURSOR'  fval = 'BKPF-XBLNR' )
+      ( fnam = 'BDC_OKCODE'  fval = '=BU' )
     ).
+
+    " TODO: CATTMODE/DEFSIZE/RACOMMIT 등 추가 옵션이 필요하면 여기에 보완
+    DATA(ls_options) = VALUE ctu_params(
+      dismode = 'N'     " 화면 표시 없이 실행
+      updmode = 'S' ).  " 동기 업데이트 - 액션 응답 시점에 결과 확정
+
+    DATA lt_message TYPE zif_parked_doc_poster=>tt_message.
+
+    CALL TRANSACTION 'FBV0' USING lt_bdcdata
+      OPTIONS FROM ls_options
+      MESSAGES INTO lt_message.
+
+    DATA(lv_success) = xsdbool( NOT line_exists( lt_message[ msgtyp = 'E' ] )
+                             AND NOT line_exists( lt_message[ msgtyp = 'A' ] ) ).
+
+    rs_result = VALUE #(
+      bukrs     = is_key-bukrs
+      belnr     = is_key-belnr
+      gjahr     = is_key-gjahr
+      belnr_new = is_key-belnr   " FBV0 확정 전기는 파킹 시 번호를 그대로 유지
+      success   = lv_success
+      t_message = lt_message ).
 
   ENDMETHOD.
 

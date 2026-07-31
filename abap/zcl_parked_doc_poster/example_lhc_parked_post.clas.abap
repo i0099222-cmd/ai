@@ -59,16 +59,18 @@ CLASS lhc_document IMPLEMENTATION.
 
         APPEND VALUE #( %tky = ls_document-%tky ) TO failed-document.
 
-        LOOP AT ls_result-t_message INTO DATA(ls_msg) WHERE type CA 'EA'.
+        " TODO: MSG_TAB_LINE의 실제 필드명은 SE11에서 확인 후 맞출 것
+        " (아래는 흔한 classic 메시지 구조 필드명 ARBGB/MSGTY/MSGNR/MSGV1~4로 가정)
+        LOOP AT ls_result-t_message INTO DATA(ls_msg) WHERE msgty CA 'EA'.
           APPEND VALUE #(
             %tky = ls_document-%tky
             %msg = new_message(
-                     id       = ls_msg-id
-                     number   = ls_msg-number
-                     v1       = ls_msg-message_v1
-                     v2       = ls_msg-message_v2
-                     v3       = ls_msg-message_v3
-                     v4       = ls_msg-message_v4
+                     id       = ls_msg-arbgb
+                     number   = ls_msg-msgnr
+                     v1       = ls_msg-msgv1
+                     v2       = ls_msg-msgv2
+                     v3       = ls_msg-msgv3
+                     v4       = ls_msg-msgv4
                      severity = if_abap_behv_message=>severity-error ) )
             TO reported-document.
         ENDLOOP.

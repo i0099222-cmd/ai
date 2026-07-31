@@ -10,6 +10,9 @@ INTERFACE zif_parked_doc_poster
     END OF ty_key,
     tt_key TYPE STANDARD TABLE OF ty_key WITH EMPTY KEY.
 
+  "! PRELIMINARY_POSTING_POST_ALL의 T_MSG_TAB 라인 타입(MSG_TAB_LINE) 기반 메시지 테이블
+  TYPES tt_message TYPE STANDARD TABLE OF msg_tab_line WITH DEFAULT KEY.
+
   "! 문서 1건당 확정 전기 결과
   TYPES:
     BEGIN OF ty_result,
@@ -18,7 +21,7 @@ INTERFACE zif_parked_doc_poster
       gjahr     TYPE gjahr,
       belnr_new TYPE belnr_d,
       success   TYPE abap_bool,
-      t_message TYPE bapiret2_t,
+      t_message TYPE tt_message,
     END OF ty_result,
     tt_result TYPE STANDARD TABLE OF ty_result WITH EMPTY KEY.
 

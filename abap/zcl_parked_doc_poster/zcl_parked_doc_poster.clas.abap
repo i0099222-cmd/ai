@@ -46,43 +46,42 @@ CLASS zcl_parked_doc_poster IMPLEMENTATION.
   METHOD post_one_company.
 
     " ------------------------------------------------------------------
-    " TODO: 실제 PRELIMINARY_POSTING_POST_ALL 시그니처는 SE37/ADT에서
-    " 확인 후 아래 IMPORTING/TABLES 구조에 맞춰 채워 넣을 것.
-    " (릴리즈/모듈에 따라 파라미터명이 다를 수 있음)
+    " 실제 확인된 시그니처(TABLES): T_VBKPF / T_MSG_TAB
+    " TODO: VBKPF 라인에 BUKRS/BELNR/GJAHR 외 추가 필드(BLART, BUDAT 등)가
+    " 필요한지 SE37에서 확인할 것. MSG_TAB_LINE의 실제 필드명(에러 판정에
+    " 쓰는 타입 필드 등)도 SE11에서 확인 후 아래 TODO 부분을 맞출 것.
     " ------------------------------------------------------------------
-    DATA: lt_belnr  TYPE STANDARD TABLE OF belnr_d,   " TODO: FM TABLES 파라미터 타입으로 교체
-          lt_return TYPE bapiret2_t.
+    DATA: lt_vbkpf  TYPE STANDARD TABLE OF vbkpf WITH DEFAULT KEY,
+          lt_return TYPE zif_parked_doc_poster=>tt_message.
 
-    lt_belnr = VALUE #( FOR ls_key IN it_keys ( ls_key-belnr ) ).
+    lt_vbkpf = VALUE #(
+      FOR ls_key IN it_keys
+      ( bukrs = ls_key-bukrs
+        belnr = ls_key-belnr
+        gjahr = ls_key-gjahr ) ).
 
     CALL FUNCTION 'PRELIMINARY_POSTING_POST_ALL'
-      EXPORTING
-        i_bukrs  = iv_bukrs                          " TODO: 실제 파라미터명 확인
-*     IMPORTING
-*       ...
       TABLES
-        t_belnr  = lt_belnr                          " TODO: 실제 파라미터명 확인
-        t_return = lt_return                         " TODO: 실제 파라미터명 확인
+        t_vbkpf   = lt_vbkpf
+        t_msg_tab = lt_return
       EXCEPTIONS
-        OTHERS   = 1.
+        OTHERS    = 1.
 
-    IF sy-subrc = 0 AND NOT line_exists( lt_return[ type = 'E' ] )
-                    AND NOT line_exists( lt_return[ type = 'A' ] ).
+    DATA(lv_has_error) = xsdbool( line_exists( lt_return[ msgty = 'E' ] )   " TODO: 실제 필드명(msgty 등) 확인
+                               OR line_exists( lt_return[ msgty = 'A' ] ) ).
+
+    IF sy-subrc = 0 AND lv_has_error = abap_false.
       COMMIT WORK AND WAIT.
     ELSE.
       ROLLBACK WORK.
     ENDIF.
 
     " ------------------------------------------------------------------
-    " FM 리턴(BAPIRET2)을 요청 키 단위 결과로 매핑.
-    " FM이 문서별 리턴을 어떤 필드(예: MESSAGE_V1=BELNR)로 구분해서 주는지
-    " 확인 후 이 매핑 로직을 맞춰야 함. 아래는 "전체 성공/실패를 함께 판단"하는
-    " 단순 버전이며, 문서 단위 개별 판정이 필요하면 BAPIRET2-ID/NUMBER나
-    " MESSAGE_V1 등으로 BELNR을 식별해 개별 매핑하도록 보완할 것.
+    " FM이 문서별 리턴을 구분할 수 있는 필드(예: 메시지 변수에 BELNR 포함)를
+    " 주는지 확인 후, 문서 단위 개별 성공/실패 판정이 필요하면 이 매핑을
+    " 보완할 것. 지금은 그룹(BUKRS) 전체 성공/실패를 각 문서에 동일 적용하는
+    " 단순 버전이며, 메시지 테이블은 가공 없이 그대로 각 결과에 실어 보낸다.
     " ------------------------------------------------------------------
-    DATA(lv_has_error) = xsdbool( line_exists( lt_return[ type = 'E' ] )
-                               OR line_exists( lt_return[ type = 'A' ] ) ).
-
     rt_result = VALUE #(
       FOR ls_key IN it_keys
       ( bukrs     = ls_key-bukrs

@@ -36,6 +36,17 @@ INTERFACE zif_dynamic_table_upload
       t_message    TYPE tt_message,
     END OF ty_result.
 
+  "! 대상 이름이 실제로 "업로드해서 쓸 수 있는 DB 테이블"인지 검증한다.
+  "! TADIR 기반 오브젝트 목록에는 TABL 외 오브젝트가 대부분이고, TABL 안에도
+  "! 구조체(TABCLASS = INTTAB)가 섞여 있어서 MODIFY 대상이 될 수 없다.
+  "! 여기서는 기술적 판정(= 쓰기 가능한 DB 테이블인가)만 하고, "CBO만 허용" 같은
+  "! 업무 정책(네임스페이스/권한)은 호출자(behavior handler)에서 판단한다.
+  METHODS is_uploadable
+    IMPORTING
+      iv_table_name TYPE tabname
+    RETURNING
+      VALUE(rv_ok)  TYPE abap_bool.
+
   "! 대상 테이블/CDS 엔터티의 필드 구조를 RTTI로 동적 조회한다.
   "! DDIC 필드 텍스트 조회가 불가능한 구조(계산 필드 등)는 필드명만 채워서 반환한다.
   METHODS get_table_fields

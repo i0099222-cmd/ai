@@ -93,6 +93,31 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_dynamic_table_upload~is_uploadable.
+
+    " XCO ABAP Dictionary API는 두 언어버전(ABAP Cloud / Standard ABAP) 모두에서 쓸 수 있고,
+    " database_table( )->exists( )는 "진짜 DB 테이블"일 때만 abap_true를 준다.
+    " 구조체(INTTAB)/뷰/CDS 엔터티는 여기서 걸러진다.
+    " (Standard ABAP만 쓰는 환경이면 SELECT SINGLE tabclass FROM dd02l ... = 'TRANSP'로 대체 가능.
+    "  XCO 메서드 시그니처는 시스템 버전에 따라 다를 수 있으니 코드 컴플리션으로 재확인할 것.)
+    TRY.
+        rv_ok = xco_cp_abap_dictionary=>database_table( iv_table_name )->exists( ).
+      CATCH cx_root.
+        rv_ok = abap_false.
+    ENDTRY.
+
+    CHECK rv_ok = abap_true.
+
+    " RTTI로도 구조를 실제로 풀 수 있어야 템플릿/동적 내부테이블 생성이 가능하다.
+    TRY.
+        describe_table( iv_table_name ).
+      CATCH zcx_dynamic_table_upload.
+        rv_ok = abap_false.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
   METHOD zif_dynamic_table_upload~get_table_fields.
 
     DATA(lo_struct) = describe_table( iv_table_name ).
@@ -234,6 +259,12 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
 
 
   METHOD zif_dynamic_table_upload~migrate_json_to_table.
+
+    " 동적 MODIFY는 호출자가 넘긴 이름대로 아무 테이블에나 쓰기 때문에, DB에 손대기 전에
+    " 반드시 대상이 쓰기 가능한 DB 테이블인지 확인한다(구조체/뷰/오타 방어).
+    IF zif_dynamic_table_upload~is_uploadable( iv_table_name ) = abap_false.
+      RAISE EXCEPTION TYPE zcx_dynamic_table_upload.
+    ENDIF.
 
     DATA(lo_struct) = describe_table( iv_table_name ).
     DATA(lr_table)  = create_dynamic_table( lo_struct ).

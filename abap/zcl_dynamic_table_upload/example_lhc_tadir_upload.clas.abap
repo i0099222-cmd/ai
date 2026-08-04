@@ -12,7 +12,9 @@ CLASS lhc_tadirobject DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
 
     "! TADIR-OBJECT 중 테이블만 업로드 대상이 된다.
-    CONSTANTS mc_object_table TYPE trobjtype VALUE 'TABL'.
+    "! DDIC 데이터 엘리먼트(TROBJTYPE/SOBJ_NAME)는 ABAP Cloud에 릴리즈되어 있지 않을 수
+    "! 있으므로 내장 타입만 쓴다. 엔터티 필드에서 넘어올 때 자동 변환된다.
+    CONSTANTS mc_object_table TYPE string VALUE 'TABL'.
 
     METHODS get_instance_features FOR INSTANCE FEATURES
       IMPORTING keys REQUEST requested_features FOR tadirobject RESULT result.
@@ -26,8 +28,8 @@ CLASS lhc_tadirobject DEFINITION INHERITING FROM cl_abap_behavior_handler.
     "! 업무 정책상 이 오브젝트가 업로드 대상인지 판정한다.
     METHODS is_upload_candidate
       IMPORTING
-        iv_object    TYPE trobjtype
-        iv_obj_name  TYPE sobj_name
+        iv_object    TYPE string
+        iv_obj_name  TYPE string
       RETURNING
         VALUE(rv_ok) TYPE abap_bool.
 
@@ -51,7 +53,7 @@ CLASS lhc_tadirobject IMPLEMENTATION.
     ENDIF.
 
     " 3) 기술 판정(구조체 INTTAB / 뷰 / 오타 제거)은 엔진에 위임한다.
-    rv_ok = NEW zcl_dynamic_table_upload( )->is_uploadable( CONV #( iv_obj_name ) ).
+    rv_ok = NEW zcl_dynamic_table_upload( )->is_uploadable( iv_obj_name ).
 
   ENDMETHOD.
 
@@ -125,7 +127,7 @@ CLASS lhc_tadirobject IMPLEMENTATION.
 
       ENDIF.
 
-      DATA(ls_template) = lo_engine->create_excel_template( CONV #( ls_tadir-objname ) ).
+      DATA(ls_template) = lo_engine->create_excel_template( ls_tadir-objname ).
 
       IF ls_template-success = abap_false.
 
@@ -264,7 +266,7 @@ CLASS lhc_tadirobject IMPLEMENTATION.
 
       " RAP save 시퀀스 안이므로 COMMIT/ROLLBACK은 프레임워크에 맡긴다.
       DATA(ls_result) = lo_engine->upload_and_migrate(
-                          iv_table_name = CONV #( ls_tadir-objname )
+                          iv_table_name = ls_tadir-objname
                           iv_file       = ls_staging-uploadfile
                           iv_commit     = abap_false ).
 

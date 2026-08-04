@@ -3,9 +3,17 @@
 "! 3) 그 JSON을 다시 동적 내부테이블로 역직렬화해서 대상 테이블로 마이그레이션(MODIFY)하는
 "! 범용 엔진 클래스.
 "!
+"! ABAP Cloud 언어버전 대응:
+"! - 구조 조회에 cl_abap_structdescr=>get_ddic_field_list( )를 쓰지 않는다.
+"!   반환 타입 DDFIELDS/DFIES가 ABAP Cloud에 릴리즈되어 있지 않기 때문이다.
+"!   대신 릴리즈된 get_components( ) + cl_abap_elemdescr로 필드 정보를 얻는다.
+"! - 같은 이유로 이 클래스의 타입/파라미터에는 DDIC 데이터 엘리먼트(TABNAME, FIELDNAME,
+"!   SCRTEXT_M, DDLENG ...)를 쓰지 않고 내장 타입(string, i, abap_bool)만 쓴다.
+"! - 그 대가로 DDIC 필드 라벨(한글 필드 설명)과 키 플래그는 RTTI만으로는 얻을 수 없다.
+"!   라벨이 필요하면 get_table_fields( ) 하단의 XCO 주석 블록 참고.
+"!
 "! 오브젝트 수를 줄이려고 인터페이스와 예외 클래스를 이 클래스 하나로 흡수했다.
-"! 구현이 하나뿐이라 인터페이스가 얻는 게 없고, 오류는 예외 대신 결과 구조체의
-"! success/message로 돌려준다(호출부가 behavior handler 하나뿐이라 이쪽이 더 단순하다).
+"! 오류는 예외 대신 결과 구조체의 success/message로 돌려준다.
 "!
 "! 전제/스코프(러프 프로토타입 - 실제 배포 전 재검토 필요):
 "! - iv_table_name은 호출자가 이미 알고 있는 DB 테이블 이름이라고 가정한다.
@@ -13,8 +21,6 @@
 "!   SpreadsheetML(.xls, Excel XML) 포맷으로 만든다.
 "! - 업로드는 그 템플릿을 Excel에서 채운 뒤 "CSV UTF-8(세미콜론 구분)"로 저장한 파일을
 "!   올리는 흐름을 가정한다. 진짜 .xlsx 바이너리(zip) 파싱은 스코프 밖이다.
-"! - RTTI DFIES 필드명이나 XCO API(xco_cp_json, xco_cp_abap_dictionary)의 정확한 시그니처는
-"!   시스템 버전에 따라 다를 수 있으므로 실제 개발 시스템에서 코드 컴플리션으로 재검증할 것.
 "! - 대용량 업로드 시 행 단위 오류 격리/청크 처리는 하지 않는다(전체 배치 단위 성공/실패).
 CLASS zcl_dynamic_table_upload DEFINITION
   PUBLIC
@@ -23,16 +29,20 @@ CLASS zcl_dynamic_table_upload DEFINITION
 
   PUBLIC SECTION.
 
-    "! 동적 테이블 1개 필드에 대한 메타정보(RTTI + DDIC 텍스트)
+    "! 동적 테이블 1개 필드에 대한 메타정보.
+    "! DDIC 데이터 엘리먼트 대신 내장 타입만 쓴다(ABAP Cloud 릴리즈 제약).
     TYPES:
       BEGIN OF ty_field,
-        fieldname TYPE fieldname,
-        rollname  TYPE rollname,
-        ddtext    TYPE scrtext_m,
-        is_key    TYPE abap_bool,
-        datatype  TYPE datatype_d,
-        leng      TYPE ddleng,
-        decimals  TYPE decimals,
+        fieldname TYPE string,
+        "! DDIC 타입명(데이터 엘리먼트). 내장 타입이면 비어 있다.
+        rollname  TYPE string,
+        "! ABAP 타입 종류 1글자 (C/N/P/D/T/I ...)
+        type_kind TYPE c LENGTH 1,
+        "! 화면 출력 길이(바이트가 아니라 표시 길이)
+        leng      TYPE i,
+        decimals  TYPE i,
+        "! 필드 설명. RTTI만으로는 채워지지 않는다(XCO 보강 시에만 값이 들어감).
+        ddtext    TYPE string,
       END OF ty_field,
       tt_field TYPE STANDARD TABLE OF ty_field WITH EMPTY KEY.
 
@@ -64,14 +74,14 @@ CLASS zcl_dynamic_table_upload DEFINITION
     "! 여기서는 기술 판정만 하고, "CBO만 허용" 같은 업무 정책은 호출자가 판단한다.
     METHODS is_uploadable
       IMPORTING
-        iv_table_name TYPE tabname
+        iv_table_name TYPE string
       RETURNING
         VALUE(rv_ok)  TYPE abap_bool.
 
     "! 대상 테이블의 필드 구조를 RTTI로 동적 조회한다.
     METHODS get_table_fields
       IMPORTING
-        iv_table_name   TYPE tabname
+        iv_table_name   TYPE string
       RETURNING
         VALUE(rt_field) TYPE tt_field.
 
@@ -79,7 +89,7 @@ CLASS zcl_dynamic_table_upload DEFINITION
     "! 1행 = 기술 필드명(업로드 키), 2행 = 필드 설명(업로드 시 자동으로 무시됨).
     METHODS create_excel_template
       IMPORTING
-        iv_table_name      TYPE tabname
+        iv_table_name      TYPE string
       RETURNING
         VALUE(rs_template) TYPE ty_template.
 
@@ -87,7 +97,7 @@ CLASS zcl_dynamic_table_upload DEFINITION
     "! JSON 문자열로 직렬화해서 반환한다. 변환 불가 시 빈 문자열을 반환한다.
     METHODS convert_upload_to_json
       IMPORTING
-        iv_table_name  TYPE tabname
+        iv_table_name  TYPE string
         iv_file        TYPE xstring
       RETURNING
         VALUE(rv_json) TYPE string.
@@ -97,7 +107,7 @@ CLASS zcl_dynamic_table_upload DEFINITION
     "! (RAP behavior save 시퀀스 안에서 호출할 때 사용).
     METHODS migrate_json_to_table
       IMPORTING
-        iv_table_name    TYPE tabname
+        iv_table_name    TYPE string
         iv_json          TYPE string
         iv_commit        TYPE abap_bool DEFAULT abap_true
       RETURNING
@@ -106,7 +116,7 @@ CLASS zcl_dynamic_table_upload DEFINITION
     "! convert_upload_to_json + migrate_json_to_table를 한 번에 수행하는 편의 메서드.
     METHODS upload_and_migrate
       IMPORTING
-        iv_table_name    TYPE tabname
+        iv_table_name    TYPE string
         iv_file          TYPE xstring
         iv_commit        TYPE abap_bool DEFAULT abap_true
       RETURNING
@@ -119,10 +129,10 @@ CLASS zcl_dynamic_table_upload DEFINITION
     "! (1행 = 기술 필드명, 2행 = 필드 설명)
     CONSTANTS mc_header_rows TYPE i VALUE 2.
 
-    "! 대상 이름의 구조를 RTTI로 푼다. 실패하면 초기값(널 참조)을 돌려준다.
+    "! 대상 이름의 구조를 RTTI로 푼다. 실패하면 널 참조를 돌려준다.
     METHODS describe_table
       IMPORTING
-        iv_table_name    TYPE tabname
+        iv_table_name    TYPE string
       RETURNING
         VALUE(ro_struct) TYPE REF TO cl_abap_structdescr.
 
@@ -140,7 +150,7 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
   METHOD describe_table.
 
     TRY.
-        DATA(lo_type) = cl_abap_typedescr=>describe_by_name( iv_table_name ).
+        DATA(lo_type) = cl_abap_typedescr=>describe_by_name( to_upper( iv_table_name ) ).
       CATCH cx_root.
         RETURN.
     ENDTRY.
@@ -167,12 +177,12 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
 
   METHOD is_uploadable.
 
-    " XCO ABAP Dictionary API는 두 언어버전(ABAP Cloud / Standard ABAP) 모두에서 쓸 수 있고,
+    " XCO ABAP Dictionary API는 ABAP Cloud에 릴리즈되어 있고,
     " database_table( )->exists( )는 "진짜 DB 테이블"일 때만 abap_true를 준다.
     " 구조체(INTTAB)/뷰/CDS 엔터티는 여기서 걸러진다.
-    " (Standard ABAP만 쓰는 환경이면 SELECT SINGLE tabclass FROM dd02l ... = 'TRANSP'로 대체 가능)
     TRY.
-        rv_ok = xco_cp_abap_dictionary=>database_table( iv_table_name )->exists( ).
+        rv_ok = xco_cp_abap_dictionary=>database_table(
+                  CONV #( to_upper( iv_table_name ) ) )->exists( ).
       CATCH cx_root.
         rv_ok = abap_false.
     ENDTRY.
@@ -192,32 +202,50 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
     DATA(lo_struct) = describe_table( iv_table_name ).
     CHECK lo_struct IS BOUND.
 
-    TRY.
-        DATA(lt_dfies) = lo_struct->get_ddic_field_list( p_including_substructures = abap_true ).
-      CATCH cx_root.
-        CLEAR lt_dfies.
-    ENDTRY.
+    " ABAP Cloud에서는 get_ddic_field_list( )를 쓸 수 없다.
+    " 반환 타입인 DDFIELDS/DFIES가 릴리즈되어 있지 않기 때문이다.
+    " 릴리즈된 get_components( ) + cl_abap_elemdescr로 대체한다.
+    LOOP AT lo_struct->get_components( ) INTO DATA(ls_comp).
 
-    IF lt_dfies IS NOT INITIAL.
+      DATA(ls_field) = VALUE ty_field( fieldname = to_upper( ls_comp-name ) ).
 
-      rt_field = VALUE #(
-        FOR ls_f IN lt_dfies
-        ( fieldname = ls_f-fieldname
-          rollname  = ls_f-rollname
-          ddtext    = ls_f-scrtext_m
-          is_key    = ls_f-keyflag
-          datatype  = ls_f-datatype
-          leng      = ls_f-leng
-          decimals  = ls_f-decimals ) ).
+      " 구조체 안에 중첩 구조가 있으면 elemdescr이 아니므로 이름만 담는다.
+      IF ls_comp-type IS INSTANCE OF cl_abap_elemdescr.
 
-    ELSE.
+        DATA(lo_elem) = CAST cl_abap_elemdescr( ls_comp-type ).
 
-      " DDIC 필드 텍스트를 못 가져오는 구조는 RTTI 컴포넌트 이름만으로 대체한다.
-      rt_field = VALUE #(
-        FOR ls_c IN lo_struct->get_components( )
-        ( fieldname = CONV #( ls_c-name ) ) ).
+        " get_relative_name( )은 DDIC 타입명(예: 'BUKRS')을 준다. 내장 타입이면 빈 값.
+        ls_field-rollname  = lo_elem->get_relative_name( ).
+        ls_field-type_kind = lo_elem->type_kind.
+        " length는 바이트 수라 유니코드에서 실제와 다르게 보인다. output_length를 쓴다.
+        ls_field-leng      = lo_elem->output_length.
+        ls_field-decimals  = lo_elem->decimals.
 
-    ENDIF.
+      ENDIF.
+
+      APPEND ls_field TO rt_field.
+
+    ENDLOOP.
+
+    "" ------------------------------------------------------------------------
+    "" 필드 라벨(한글 설명)이 필요하면 아래를 활성화한다.
+    "" XCO ABAP Dictionary API는 릴리즈되어 있지만 메서드 시그니처가 시스템 버전에 따라
+    "" 다를 수 있어 기본은 꺼 둔다. ADT 코드 컴플리션으로 확인 후 사용할 것.
+    "" 라벨이 없어도 템플릿 생성/업로드는 정상 동작한다(2행이 타입 정보만 표시됨).
+    ""
+    "" TRY.
+    ""     DATA(lo_table) = xco_cp_abap_dictionary=>database_table(
+    ""                        CONV #( to_upper( iv_table_name ) ) ).
+    ""     LOOP AT lo_table->fields->all->get( ) INTO DATA(lo_xco_field).
+    ""       ASSIGN rt_field[ fieldname = to_upper( lo_xco_field->name ) ]
+    ""              TO FIELD-SYMBOL(<ls_target>).
+    ""       CHECK sy-subrc = 0.
+    ""       <ls_target>-ddtext = lo_xco_field->content( )->get_short_description( ).
+    ""     ENDLOOP.
+    ""   CATCH cx_root.
+    ""     " 라벨 보강 실패는 무시한다.
+    "" ENDTRY.
+    "" ------------------------------------------------------------------------
 
   ENDMETHOD.
 
@@ -242,7 +270,7 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
       |<Style ss:ID="Header"><Font ss:Bold="1"/>| &&
       |<Interior ss:Color="#DCE6F1" ss:Pattern="Solid"/></Style>\n| &&
       |</Styles>\n| &&
-      |<Worksheet ss:Name="{ escape_xml( CONV #( iv_table_name ) ) }">\n| &&
+      |<Worksheet ss:Name="{ escape_xml( to_upper( iv_table_name ) ) }">\n| &&
       |<Table>\n| &&
       |<Row>\n|.
 
@@ -250,23 +278,32 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
     LOOP AT lt_field INTO DATA(ls_field).
       lv_xml = lv_xml &&
         |<Cell ss:StyleID="Header"><Data ss:Type="String">| &&
-        |{ escape_xml( CONV #( ls_field-fieldname ) ) }</Data></Cell>\n|.
+        |{ escape_xml( ls_field-fieldname ) }</Data></Cell>\n|.
     ENDLOOP.
     lv_xml = lv_xml && |</Row>\n<Row>\n|.
 
     " 2행: 필드 설명(참고용). 업로드 파싱 시 mc_header_rows에 의해 자동으로 건너뛴다.
+    " ddtext가 없으면(= XCO 라벨 보강을 안 켰으면) DDIC 타입명 + 길이를 대신 보여준다.
     LOOP AT lt_field INTO ls_field.
+
+      DATA(lv_type) = COND string(
+        WHEN ls_field-rollname IS NOT INITIAL
+        THEN |{ ls_field-rollname } ({ ls_field-type_kind }{ ls_field-leng })|
+        ELSE |{ ls_field-type_kind }{ ls_field-leng }| ).
+
       DATA(lv_label) = COND string(
         WHEN ls_field-ddtext IS NOT INITIAL
-        THEN |{ ls_field-ddtext } ({ ls_field-datatype }{ ls_field-leng })|
-        ELSE '' ).
+        THEN |{ ls_field-ddtext } / { lv_type }|
+        ELSE lv_type ).
+
       lv_xml = lv_xml &&
         |<Cell><Data ss:Type="String">{ escape_xml( lv_label ) }</Data></Cell>\n|.
+
     ENDLOOP.
     lv_xml = lv_xml && |</Row>\n</Table>\n</Worksheet>\n</Workbook>|.
 
     rs_template = VALUE #( file     = cl_abap_codepage=>convert_to( lv_xml )
-                           filename = |{ iv_table_name }_TEMPLATE.xls|
+                           filename = |{ to_upper( iv_table_name ) }_TEMPLATE.xls|
                            mimetype = mc_mime_xls
                            success  = abap_true ).
 
@@ -315,7 +352,8 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
       LOOP AT lt_header INTO DATA(lv_fieldname).
         DATA(lv_col_idx) = sy-tabix.
 
-        ASSIGN COMPONENT lv_fieldname OF STRUCTURE <ls_line> TO FIELD-SYMBOL(<fs_value>).
+        ASSIGN COMPONENT to_upper( lv_fieldname ) OF STRUCTURE <ls_line>
+                                                  TO FIELD-SYMBOL(<fs_value>).
         CHECK sy-subrc = 0 AND lines( lt_col ) >= lv_col_idx.
 
         TRY.
@@ -376,8 +414,10 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    DATA(lv_table) = to_upper( iv_table_name ).
+
     TRY.
-        MODIFY (iv_table_name) FROM TABLE @<lt_table>.
+        MODIFY (lv_table) FROM TABLE @<lt_table>.
 
         IF sy-subrc = 0.
 
@@ -390,7 +430,7 @@ CLASS zcl_dynamic_table_upload IMPLEMENTATION.
         ELSE.
 
           rs_result-error_rows = rs_result-total_rows.
-          rs_result-message    = |MODIFY ({ iv_table_name }) 실패 (sy-subrc = { sy-subrc })|.
+          rs_result-message    = |MODIFY ({ lv_table }) 실패 (sy-subrc = { sy-subrc })|.
           IF iv_commit = abap_true.
             ROLLBACK WORK.
           ENDIF.

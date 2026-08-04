@@ -1,81 +1,121 @@
 /*
- * 예시: 기존 TADIR 래핑 RAP BO(오브젝트 조회 앱)에 동적 업로드 액션을 추가하는 스니펫.
+ * 예시: 기존 TADIR 래핑 RAP BO(오브젝트 조회 앱)에 동적 업로드를 추가하는 스니펫.
  *
- * 기존 앱이 TADIR을 래핑하고 있다는 전제이므로 엔터티 키는 TADIR 주키와 동일하다고 본다:
+ * 기존 앱이 TADIR을 래핑한다는 전제이므로 엔터티 키는 TADIR 주키와 동일하다고 본다:
  *   PgmId (TADIR-PGMID) / Object (TADIR-OBJECT) / ObjName (TADIR-OBJ_NAME)
  * 실제 CDS 뷰의 필드명이 다르면 아래 이름만 맞춰서 바꾸면 된다.
  *
- * 핵심: 목록 행 자체가 "오브젝트 1건"이므로 액션은 instance action으로 두고,
- * 테이블명은 파라미터로 받지 않고 키 행의 ObjName에서 읽는다.
- * => 사용자가 테이블명을 타이핑할 일이 없어 오타/임의 테이블 접근이 원천 차단된다.
+ * ---------------------------------------------------------------------------
+ * 구조가 왜 이렇게 되는가 (중요)
+ * ---------------------------------------------------------------------------
+ * TADIR은 읽기 전용 SAP 표준 테이블이라 업로드 파일을 담을 수 없다.
+ * managed BO는 "엔터티 1개 = persistent table 1개"이므로, TADIR 엔터티에
+ * 스테이징 테이블의 필드를 직접 쓰기 가능하게 만들 수는 없다.
+ *
+ * 그래서 composition child를 하나 둔다:
+ *   TadirObject (persistent table = tadir, 읽기 전용)
+ *     └─ Staging (persistent table = ztb_dyn_upload_stg, 쓰기 가능)
+ *
+ * 파일 업/다운로드는 전부 자식 엔터티의 스트림 필드에서 일어나고,
+ * 액션은 부모에 두어 목록 화면에서 바로 실행할 수 있게 한다.
+ * ---------------------------------------------------------------------------
  */
 
 managed implementation in class zbp_i_tadirobject unique;
 strict ( 2 );
 
 define behavior for ZI_TadirObject alias TadirObject
-// TADIR 래핑 조회 전용 BO이므로 DB 테이블 매핑/락은 기존 정의를 그대로 둔다.
+persistent table tadir
+lock master
+authorization master ( instance )
+// TADIR 자체는 절대 쓰지 않으므로 create/update/delete를 선언하지 않는다.
 {
   use etag master LastChangedAt;
 
   field ( readonly ) PgmId, Object, ObjName;
 
-  /* ---------------------------------------------------------------------
-   * 동적 업로드 액션 2종.
-   * features : instance 를 반드시 붙여서, TABL이 아니거나 구조체인 행에서는
-   * 버튼이 비활성화되도록 한다. (TADIR에는 PROG/CLAS/DDLS 등이 대부분이다)
-   * --------------------------------------------------------------------- */
+  // 스테이징 자식. [0..1]이며 액션 실행 시 없으면 만들어진다.
+  association _Staging { create; }
 
-  // 템플릿 다운로드: 결과로 다운로드 URL을 돌려주고, 실제 파일 스트리밍은
-  // HTTP 서비스(ZCL_DYN_UPLOAD_HTTP_SERVICE)가 담당한다.
-  // 액션 결과로 xstring을 주면 Fiori Elements가 브라우저 다운로드를 걸어주지 않기 때문.
-  action ( features : instance ) downloadTemplate
+  /* -------------------------------------------------------------------------
+   * 동적 업로드 액션 2종.
+   *
+   * features : instance 를 반드시 붙인다. TADIR에는 PROG/CLAS/DDLS 등이 대부분이고
+   * OBJECT = 'TABL' 인 행에도 구조체(TABCLASS = INTTAB)가 섞여 있어서,
+   * 게이팅이 없으면 모든 행에서 버튼이 활성화된다.
+   * ------------------------------------------------------------------------- */
+
+  // 템플릿 생성: 대상 테이블 구조로 Excel 템플릿을 만들어 Staging-TemplateFile에 넣는다.
+  // 생성 후 사용자는 그 스트림 필드의 다운로드 링크($value)로 내려받는다.
+  // => 별도 HTTP 서비스 없이 다운로드가 된다.
+  action ( features : instance ) generateTemplate
     result [1] $self;
 
-  // 업로드 실행: 파일 자체는 아래 uploadFile 스트림 필드로 먼저 올라가고,
-  // 이 액션은 "올라온 파일로 마이그레이션을 실행"하는 트리거 역할만 한다.
+  // 업로드 실행: Staging-UploadFile에 이미 올라온 파일로 마이그레이션을 수행한다.
   action ( features : instance ) uploadData
     result [1] $self;
+}
 
-  /* ---------------------------------------------------------------------
-   * 업로드 파일을 담을 스트림 필드.
-   * Fiori Elements는 @Semantics.largeObject 가 붙은 필드에만 파일 업로더
-   * 컨트롤을 렌더링한다. 액션 파라미터의 xstring은 텍스트 입력으로 나온다.
-   *
-   * TADIR은 읽기 전용 표준 테이블이라 여기에 파일을 저장할 수 없으므로,
-   * 업로드 스테이징용 커스텀 테이블(ZTB_DYN_UPLOAD_STG)을 별도로 두고
-   * TADIR 키로 조인하는 구조를 권장한다.
-   * --------------------------------------------------------------------- */
-  field ( readonly ) UploadFileMimeType, UploadFileName;
+define behavior for ZI_DynUploadStaging alias Staging
+persistent table ztb_dyn_upload_stg
+lock dependent by _TadirObject
+authorization dependent by _TadirObject
+{
+  update;
+  delete;
+  association _TadirObject;
+
+  field ( readonly ) PgmId, Object, ObjName;
+
+  // 템플릿은 액션만 채운다. 사용자가 직접 올리지 못하게 막는다.
+  field ( readonly ) TemplateFile, TemplateFileName, TemplateFileMimeType;
+
+  // 실행 결과 요약도 액션이 채우는 값이다.
+  field ( readonly ) LastTotalRows, LastSuccessRows, LastErrorRows, LastRunAt;
+
+  field ( readonly ) CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
+
+  mapping for ztb_dyn_upload_stg
+    {
+      PgmId                = pgmid;
+      Object               = object;
+      ObjName              = obj_name;
+      UploadFile           = upload_file;
+      UploadFileName       = upload_filename;
+      UploadFileMimeType   = upload_mimetype;
+      TemplateFile         = template_file;
+      TemplateFileName     = template_filename;
+      TemplateFileMimeType = template_mimetype;
+      LastTotalRows        = last_total_rows;
+      LastSuccessRows      = last_success_rows;
+      LastErrorRows        = last_error_rows;
+      LastRunAt            = last_run_at;
+      CreatedBy            = created_by;
+      CreatedAt            = created_at;
+      LastChangedBy        = last_changed_by;
+      LastChangedAt        = last_changed_at;
+      LocalLastChangedAt   = local_last_changed_at;
+    }
 }
 
 /* =====================================================================
- * 참고 1) 조회 CDS 뷰에 추가할 스트림 필드 어노테이션 (ZI_TadirObject)
+ * Projection behavior (ZC_TadirObject 용)
  * =====================================================================
  *
- *   @Semantics.largeObject: { mimeType: 'UploadFileMimeType',
- *                             fileName: 'UploadFileName',
- *                             contentDispositionPreference: #ATTACHMENT }
- *   stg.upload_file    as UploadFile,
+ * projection;
+ * strict ( 2 );
  *
- *   @Semantics.mimeType: true
- *   stg.upload_mimetype as UploadFileMimeType,
- *   stg.upload_filename as UploadFileName,
+ * define behavior for ZC_TadirObject alias TadirObject
+ * {
+ *   use action generateTemplate;
+ *   use action uploadData;
+ *   use association _Staging { create; }
+ * }
  *
- * 그리고 projection(consumption) 뷰에서:
- *
- *   @UI.fileUpload: { fileNamePropertyPath: 'UploadFileName',
- *                     mediaTypePropertyPath: 'UploadFileMimeType',
- *                     acceptableMediaTypes: [ 'text/csv' ] }
- *   UploadFile,
- *
- * =====================================================================
- * 참고 2) 다운로드 URL을 담을 가상 필드 (projection 뷰)
- * =====================================================================
- *
- *   @UI.hidden: true
- *   cast( '' as abap.char( 255 ) ) as TemplateUrl,
- *
- * downloadTemplate 액션 핸들러에서 이 필드에 HTTP 서비스 URL을 채워
- * 결과로 돌려주고, UI5 쪽에서 window.open( ) 하는 방식이 가장 단순하다.
+ * define behavior for ZC_DynUploadStaging alias Staging
+ * {
+ *   use update;
+ *   use delete;
+ *   use association _TadirObject;
+ * }
  */

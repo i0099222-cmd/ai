@@ -1,8 +1,13 @@
-"! 템플릿 다운로드용 HTTP 서비스 핸들러.
+"! 템플릿 다운로드용 HTTP 서비스 핸들러. **선택 사항이다.**
 "!
-"! RAP 액션 결과로 xstring을 돌려줘도 Fiori Elements가 브라우저 다운로드를 걸어주지 않기 때문에,
-"! 실제 파일 스트리밍은 이 HTTP 서비스가 담당한다. Content-Disposition 헤더를 직접 세팅할 수 있어
-"! 파일명(ZCBO_XXX_TEMPLATE.xls)까지 원하는 대로 나온다.
+"! 스테이징 테이블(ZTB_DYN_UPLOAD_STG)을 도입하면 템플릿을 그 테이블의 스트림 필드
+"! (TemplateFile)에 담아 Fiori Elements 표준 다운로드 링크($value)로 내려받을 수 있으므로,
+"! 이 HTTP 서비스는 없어도 된다. 다음 경우에만 쓰면 된다.
+"!   - 템플릿을 DB에 저장하지 않고 매번 즉석 생성해서 바로 내려주고 싶을 때
+"!   - "액션 실행 -> 링크 클릭" 2단계 대신 단일 클릭/북마크 가능한 URL이 필요할 때
+"!   - Fiori 앱 밖(외부 도구, 배치 스크립트)에서 템플릿을 받아가야 할 때
+"!
+"! Content-Disposition 헤더를 직접 세팅하므로 파일명(ZCBO_XXX_TEMPLATE.xls)을 원하는 대로 준다.
 "!
 "! 설정:
 "!   ADT에서 "HTTP Service" 오브젝트를 ZDYN_UPLOAD_TEMPLATE 이름으로 만들고

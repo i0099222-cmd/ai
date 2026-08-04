@@ -68,14 +68,24 @@ CLASS lhc_tadirobject IMPLEMENTATION.
 
     result = VALUE #(
       FOR ls_tadir IN lt_tadir
-      LET lv_enabled = COND #(
-            WHEN is_upload_candidate( iv_object   = ls_tadir-object
-                                      iv_obj_name = ls_tadir-objname ) = abap_true
-            THEN if_abap_behv=>fc-o-enabled
-            ELSE if_abap_behv=>fc-o-disabled )
+      LET lv_candidate = is_upload_candidate( iv_object   = ls_tadir-object
+                                              iv_obj_name = ls_tadir-objname )
+
+          " 템플릿 생성은 EML로 RAP 관리 데이터만 쓰므로 draft 상태에서도 안전하다.
+          lv_template  = COND #( WHEN lv_candidate = abap_true
+                                 THEN if_abap_behv=>fc-o-enabled
+                                 ELSE if_abap_behv=>fc-o-disabled )
+
+          " 업로드는 대상 CBO 테이블에 직접 Open SQL MODIFY를 날린다. RAP 트랜잭션 버퍼를
+          " 거치지 않으므로 draft에서 실행한 뒤 Discard해도 데이터가 되돌아가지 않는다.
+          " => 활성(active) 인스턴스에서만 실행 가능하게 막는다.
+          lv_upload    = COND #( WHEN lv_candidate = abap_true
+                                  AND ls_tadir-%is_draft = if_abap_behv=>mk-off
+                                 THEN if_abap_behv=>fc-o-enabled
+                                 ELSE if_abap_behv=>fc-o-disabled )
       IN ( %tky                     = ls_tadir-%tky
-           %action-generatetemplate = lv_enabled
-           %action-uploaddata       = lv_enabled ) ).
+           %action-generatetemplate = lv_template
+           %action-uploaddata       = lv_upload ) ).
 
   ENDMETHOD.
 
@@ -219,6 +229,22 @@ CLASS lhc_tadirobject IMPLEMENTATION.
           %msg = new_message_with_text(
                    severity = if_abap_behv_message=>severity-error
                    text     = |{ ls_tadir-objname }은(는) 업로드 가능한 CBO 테이블이 아닙니다.| ) )
+          TO reported-tadirobject.
+        CONTINUE.
+
+      ENDIF.
+
+      " feature control로 이미 막았지만, 액션은 OData로 직접 호출될 수 있다.
+      " draft에서 실행되면 Discard로 되돌릴 수 없는 DB 변경이 남으므로 여기서 다시 막는다.
+      IF ls_tadir-%is_draft = if_abap_behv=>mk-on.
+
+        APPEND VALUE #( %tky = ls_tadir-%tky ) TO failed-tadirobject.
+        APPEND VALUE #(
+          %tky = ls_tadir-%tky
+          %msg = new_message_with_text(
+                   severity = if_abap_behv_message=>severity-error
+                   text     = '먼저 저장한 뒤 업로드를 실행하세요. '
+                           && '편집 중 상태에서는 마이그레이션을 실행할 수 없습니다.' ) )
           TO reported-tadirobject.
         CONTINUE.
 

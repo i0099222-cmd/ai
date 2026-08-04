@@ -1,69 +1,85 @@
 /*
- * 예시: 기존 TADIR 래핑 RAP BO(오브젝트 조회 앱)에 동적 업로드를 추가하는 스니펫.
+ * 예시: 기존 TADIR 래핑 RAP BO(오브젝트 조회 앱, draft 사용)에 동적 업로드를 추가하는 스니펫.
  *
- * 기존 앱이 TADIR을 래핑한다는 전제이므로 엔터티 키는 TADIR 주키와 동일하다고 본다:
+ * 엔터티 키는 TADIR 주키와 동일하다고 본다:
  *   PgmId (TADIR-PGMID) / Object (TADIR-OBJECT) / ObjName (TADIR-OBJ_NAME)
- * 실제 CDS 뷰의 필드명이 다르면 아래 이름만 맞춰서 바꾸면 된다.
  *
  * ---------------------------------------------------------------------------
- * 구조가 왜 이렇게 되는가 (중요)
+ * 구조가 왜 이렇게 되는가
  * ---------------------------------------------------------------------------
  * TADIR은 읽기 전용 SAP 표준 테이블이라 업로드 파일을 담을 수 없다.
  * managed BO는 "엔터티 1개 = persistent table 1개"이므로, TADIR 엔터티에
  * 스테이징 테이블의 필드를 직접 쓰기 가능하게 만들 수는 없다.
  *
- * 그래서 composition child를 하나 둔다:
- *   TadirObject (persistent table = tadir, 읽기 전용)
- *     └─ Staging (persistent table = ztb_dyn_upload_stg, 쓰기 가능)
+ *   TadirObject (persistent table = tadir,               읽기 전용)
+ *     └─ Staging (persistent table = ztb_dyn_upload_stg,  쓰기 가능)
  *
- * 파일 업/다운로드는 전부 자식 엔터티의 스트림 필드에서 일어나고,
- * 액션은 부모에 두어 목록 화면에서 바로 실행할 수 있게 한다.
+ * draft를 쓰므로 두 엔터티 모두 draft 테이블이 필요하다(루트가 읽기 전용이어도 예외 없음).
+ *
+ * ---------------------------------------------------------------------------
+ * draft에서 특히 주의할 점: uploadData의 실행 시점
+ * ---------------------------------------------------------------------------
+ * uploadData는 대상 CBO 테이블에 **직접 Open SQL MODIFY**를 날린다. 이건 RAP 트랜잭션
+ * 버퍼를 거치지 않으므로, draft 상태에서 실행한 뒤 사용자가 Discard를 눌러도
+ * 이미 들어간 데이터는 되돌아가지 않는다.
+ *
+ * 그래서 uploadData는 **활성(active) 인스턴스에서만** 실행되도록 feature control로 막는다.
+ * 사용자 흐름: 편집 → 파일 첨부 → 저장(활성화) → uploadData 실행.
+ * (lhc_tadirobject~get_instance_features 의 %is_draft 검사 참고)
+ *
+ * generateTemplate은 EML로 RAP 관리 데이터만 쓰므로 draft에서 실행해도 안전하다.
  * ---------------------------------------------------------------------------
  */
 
 managed implementation in class zbp_i_tadirobject unique;
 strict ( 2 );
+with draft;
 
 define behavior for ZI_TadirObject alias TadirObject
 persistent table tadir
-lock master
+draft table ztb_tadirobj_d
+lock master total etag LastChangedAt
 authorization master ( instance )
 // TADIR 자체는 절대 쓰지 않으므로 create/update/delete를 선언하지 않는다.
 {
-  use etag master LastChangedAt;
-
   field ( readonly ) PgmId, Object, ObjName;
 
-  // 스테이징 자식. [0..1]이며 액션 실행 시 없으면 만들어진다.
-  association _Staging { create; }
+  // 스테이징 자식. draft BO이므로 with draft 가 필요하다.
+  association _Staging { create; with draft; }
 
   /* -------------------------------------------------------------------------
    * 동적 업로드 액션 2종.
    *
-   * features : instance 를 반드시 붙인다. TADIR에는 PROG/CLAS/DDLS 등이 대부분이고
+   * features : instance 필수. TADIR에는 PROG/CLAS/DDLS 등이 대부분이고
    * OBJECT = 'TABL' 인 행에도 구조체(TABCLASS = INTTAB)가 섞여 있어서,
    * 게이팅이 없으면 모든 행에서 버튼이 활성화된다.
    * ------------------------------------------------------------------------- */
 
   // 템플릿 생성: 대상 테이블 구조로 Excel 템플릿을 만들어 Staging-TemplateFile에 넣는다.
   // 생성 후 사용자는 그 스트림 필드의 다운로드 링크($value)로 내려받는다.
-  // => 별도 HTTP 서비스 없이 다운로드가 된다.
-  action ( features : instance ) generateTemplate
-    result [1] $self;
+  action ( features : instance ) generateTemplate result [1] $self;
 
-  // 업로드 실행: Staging-UploadFile에 이미 올라온 파일로 마이그레이션을 수행한다.
-  action ( features : instance ) uploadData
-    result [1] $self;
+  // 업로드 실행: Staging-UploadFile에 올라온 파일로 마이그레이션을 수행한다.
+  // draft 상태에서는 비활성화된다(위 주석 참고).
+  action ( features : instance ) uploadData result [1] $self;
+
+  /* draft 표준 액션 */
+  draft action ( features : instance ) Edit;
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Resume;
+  draft determine action Prepare { }
 }
 
 define behavior for ZI_DynUploadStaging alias Staging
 persistent table ztb_dyn_upload_stg
+draft table ztb_dyn_upl_stg_d
 lock dependent by _TadirObject
 authorization dependent by _TadirObject
 {
   update;
   delete;
-  association _TadirObject;
+  association _TadirObject { with draft; }
 
   field ( readonly ) PgmId, Object, ObjName;
 
@@ -104,18 +120,26 @@ authorization dependent by _TadirObject
  *
  * projection;
  * strict ( 2 );
+ * use draft;
  *
  * define behavior for ZC_TadirObject alias TadirObject
  * {
  *   use action generateTemplate;
  *   use action uploadData;
- *   use association _Staging { create; }
+ *
+ *   use action Edit;
+ *   use action Activate;
+ *   use action Discard;
+ *   use action Resume;
+ *   use action Prepare;
+ *
+ *   use association _Staging { create; with draft; }
  * }
  *
  * define behavior for ZC_DynUploadStaging alias Staging
  * {
  *   use update;
  *   use delete;
- *   use association _TadirObject;
+ *   use association _TadirObject { with draft; }
  * }
  */

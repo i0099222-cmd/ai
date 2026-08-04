@@ -4,23 +4,34 @@
  */
 
 /* =====================================================================
- * 1) 인터페이스 뷰 ZI_TadirObject 에 composition 추가
+ * 1) 인터페이스 뷰 ZI_TadirObject 에 composition + total etag 필드 추가
  * =====================================================================
  *
  * define view entity ZI_TadirObject
  *   as select from tadir
  *   composition [0..1] of ZI_DynUploadStaging as _Staging   // <== 추가
+ *
+ *   // draft의 total etag용. TADIR에는 변경시각 필드가 없으므로
+ *   // 스테이징 테이블의 변경시각을 끌어올려 쓴다.
+ *   left outer join ztb_dyn_upload_stg as stg               // <== 추가
+ *     on  tadir.pgmid    = stg.pgmid
+ *     and tadir.object   = stg.object
+ *     and tadir.obj_name = stg.obj_name
  * {
- *   key pgmid    as PgmId,
- *   key object   as Object,
- *   key obj_name as ObjName,
+ *   key tadir.pgmid    as PgmId,
+ *   key tadir.object   as Object,
+ *   key tadir.obj_name as ObjName,
  *       ... 기존 필드 ...
+ *
+ *       @Semantics.systemDateTime.lastChangedAt: true
+ *       stg.last_changed_at as LastChangedAt,               // <== 추가
  *
  *       _Staging                                            // <== 추가
  * }
  *
  * composition [0..1] 인 이유: TADIR 행은 수백만 건인데 스테이징 행은
  * 실제로 업로드를 시도한 테이블에만 생긴다. 반드시 [0..1] 이어야 한다.
+ * 같은 이유로 조인도 반드시 LEFT OUTER 여야 한다(INNER면 목록이 비어버린다).
  *
  * =====================================================================
  * 2) Projection(consumption) 뷰 ZC_TadirObject 에 추가

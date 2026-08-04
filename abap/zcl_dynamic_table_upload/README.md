@@ -1,76 +1,74 @@
 # 동적 테이블 업로드 (SAP RAP / PCE)
 
-CBO 테이블 구조를 런타임에 읽어 **엑셀 템플릿 다운로드 → 업로드 → JSON 변환 → 마이그레이션**까지 처리하는 프로그램.
+CBO 테이블 구조를 런타임에 읽어 **엑셀 템플릿 다운로드 → 업로드 → JSON 변환 → 마이그레이션**까지 처리.
 기존 TADIR 래핑 오브젝트 조회 RAP 앱(draft 사용)에 액션으로 붙이는 것을 전제로 한다.
 
 ---
 
-## 처음이면 이 3개만 보세요
+## 새로 만들 오브젝트 = 5개
 
-| 순서 | 파일 | 왜 |
+| # | 오브젝트 | 종류 | 파일 |
+|---|---|---|---|
+| 1 | `ZCL_DYNAMIC_TABLE_UPLOAD` | 클래스 | `zcl_dynamic_table_upload.clas.abap` ★ |
+| 2 | `ZTB_DYN_UPLOAD_STG` | 테이블 | `ztb_dyn_upload_stg.tabl.asddls` |
+| 3 | `ZTB_DYN_UPL_STG_D` | 테이블(draft) | `ztb_dyn_upl_stg_d.tabl.asddls` |
+| 4 | `ZI_DYNUPLOADSTAGING` | CDS 뷰 | `zi_dynuploadstaging.asddls` |
+| 5 | `ZC_DYNUPLOADSTAGING` | CDS 뷰(projection) | `example_tadirobject_view_additions.asddls` 안에 있음 |
+
+**로직은 1번 클래스 하나에 다 있다.** 2~5번은 "TADIR이 읽기 전용이라 업로드 파일을 담을 데가
+없다"는 문제 때문에 생긴 부속이다.
+
+### 기존 오브젝트 수정 (신규 아님)
+
+| 대상 | 무엇을 | 참고 파일 |
 |---|---|---|
-| 1 | `zif_dynamic_table_upload.intf.abap` | 엔진이 뭘 할 수 있는지 한 눈에. 109줄, 주석 위주 |
-| 2 | `zcl_dynamic_table_upload.clas.abap` | **핵심 로직 전부.** 템플릿 생성 / JSON 변환 / 마이그레이션 |
-| 3 | `example_lhc_tadir_upload.clas.abap` | 기존 앱에 붙이는 방법. 액션 게이팅 + EML |
+| `ZI_TadirObject` | composition 1줄 추가 | `example_tadirobject_view_additions.asddls` |
+| `ZC_TadirObject` | redirected 1줄 추가 | 〃 |
+| BDEF | 액션 2개 + association 추가 | `example_tadir_upload.bdef.asbdef` |
+| behavior 구현 클래스 | 메서드 4개 추가 | `example_lhc_tadir_upload.clas.abap` |
 
-나머지 9개는 위 3개를 돌리기 위한 부속(테이블 DDL, CDS 뷰, BDEF)이다.
+루트 draft 테이블은 **이미 draft를 쓰고 계시므로 기존 것을 그대로 씁니다.** 신규 생성 불필요.
 
 ---
 
-## 전체 파일 지도
+## 처음이면 이것만
 
-### ① 엔진 — 그대로 만들면 됨 (UI/BO 무관, 재사용 가능)
+`zcl_dynamic_table_upload.clas.abap` — 핵심 로직 전부. 나머지는 이걸 앱에 꽂기 위한 배선이다.
 
-| 파일 | 내용 |
-|---|---|
-| `zif_dynamic_table_upload.intf.abap` | 인터페이스 |
-| `zcl_dynamic_table_upload.clas.abap` | 구현 ★ |
-| `zcx_dynamic_table_upload.clas.abap` | 예외 클래스 |
+RAP 의존성이 0이라 BO를 건드리기 전에 단독 테스트가 된다:
 
-RAP 의존성이 0이라 리포트/HTTP 서비스/다른 BO에서도 그대로 부를 수 있다.
+```abap
+DATA(lo) = NEW zcl_dynamic_table_upload( ).
+DATA(ls) = lo->create_excel_template( 'ZCBO_XXX' ).   " ls-file 이 나오면 성공
+```
 
-### ② 신규 DDIC/CDS 오브젝트 — 그대로 만들면 됨
+---
 
-| 파일 | 내용 |
-|---|---|
-| `ztb_dyn_upload_stg.tabl.asddls` | 업로드 스테이징 테이블 (파일 보관) |
-| `ztb_dyn_upl_stg_d.tabl.asddls` | 위 테이블의 draft 테이블 |
-| `ztb_tadirobj_d.tabl.asddls` | 루트(TADIR) 엔터티의 draft 테이블 ※필드는 기존 뷰에 맞춰 조정 |
-| `zi_dynuploadstaging.asddls` | 스테이징 인터페이스 뷰 (스트림 필드 정의) |
+## 더 줄이고 싶다면 (5개 → 1개)
 
-### ③ 기존 앱에 반영 — 통째로 쓰지 말고 필요한 부분만 발췌
+2~5번은 전부 **업로드 파일을 DB에 저장하기 위한** 것이다. Fiori Elements가
+`@Semantics.largeObject` 필드에만 파일 업로더를 그려주기 때문이다.
 
-| 파일 | 내용 |
-|---|---|
-| `example_tadirobject_view_additions.asddls` | 기존 CDS 뷰에 **추가할 줄만** 모음 + 신규 projection 뷰 |
-| `example_tadir_upload.bdef.asbdef` | BDEF. 기존 BDEF에 액션/association/draft 선언 추가 |
-| `example_lhc_tadir_upload.clas.abap` | behavior 구현. 기존 핸들러 클래스에 메서드 추가 |
+파일을 저장하지 않고 **UI5 커스텀 코드로 base64 인코딩해서 액션 파라미터로 넘기면**
+2~5번이 전부 사라지고 클래스 1개만 남는다. 대신 UI5 컨트롤러 익스텐션을 직접 짜야 한다.
 
-`example_` 접두어 = 기존 오브젝트에 병합해야 하는 것. 파일명 그대로 만드는 게 아니다.
-
-### ④ 선택 / 참고
-
-| 파일 | 내용 |
-|---|---|
-| `zcl_dyn_upload_http_service.clas.abap` | **안 만들어도 됨.** 템플릿을 스트림 필드 대신 URL로 받고 싶을 때만 |
-| `example_lhc_dynamic_upload.clas.abap` | TADIR과 무관한 **일반 BO용** 예시. 다른 앱에 엔진을 붙일 때 참고 |
+| | 오브젝트 | UI5 커스텀 코드 | 파일 이력 |
+|---|---|---|---|
+| 현재 방식 (스테이징) | 5개 | 불필요 | 남음 |
+| 파일 미저장 방식 | 1개 | **필요** | 안 남음 |
 
 ---
 
 ## ADT 작업 순서
 
 ```
-1. 엔진 3개 생성           → zif / zcl / zcx           (독립적으로 바로 테스트 가능)
-2. 스테이징 테이블 생성     → ztb_dyn_upload_stg
-3. draft 테이블 2개 생성    → ztb_dyn_upl_stg_d, ztb_tadirobj_d
-4. 스테이징 CDS 뷰 생성     → zi_dynuploadstaging + zc_dynuploadstaging
-5. 기존 뷰에 composition 추가 (+ LastChangedAt)
-6. 기존 BDEF에 액션/draft 선언 추가
-7. 기존 핸들러 클래스에 메서드 추가
+1. 클래스 생성 → 단독 테스트로 템플릿이 나오는지 확인   ← 여기까지 먼저
+2. 테이블 2개 생성 (스테이징 + draft)
+3. CDS 뷰 2개 생성 (ZI / ZC)
+4. 기존 뷰에 composition 추가
+5. 기존 BDEF에 액션 추가
+6. 기존 핸들러에 메서드 추가
 ```
-
-1번까지만 해도 엔진은 단위 테스트가 가능하다. 먼저 거기까지 만들어서
-`create_excel_template( 'ZCBO_XXX' )` 가 제대로 나오는지 확인하고 넘어가는 것을 권장.
 
 ---
 

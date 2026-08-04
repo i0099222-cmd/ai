@@ -37,7 +37,10 @@ with draft;
 
 define behavior for ZI_TadirObject alias TadirObject
 persistent table tadir
-draft table ztb_tadirobj_d
+// 이미 draft를 쓰고 있다면 루트 draft 테이블은 기존 것을 그대로 쓴다(신규 생성 불필요).
+draft table <기존_루트_draft_테이블>
+// total etag 필드도 기존에 쓰던 것을 그대로 두면 된다.
+// 없다면 스테이징의 last_changed_at을 끌어올려 쓴다(view_additions 스니펫 참고).
 lock master total etag LastChangedAt
 authorization master ( instance )
 // TADIR 자체는 절대 쓰지 않으므로 create/update/delete를 선언하지 않는다.

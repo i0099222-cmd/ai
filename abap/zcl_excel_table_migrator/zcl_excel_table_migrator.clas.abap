@@ -32,9 +32,8 @@ CLASS zcl_excel_table_migrator DEFINITION
   PRIVATE SECTION.
 
     "! 엑셀 한 행을 STRING_TABLE(셀 값을 컬럼 순서대로)로 변환.
-    "! TODO: CL_FDT_XL_SPREADSHEET의 GET_ITAB_FROM_SHEET가 실제로 돌려주는
-    "! 행 타입이 시스템 릴리즈에 따라 다를 수 있으므로, 실제 확인 후
-    "! 이 메서드만 맞춰 고치면 된다 (호출부는 그대로 둬도 됨).
+    "! GET_ITAB_FROM_WORKSHEET가 돌려주는 행 타입이 시스템마다 다를 수 있으므로,
+    "! 실제 확인 후 이 메서드만 맞춰 고치면 된다 (호출부는 그대로 둬도 됨).
     METHODS row_to_strings
       IMPORTING
         is_row           TYPE any
@@ -58,18 +57,15 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     lo_excel->if_fdt_doc_spreadsheet~get_worksheet_names(
       IMPORTING worksheet_names = DATA(lt_sheets) ).
 
-    lo_excel->if_fdt_doc_spreadsheet~get_itab_from_sheet(
-      EXPORTING worksheet_id = lt_sheets[ 1 ]
-      IMPORTING itab         = DATA(lr_raw) ).
+    DATA(lt_raw) = lo_excel->if_fdt_doc_spreadsheet~get_itab_from_worksheet(
+      worksheet_name = lt_sheets[ 1 ] ).
 
-    ASSIGN lr_raw->* TO FIELD-SYMBOL(<lt_raw>).
-
-    IF <lt_raw> IS NOT ASSIGNED OR lines( <lt_raw> ) <= iv_header_row.
+    IF lines( lt_raw ) <= iv_header_row.
       RETURN.
     ENDIF.
 
     " 2) 헤더 행 = 대상 테이블 필드명.
-    READ TABLE <lt_raw> ASSIGNING FIELD-SYMBOL(<ls_header>) INDEX iv_header_row.
+    READ TABLE lt_raw ASSIGNING FIELD-SYMBOL(<ls_header>) INDEX iv_header_row.
     DATA(lt_fieldnames) = row_to_strings( <ls_header> ).
 
     " 3) 대상 테이블 구조를 RTTI로 조회해서 동적 내부테이블 생성.
@@ -84,7 +80,7 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     DATA lr_wa TYPE REF TO data.
 
     " 4) 데이터 행 -> 동적 워크에어리어에 필드명 매칭해서 채우고 append.
-    LOOP AT <lt_raw> ASSIGNING FIELD-SYMBOL(<ls_row>) FROM iv_header_row + 1.
+    LOOP AT lt_raw ASSIGNING FIELD-SYMBOL(<ls_row>) FROM iv_header_row + 1.
 
       DATA(lt_values) = row_to_strings( <ls_row> ).
 

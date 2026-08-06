@@ -61,8 +61,11 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       worksheet_name = lt_sheets[ 1 ] ).
 
     " get_itab_from_worksheet는 내부테이블이 아니라 TYPE REF TO DATA를
-    " 돌려주므로 역참조해서 써야 한다.
-    ASSIGN lr_raw->* TO FIELD-SYMBOL(<lt_raw>).
+    " 돌려주므로 역참조해서 써야 한다. 역참조 결과가 fully generic 타입이면
+    " READ TABLE ... INDEX / LOOP ... FROM 같은 인덱스 연산이 막히므로,
+    " 최소한 INDEX TABLE(인덱스 접근 가능한 제네릭 타입)로 캐스팅해서 받는다.
+    FIELD-SYMBOLS <lt_raw> TYPE INDEX TABLE.
+    ASSIGN lr_raw->* TO <lt_raw>.
 
     IF <lt_raw> IS NOT ASSIGNED OR lines( <lt_raw> ) <= iv_header_row.
       RETURN.

@@ -1,101 +1,134 @@
-"! 엑셀 업로드 접수 공통 클래스 (ABAP Cloud 언어버전).
-"! 이 클래스는 화이트리스트 조회(ZEXCEL_MIGR_WL), 권한체크(S_TABU_NAM),
-"! 스테이징 테이블 저장(ZEXCEL_MIGR_REQ)까지만 담당한다 - 전부 정적
-"! 테이블명/릴리즈 API만 사용하므로 ABAP Cloud에서 그대로 동작한다.
+"! 엑셀 업로드(xlsx 바이너리) -> 임의 테이블 동적 INSERT.
+"! 화이트리스트/권한체크/백그라운드 잡 예약 등은 넣지 않은 단순 버전이다.
+"! iv_tabname은 호출부에서 신뢰할 수 있는 값만 넘겨야 한다(예: 액션에서
+"! 고정된 몇 개 테이블 중 하나만 고르게 하는 등) - 이 클래스 자체는 검증하지 않는다.
 "!
-"! 실제 엑셀 바이너리 파싱 + 대상 테이블 동적 INSERT는 이 클래스가 아니라
-"! Z_EXCEL_TABLE_MIGRATOR 리포트(Standard ABAP, Local Release)에서 백그라운드
-"! 잡으로 수행한다. 잡 예약(JOB_OPEN/SUBMIT/JOB_CLOSE)도 Standard ABAP
-"! 전용 API이므로 Z_EXCEL_MIGR_SCHEDULE_JOB 함수모듈에 위임한다.
-"! (zcl_parked_doc_poster가 CALL TRANSACTION을 FM으로 분리한 것과 동일한 이유)
+"! 동적 테이블명 INSERT(INSERT (tabname) ...)와 엑셀 파싱(CL_FDT_XL_SPREADSHEET)은
+"! ABAP Cloud 릴리즈 API가 아니므로, 이 클래스는 Standard ABAP 언어버전
+"! 패키지에 둬야 한다. RAP 액션(ABAP Cloud)에서 직접 부르려면 이 클래스를
+"! 감싸는 Local Release 함수모듈이 하나 더 필요하다 (zcl_parked_doc_poster가
+"! CALL TRANSACTION을 FM으로 분리한 것과 같은 이유).
 CLASS zcl_excel_table_migrator DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC.
 
   PUBLIC SECTION.
-    INTERFACES zif_excel_table_migrator.
+
+    "! @parameter iv_tabname      | 데이터를 넣을 대상 테이블명
+    "! @parameter iv_file_content | 업로드된 xlsx 파일 바이너리
+    "! @parameter iv_header_row   | 헤더(필드명) 행 번호, 기본 1행
+    "! @parameter rv_inserted     | INSERT된 행 수
+    METHODS migrate
+      IMPORTING
+        iv_tabname       TYPE tabname
+        iv_file_content  TYPE xstring
+        iv_header_row    TYPE i DEFAULT 1
+      RETURNING
+        VALUE(rv_inserted) TYPE i
+      RAISING
+        cx_fdt_spreadsheet.
+
+  PRIVATE SECTION.
+
+    "! 엑셀 한 행을 STRING_TABLE(셀 값을 컬럼 순서대로)로 변환.
+    "! TODO: CL_FDT_XL_SPREADSHEET의 GET_ITAB_FROM_SHEET가 실제로 돌려주는
+    "! 행 타입이 시스템 릴리즈에 따라 다를 수 있으므로, 실제 확인 후
+    "! 이 메서드만 맞춰 고치면 된다 (호출부는 그대로 둬도 됨).
+    METHODS row_to_strings
+      IMPORTING
+        is_row           TYPE any
+      RETURNING
+        VALUE(rt_values) TYPE string_table.
 
 ENDCLASS.
 
 
 CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
-  METHOD zif_excel_table_migrator~check_table_allowed.
+  METHOD migrate.
 
-    rv_allowed = abap_false.
+    rv_inserted = 0.
 
-    " 1) 화이트리스트 조회 - 등록/활성화된 테이블만 대상으로 허용.
-    "    임의 테이블명을 검증 없이 동적 INSERT에 쓰지 않기 위한 1차 방어.
-    SELECT SINGLE @abap_true
-      FROM zexcel_migr_wl
-      WHERE tabname = @iv_tabname
-        AND active  = @abap_true
-      INTO @DATA(lv_whitelisted).
+    " 1) 엑셀 파싱.
+    DATA(lo_excel) = NEW cl_fdt_xl_spreadsheet(
+      document_name = 'upload.xlsx'
+      xdocument     = iv_file_content ).
 
-    IF lv_whitelisted <> abap_true.
+    lo_excel->if_fdt_doc_spreadsheet~get_worksheet_names(
+      IMPORTING worksheet_names = DATA(lt_sheets) ).
+
+    lo_excel->if_fdt_doc_spreadsheet~get_itab_from_sheet(
+      EXPORTING worksheet_id = lt_sheets[ 1 ]
+      IMPORTING itab         = DATA(lr_raw) ).
+
+    ASSIGN lr_raw->* TO FIELD-SYMBOL(<lt_raw>).
+
+    IF <lt_raw> IS NOT ASSIGNED OR lines( <lt_raw> ) <= iv_header_row.
       RETURN.
     ENDIF.
 
-    " 2) 표준 권한 오브젝트 S_TABU_NAM으로 2차 방어.
-    "    화이트리스트에 있어도 이 사용자가 해당 테이블에 대한 변경 권한이
-    "    없으면 거부한다 (테이블 권한 관리 정책과 이중으로 어긋나지 않도록).
-    AUTHORITY-CHECK OBJECT 'S_TABU_NAM'
-      ID 'TABLE' FIELD iv_tabname
-      ID 'ACTVT' FIELD iv_activity.
+    " 2) 헤더 행 = 대상 테이블 필드명.
+    READ TABLE <lt_raw> ASSIGNING FIELD-SYMBOL(<ls_header>) INDEX iv_header_row.
+    DATA(lt_fieldnames) = row_to_strings( <ls_header> ).
+
+    " 3) 대상 테이블 구조를 RTTI로 조회해서 동적 내부테이블 생성.
+    DATA(lo_struct) = CAST cl_abap_structdescr(
+      cl_abap_structdescr=>describe_by_name( iv_tabname ) ).
+    DATA(lo_tabletype) = cl_abap_tabledescr=>create( lo_struct ).
+
+    DATA lr_itab TYPE REF TO data.
+    CREATE DATA lr_itab TYPE HANDLE lo_tabletype.
+    ASSIGN lr_itab->* TO FIELD-SYMBOL(<lt_itab>).
+
+    DATA lr_wa TYPE REF TO data.
+
+    " 4) 데이터 행 -> 동적 워크에어리어에 필드명 매칭해서 채우고 append.
+    LOOP AT <lt_raw> ASSIGNING FIELD-SYMBOL(<ls_row>) FROM iv_header_row + 1.
+
+      DATA(lt_values) = row_to_strings( <ls_row> ).
+
+      CREATE DATA lr_wa TYPE HANDLE lo_struct.
+      ASSIGN lr_wa->* TO FIELD-SYMBOL(<ls_wa>).
+
+      LOOP AT lt_fieldnames INTO DATA(lv_fieldname).
+        ASSIGN COMPONENT lv_fieldname OF STRUCTURE <ls_wa> TO FIELD-SYMBOL(<lv_field>).
+        IF sy-subrc = 0 AND sy-tabix <= lines( lt_values ).
+          <lv_field> = lt_values[ sy-tabix ].
+        ENDIF.
+      ENDLOOP.
+
+      INSERT <ls_wa> INTO TABLE <lt_itab>.
+
+    ENDLOOP.
+
+    " 5) 동적 INSERT. 대상 테이블명은 호출부 책임 하에 신뢰된 값이어야 한다.
+    INSERT (iv_tabname) FROM TABLE <lt_itab>.
 
     IF sy-subrc = 0.
-      rv_allowed = abap_true.
+      rv_inserted = lines( <lt_itab> ).
     ENDIF.
 
   ENDMETHOD.
 
 
-  METHOD zif_excel_table_migrator~accept_request.
+  METHOD row_to_strings.
 
-    " 대상 테이블 검증 - 여기서 막으면 스테이징 저장/잡 예약 자체를 하지 않는다.
-    IF zif_excel_table_migrator~check_table_allowed( iv_tabname = is_request-tabname ) = abap_false.
-      RAISE EXCEPTION TYPE zcx_excel_migr_error
-        EXPORTING
-          textid  = zcx_excel_migr_error=>table_not_allowed
-          tabname = is_request-tabname.
+    DATA(lo_descr) = cl_abap_typedescr=>describe_by_data( is_row ).
+
+    IF lo_descr->kind = cl_abap_typedescr=>kind_table.
+      FIELD-SYMBOLS <lt_cells> TYPE string_table.
+      ASSIGN is_row TO <lt_cells> CASTING.
+      rt_values = <lt_cells>.
+    ELSE.
+      DATA(lo_struct) = CAST cl_abap_structdescr( lo_descr ).
+      LOOP AT lo_struct->components INTO DATA(ls_component).
+        ASSIGN COMPONENT ls_component-name OF STRUCTURE is_row TO FIELD-SYMBOL(<lv_cell>).
+        IF sy-subrc = 0.
+          APPEND |{ <lv_cell> }| TO rt_values.
+        ENDIF.
+      ENDLOOP.
     ENDIF.
-
-    DATA(lv_request_id) = cl_system_uuid=>create_uuid_x16_static( ).
-
-    " 스테이징 테이블은 우리가 만든 Z 테이블(정적 이름)이므로 ABAP Cloud에서
-    " 문제 없이 바로 INSERT 가능하다 - 동적 INSERT가 필요한 건 대상 테이블뿐.
-    INSERT zexcel_migr_req FROM @( VALUE #(
-      request_id   = lv_request_id
-      tabname      = is_request-tabname
-      filename     = is_request-filename
-      file_content = is_request-file_content
-      status       = 'N'
-      created_by   = cl_abap_context_info=>get_user_technical_name( )
-      created_at   = utclong_current( ) ) ).
-
-    " 실제 파싱/마이그레이션은 백그라운드 잡으로 위임 (LUW/타임아웃 회피).
-    " request_id를 잡 파라미터로 넘겨, 리포트가 해당 건만 다시 읽어 처리하게 한다.
-    CALL FUNCTION 'Z_EXCEL_MIGR_SCHEDULE_JOB'
-      EXPORTING
-        iv_request_id = lv_request_id
-      IMPORTING
-        ev_job_name   = DATA(lv_job_name)
-        ev_job_count  = DATA(lv_job_count)
-      EXCEPTIONS
-        schedule_failed = 1
-        OTHERS           = 2.
-
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_excel_migr_error
-        EXPORTING
-          textid = zcx_excel_migr_error=>job_schedule_failed.
-    ENDIF.
-
-    rs_result = VALUE #(
-      request_id = lv_request_id
-      job_name   = lv_job_name
-      job_count  = lv_job_count ).
 
   ENDMETHOD.
 

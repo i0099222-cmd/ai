@@ -103,15 +103,26 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
            END OF ty_map.
     DATA lt_map TYPE STANDARD TABLE OF ty_map WITH EMPTY KEY.
 
+    FIELD-SYMBOLS <lv_header_cell> TYPE any.
+
     LOOP AT lt_string_comp INTO DATA(ls_string_comp).
       DATA(lv_col_index) = sy-tabix.
 
-      ASSIGN COMPONENT ls_string_comp-name OF STRUCTURE <ls_header> TO FIELD-SYMBOL(<lv_header_cell>).
-      CHECK sy-subrc = 0 AND <lv_header_cell> IS NOT INITIAL.
+      " ASSIGN이 실패하면 필드심볼은 할당되지 않은 채로 남는다.
+      " sy-subrc와 값 검사를 한 조건에 묶으면 미할당 상태로 접근하게 되므로 분리한다.
+      UNASSIGN <lv_header_cell>.
+      ASSIGN COMPONENT ls_string_comp-name OF STRUCTURE <ls_header> TO <lv_header_cell>.
+
+      IF <lv_header_cell> IS NOT ASSIGNED OR <lv_header_cell> IS INITIAL.
+        CONTINUE.
+      ENDIF.
 
       " 헤더 텍스트가 대상 테이블의 실제 필드명일 때만 매핑에 넣는다.
       DATA(lv_fieldname) = CONV fieldname( to_upper( condense( CONV string( <lv_header_cell> ) ) ) ).
-      CHECK line_exists( lo_target_struct->components[ name = lv_fieldname ] ).
+
+      IF NOT line_exists( lo_target_struct->components[ name = lv_fieldname ] ).
+        CONTINUE.
+      ENDIF.
 
       APPEND VALUE #( col_index = lv_col_index fieldname = lv_fieldname ) TO lt_map.
     ENDLOOP.
@@ -130,18 +141,27 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     CREATE DATA lr_wa TYPE (iv_tabname).
     ASSIGN lr_wa->* TO FIELD-SYMBOL(<ls_wa>).
 
+    FIELD-SYMBOLS: <lv_cell>  TYPE any,
+                   <lv_field> TYPE any.
+
     LOOP AT <lt_string_itab> ASSIGNING FIELD-SYMBOL(<ls_string_row>) FROM 2.
 
       CLEAR <ls_wa>.
 
       LOOP AT lt_map INTO DATA(ls_map).
-        ASSIGN COMPONENT ls_map-col_index OF STRUCTURE <ls_string_row> TO FIELD-SYMBOL(<lv_cell>).
-        CHECK sy-subrc = 0.
 
-        ASSIGN COMPONENT ls_map-fieldname OF STRUCTURE <ls_wa> TO FIELD-SYMBOL(<lv_field>).
-        CHECK sy-subrc = 0.
+        " 앞 반복에서 붙어있던 할당이 남지 않도록 매번 끊고 다시 붙인다.
+        " 실패한 ASSIGN은 필드심볼을 그냥 미할당으로 두므로, 대입 직전에
+        " 양쪽 다 할당됐는지 확인해야 한다.
+        UNASSIGN: <lv_cell>, <lv_field>.
 
-        <lv_field> = <lv_cell>.
+        ASSIGN COMPONENT ls_map-col_index OF STRUCTURE <ls_string_row> TO <lv_cell>.
+        ASSIGN COMPONENT ls_map-fieldname OF STRUCTURE <ls_wa>         TO <lv_field>.
+
+        IF <lv_cell> IS ASSIGNED AND <lv_field> IS ASSIGNED.
+          <lv_field> = <lv_cell>.
+        ENDIF.
+
       ENDLOOP.
 
       INSERT <ls_wa> INTO TABLE <lt_itab>.

@@ -16,6 +16,15 @@ CLASS zcl_excel_table_migrator DEFINITION
 
   PUBLIC SECTION.
 
+    "! 업로드 템플릿의 헤더 컬럼. 여기 이름이 곧 대상 테이블 필드명이 되고,
+    "! migrate( )가 헤더 이름으로 필드를 매칭하므로 둘이 자동으로 맞아떨어진다.
+    "! 템플릿을 바꾸려면 이 상수만 고치면 된다.
+    CONSTANTS:
+      BEGIN OF gc_template,
+        filename TYPE string VALUE 'migration_template.xlsx',
+        mimetype TYPE string VALUE 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      END OF gc_template.
+
     "! @parameter iv_tabname      | 데이터를 넣을 대상 테이블명
     "! @parameter iv_file_content | 업로드된 xlsx 파일 바이너리
     "! @parameter rv_inserted     | INSERT된 행 수
@@ -25,6 +34,19 @@ CLASS zcl_excel_table_migrator DEFINITION
         iv_file_content    TYPE xstring
       RETURNING
         VALUE(rv_inserted) TYPE i.
+
+    "! 헤더 행만 채워진 빈 업로드 템플릿(xlsx)을 만들어 돌려준다.
+    "! @parameter rv_file_content | 다운로드용 xlsx 바이너리
+    METHODS get_template
+      RETURNING
+        VALUE(rv_file_content) TYPE xstring.
+
+  PRIVATE SECTION.
+
+    "! 템플릿 헤더 컬럼 목록. 실제 업로드 대상 필드명으로 바꿔 쓸 것.
+    METHODS get_template_columns
+      RETURNING
+        VALUE(rt_columns) TYPE string_table.
 
 ENDCLASS.
 
@@ -132,6 +154,43 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     IF sy-subrc = 0.
       rv_inserted = lines( <lt_itab> ).
     ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_template_columns.
+
+    " TODO: 실제 업로드 대상 테이블의 필드명으로 교체할 것.
+    "       여기 적힌 이름이 그대로 엑셀 1행(헤더)에 들어간다.
+    rt_columns = VALUE #(
+      ( `MANDT` )
+      ( `ID` )
+      ( `NAME` )
+      ( `AMOUNT` )
+      ( `CURRENCY` ) ).
+
+  ENDMETHOD.
+
+
+  METHOD get_template.
+
+    " 빈 워크북을 새로 만들어 1행에 헤더만 채운다.
+    DATA(lo_write_access) = xco_cp_xlsx=>document->empty( )->write_access( ).
+    DATA(lo_worksheet)    = lo_write_access->get_workbook( )->worksheet->at_position( 1 ).
+
+    " A1에서 시작해서 컬럼 하나 쓸 때마다 오른쪽으로 한 칸씩 이동.
+    DATA(lo_cursor) = lo_worksheet->cursor(
+      io_column = xco_cp_xlsx=>coordinate->for_alphabetic_value( 'A' )
+      io_row    = xco_cp_xlsx=>coordinate->for_numeric_value( 1 ) ).
+
+    LOOP AT get_template_columns( ) INTO DATA(lv_column).
+      IF sy-tabix > 1.
+        lo_cursor = lo_cursor->move_right( ).
+      ENDIF.
+      lo_cursor->get_cell( )->value->write_from( lv_column ).
+    ENDLOOP.
+
+    rv_file_content = lo_write_access->get_file_content( ).
 
   ENDMETHOD.
 

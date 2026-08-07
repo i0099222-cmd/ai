@@ -30,16 +30,20 @@ const ACTION_PATH =
 
 export default class DownloadTemplate extends Controller {
 
-    public async onDownloadTemplate(): Promise<void> {
-        const oModel = this.getView()?.getModel() as ODataModel | undefined;
+    private oModel: ODataModel;
 
-        if (!oModel) {
+    public onInit(): void {
+        this.oModel = this.getOwnerComponent()?.getModel() as ODataModel;
+    }
+
+    public async onDownloadTemplate(): Promise<void> {
+        if (!this.oModel) {
             MessageBox.error("OData 모델을 찾을 수 없습니다.");
             return;
         }
 
         try {
-            const oAction = oModel.bindContext(ACTION_PATH);
+            const oAction = this.oModel.bindContext(ACTION_PATH);
             await oAction.execute();
 
             const oResult = oAction.getBoundContext()?.getObject() as TemplateFile | undefined;

@@ -27,8 +27,8 @@ import MessageBox from "sap/m/MessageBox";
  *                 static action  : /<EntitySet>/SAP__self.downloadTemplate
  *                 instance action: /<EntitySet>('키')/SAP__self.downloadTemplate
  */
-const SERVICE_URL = "/sap/opu/odata4/sap/z_excel_upload/srvd/sap/z_excel_upload/0001";
-const ACTION_PATH = "/ExcelUpload/SAP__self.downloadTemplate";
+const SERVICE_URL = "/sap/opu/odata4/sap/zcmsm_p_object_mapping_ui/srvd/sap/zcmsm_p_object_mapping_ui/0001";
+const ACTION_PATH = "/Mapping/SAP__self.DownTemplate";
 
 /** downloadTemplate 액션이 돌려주는 구조 (ZI_TemplateFile) */
 interface TemplateFile {

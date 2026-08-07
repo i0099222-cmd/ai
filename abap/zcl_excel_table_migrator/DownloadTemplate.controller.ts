@@ -27,7 +27,7 @@ import MessageBox from "sap/m/MessageBox";
  *                 static action  : /<EntitySet>/SAP__self.downloadTemplate
  *                 instance action: /<EntitySet>('키')/SAP__self.downloadTemplate
  */
-const SERVICE_URL = "/sap/opu/odata4/sap/zcmsm_p_object_mapping_ui/srvd/sap/zcmsm_p_object_mapping_ui/0001";
+const SERVICE_URL = "/sap/opu/odata4/sap/zcmsm_p_mapping_ui_o4/srvd/sap/zcmsm_p_object_mapping_ui/0001";
 const ACTION_PATH = "/Mapping/SAP__self.DownTemplate";
 
 /** downloadTemplate 액션이 돌려주는 구조 (ZI_TemplateFile) */

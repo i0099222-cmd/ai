@@ -30,30 +30,22 @@ const ACTION_PATH =
 
 export default class DownloadTemplate extends Controller {
 
-    private oModel: ODataModel;
+    // onInit에서 채운다. strictPropertyInitialization 대응으로 definite assignment 사용.
+    private oModel!: ODataModel;
 
     public onInit(): void {
         this.oModel = this.getOwnerComponent()?.getModel() as ODataModel;
     }
 
     public async onDownloadTemplate(): Promise<void> {
-        if (!this.oModel) {
-            MessageBox.error("OData 모델을 찾을 수 없습니다.");
-            return;
-        }
-
         try {
-            const oAction = this.oModel.bindContext(ACTION_PATH);
-            await oAction.execute();
+            const oFile = await this.fetchTemplate();
 
-            const oResult = oAction.getBoundContext()?.getObject() as TemplateFile | undefined;
-
-            if (!oResult?.FileContent) {
+            if (oFile === undefined) {
                 MessageBox.error("템플릿 내용이 비어 있습니다.");
-                return;
+            } else {
+                this.saveFile(oFile);
             }
-
-            this.saveFile(oResult);
 
         } catch (oError: unknown) {
             const sMessage = oError instanceof Error
@@ -61,6 +53,20 @@ export default class DownloadTemplate extends Controller {
                 : "템플릿 다운로드에 실패했습니다.";
             MessageBox.error(sMessage);
         }
+    }
+
+    /**
+     * 액션을 호출해 템플릿 파일을 가져온다.
+     * 내용이 없으면 undefined - 반환 타입에 undefined를 포함시켜야
+     * 모든 경로가 명시적으로 값을 돌려주게 된다.
+     */
+    private async fetchTemplate(): Promise<TemplateFile | undefined> {
+        const oAction = this.oModel.bindContext(ACTION_PATH);
+        await oAction.execute();
+
+        const oResult = oAction.getBoundContext()?.getObject() as TemplateFile | undefined;
+
+        return oResult?.FileContent ? oResult : undefined;
     }
 
     /** base64 -> 바이트 배열 -> Blob -> 다운로드 트리거 */

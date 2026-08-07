@@ -12,16 +12,23 @@ import ExtensionAPI from "sap/fe/templates/ListReport/ExtensionAPI";
 import MessageBox from "sap/m/MessageBox";
 
 /*
- * ★ 아래 두 상수는 예시 값이다. 실제 값으로 바꾸지 않으면 요청이 404로 튕기고
+ * ★ 아래 두 상수는 실제 값으로 바꿔야 한다. 틀리면 요청이 404로 튕기고
  *   ABAP 브레이크포인트에도 걸리지 않는다.
  *
  *   SERVICE_URL : 앱에서 아무 OData 요청이나 하나 잡아 Network 탭에서 확인.
  *                 (또는 manifest.json > sap.app > dataSources > mainService > uri)
- *   ACTION_PATH : <SERVICE_URL>/$metadata 를 열어 downloadTemplate 을 검색.
- *                 "/<EntitySet이름>/<Schema Namespace>.downloadTemplate" 형태로 조합.
+ *
+ *   ACTION_PATH : SAP__self는 $metadata의 Schema에 선언된 별칭이라
+ *                 긴 네임스페이스 대신 그대로 쓸 수 있다.
+ *                   <Schema Namespace="com.sap.gateway.srvd...." Alias="SAP__self">
+ *                 남은 건 EntitySet 이름뿐 - $metadata의 <EntityContainer> 안에서
+ *                 <EntitySet Name="..."> 를 찾아 넣으면 된다.
+ *
+ *                 static action  : /<EntitySet>/SAP__self.downloadTemplate
+ *                 instance action: /<EntitySet>('키')/SAP__self.downloadTemplate
  */
 const SERVICE_URL = "/sap/opu/odata4/sap/z_excel_upload/srvd/sap/z_excel_upload/0001";
-const ACTION_PATH = "/ExcelUpload/com.sap.gateway.srvd.z_excel_upload.v0001.downloadTemplate";
+const ACTION_PATH = "/ExcelUpload/SAP__self.downloadTemplate";
 
 /** downloadTemplate 액션이 돌려주는 구조 (ZI_TemplateFile) */
 interface TemplateFile {

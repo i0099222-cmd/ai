@@ -1,89 +1,30 @@
 /*
- * 템플릿 다운로드 컨트롤러 (UI5 + TypeScript, OData V4 기준)
+ * 템플릿 다운로드 (UI5 + TypeScript)
  *
- * RAP 액션이 파일 내용을 돌려줘도 화면에서는 아무 일도 일어나지 않는다.
- * 응답에 담겨온 내용을 Blob으로 만들어 브라우저 다운로드를 띄우는 것까지가
- * 프론트 몫이라 이 핸들러가 필요하다.
+ * 백엔드가 템플릿을 스트림(첨부) 엔드포인트로 노출하고 있다는 전제.
+ * 그 URL을 <a download>로 바로 걸어주면 브라우저가 알아서 받아온다.
+ * 액션 호출 -> base64 -> Blob 변환이 필요 없다.
  *
  * XML view에 버튼 연결:
  *   <Button text="템플릿 다운로드" press=".onDownloadTemplate" />
  */
-import Controller from "sap/ui/core/mvc/Controller";
-import MessageBox from "sap/m/MessageBox";
-import ODataModel from "sap/ui/model/odata/v4/ODataModel";
-
-/** downloadTemplate 액션이 돌려주는 구조 (ZI_TemplateFile) */
-interface TemplateFile {
-    FileName: string;
-    MimeType: string;
-    /** xstring은 JSON 응답에서 base64 문자열로 넘어온다 */
-    FileContent: string;
-}
+import ExtensionAPI from "sap/fe/templates/ListReport/ExtensionAPI";
 
 /**
- * RAP의 static action은 OData V4에서 엔티티 컬렉션에 바인딩된 액션으로 노출된다.
- * 네임스페이스는 서비스마다 다르므로 $metadata에서 downloadTemplate의
- * 정규화된 이름을 확인해 실제 값으로 바꿀 것. 이게 틀리면 여전히 아무 일도 안 일어난다.
+ * 템플릿 스트림 URL.
+ * 서비스 바인딩 이름과 엔티티/필드 경로에 맞춰 실제 값으로 바꿀 것.
  */
-const ACTION_PATH =
-    "/ExcelUpload/com.sap.gateway.srvd.z_excel_upload.v0001.downloadTemplate(...)";
+const TEMPLATE_URL = "/sap/opu/odata4/sap/zcm.........../attachment";
 
-export default class DownloadTemplate extends Controller {
+const TEMPLATE_FILENAME = "Template.xlsx";
 
-    // onInit에서 채운다. strictPropertyInitialization 대응으로 definite assignment 사용.
-    private oModel!: ODataModel;
+export function onDownloadTemplate(this: ExtensionAPI): void {
+    const oLink: HTMLAnchorElement = document.createElement("a");
 
-    public onInit(): void {
-        this.oModel = this.getOwnerComponent()?.getModel() as ODataModel;
-    }
+    oLink.href = TEMPLATE_URL;
+    oLink.download = TEMPLATE_FILENAME;
 
-    public async onDownloadTemplate(): Promise<void> {
-        try {
-            const oFile = await this.fetchTemplate();
-
-            if (oFile === undefined) {
-                MessageBox.error("템플릿 내용이 비어 있습니다.");
-            } else {
-                this.saveFile(oFile);
-            }
-
-        } catch (oError: unknown) {
-            const sMessage = oError instanceof Error
-                ? oError.message
-                : "템플릿 다운로드에 실패했습니다.";
-            MessageBox.error(sMessage);
-        }
-    }
-
-    /**
-     * 액션을 호출해 템플릿 파일을 가져온다.
-     * 내용이 없으면 undefined - 반환 타입에 undefined를 포함시켜야
-     * 모든 경로가 명시적으로 값을 돌려주게 된다.
-     */
-    private async fetchTemplate(): Promise<TemplateFile | undefined> {
-        const oAction = this.oModel.bindContext(ACTION_PATH);
-        await oAction.execute();
-
-        const oResult = oAction.getBoundContext()?.getObject() as TemplateFile | undefined;
-
-        return oResult?.FileContent ? oResult : undefined;
-    }
-
-    /** base64 -> 바이트 배열 -> Blob -> 다운로드 트리거 */
-    private saveFile(oFile: TemplateFile): void {
-        const aBytes = Uint8Array.from(
-            atob(oFile.FileContent),
-            (sChar: string): number => sChar.charCodeAt(0)
-        );
-
-        const oBlob = new Blob([aBytes], { type: oFile.MimeType });
-        const sObjectUrl = URL.createObjectURL(oBlob);
-
-        const oLink = document.createElement("a");
-        oLink.href = sObjectUrl;
-        oLink.download = oFile.FileName;
-        oLink.click();
-
-        URL.revokeObjectURL(sObjectUrl);
-    }
+    document.body.appendChild(oLink);
+    oLink.click();
+    document.body.removeChild(oLink);
 }

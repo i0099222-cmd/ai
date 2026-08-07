@@ -43,6 +43,30 @@ CLASS zcl_excel_table_migrator DEFINITION
 
   PRIVATE SECTION.
 
+    "! 대상 테이블에 없는 헤더 컬럼에 붙일 이름. 어떤 필드와도 매칭되지 않아
+    "! MOVE-CORRESPONDING에서 자연스럽게 무시된다.
+    CONSTANTS gc_unmapped_prefix TYPE string VALUE 'X_UNMAPPED_'.
+
+    "! 시트를 지정한 컴포넌트 이름들로 읽어 내부테이블(ref)로 돌려준다.
+    "! 컴포넌트는 전부 string이고, 엑셀 컬럼이 순서대로 그 자리에 들어간다.
+    METHODS read_sheet
+      IMPORTING
+        io_worksheet     TYPE REF TO if_xco_xlsx_ra_worksheet
+        it_column_names  TYPE string_table
+      RETURNING
+        VALUE(rr_rows)   TYPE REF TO data.
+
+    "! 헤더 행을 읽어 컬럼마다 쓸 컴포넌트 이름을 정한다.
+    "! 대상 테이블에 있는 필드명이면 그 이름 그대로, 없으면 더미 이름.
+    "! 이 이름으로 시트를 다시 읽으면 대상 구조와 이름이 맞아떨어져서,
+    "! 값 복사는 MOVE-CORRESPONDING 한 줄로 끝난다.
+    METHODS derive_column_names
+      IMPORTING
+        ir_rows              TYPE REF TO data
+        io_target_struct     TYPE REF TO cl_abap_structdescr
+      RETURNING
+        VALUE(rt_column_names) TYPE string_table.
+
     "! 템플릿 헤더 컬럼 목록. 실제 업로드 대상 필드명으로 바꿔 쓸 것.
     METHODS get_template_columns
       RETURNING
@@ -55,83 +79,34 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
   METHOD migrate.
 
-    " 1) 대상 테이블 구조를 RTTI로 조회.
     DATA(lo_target_struct) = CAST cl_abap_structdescr(
       cl_abap_structdescr=>describe_by_name( iv_tabname ) ).
 
-    " 2) 엑셀을 받아둘 "전부 STRING" 중간 테이블을 만든다.
-    "    XCO의 row_stream->write_to( )는 엑셀 컬럼을 대상 구조의 컴포넌트에
-    "    순서대로 밀어넣기 때문에, 헤더 이름으로 매칭하려면 일단 타입 변환 없이
-    "    string으로 받아놓고 우리가 직접 매칭해야 한다.
-    "    컬럼 수는 대상 테이블 필드 수만큼 잡는다 (엑셀 컬럼이 그보다 적으면
-    "    남는 건 빈 값, 많으면 초과분은 버려진다 - 마이그레이션 템플릿 기준 정상).
-    DATA lt_string_comp TYPE cl_abap_structdescr=>component_table.
-    LOOP AT lo_target_struct->components INTO DATA(ls_target_comp).
-      APPEND VALUE #( name = |COL{ sy-tabix }|
-                      type = cl_abap_elemdescr=>get_string( ) ) TO lt_string_comp.
-    ENDLOOP.
-
-    DATA(lo_string_table) = cl_abap_tabledescr=>create(
-      cl_abap_structdescr=>create( lt_string_comp ) ).
-
-    DATA lr_string_itab TYPE REF TO data.
-    CREATE DATA lr_string_itab TYPE HANDLE lo_string_table.
-    FIELD-SYMBOLS <lt_string_itab> TYPE INDEX TABLE.
-    ASSIGN lr_string_itab->* TO <lt_string_itab>.
-
-    " 3) XCO로 엑셀 파싱 -> 중간 테이블에 통째로 적재.
-    "    첫 번째 워크시트 전체를 읽고, 셀 값은 전부 string으로 받는다.
     DATA(lo_worksheet) = xco_cp_xlsx=>document->for_file_content( iv_file_content
       )->read_access( )->get_workbook( )->worksheet->at_position( 1 ).
 
-    DATA(lo_pattern) = xco_cp_xlsx_selection=>pattern_builder->simple_from_to( )->get_pattern( ).
+    " 1차 읽기: 컬럼 이름을 아직 모르므로 COL1..COLn으로 읽어 헤더 행만 확인한다.
+    DATA lt_generic_names TYPE string_table.
+    DO lines( lo_target_struct->components ) TIMES.
+      APPEND |COL{ sy-index }| TO lt_generic_names.
+    ENDDO.
 
-    lo_worksheet->select( lo_pattern )->row_stream( )->operation->write_to( lr_string_itab
-      )->set_value_transformation( xco_cp_xlsx_read_access=>value_transformation->string_value
-      )->execute( ).
+    DATA(lt_column_names) = derive_column_names(
+      ir_rows          = read_sheet( io_worksheet    = lo_worksheet
+                                     it_column_names = lt_generic_names )
+      io_target_struct = lo_target_struct ).
 
-    IF lines( <lt_string_itab> ) < 2.
-      RETURN.   " 헤더만 있거나 빈 시트
+    IF lt_column_names IS INITIAL.
+      RETURN.   " 빈 시트이거나 매칭되는 헤더가 하나도 없음
     ENDIF.
 
-    " 4) 1행 = 헤더. 컬럼 위치 -> 대상 테이블 필드명 매핑을 만든다.
-    READ TABLE <lt_string_itab> ASSIGNING FIELD-SYMBOL(<ls_header>) INDEX 1.
+    " 2차 읽기: 이번엔 컴포넌트 이름이 대상 테이블 필드명과 같으므로
+    "           이후 값 복사에 필드심볼 조작이 필요 없다.
+    DATA(lr_rows) = read_sheet( io_worksheet    = lo_worksheet
+                                it_column_names = lt_column_names ).
+    FIELD-SYMBOLS <lt_rows> TYPE INDEX TABLE.
+    ASSIGN lr_rows->* TO <lt_rows>.
 
-    TYPES: BEGIN OF ty_map,
-             col_index TYPE i,
-             fieldname TYPE fieldname,
-           END OF ty_map.
-    DATA lt_map TYPE STANDARD TABLE OF ty_map WITH EMPTY KEY.
-
-    FIELD-SYMBOLS <lv_header_cell> TYPE any.
-
-    LOOP AT lt_string_comp INTO DATA(ls_string_comp).
-      DATA(lv_col_index) = sy-tabix.
-
-      " ASSIGN이 실패하면 필드심볼은 할당되지 않은 채로 남는다.
-      " sy-subrc와 값 검사를 한 조건에 묶으면 미할당 상태로 접근하게 되므로 분리한다.
-      UNASSIGN <lv_header_cell>.
-      ASSIGN COMPONENT ls_string_comp-name OF STRUCTURE <ls_header> TO <lv_header_cell>.
-
-      IF <lv_header_cell> IS NOT ASSIGNED OR <lv_header_cell> IS INITIAL.
-        CONTINUE.
-      ENDIF.
-
-      " 헤더 텍스트가 대상 테이블의 실제 필드명일 때만 매핑에 넣는다.
-      DATA(lv_fieldname) = CONV fieldname( to_upper( condense( CONV string( <lv_header_cell> ) ) ) ).
-
-      IF NOT line_exists( lo_target_struct->components[ name = lv_fieldname ] ).
-        CONTINUE.
-      ENDIF.
-
-      APPEND VALUE #( col_index = lv_col_index fieldname = lv_fieldname ) TO lt_map.
-    ENDLOOP.
-
-    IF lt_map IS INITIAL.
-      RETURN.   " 매칭되는 헤더가 하나도 없음 - 잘못된 파일
-    ENDIF.
-
-    " 5) 2행부터 데이터 -> 대상 테이블 타입의 내부테이블로 옮긴다.
     DATA lr_itab TYPE REF TO data.
     CREATE DATA lr_itab TYPE TABLE OF (iv_tabname).
     FIELD-SYMBOLS <lt_itab> TYPE INDEX TABLE.
@@ -141,38 +116,87 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     CREATE DATA lr_wa TYPE (iv_tabname).
     ASSIGN lr_wa->* TO FIELD-SYMBOL(<ls_wa>).
 
-    FIELD-SYMBOLS: <lv_cell>  TYPE any,
-                   <lv_field> TYPE any.
-
-    LOOP AT <lt_string_itab> ASSIGNING FIELD-SYMBOL(<ls_string_row>) FROM 2.
-
+    " 1행은 헤더이므로 2행부터.
+    LOOP AT <lt_rows> ASSIGNING FIELD-SYMBOL(<ls_row>) FROM 2.
       CLEAR <ls_wa>.
-
-      LOOP AT lt_map INTO DATA(ls_map).
-
-        " 앞 반복에서 붙어있던 할당이 남지 않도록 매번 끊고 다시 붙인다.
-        " 실패한 ASSIGN은 필드심볼을 그냥 미할당으로 두므로, 대입 직전에
-        " 양쪽 다 할당됐는지 확인해야 한다.
-        UNASSIGN: <lv_cell>, <lv_field>.
-
-        ASSIGN COMPONENT ls_map-col_index OF STRUCTURE <ls_string_row> TO <lv_cell>.
-        ASSIGN COMPONENT ls_map-fieldname OF STRUCTURE <ls_wa>         TO <lv_field>.
-
-        IF <lv_cell> IS ASSIGNED AND <lv_field> IS ASSIGNED.
-          <lv_field> = <lv_cell>.
-        ENDIF.
-
-      ENDLOOP.
-
+      MOVE-CORRESPONDING <ls_row> TO <ls_wa>.
       INSERT <ls_wa> INTO TABLE <lt_itab>.
-
     ENDLOOP.
 
-    " 6) 동적 INSERT. 대상 테이블명은 호출부 책임 하에 신뢰된 값이어야 한다.
+    " 대상 테이블명은 호출부 책임 하에 신뢰된 값이어야 한다.
     INSERT (iv_tabname) FROM TABLE @<lt_itab>.
 
     IF sy-subrc = 0.
       rv_inserted = lines( <lt_itab> ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD read_sheet.
+
+    DATA lt_components TYPE cl_abap_structdescr=>component_table.
+    LOOP AT it_column_names INTO DATA(lv_column_name).
+      APPEND VALUE #( name = lv_column_name
+                      type = cl_abap_elemdescr=>get_string( ) ) TO lt_components.
+    ENDLOOP.
+
+    DATA(lo_table_type) = cl_abap_tabledescr=>create(
+      cl_abap_structdescr=>create( lt_components ) ).
+
+    CREATE DATA rr_rows TYPE HANDLE lo_table_type.
+
+    DATA(lo_pattern) = xco_cp_xlsx_selection=>pattern_builder->simple_from_to( )->get_pattern( ).
+
+    io_worksheet->select( lo_pattern )->row_stream( )->operation->write_to( rr_rows
+      )->set_value_transformation( xco_cp_xlsx_read_access=>value_transformation->string_value
+      )->execute( ).
+
+  ENDMETHOD.
+
+
+  METHOD derive_column_names.
+
+    FIELD-SYMBOLS <lt_rows> TYPE INDEX TABLE.
+    ASSIGN ir_rows->* TO <lt_rows>.
+
+    IF <lt_rows> IS NOT ASSIGNED OR lines( <lt_rows> ) < 2.
+      RETURN.   " 헤더만 있거나 빈 시트
+    ENDIF.
+
+    READ TABLE <lt_rows> ASSIGNING FIELD-SYMBOL(<ls_header>) INDEX 1.
+
+    DATA(lo_header_struct) = CAST cl_abap_structdescr(
+      cl_abap_typedescr=>describe_by_data( <ls_header> ) ).
+
+    DATA(lv_matched) = abap_false.
+    FIELD-SYMBOLS <lv_cell> TYPE any.
+
+    LOOP AT lo_header_struct->components INTO DATA(ls_component).
+      DATA(lv_index) = sy-tabix.
+
+      " ASSIGN이 실패하면 필드심볼은 미할당으로 남으므로 값 접근 전에 확인한다.
+      UNASSIGN <lv_cell>.
+      ASSIGN COMPONENT ls_component-name OF STRUCTURE <ls_header> TO <lv_cell>.
+
+      DATA lv_header_text TYPE string.
+      CLEAR lv_header_text.
+      IF <lv_cell> IS ASSIGNED.
+        lv_header_text = to_upper( condense( CONV string( <lv_cell> ) ) ).
+      ENDIF.
+
+      " 대상 테이블에 같은 이름의 필드가 있을 때만 그 이름을 쓴다.
+      IF lv_header_text IS NOT INITIAL
+         AND line_exists( io_target_struct->components[ name = lv_header_text ] ).
+        APPEND lv_header_text TO rt_column_names.
+        lv_matched = abap_true.
+      ELSE.
+        APPEND |{ gc_unmapped_prefix }{ lv_index }| TO rt_column_names.
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_matched = abap_false.
+      CLEAR rt_column_names.   " 쓸 만한 헤더가 하나도 없음
     ENDIF.
 
   ENDMETHOD.

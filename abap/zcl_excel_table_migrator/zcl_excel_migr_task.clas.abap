@@ -20,8 +20,8 @@ CLASS zcl_excel_migr_task DEFINITION
         iv_file_content TYPE xstring.
 
     " 별도 세션이라 리턴값으로는 못 넘긴다. do( )가 채우고 호출부가 읽어간다.
-    DATA mv_inserted   TYPE i      READ-ONLY.
-    DATA mv_error_text TYPE string READ-ONLY.
+    DATA ms_result     TYPE zcl_excel_table_migrator=>ty_result READ-ONLY.
+    DATA mv_error_text TYPE string                              READ-ONLY.
 
   PRIVATE SECTION.
 
@@ -43,11 +43,11 @@ CLASS zcl_excel_migr_task IMPLEMENTATION.
 
     TRY.
 
-        mv_inserted = NEW zcl_excel_table_migrator( )->migrate(
+        ms_result = NEW zcl_excel_table_migrator( )->migrate(
           iv_tabname      = mv_tabname
           iv_file_content = mv_file_content ).
 
-        IF mv_inserted > 0.
+        IF ms_result-inserted > 0.
           COMMIT WORK AND WAIT.
         ELSE.
           ROLLBACK WORK.

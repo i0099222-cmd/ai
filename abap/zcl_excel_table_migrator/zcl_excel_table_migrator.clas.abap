@@ -54,6 +54,11 @@ CLASS zcl_excel_table_migrator DEFINITION
     "!                                   아무것도 INSERT하지 않는다. 파일을 고쳐 다시 올리게
     "!                                   해서 부분 반영 상태를 피하기 위한 기본값이다.
     "!                                   abap_true면 정상 행만 넣고 나머지는 errors로 돌려준다.
+    "! @parameter it_key_fields        | 파일 내 중복 판정에 쓸 업무 키.
+    "!                                   비우면 DDIC 키를 쓰되, 우리가 생성하는 UUID 필드는
+    "!                                   매번 값이 달라 판정에 쓸 수 없으므로 제외한다.
+    "!                                   그래서 키가 UUID뿐인 테이블은 중복 검사가 불가능하고,
+    "!                                   그때는 업무 키를 여기에 직접 넘겨야 한다.
     "! @parameter rs_result            | INSERT 건수, 실패 건수, 행/필드별 오류 목록
     METHODS migrate
       IMPORTING
@@ -61,6 +66,7 @@ CLASS zcl_excel_table_migrator DEFINITION
         iv_file_content      TYPE xstring
         it_keep_initial      TYPE string_table OPTIONAL
         iv_skip_invalid_rows TYPE abap_bool DEFAULT abap_false
+        it_key_fields        TYPE string_table OPTIONAL
       RETURNING
         VALUE(rs_result)     TYPE ty_result.
 
@@ -112,6 +118,24 @@ CLASS zcl_excel_table_migrator DEFINITION
         it_fields TYPE string_table
       CHANGING
         cs_row    TYPE any.
+
+    "! 키 값들을 이어붙일 때 쓰는 구분자. 값 안에 우연히 나타나기 어려운 문자를 쓴다.
+    CONSTANTS gc_key_separator TYPE string VALUE '|#|'.
+
+    "! DDIC 키 필드 이름을 돌려준다 (클라이언트 필드 제외).
+    METHODS get_ddic_key_fields
+      IMPORTING
+        iv_tabname          TYPE tabname
+      RETURNING
+        VALUE(rt_key_fields) TYPE string_table.
+
+    "! 한 행의 키 값들을 하나의 문자열로 만든다. 중복 판정용.
+    METHODS build_key_string
+      IMPORTING
+        is_row         TYPE any
+        it_key_fields  TYPE string_table
+      RETURNING
+        VALUE(rv_key)  TYPE string.
 
     "! 행 전체 복사가 실패했을 때, 그 행만 필드 단위로 다시 훑어
     "! 어느 필드의 어떤 값이 문제였는지 찾아낸다.
@@ -176,6 +200,25 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     DATA(lt_uuid_fields) = find_uuid_fields( io_struct       = lo_target_struct
                                              it_keep_initial = it_keep_initial ).
 
+    " 중복 판정 키를 정한다. 호출부가 업무 키를 준 경우 그대로 쓰고,
+    " 아니면 DDIC 키에서 우리가 생성하는 UUID 필드를 걷어낸 것을 쓴다.
+    " (생성 UUID는 행마다 값이 달라 중복 판정 기준이 될 수 없다)
+    DATA(lt_dup_key_fields) = it_key_fields.
+
+    IF lt_dup_key_fields IS INITIAL.
+      lt_dup_key_fields = get_ddic_key_fields( iv_tabname ).
+      LOOP AT lt_uuid_fields INTO DATA(lv_uuid_field).
+        DELETE lt_dup_key_fields WHERE table_line = lv_uuid_field.
+      ENDLOOP.
+    ENDIF.
+
+    " 파일 안에서 이미 나온 키를 기억해 두고, 다시 나오면 몇 행과 겹치는지 알려준다.
+    TYPES: BEGIN OF ty_seen_key,
+             key        TYPE string,
+             row_number TYPE i,
+           END OF ty_seen_key.
+    DATA lt_seen_keys TYPE HASHED TABLE OF ty_seen_key WITH UNIQUE KEY key.
+
     " 1행은 헤더이므로 2행부터. sy-tabix가 곧 엑셀 행 번호라 그대로 오류에 담는다.
     LOOP AT <lt_rows> ASSIGNING FIELD-SYMBOL(<ls_row>) FROM 2.
 
@@ -202,6 +245,29 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       " 생기므로, 빈 행 판정을 반드시 UUID 채우기 앞에서 한다.
       IF <ls_wa> IS INITIAL.
         CONTINUE.
+      ENDIF.
+
+      " 중복 판정은 UUID를 채우기 전에 한다. 채운 뒤에는 모든 행의 키가
+      " 달라져서 어떤 중복도 잡히지 않는다.
+      IF lt_dup_key_fields IS NOT INITIAL.
+
+        DATA(lv_key) = build_key_string( is_row        = <ls_wa>
+                                         it_key_fields = lt_dup_key_fields ).
+
+        DATA(ls_seen) = VALUE ty_seen_key( lt_seen_keys[ key = lv_key ] OPTIONAL ).
+
+        IF ls_seen-row_number IS NOT INITIAL.
+          APPEND VALUE #( row_number = lv_row_number
+                          fieldname  = concat_lines_of( table = lt_dup_key_fields sep = `, ` )
+                          value      = lv_key
+                          message    = |{ ls_seen-row_number }행과 키가 중복됩니다| )
+                 TO rs_result-errors.
+          rs_result-failed = rs_result-failed + 1.
+          CONTINUE.
+        ENDIF.
+
+        INSERT VALUE #( key = lv_key row_number = lv_row_number ) INTO TABLE lt_seen_keys.
+
       ENDIF.
 
       fill_uuid_fields( EXPORTING it_fields = lt_uuid_fields
@@ -338,6 +404,54 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       " 엑셀에서 값이 들어온 경우는 그대로 두고, 비어 있을 때만 새로 만든다.
       IF <lv_uuid> IS ASSIGNED AND <lv_uuid> IS INITIAL.
         <lv_uuid> = cl_system_uuid=>create_uuid_x16_static( ).
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD get_ddic_key_fields.
+
+    TRY.
+        DATA(lo_table) = xco_cp_abap_dictionary=>database_table(
+          CONV sxco_dbt_object_name( iv_tabname ) ).
+
+        LOOP AT lo_table->fields->all->get( ) INTO DATA(lo_field).
+
+          IF lo_field->content( )->get_key_indicator( ) <> abap_true.
+            CONTINUE.
+          ENDIF.
+
+          " 클라이언트 필드는 모든 행이 같은 값이라 중복 판정에 의미가 없다.
+          DATA(lv_name) = to_upper( CONV string( lo_field->name ) ).
+          IF lv_name = 'MANDT' OR lv_name = 'CLIENT'.
+            CONTINUE.
+          ENDIF.
+
+          APPEND lv_name TO rt_key_fields.
+
+        ENDLOOP.
+
+      CATCH cx_root.
+        " 키를 못 읽으면 중복 검사만 건너뛴다. 마이그레이션 자체를 막을 이유는 없다.
+        CLEAR rt_key_fields.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD build_key_string.
+
+    FIELD-SYMBOLS <lv_value> TYPE any.
+
+    LOOP AT it_key_fields INTO DATA(lv_fieldname).
+
+      UNASSIGN <lv_value>.
+      ASSIGN COMPONENT lv_fieldname OF STRUCTURE is_row TO <lv_value>.
+
+      IF <lv_value> IS ASSIGNED.
+        rv_key = |{ rv_key }{ gc_key_separator }{ <lv_value> }|.
       ENDIF.
 
     ENDLOOP.

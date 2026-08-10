@@ -122,6 +122,16 @@ CLASS zcl_excel_table_migrator DEFINITION
     "! 키 값들을 이어붙일 때 쓰는 구분자. 값 안에 우연히 나타나기 어려운 문자를 쓴다.
     CONSTANTS gc_key_separator TYPE string VALUE '|#|'.
 
+    TYPES tt_key_hash TYPE HASHED TABLE OF string WITH UNIQUE KEY table_line.
+
+    "! 대상 테이블에 이미 있는 키들을 읽어 해시로 돌려준다.
+    METHODS find_existing_keys
+      IMPORTING
+        iv_tabname     TYPE tabname
+        it_key_fields  TYPE string_table
+      RETURNING
+        VALUE(rt_keys) TYPE tt_key_hash.
+
     "! DDIC 키 필드 이름을 돌려준다 (클라이언트 필드 제외).
     METHODS get_ddic_key_fields
       IMPORTING
@@ -219,6 +229,13 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
            END OF ty_seen_key.
     DATA lt_seen_keys TYPE HASHED TABLE OF ty_seen_key WITH UNIQUE KEY key.
 
+    " DB에 이미 있는 키는 한 번만 읽어두고 행마다 메모리에서 대조한다.
+    DATA lt_existing_keys TYPE tt_key_hash.
+    IF lt_dup_key_fields IS NOT INITIAL.
+      lt_existing_keys = find_existing_keys( iv_tabname    = iv_tabname
+                                             it_key_fields = lt_dup_key_fields ).
+    ENDIF.
+
     " 1행은 헤더이므로 2행부터. sy-tabix가 곧 엑셀 행 번호라 그대로 오류에 담는다.
     LOOP AT <lt_rows> ASSIGNING FIELD-SYMBOL(<ls_row>) FROM 2.
 
@@ -254,13 +271,25 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
         DATA(lv_key) = build_key_string( is_row        = <ls_wa>
                                          it_key_fields = lt_dup_key_fields ).
 
+        DATA(lv_key_fields_text) = concat_lines_of( table = lt_dup_key_fields sep = `, ` ).
+
         DATA(ls_seen) = VALUE ty_seen_key( lt_seen_keys[ key = lv_key ] OPTIONAL ).
 
         IF ls_seen-row_number IS NOT INITIAL.
           APPEND VALUE #( row_number = lv_row_number
-                          fieldname  = concat_lines_of( table = lt_dup_key_fields sep = `, ` )
+                          fieldname  = lv_key_fields_text
                           value      = lv_key
                           message    = |{ ls_seen-row_number }행과 키가 중복됩니다| )
+                 TO rs_result-errors.
+          rs_result-failed = rs_result-failed + 1.
+          CONTINUE.
+        ENDIF.
+
+        IF line_exists( lt_existing_keys[ table_line = lv_key ] ).
+          APPEND VALUE #( row_number = lv_row_number
+                          fieldname  = lv_key_fields_text
+                          value      = lv_key
+                          message    = |이미 등록된 키입니다| )
                  TO rs_result-errors.
           rs_result-failed = rs_result-failed + 1.
           CONTINUE.
@@ -437,6 +466,39 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
         " 키를 못 읽으면 중복 검사만 건너뛴다. 마이그레이션 자체를 막을 이유는 없다.
         CLEAR rt_key_fields.
     ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD find_existing_keys.
+
+    " 대상 테이블과 키 필드가 모두 런타임에 정해지므로, 키 컬럼만 읽어와
+    " 메모리에서 대조한다. 행마다 SELECT하면 5천 건에 5천 번이라 쓸 수 없고,
+    " 동적 테이블에 FOR ALL ENTRIES를 거는 것보다 형태가 단순하고 예측 가능하다.
+    "
+    " 다만 대상 테이블 전체의 키 컬럼을 읽으므로, 테이블이 아주 크면
+    " 이 SELECT가 무거워진다. 그 경우 업무 키 앞자리로 범위를 좁히는 식의
+    " 보완이 필요하다.
+    DATA lr_existing TYPE REF TO data.
+    CREATE DATA lr_existing TYPE TABLE OF (iv_tabname).
+    FIELD-SYMBOLS <lt_existing> TYPE INDEX TABLE.
+    ASSIGN lr_existing->* TO <lt_existing>.
+
+    TRY.
+        SELECT DISTINCT (it_key_fields)
+          FROM (iv_tabname)
+          INTO CORRESPONDING FIELDS OF TABLE @<lt_existing>.
+
+      CATCH cx_sy_dynamic_osql_error.
+        " 조회에 실패하면 중복 검사만 포기한다. INSERT 시 DB 제약이 최종 방어선이다.
+        RETURN.
+    ENDTRY.
+
+    LOOP AT <lt_existing> ASSIGNING FIELD-SYMBOL(<ls_existing>).
+      INSERT build_key_string( is_row        = <ls_existing>
+                               it_key_fields = it_key_fields )
+        INTO TABLE rt_keys.
+    ENDLOOP.
 
   ENDMETHOD.
 

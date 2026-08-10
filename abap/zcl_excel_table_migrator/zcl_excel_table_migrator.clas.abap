@@ -142,11 +142,22 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
     " 1행은 헤더이므로 2행부터.
     LOOP AT <lt_rows> ASSIGNING FIELD-SYMBOL(<ls_row>) FROM 2.
+
       CLEAR <ls_wa>.
       MOVE-CORRESPONDING <ls_row> TO <ls_wa>.
+
+      " 엑셀의 used range가 실제 데이터보다 넓으면 뒤에 빈 행이 딸려온다.
+      " UUID를 먼저 채우면 그 빈 행도 값이 있는 행이 되어 UUID만 든 레코드가
+      " 생기므로, 빈 행 판정을 반드시 UUID 채우기 앞에서 한다.
+      IF <ls_wa> IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
       fill_uuid_fields( EXPORTING it_fields = lt_uuid_fields
                         CHANGING  cs_row    = <ls_wa> ).
+
       INSERT <ls_wa> INTO TABLE <lt_itab>.
+
     ENDLOOP.
 
     " 대상 테이블명은 호출부 책임 하에 신뢰된 값이어야 한다.

@@ -136,6 +136,10 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
       CLEAR <ls_wa>.
 
+      " 값을 옮기면서 중복 비교용 문자열도 같이 만든다.
+      DATA lv_line TYPE string.
+      CLEAR lv_line.
+
       LOOP AT lt_map INTO DATA(ls_map).
         UNASSIGN: <lv_source>, <lv_target>.
         ASSIGN COMPONENT ls_map-col   OF STRUCTURE <ls_row> TO <lv_source>.
@@ -143,6 +147,7 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
         IF <lv_source> IS ASSIGNED AND <lv_target> IS ASSIGNED.
           <lv_target> = <lv_source>.
+          lv_line = |{ lv_line }~#~{ <lv_source> }|.
         ENDIF.
       ENDLOOP.
 
@@ -151,18 +156,6 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       IF <ls_wa> IS INITIAL.
         CONTINUE.
       ENDIF.
-
-      " 매핑된 값을 이어붙여 같은 라인이 이미 나왔는지 확인한다.
-      DATA lv_line TYPE string.
-      CLEAR lv_line.
-
-      LOOP AT lt_map INTO ls_map.
-        UNASSIGN <lv_target>.
-        ASSIGN COMPONENT ls_map-field OF STRUCTURE <ls_wa> TO <lv_target>.
-        IF <lv_target> IS ASSIGNED.
-          lv_line = |{ lv_line }~#~{ <lv_target> }|.
-        ENDIF.
-      ENDLOOP.
 
       IF line_exists( lt_seen[ table_line = lv_line ] ).
         APPEND |{ lv_row_number }행: 중복된 데이터입니다| TO rs_result-errors.

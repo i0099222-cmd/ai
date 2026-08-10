@@ -27,11 +27,15 @@ CLASS zcl_excel_table_migrator DEFINITION
 
     "! @parameter iv_tabname      | 데이터를 넣을 대상 테이블명
     "! @parameter iv_file_content | 업로드된 xlsx 파일 바이너리
+    "! @parameter it_keep_initial | UUID여도 자동 생성하지 않을 필드명.
+    "!                              부모 참조 UUID처럼 값이 정해져 있어야 하는
+    "!                              필드에 임의 UUID가 박히는 것을 막는다.
     "! @parameter rv_inserted     | INSERT된 행 수
     METHODS migrate
       IMPORTING
         iv_tabname         TYPE tabname
         iv_file_content    TYPE xstring
+        it_keep_initial    TYPE string_table OPTIONAL
       RETURNING
         VALUE(rv_inserted) TYPE i.
 
@@ -66,6 +70,23 @@ CLASS zcl_excel_table_migrator DEFINITION
         io_target_struct     TYPE REF TO cl_abap_structdescr
       RETURNING
         VALUE(rt_column_names) TYPE string_table.
+
+    "! 대상 구조에서 UUID 필드(RAW16)를 찾아 이름을 돌려준다.
+    "! SYSUUID_X16 / GUID_16 / OS_GUID 등이 전부 RAW16이라 타입만으로 구분된다.
+    METHODS find_uuid_fields
+      IMPORTING
+        io_struct       TYPE REF TO cl_abap_structdescr
+        it_keep_initial TYPE string_table
+      RETURNING
+        VALUE(rt_fields) TYPE string_table.
+
+    "! 비어 있는 UUID 필드를 새로 생성한 값으로 채운다.
+    "! 엑셀에서 값이 들어온 필드는 건드리지 않는다.
+    METHODS fill_uuid_fields
+      IMPORTING
+        it_fields TYPE string_table
+      CHANGING
+        cs_row    TYPE any.
 
     "! 템플릿 헤더 컬럼 목록. 실제 업로드 대상 필드명으로 바꿔 쓸 것.
     METHODS get_template_columns
@@ -116,10 +137,15 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     CREATE DATA lr_wa TYPE (iv_tabname).
     ASSIGN lr_wa->* TO FIELD-SYMBOL(<ls_wa>).
 
+    DATA(lt_uuid_fields) = find_uuid_fields( io_struct       = lo_target_struct
+                                             it_keep_initial = it_keep_initial ).
+
     " 1행은 헤더이므로 2행부터.
     LOOP AT <lt_rows> ASSIGNING FIELD-SYMBOL(<ls_row>) FROM 2.
       CLEAR <ls_wa>.
       MOVE-CORRESPONDING <ls_row> TO <ls_wa>.
+      fill_uuid_fields( EXPORTING it_fields = lt_uuid_fields
+                        CHANGING  cs_row    = <ls_wa> ).
       INSERT <ls_wa> INTO TABLE <lt_itab>.
     ENDLOOP.
 
@@ -198,6 +224,48 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     IF lv_matched = abap_false.
       CLEAR rt_column_names.   " 쓸 만한 헤더가 하나도 없음
     ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD find_uuid_fields.
+
+    LOOP AT io_struct->components INTO DATA(ls_component).
+
+      " UUID 데이터엘리먼트(SYSUUID_X16, GUID_16, OS_GUID ...)는 전부 RAW16이다.
+      " 반대로 RAW16인데 UUID가 아닌 필드는 실무에서 거의 없다.
+      IF ls_component-type_kind <> cl_abap_typedescr=>typekind_hex
+         OR ls_component-length <> 16.
+        CONTINUE.
+      ENDIF.
+
+      " 호출부가 제외하라고 지정한 필드는 건너뛴다 (부모 참조 UUID 등).
+      IF line_exists( it_keep_initial[ table_line = CONV string( ls_component-name ) ] ).
+        CONTINUE.
+      ENDIF.
+
+      APPEND CONV string( ls_component-name ) TO rt_fields.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD fill_uuid_fields.
+
+    FIELD-SYMBOLS <lv_uuid> TYPE any.
+
+    LOOP AT it_fields INTO DATA(lv_fieldname).
+
+      UNASSIGN <lv_uuid>.
+      ASSIGN COMPONENT lv_fieldname OF STRUCTURE cs_row TO <lv_uuid>.
+
+      " 엑셀에서 값이 들어온 경우는 그대로 두고, 비어 있을 때만 새로 만든다.
+      IF <lv_uuid> IS ASSIGNED AND <lv_uuid> IS INITIAL.
+        <lv_uuid> = cl_system_uuid=>create_uuid_x16_static( ).
+      ENDIF.
+
+    ENDLOOP.
 
   ENDMETHOD.
 

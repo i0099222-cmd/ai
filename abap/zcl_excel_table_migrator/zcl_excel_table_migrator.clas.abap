@@ -25,19 +25,41 @@ CLASS zcl_excel_table_migrator DEFINITION
         mimetype TYPE string VALUE 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       END OF gc_template.
 
-    "! @parameter iv_tabname      | 데이터를 넣을 대상 테이블명
-    "! @parameter iv_file_content | 업로드된 xlsx 파일 바이너리
-    "! @parameter it_keep_initial | UUID여도 자동 생성하지 않을 필드명.
-    "!                              부모 참조 UUID처럼 값이 정해져 있어야 하는
-    "!                              필드에 임의 UUID가 박히는 것을 막는다.
-    "! @parameter rv_inserted     | INSERT된 행 수
+    "! 잘못된 셀 하나. 엑셀 행 번호를 그대로 담아 사용자가 파일에서 바로 찾을 수 있게 한다.
+    TYPES:
+      BEGIN OF ty_row_error,
+        row_number TYPE i,
+        fieldname  TYPE string,
+        value      TYPE string,
+        message    TYPE string,
+      END OF ty_row_error,
+      tt_row_error TYPE STANDARD TABLE OF ty_row_error WITH EMPTY KEY.
+
+    TYPES:
+      BEGIN OF ty_result,
+        inserted TYPE i,
+        failed   TYPE i,
+        errors   TYPE tt_row_error,
+      END OF ty_result.
+
+    "! @parameter iv_tabname           | 데이터를 넣을 대상 테이블명
+    "! @parameter iv_file_content      | 업로드된 xlsx 파일 바이너리
+    "! @parameter it_keep_initial      | UUID여도 자동 생성하지 않을 필드명.
+    "!                                   부모 참조 UUID처럼 값이 정해져 있어야 하는
+    "!                                   필드에 임의 UUID가 박히는 것을 막는다.
+    "! @parameter iv_skip_invalid_rows | abap_false(기본)면 잘못된 행이 하나라도 있을 때
+    "!                                   아무것도 INSERT하지 않는다. 파일을 고쳐 다시 올리게
+    "!                                   해서 부분 반영 상태를 피하기 위한 기본값이다.
+    "!                                   abap_true면 정상 행만 넣고 나머지는 errors로 돌려준다.
+    "! @parameter rs_result            | INSERT 건수, 실패 건수, 행/필드별 오류 목록
     METHODS migrate
       IMPORTING
-        iv_tabname         TYPE tabname
-        iv_file_content    TYPE xstring
-        it_keep_initial    TYPE string_table OPTIONAL
+        iv_tabname           TYPE tabname
+        iv_file_content      TYPE xstring
+        it_keep_initial      TYPE string_table OPTIONAL
+        iv_skip_invalid_rows TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rv_inserted) TYPE i.
+        VALUE(rs_result)     TYPE ty_result.
 
     "! 헤더 행만 채워진 빈 업로드 템플릿(xlsx)을 만들어 돌려준다.
     "! @parameter rv_file_content | 다운로드용 xlsx 바이너리
@@ -87,6 +109,17 @@ CLASS zcl_excel_table_migrator DEFINITION
         it_fields TYPE string_table
       CHANGING
         cs_row    TYPE any.
+
+    "! 행 전체 복사가 실패했을 때, 그 행만 필드 단위로 다시 훑어
+    "! 어느 필드의 어떤 값이 문제였는지 찾아낸다.
+    "! 실패한 행에서만 호출되므로 느린 경로여도 전체 성능에 영향이 없다.
+    METHODS describe_row_errors
+      IMPORTING
+        is_source        TYPE any
+        is_target        TYPE any
+        iv_row_number    TYPE i
+      RETURNING
+        VALUE(rt_errors) TYPE tt_row_error.
 
     "! 템플릿 헤더 컬럼 목록. 실제 업로드 대상 필드명으로 바꿔 쓸 것.
     METHODS get_template_columns
@@ -140,11 +173,26 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     DATA(lt_uuid_fields) = find_uuid_fields( io_struct       = lo_target_struct
                                              it_keep_initial = it_keep_initial ).
 
-    " 1행은 헤더이므로 2행부터.
+    " 1행은 헤더이므로 2행부터. sy-tabix가 곧 엑셀 행 번호라 그대로 오류에 담는다.
     LOOP AT <lt_rows> ASSIGNING FIELD-SYMBOL(<ls_row>) FROM 2.
 
+      DATA(lv_row_number) = sy-tabix.
+
       CLEAR <ls_wa>.
-      MOVE-CORRESPONDING <ls_row> TO <ls_wa>.
+
+      TRY.
+          MOVE-CORRESPONDING <ls_row> TO <ls_wa>.
+
+        CATCH cx_sy_conversion_error.
+          " 행 전체 복사는 어느 필드가 문제인지 알려주지 않으므로,
+          " 이 행만 필드 단위로 다시 훑어 위치를 특정한다.
+          APPEND LINES OF describe_row_errors( is_source     = <ls_row>
+                                               is_target     = <ls_wa>
+                                               iv_row_number = lv_row_number )
+                 TO rs_result-errors.
+          rs_result-failed = rs_result-failed + 1.
+          CONTINUE.
+      ENDTRY.
 
       " 엑셀의 used range가 실제 데이터보다 넓으면 뒤에 빈 행이 딸려온다.
       " UUID를 먼저 채우면 그 빈 행도 값이 있는 행이 되어 UUID만 든 레코드가
@@ -160,11 +208,17 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
     ENDLOOP.
 
+    " 기본값은 전부 아니면 전무다. 일부만 들어간 상태로 두면 사용자가 파일을 고쳐
+    " 다시 올릴 때 무엇이 이미 반영됐는지 알 수 없어 중복이 생긴다.
+    IF rs_result-errors IS NOT INITIAL AND iv_skip_invalid_rows = abap_false.
+      RETURN.
+    ENDIF.
+
     " 대상 테이블명은 호출부 책임 하에 신뢰된 값이어야 한다.
     INSERT (iv_tabname) FROM TABLE @<lt_itab>.
 
     IF sy-subrc = 0.
-      rv_inserted = lines( <lt_itab> ).
+      rs_result-inserted = lines( <lt_itab> ).
     ENDIF.
 
   ENDMETHOD.
@@ -275,6 +329,46 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       IF <lv_uuid> IS ASSIGNED AND <lv_uuid> IS INITIAL.
         <lv_uuid> = cl_system_uuid=>create_uuid_x16_static( ).
       ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD describe_row_errors.
+
+    " 대상과 같은 타입의 임시 구조에 한 필드씩 옮겨보며 실패 지점을 찾는다.
+    " 호출부의 <ls_wa>를 건드리지 않으려고 별도 인스턴스를 쓴다.
+    DATA lr_scratch TYPE REF TO data.
+    CREATE DATA lr_scratch LIKE is_target.
+    ASSIGN lr_scratch->* TO FIELD-SYMBOL(<ls_scratch>).
+
+    DATA(lo_source_struct) = CAST cl_abap_structdescr(
+      cl_abap_typedescr=>describe_by_data( is_source ) ).
+
+    FIELD-SYMBOLS: <lv_source_cell> TYPE any,
+                   <lv_target_field> TYPE any.
+
+    LOOP AT lo_source_struct->components INTO DATA(ls_component).
+
+      UNASSIGN: <lv_source_cell>, <lv_target_field>.
+      ASSIGN COMPONENT ls_component-name OF STRUCTURE is_source    TO <lv_source_cell>.
+      ASSIGN COMPONENT ls_component-name OF STRUCTURE <ls_scratch> TO <lv_target_field>.
+
+      " 대상에 없는 컬럼은 애초에 복사 대상이 아니므로 오류가 아니다.
+      IF <lv_source_cell> IS NOT ASSIGNED OR <lv_target_field> IS NOT ASSIGNED.
+        CONTINUE.
+      ENDIF.
+
+      TRY.
+          <lv_target_field> = <lv_source_cell>.
+
+        CATCH cx_sy_conversion_error INTO DATA(lx_conversion).
+          APPEND VALUE #( row_number = iv_row_number
+                          fieldname  = CONV string( ls_component-name )
+                          value      = <lv_source_cell>
+                          message    = lx_conversion->get_text( ) ) TO rt_errors.
+      ENDTRY.
 
     ENDLOOP.
 

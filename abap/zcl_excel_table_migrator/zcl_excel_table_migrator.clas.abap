@@ -27,10 +27,15 @@ CLASS zcl_excel_table_migrator DEFINITION
         errors   TYPE string_table,
       END OF ty_result.
 
+    "! xlsx와 CSV를 모두 받는다. 파일 종류는 내용으로 판별하므로 호출부는 신경 쓸 게 없다.
+    "! @parameter iv_codepage | CSV일 때만 쓴다. 엑셀에서 "CSV(쉼표로 분리)"로 저장하면
+    "!                          UTF-8이 아니라 로컬 코드페이지로 나오는 경우가 많다.
+    "!                          한글이 깨지면 'CP949'로 바꿔서 시도할 것.
     METHODS migrate
       IMPORTING
         iv_tabname       TYPE tabname
         iv_file_content  TYPE xstring
+        iv_codepage      TYPE string DEFAULT 'UTF-8'
       RETURNING
         VALUE(rs_result) TYPE ty_result.
 
@@ -38,6 +43,24 @@ CLASS zcl_excel_table_migrator DEFINITION
     METHODS get_template
       RETURNING
         VALUE(rv_file_content) TYPE xstring.
+
+  PRIVATE SECTION.
+
+    "! CSV를 xlsx와 같은 모양(COL1..COLn 문자열 테이블)으로 읽어 넣는다.
+    METHODS read_csv
+      IMPORTING
+        iv_file_content TYPE xstring
+        iv_codepage     TYPE string
+      CHANGING
+        ct_rows         TYPE INDEX TABLE.
+
+    "! CSV 한 줄을 값으로 쪼갠다. 따옴표 안의 구분자는 값의 일부로 둔다.
+    METHODS split_csv_line
+      IMPORTING
+        iv_line          TYPE string
+        iv_delimiter     TYPE c
+      RETURNING
+        VALUE(rt_values) TYPE string_table.
 
 ENDCLASS.
 
@@ -65,12 +88,23 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     FIELD-SYMBOLS <lt_rows> TYPE INDEX TABLE.
     ASSIGN lr_rows->* TO <lt_rows>.
 
-    xco_cp_xlsx=>document->for_file_content( iv_file_content
-      )->read_access( )->get_workbook( )->worksheet->at_position( 1
-      )->select( xco_cp_xlsx_selection=>pattern_builder->simple_from_to( )->get_pattern( )
-      )->row_stream( )->operation->write_to( lr_rows
-      )->set_value_transformation( xco_cp_xlsx_read_access=>value_transformation->string_value
-      )->execute( ).
+    " xlsx는 ZIP이라 항상 'PK'로 시작한다. 아니면 CSV로 본다.
+    IF xstrlen( iv_file_content ) >= 2 AND iv_file_content(2) = '504B'.
+
+      xco_cp_xlsx=>document->for_file_content( iv_file_content
+        )->read_access( )->get_workbook( )->worksheet->at_position( 1
+        )->select( xco_cp_xlsx_selection=>pattern_builder->simple_from_to( )->get_pattern( )
+        )->row_stream( )->operation->write_to( lr_rows
+        )->set_value_transformation( xco_cp_xlsx_read_access=>value_transformation->string_value
+        )->execute( ).
+
+    ELSE.
+
+      read_csv( EXPORTING iv_file_content = iv_file_content
+                          iv_codepage     = iv_codepage
+                CHANGING  ct_rows         = <lt_rows> ).
+
+    ENDIF.
 
     IF lines( <lt_rows> ) < 2.
       RETURN.   " 헤더만 있거나 빈 시트
@@ -191,6 +225,106 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       " 키가 UUID가 아닌 테이블이면 DB에 이미 있는 키에서 여기로 떨어진다.
       APPEND |이미 등록된 데이터가 있어 INSERT에 실패했습니다| TO rs_result-errors.
     ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD read_csv.
+
+    DATA(lv_bytes) = iv_file_content.
+
+    " UTF-8 BOM이 붙어 있으면 첫 헤더 이름에 보이지 않는 문자가 섞여 매칭이 실패한다.
+    IF xstrlen( lv_bytes ) >= 3 AND lv_bytes(3) = 'EFBBBF'.
+      lv_bytes = lv_bytes+3.
+    ENDIF.
+
+    DATA(lv_text) = cl_abap_conv_codepage=>create_in(
+      codepage = CONV #( iv_codepage ) )->convert( lv_bytes ).
+
+    " 줄바꿈은 CRLF일 수도 LF일 수도 있다.
+    REPLACE ALL OCCURRENCES OF |\r\n| IN lv_text WITH |\n|.
+    SPLIT lv_text AT |\n| INTO TABLE DATA(lt_lines).
+
+    " 구분자는 헤더 줄에서 가장 많이 나온 문자로 정한다.
+    " 한국/유럽 로케일 엑셀은 CSV를 세미콜론으로 저장한다.
+    READ TABLE lt_lines INTO DATA(lv_header) INDEX 1.
+
+    DATA(lv_delimiter) = ','.
+    IF count( val = lv_header sub = ';' ) > count( val = lv_header sub = ',' ).
+      lv_delimiter = ';'.
+    ENDIF.
+
+    FIELD-SYMBOLS <lv_cell> TYPE any.
+
+    LOOP AT lt_lines INTO DATA(lv_line_text).
+
+      " 파일 끝의 빈 줄은 건너뛴다.
+      IF lv_line_text IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      APPEND INITIAL LINE TO ct_rows ASSIGNING FIELD-SYMBOL(<ls_new_row>).
+
+      LOOP AT split_csv_line( iv_line      = lv_line_text
+                              iv_delimiter = lv_delimiter ) INTO DATA(lv_value).
+
+        DATA(lv_column_index) = sy-tabix.
+
+        UNASSIGN <lv_cell>.
+        ASSIGN COMPONENT lv_column_index OF STRUCTURE <ls_new_row> TO <lv_cell>.
+
+        " 대상 테이블 필드 수보다 컬럼이 많으면 초과분은 버린다.
+        IF <lv_cell> IS ASSIGNED.
+          <lv_cell> = lv_value.
+        ENDIF.
+
+      ENDLOOP.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD split_csv_line.
+
+    DATA lv_value    TYPE string.
+    DATA lv_offset   TYPE i.
+    DATA lv_in_quote TYPE abap_bool.
+
+    WHILE lv_offset < strlen( iv_line ).
+
+      DATA(lv_char) = iv_line+lv_offset(1).
+
+      IF lv_char = '"'.
+
+        " 따옴표 안의 ""는 값에 들어가는 따옴표 한 개다.
+        IF lv_in_quote = abap_true
+           AND lv_offset + 1 < strlen( iv_line )
+           AND iv_line+lv_offset(2) = '""'.
+          lv_value = lv_value && '"'.
+          lv_offset = lv_offset + 2.
+          CONTINUE.
+        ENDIF.
+
+        lv_in_quote = xsdbool( lv_in_quote = abap_false ).
+
+      ELSEIF lv_char = iv_delimiter AND lv_in_quote = abap_false.
+
+        " 따옴표 밖의 구분자에서만 값을 끊는다.
+        APPEND lv_value TO rt_values.
+        CLEAR lv_value.
+
+      ELSE.
+
+        lv_value = lv_value && lv_char.
+
+      ENDIF.
+
+      lv_offset = lv_offset + 1.
+
+    ENDWHILE.
+
+    APPEND lv_value TO rt_values.
 
   ENDMETHOD.
 

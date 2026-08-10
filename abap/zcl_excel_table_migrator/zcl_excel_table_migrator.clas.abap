@@ -128,11 +128,7 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     " 파일 안에 같은 데이터가 또 나왔는지 보기 위해, 매핑된 값을 이어붙인
     " 문자열을 기억해 둔다. UUID를 채우기 전 상태로 비교해야 한다 -
     " 채운 뒤에는 모든 행이 달라 보여서 아무것도 안 잡힌다.
-    TYPES: BEGIN OF ty_seen,
-             line       TYPE string,
-             row_number TYPE i,
-           END OF ty_seen.
-    DATA lt_seen TYPE HASHED TABLE OF ty_seen WITH UNIQUE KEY line.
+    DATA lt_seen TYPE HASHED TABLE OF string WITH UNIQUE KEY table_line.
 
     LOOP AT <lt_rows> ASSIGNING FIELD-SYMBOL(<ls_row>) FROM 2.
 
@@ -168,15 +164,12 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
 
-      DATA(ls_seen) = VALUE ty_seen( lt_seen[ line = lv_line ] OPTIONAL ).
-
-      IF ls_seen-row_number IS NOT INITIAL.
-        APPEND |{ lv_row_number }행: { ls_seen-row_number }행과 중복된 데이터입니다|
-               TO rs_result-errors.
+      IF line_exists( lt_seen[ table_line = lv_line ] ).
+        APPEND |{ lv_row_number }행: 중복된 데이터입니다| TO rs_result-errors.
         CONTINUE.
       ENDIF.
 
-      INSERT VALUE #( line = lv_line row_number = lv_row_number ) INTO TABLE lt_seen.
+      INSERT lv_line INTO TABLE lt_seen.
 
       " 엑셀에서 값이 들어온 UUID는 그대로 두고, 비어 있을 때만 생성한다.
       LOOP AT lt_uuid_fields INTO DATA(lv_uuid_field).

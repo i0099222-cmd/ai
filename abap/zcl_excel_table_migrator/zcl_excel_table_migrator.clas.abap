@@ -149,6 +149,39 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       APPEND CONV string( ls_component-name ) TO lt_uuid_fields.
     ENDLOOP.
 
+    " ── 4b) RAP 관리 필드 ───────────────────────────────────────────
+    "       RAP BO를 거치면 determination이 채워주지만, 여기서는 직접 INSERT라
+    "       아무도 안 채운다. 이름으로 찾아 우리가 넣는다.
+    "       DB 필드는 CREATED_BY, CDS는 CreatedBy처럼 표기가 달라 밑줄을 지우고 비교한다.
+    DATA lt_admin_user TYPE string_table.   " ...BY   - 사용자
+    DATA lt_admin_ts   TYPE string_table.   " ...AT   - TIMESTAMPL(팩형)
+    DATA lt_admin_utc  TYPE string_table.   " ...AT   - UTCLONG
+
+    LOOP AT lo_struct->components INTO ls_component.
+
+      DATA(lv_plain) = replace( val  = to_upper( CONV string( ls_component-name ) )
+                                sub  = `_`
+                                with = ``
+                                occ  = 0 ).
+
+      IF lv_plain = 'CREATEDBY' OR lv_plain = 'LASTCHANGEDBY' OR lv_plain = 'LOCALLASTCHANGEDBY'.
+        APPEND CONV string( ls_component-name ) TO lt_admin_user.
+
+      ELSEIF lv_plain = 'CREATEDAT' OR lv_plain = 'LASTCHANGEDAT' OR lv_plain = 'LOCALLASTCHANGEDAT'.
+        " 같은 의미의 필드라도 테이블에 따라 UTCLONG이거나 TIMESTAMPL이라 대입할 값이 다르다.
+        IF ls_component-type_kind = cl_abap_typedescr=>typekind_utclong.
+          APPEND CONV string( ls_component-name ) TO lt_admin_utc.
+        ELSE.
+          APPEND CONV string( ls_component-name ) TO lt_admin_ts.
+        ENDIF.
+      ENDIF.
+
+    ENDLOOP.
+
+    DATA(lv_user) = cl_abap_context_info=>get_user_technical_name( ).
+    DATA(lv_utclong) = utclong_current( ).
+    GET TIME STAMP FIELD DATA(lv_timestamp).
+
     " ── 5) 행 복사 ──────────────────────────────────────────────────
     DATA lr_itab TYPE REF TO data.
     CREATE DATA lr_itab TYPE TABLE OF (iv_tabname).
@@ -205,6 +238,31 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
         IF <lv_target> IS ASSIGNED AND <lv_target> IS INITIAL.
           <lv_target> = cl_system_uuid=>create_uuid_x16_static( ).
+        ENDIF.
+      ENDLOOP.
+
+      " 관리 필드는 시스템이 정하는 값이므로 엑셀에 뭐가 있든 덮어쓴다.
+      LOOP AT lt_admin_user INTO DATA(lv_admin_field).
+        UNASSIGN <lv_target>.
+        ASSIGN COMPONENT lv_admin_field OF STRUCTURE <ls_wa> TO <lv_target>.
+        IF <lv_target> IS ASSIGNED.
+          <lv_target> = lv_user.
+        ENDIF.
+      ENDLOOP.
+
+      LOOP AT lt_admin_utc INTO lv_admin_field.
+        UNASSIGN <lv_target>.
+        ASSIGN COMPONENT lv_admin_field OF STRUCTURE <ls_wa> TO <lv_target>.
+        IF <lv_target> IS ASSIGNED.
+          <lv_target> = lv_utclong.
+        ENDIF.
+      ENDLOOP.
+
+      LOOP AT lt_admin_ts INTO lv_admin_field.
+        UNASSIGN <lv_target>.
+        ASSIGN COMPONENT lv_admin_field OF STRUCTURE <ls_wa> TO <lv_target>.
+        IF <lv_target> IS ASSIGNED.
+          <lv_target> = lv_timestamp.
         ENDIF.
       ENDLOOP.
 

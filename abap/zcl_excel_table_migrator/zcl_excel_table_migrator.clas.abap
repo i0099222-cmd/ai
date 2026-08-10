@@ -37,6 +37,9 @@ CLASS zcl_excel_table_migrator DEFINITION
 
     TYPES:
       BEGIN OF ty_result,
+        "! INSERT가 실제로 성공했는지. 커밋 여부는 호출부가 이 값으로 판단한다.
+        "! 넣을 행이 없었거나 오류로 중단된 경우에도 abap_false다.
+        db_ok    TYPE abap_bool,
         inserted TYPE i,
         failed   TYPE i,
         errors   TYPE tt_row_error,
@@ -214,10 +217,17 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    IF <lt_itab> IS INITIAL.
+      RETURN.   " 넣을 행이 없음 - db_ok는 abap_false로 남는다
+    ENDIF.
+
     " 대상 테이블명은 호출부 책임 하에 신뢰된 값이어야 한다.
     INSERT (iv_tabname) FROM TABLE @<lt_itab>.
 
-    IF sy-subrc = 0.
+    " sy-subrc는 다음 문장에서 덮이므로 INSERT 직후에 확정한다.
+    rs_result-db_ok = xsdbool( sy-subrc = 0 ).
+
+    IF rs_result-db_ok = abap_true.
       rs_result-inserted = lines( <lt_itab> ).
     ENDIF.
 

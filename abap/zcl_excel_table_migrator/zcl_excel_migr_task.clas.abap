@@ -57,8 +57,8 @@ CLASS zcl_excel_migr_task IMPLEMENTATION.
           iv_file_content = mv_file_content
           it_keep_initial = mt_keep_initial ).
 
-        " migrate( )는 기본적으로 전부 아니면 전무라, 넣을 게 있을 때만 확정한다.
-        IF ms_result-inserted > 0.
+        " db_ok는 migrate( )가 INSERT 직후 sy-subrc로 확정한 값이다.
+        IF ms_result-db_ok = abap_true.
           COMMIT WORK AND WAIT.
         ELSE.
           ROLLBACK WORK.

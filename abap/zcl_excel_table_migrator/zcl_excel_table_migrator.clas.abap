@@ -289,27 +289,47 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
   METHOD read_csv.
 
-    DATA(lv_bytes) = iv_file_content.
+    DATA(lv_bytes)    = iv_file_content.
+    DATA(lv_codepage) = iv_codepage.
 
-    " UTF-8 BOM이 붙어 있으면 첫 헤더 이름에 보이지 않는 문자가 섞여 매칭이 실패한다.
+    " BOM이 있으면 파일이 스스로 인코딩을 알려주는 셈이므로 그것을 따른다.
+    " 여기서 틀리면 바이트가 엉뚱하게 묶여 한자 같은 글자가 나온다.
     IF xstrlen( lv_bytes ) >= 3 AND lv_bytes(3) = 'EFBBBF'.
-      lv_bytes = lv_bytes+3.
+      " UTF-8 BOM. 떼지 않으면 첫 헤더 이름에 안 보이는 문자가 붙어 매칭이 실패한다.
+      lv_bytes    = lv_bytes+3.
+      lv_codepage = 'UTF-8'.
+
+    ELSEIF xstrlen( lv_bytes ) >= 2 AND lv_bytes(2) = 'FFFE'.
+      " 엑셀에서 "유니코드 텍스트"로 저장하면 이 형식이 나온다.
+      lv_bytes    = lv_bytes+2.
+      lv_codepage = 'UTF-16LE'.
+
+    ELSEIF xstrlen( lv_bytes ) >= 2 AND lv_bytes(2) = 'FEFF'.
+      lv_bytes    = lv_bytes+2.
+      lv_codepage = 'UTF-16BE'.
     ENDIF.
 
     DATA(lv_text) = cl_abap_conv_codepage=>create_in(
-      codepage = CONV #( iv_codepage ) )->convert( lv_bytes ).
+      codepage = CONV #( lv_codepage ) )->convert( lv_bytes ).
 
     " 줄바꿈은 CRLF일 수도 LF일 수도 있다.
     REPLACE ALL OCCURRENCES OF |\r\n| IN lv_text WITH |\n|.
     SPLIT lv_text AT |\n| INTO TABLE DATA(lt_lines).
 
     " 구분자는 헤더 줄에서 가장 많이 나온 문자로 정한다.
-    " 한국/유럽 로케일 엑셀은 CSV를 세미콜론으로 저장한다.
+    " 한국/유럽 로케일 엑셀은 CSV를 세미콜론으로, "유니코드 텍스트"는 탭으로 저장한다.
     READ TABLE lt_lines INTO DATA(lv_header) INDEX 1.
 
     DATA(lv_delimiter) = ','.
-    IF count( val = lv_header sub = ';' ) > count( val = lv_header sub = ',' ).
+    DATA(lv_best) = count( val = lv_header sub = ',' ).
+
+    IF count( val = lv_header sub = ';' ) > lv_best.
       lv_delimiter = ';'.
+      lv_best      = count( val = lv_header sub = ';' ).
+    ENDIF.
+
+    IF count( val = lv_header sub = |\t| ) > lv_best.
+      lv_delimiter = |\t|.
     ENDIF.
 
     FIELD-SYMBOLS <lv_cell> TYPE any.

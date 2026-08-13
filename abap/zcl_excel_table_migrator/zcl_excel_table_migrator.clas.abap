@@ -28,14 +28,12 @@ CLASS zcl_excel_table_migrator DEFINITION
       END OF ty_result.
 
     "! xlsx와 CSV를 모두 받는다. 파일 종류는 내용으로 판별하므로 호출부는 신경 쓸 게 없다.
-    "! @parameter iv_codepage | CSV일 때만 쓴다. 엑셀에서 "CSV(쉼표로 분리)"로 저장하면
-    "!                          UTF-8이 아니라 로컬 코드페이지로 나오는 경우가 많다.
-    "!                          한글이 깨지면 'CP949'로 바꿔서 시도할 것.
+    "! CSV는 UTF-8만 읽는다. 엑셀에서 그냥 "CSV"로 저장하면 로컬 코드페이지(한국은 CP949)로
+    "! 나오므로, 사용자에게 "CSV UTF-8"로 저장하도록 안내해야 한다.
     METHODS migrate
       IMPORTING
         iv_tabname       TYPE tabname
         iv_file_content  TYPE xstring
-        iv_codepage      TYPE abap_encoding DEFAULT 'UTF-8'
       RETURNING
         VALUE(rs_result) TYPE ty_result.
 
@@ -50,7 +48,6 @@ CLASS zcl_excel_table_migrator DEFINITION
     METHODS read_csv
       IMPORTING
         iv_file_content TYPE xstring
-        iv_codepage     TYPE abap_encoding
       CHANGING
         ct_rows         TYPE INDEX TABLE.
 
@@ -102,12 +99,11 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
       TRY.
           read_csv( EXPORTING iv_file_content = iv_file_content
-                              iv_codepage     = iv_codepage
                     CHANGING  ct_rows         = <lt_rows> ).
 
-        CATCH cx_sy_conversion_codepage.
-          " 인코딩을 못 맞추면 덤프 대신 무엇을 해야 하는지 알려준다.
-          APPEND |파일 인코딩을 읽을 수 없습니다. iv_codepage를 파일 인코딩에 맞춰 넘기세요|
+        CATCH cx_root.
+          " UTF-8이 아닌 파일이면 여기로 온다. 덤프 대신 사용자가 할 수 있는 것을 알려준다.
+          APPEND |CSV를 읽을 수 없습니다. 엑셀에서 "CSV UTF-8"로 저장해 다시 올려주세요|
                  TO rs_result-errors.
           RETURN.
       ENDTRY.
@@ -299,38 +295,16 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
     DATA(lv_bytes) = iv_file_content.
 
-    " 타입을 그대로 맞춰 넘겨야 한다. CONV로 다른 타입을 거치면 값이 잘려
-    " 코드페이지가 무시되고, 단일바이트 파일이 UTF-16으로 읽혀 한자가 나온다.
-    DATA lv_codepage TYPE abap_encoding.
-    lv_codepage = iv_codepage.
-
-    " BOM이 있으면 파일이 스스로 인코딩을 알려주는 셈이므로 그것을 따른다.
-    " 여기서 틀리면 바이트가 엉뚱하게 묶여 한자 같은 글자가 나온다.
+    " UTF-8 BOM은 떼지 않으면 첫 헤더 이름에 안 보이는 문자가 붙어 매칭이 실패한다.
     IF xstrlen( lv_bytes ) >= 3 AND lv_bytes(3) = 'EFBBBF'.
-      " UTF-8 BOM. 떼지 않으면 첫 헤더 이름에 안 보이는 문자가 붙어 매칭이 실패한다.
-      lv_bytes    = lv_bytes+3.
-      lv_codepage = 'UTF-8'.
-
-    ELSEIF xstrlen( lv_bytes ) >= 2 AND lv_bytes(2) = 'FFFE'.
-      " 엑셀에서 "유니코드 텍스트"로 저장하면 이 형식이 나온다.
-      lv_bytes    = lv_bytes+2.
-      lv_codepage = 'UTF-16LE'.
-
-    ELSEIF xstrlen( lv_bytes ) >= 2 AND lv_bytes(2) = 'FEFF'.
-      lv_bytes    = lv_bytes+2.
-      lv_codepage = 'UTF-16BE'.
+      lv_bytes = lv_bytes+3.
     ENDIF.
 
-    DATA lv_text TYPE string.
-
-    TRY.
-        lv_text = cl_abap_conv_codepage=>create_in( codepage = lv_codepage )->convert( lv_bytes ).
-
-      CATCH cx_sy_conversion_codepage.
-        " 지정한 코드페이지로 읽히지 않으면 한국어 엑셀이 CSV에 쓰는 CP949로 한 번 더 본다.
-        " 여기서도 실패하면 호출부가 오류로 처리하도록 예외를 그대로 올린다.
-        lv_text = cl_abap_conv_codepage=>create_in( codepage = 'CP949' )->convert( lv_bytes ).
-    ENDTRY.
+    " XCO는 릴리즈 API라 별도 래퍼 없이 쓸 수 있다.
+    " 다른 코드페이지가 필요하면 ADT에서 xco_cp_character=>code_page-> 를 열어
+    " 어떤 값이 제공되는지 확인할 것.
+    DATA(lv_text) = xco_cp=>xstring( lv_bytes
+      )->as_string( xco_cp_character=>code_page->utf_8 )->value.
 
     " 줄바꿈은 CRLF일 수도 LF일 수도 있다.
     REPLACE ALL OCCURRENCES OF |\r\n| IN lv_text WITH |\n|.

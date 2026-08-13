@@ -100,9 +100,17 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
     ELSE.
 
-      read_csv( EXPORTING iv_file_content = iv_file_content
-                          iv_codepage     = iv_codepage
-                CHANGING  ct_rows         = <lt_rows> ).
+      TRY.
+          read_csv( EXPORTING iv_file_content = iv_file_content
+                              iv_codepage     = iv_codepage
+                    CHANGING  ct_rows         = <lt_rows> ).
+
+        CATCH cx_sy_conversion_codepage.
+          " 인코딩을 못 맞추면 덤프 대신 무엇을 해야 하는지 알려준다.
+          APPEND |파일 인코딩을 읽을 수 없습니다. iv_codepage를 파일 인코딩에 맞춰 넘기세요|
+                 TO rs_result-errors.
+          RETURN.
+      ENDTRY.
 
     ENDIF.
 
@@ -313,8 +321,16 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       lv_codepage = 'UTF-16BE'.
     ENDIF.
 
-    DATA(lv_text) = cl_abap_conv_codepage=>create_in(
-      codepage = lv_codepage )->convert( lv_bytes ).
+    DATA lv_text TYPE string.
+
+    TRY.
+        lv_text = cl_abap_conv_codepage=>create_in( codepage = lv_codepage )->convert( lv_bytes ).
+
+      CATCH cx_sy_conversion_codepage.
+        " 지정한 코드페이지로 읽히지 않으면 한국어 엑셀이 CSV에 쓰는 CP949로 한 번 더 본다.
+        " 여기서도 실패하면 호출부가 오류로 처리하도록 예외를 그대로 올린다.
+        lv_text = cl_abap_conv_codepage=>create_in( codepage = 'CP949' )->convert( lv_bytes ).
+    ENDTRY.
 
     " 줄바꿈은 CRLF일 수도 LF일 수도 있다.
     REPLACE ALL OCCURRENCES OF |\r\n| IN lv_text WITH |\n|.

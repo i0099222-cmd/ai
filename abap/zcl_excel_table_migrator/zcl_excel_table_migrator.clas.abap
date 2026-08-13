@@ -295,31 +295,40 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
   METHOD decode.
 
-    " 인코딩은 BOM이 없으면 파일 안에 표시가 없어 단정할 수 없다.
-    " 후보를 순서대로 시도해 처음 성공한 것을 쓴다.
+    " ABAP Cloud에서 쓸 수 있는 변환기는 XCO뿐이고 XCO는 UTF-8만 다룬다.
+    " CL_ABAP_CONV_CODEPAGE는 RAP/ABAP Cloud에서 허용되지 않는다.
     "
-    " UTF-8을 먼저 두는 이유: 한국어 코드페이지 바이트는 UTF-8로 읽으면 대개
-    " 실패하지만, UTF-8 바이트는 한국어 코드페이지로 읽으면 실패하지 않고
-    " 조용히 깨진 글자가 된다. 실패하는 쪽을 먼저 걸러야 오해석이 통과하지 않는다.
-    "
-    " 8500은 SAP이 한국어 코드페이지에 붙인 번호다. 'CP949'라는 이름은 거부된다.
-    DATA(lt_candidates) = VALUE string_table( ( `UTF-8` ) ( `8500` ) ).
+    " UTF-8을 먼저 시도하는 이유: 한국어 코드페이지 바이트는 UTF-8로 읽으면 대개
+    " 실패하지만, UTF-8 바이트는 한국어 코드페이지로 읽으면 실패하지 않고 조용히
+    " 깨진 글자가 된다. 실패하는 쪽을 먼저 걸러야 오해석이 통과하지 않는다.
+    TRY.
+        rv_text = xco_cp=>xstring( iv_bytes
+          )->as_string( xco_cp_character=>code_page->utf_8 )->value.
+        RETURN.
 
-    IF iv_codepage IS NOT INITIAL.
-      INSERT iv_codepage INTO lt_candidates INDEX 1.
+      CATCH cx_root.
+        " UTF-8이 아니다. 아래 FM으로 넘어간다.
+    ENDTRY.
+
+    " 한국어 코드페이지는 클라우드 API로 읽을 수 없어 Standard ABAP FM에 위임한다.
+    " (Local API로 릴리즈해야 여기서 호출된다 - z_csv_to_string.abap 참고)
+    DATA(lv_codepage) = COND string( WHEN iv_codepage IS INITIAL
+                                     THEN `8500`          " SAP 한국어 코드페이지
+                                     ELSE iv_codepage ).
+
+    CALL FUNCTION 'Z_CSV_TO_STRING'
+      EXPORTING
+        iv_bytes          = iv_bytes
+        iv_codepage       = lv_codepage
+      IMPORTING
+        ev_text           = rv_text
+      EXCEPTIONS
+        conversion_failed = 1
+        OTHERS            = 2.
+
+    IF sy-subrc <> 0.
+      CLEAR rv_text.   " 호출부가 빈 값을 보고 오류로 처리한다
     ENDIF.
-
-    LOOP AT lt_candidates INTO DATA(lv_codepage).
-      TRY.
-          rv_text = cl_abap_conv_codepage=>create_in( codepage = lv_codepage )->convert( iv_bytes ).
-          RETURN.   " 성공한 첫 후보를 쓴다
-
-        CATCH cx_root.
-          CONTINUE.
-      ENDTRY.
-    ENDLOOP.
-
-    " 전부 실패하면 빈 문자열이 돌아가고, 호출부가 오류로 처리한다.
 
   ENDMETHOD.
 

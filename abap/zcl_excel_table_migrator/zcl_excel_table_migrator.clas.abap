@@ -51,14 +51,6 @@ CLASS zcl_excel_table_migrator DEFINITION
       CHANGING
         ct_rows         TYPE INDEX TABLE.
 
-    "! CSV 한 줄을 값으로 쪼갠다. 따옴표 안의 구분자는 값의 일부로 둔다.
-    METHODS split_csv_line
-      IMPORTING
-        iv_line          TYPE string
-        iv_delimiter     TYPE c
-      RETURNING
-        VALUE(rt_values) TYPE string_table.
-
 ENDCLASS.
 
 
@@ -337,8 +329,9 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
       APPEND INITIAL LINE TO ct_rows ASSIGNING FIELD-SYMBOL(<ls_new_row>).
 
-      LOOP AT split_csv_line( iv_line      = lv_line_text
-                              iv_delimiter = lv_delimiter ) INTO DATA(lv_value).
+      SPLIT lv_line_text AT lv_delimiter INTO TABLE DATA(lt_values).
+
+      LOOP AT lt_values INTO DATA(lv_value).
 
         DATA(lv_column_index) = sy-tabix.
 
@@ -353,50 +346,6 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       ENDLOOP.
 
     ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD split_csv_line.
-
-    DATA lv_value    TYPE string.
-    DATA lv_offset   TYPE i.
-    DATA lv_in_quote TYPE abap_bool.
-
-    WHILE lv_offset < strlen( iv_line ).
-
-      DATA(lv_char) = iv_line+lv_offset(1).
-
-      IF lv_char = '"'.
-
-        " 따옴표 안의 ""는 값에 들어가는 따옴표 한 개다.
-        IF lv_in_quote = abap_true
-           AND lv_offset + 1 < strlen( iv_line )
-           AND iv_line+lv_offset(2) = '""'.
-          lv_value = lv_value && '"'.
-          lv_offset = lv_offset + 2.
-          CONTINUE.
-        ENDIF.
-
-        lv_in_quote = xsdbool( lv_in_quote = abap_false ).
-
-      ELSEIF lv_char = iv_delimiter AND lv_in_quote = abap_false.
-
-        " 따옴표 밖의 구분자에서만 값을 끊는다.
-        APPEND lv_value TO rt_values.
-        CLEAR lv_value.
-
-      ELSE.
-
-        lv_value = lv_value && lv_char.
-
-      ENDIF.
-
-      lv_offset = lv_offset + 1.
-
-    ENDWHILE.
-
-    APPEND lv_value TO rt_values.
 
   ENDMETHOD.
 

@@ -94,8 +94,11 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
                     CHANGING  ct_rows         = <lt_rows> ).
 
         CATCH cx_root.
-          " UTF-8이 아닌 파일이면 여기로 온다. 덤프 대신 사용자가 할 수 있는 것을 알려준다.
-          APPEND |CSV를 읽을 수 없습니다. 엑셀에서 "CSV UTF-8"로 저장해 다시 올려주세요|
+          " 형식이 아니라 인코딩 문제다. 엑셀의 "CSV(쉼표로 분리)"는 한글을 CP949로 저장하는데
+          " 여기서는 UTF-8만 읽는다. 둘 다 확장자가 .csv라 사용자는 구분할 수 없으므로,
+          " 어느 저장 형식을 골라야 하는지 그대로 알려준다.
+          APPEND |파일 인코딩이 UTF-8이 아닙니다. | &&
+                 |엑셀에서 "CSV UTF-8(쉼표로 분리)"로 다시 저장해 올려주세요|
                  TO rs_result-errors.
           RETURN.
       ENDTRY.

@@ -35,7 +35,7 @@ CLASS zcl_excel_table_migrator DEFINITION
       IMPORTING
         iv_tabname       TYPE tabname
         iv_file_content  TYPE xstring
-        iv_codepage      TYPE string DEFAULT 'UTF-8'
+        iv_codepage      TYPE abap_encoding DEFAULT 'UTF-8'
       RETURNING
         VALUE(rs_result) TYPE ty_result.
 
@@ -50,7 +50,7 @@ CLASS zcl_excel_table_migrator DEFINITION
     METHODS read_csv
       IMPORTING
         iv_file_content TYPE xstring
-        iv_codepage     TYPE string
+        iv_codepage     TYPE abap_encoding
       CHANGING
         ct_rows         TYPE INDEX TABLE.
 
@@ -289,8 +289,12 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
   METHOD read_csv.
 
-    DATA(lv_bytes)    = iv_file_content.
-    DATA(lv_codepage) = iv_codepage.
+    DATA(lv_bytes) = iv_file_content.
+
+    " 타입을 그대로 맞춰 넘겨야 한다. CONV로 다른 타입을 거치면 값이 잘려
+    " 코드페이지가 무시되고, 단일바이트 파일이 UTF-16으로 읽혀 한자가 나온다.
+    DATA lv_codepage TYPE abap_encoding.
+    lv_codepage = iv_codepage.
 
     " BOM이 있으면 파일이 스스로 인코딩을 알려주는 셈이므로 그것을 따른다.
     " 여기서 틀리면 바이트가 엉뚱하게 묶여 한자 같은 글자가 나온다.
@@ -310,7 +314,7 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     ENDIF.
 
     DATA(lv_text) = cl_abap_conv_codepage=>create_in(
-      codepage = CONV #( lv_codepage ) )->convert( lv_bytes ).
+      codepage = lv_codepage )->convert( lv_bytes ).
 
     " 줄바꿈은 CRLF일 수도 LF일 수도 있다.
     REPLACE ALL OCCURRENCES OF |\r\n| IN lv_text WITH |\n|.

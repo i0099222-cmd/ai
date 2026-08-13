@@ -28,12 +28,13 @@ CLASS zcl_excel_table_migrator DEFINITION
       END OF ty_result.
 
     "! xlsx와 CSV를 모두 받는다. 파일 종류는 내용으로 판별하므로 호출부는 신경 쓸 게 없다.
-    "! CSV는 UTF-8만 읽는다. 엑셀에서 그냥 "CSV"로 저장하면 로컬 코드페이지(한국은 CP949)로
-    "! 나오므로, 사용자에게 "CSV UTF-8"로 저장하도록 안내해야 한다.
+    "! @parameter iv_codepage | CSV 인코딩. 비우면 UTF-8 -> 8500(한국어) 순으로 시도한다.
+    "!                          엑셀의 "CSV(쉼표로 분리)"는 한국 환경에서 8500으로 저장된다.
     METHODS migrate
       IMPORTING
         iv_tabname       TYPE tabname
         iv_file_content  TYPE xstring
+        iv_codepage      TYPE abap_encoding OPTIONAL
       RETURNING
         VALUE(rs_result) TYPE ty_result.
 
@@ -48,8 +49,17 @@ CLASS zcl_excel_table_migrator DEFINITION
     METHODS read_csv
       IMPORTING
         iv_file_content TYPE xstring
+        iv_codepage     TYPE abap_encoding
       CHANGING
         ct_rows         TYPE INDEX TABLE.
+
+    "! 바이트를 문자열로 바꾼다. 후보 코드페이지를 순서대로 시도한다.
+    METHODS decode
+      IMPORTING
+        iv_bytes       TYPE xstring
+        iv_codepage    TYPE abap_encoding
+      RETURNING
+        VALUE(rv_text) TYPE string.
 
 ENDCLASS.
 
@@ -89,19 +99,16 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
 
     ELSE.
 
-      TRY.
-          read_csv( EXPORTING iv_file_content = iv_file_content
-                    CHANGING  ct_rows         = <lt_rows> ).
+      read_csv( EXPORTING iv_file_content = iv_file_content
+                          iv_codepage     = iv_codepage
+                CHANGING  ct_rows         = <lt_rows> ).
 
-        CATCH cx_root.
-          " 형식이 아니라 인코딩 문제다. 엑셀의 "CSV(쉼표로 분리)"는 한글을 CP949로 저장하는데
-          " 여기서는 UTF-8만 읽는다. 둘 다 확장자가 .csv라 사용자는 구분할 수 없으므로,
-          " 어느 저장 형식을 골라야 하는지 그대로 알려준다.
-          APPEND |파일 인코딩이 UTF-8이 아닙니다. | &&
-                 |엑셀에서 "CSV UTF-8(쉼표로 분리)"로 다시 저장해 올려주세요|
-                 TO rs_result-errors.
-          RETURN.
-      ENDTRY.
+      IF <lt_rows> IS INITIAL.
+        " 후보 코드페이지로 전부 읽히지 않은 경우. 형식이 아니라 인코딩 문제다.
+        APPEND |파일 인코딩을 인식하지 못했습니다. iv_codepage에 코드페이지를 지정해 주세요|
+               TO rs_result-errors.
+        RETURN.
+      ENDIF.
 
     ENDIF.
 
@@ -286,6 +293,39 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD decode.
+
+    " 인코딩은 BOM이 없으면 파일 안에 표시가 없어 단정할 수 없다.
+    " 후보를 순서대로 시도해 처음 성공한 것을 쓴다.
+    "
+    " UTF-8을 먼저 두는 이유: CP949 바이트는 UTF-8로 읽으면 대개 실패하지만,
+    " UTF-8 바이트는 CP949로 읽으면 실패하지 않고 조용히 깨진 글자가 된다.
+    " 실패하는 쪽을 먼저 걸러야 잘못된 해석이 통과하지 않는다.
+    "
+    " 8500은 SAP이 한국어 코드페이지에 붙인 번호다. 'CP949'라는 이름은
+    " 이 API가 받지 않는다.
+    TYPES tt_encoding TYPE STANDARD TABLE OF abap_encoding WITH EMPTY KEY.
+    DATA(lt_candidates) = VALUE tt_encoding( ( `UTF-8` ) ( `8500` ) ).
+
+    IF iv_codepage IS NOT INITIAL.
+      INSERT iv_codepage INTO lt_candidates INDEX 1.
+    ENDIF.
+
+    LOOP AT lt_candidates INTO DATA(lv_codepage).
+      TRY.
+          rv_text = cl_abap_conv_codepage=>create_in( codepage = lv_codepage )->convert( iv_bytes ).
+          RETURN.   " 성공한 첫 후보를 쓴다
+
+        CATCH cx_root.
+          CONTINUE.
+      ENDTRY.
+    ENDLOOP.
+
+    " 전부 실패하면 빈 문자열이 돌아가고, 호출부가 오류로 처리한다.
+
+  ENDMETHOD.
+
+
   METHOD read_csv.
 
     DATA(lv_bytes) = iv_file_content.
@@ -295,11 +335,8 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       lv_bytes = lv_bytes+3.
     ENDIF.
 
-    " XCO는 릴리즈 API라 별도 래퍼 없이 쓸 수 있다.
-    " 다른 코드페이지가 필요하면 ADT에서 xco_cp_character=>code_page-> 를 열어
-    " 어떤 값이 제공되는지 확인할 것.
-    DATA(lv_text) = xco_cp=>xstring( lv_bytes
-      )->as_string( xco_cp_character=>code_page->utf_8 )->value.
+    DATA(lv_text) = decode( iv_bytes    = lv_bytes
+                            iv_codepage = iv_codepage ).
 
     " 줄바꿈은 CRLF일 수도 LF일 수도 있다.
     REPLACE ALL OCCURRENCES OF |\r\n| IN lv_text WITH |\n|.

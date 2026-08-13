@@ -296,32 +296,37 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
   METHOD decode.
 
     " 인코딩은 BOM이 없으면 파일 안에 표시가 없어 단정할 수 없다.
-    " 후보를 순서대로 시도해 처음 성공한 것을 쓴다.
     "
-    " UTF-8을 먼저 두는 이유: CP949 바이트는 UTF-8로 읽으면 대개 실패하지만,
-    " UTF-8 바이트는 CP949로 읽으면 실패하지 않고 조용히 깨진 글자가 된다.
-    " 실패하는 쪽을 먼저 걸러야 잘못된 해석이 통과하지 않는다.
-    "
-    " 8500은 SAP이 한국어 코드페이지에 붙인 번호다. 'CP949'라는 이름은
-    " 이 API가 받지 않는다.
-    TYPES tt_encoding TYPE STANDARD TABLE OF abap_encoding WITH EMPTY KEY.
-    DATA(lt_candidates) = VALUE tt_encoding( ( `UTF-8` ) ( `8500` ) ).
+    " UTF-8을 먼저 시도하는 이유: 한국어 코드페이지 바이트는 UTF-8로 읽으면
+    " 대개 실패하지만, UTF-8 바이트는 한국어 코드페이지로 읽으면 실패하지 않고
+    " 조용히 깨진 글자가 된다. 실패하는 쪽을 먼저 걸러야 오해석이 통과하지 않는다.
+    TRY.
+        rv_text = cl_abap_conv_codepage=>create_in( )->convert( iv_bytes ).
+        RETURN.
 
-    IF iv_codepage IS NOT INITIAL.
-      INSERT iv_codepage INTO lt_candidates INDEX 1.
+      CATCH cx_root.
+        " UTF-8이 아니다. 아래로 넘어간다.
+    ENDTRY.
+
+    " CL_ABAP_CONV_CODEPAGE는 한국어 코드페이지를 받지 않으므로,
+    " 그 부분만 Standard ABAP FM에 위임한다 (Local API로 릴리즈 필요).
+    DATA(lv_codepage) = COND abap_encoding( WHEN iv_codepage IS INITIAL
+                                            THEN '8500'          " 한국어
+                                            ELSE iv_codepage ).
+
+    CALL FUNCTION 'Z_CSV_TO_STRING'
+      EXPORTING
+        iv_bytes          = iv_bytes
+        iv_codepage       = lv_codepage
+      IMPORTING
+        ev_text           = rv_text
+      EXCEPTIONS
+        conversion_failed = 1
+        OTHERS            = 2.
+
+    IF sy-subrc <> 0.
+      CLEAR rv_text.   " 호출부가 빈 값을 보고 오류로 처리한다
     ENDIF.
-
-    LOOP AT lt_candidates INTO DATA(lv_codepage).
-      TRY.
-          rv_text = cl_abap_conv_codepage=>create_in( codepage = lv_codepage )->convert( iv_bytes ).
-          RETURN.   " 성공한 첫 후보를 쓴다
-
-        CATCH cx_root.
-          CONTINUE.
-      ENDTRY.
-    ENDLOOP.
-
-    " 전부 실패하면 빈 문자열이 돌아가고, 호출부가 오류로 처리한다.
 
   ENDMETHOD.
 

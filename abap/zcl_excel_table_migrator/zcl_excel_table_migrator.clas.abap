@@ -155,37 +155,19 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       APPEND CONV string( ls_component-name ) TO lt_uuid_fields.
     ENDLOOP.
 
-    " ── 4b) RAP 관리 필드 ───────────────────────────────────────────
-    "       RAP BO를 거치면 determination이 채워주지만, 여기서는 직접 INSERT라
-    "       아무도 안 채운다. 이름으로 찾아 우리가 넣는다.
-    "       DB 필드는 CREATED_BY, CDS는 CreatedBy처럼 표기가 달라 밑줄을 지우고 비교한다.
-    DATA lt_admin_user TYPE string_table.   " ...BY   - 사용자
-    DATA lt_admin_ts   TYPE string_table.   " ...AT   - TIMESTAMPL(팩형)
-    DATA lt_admin_utc  TYPE string_table.   " ...AT   - UTCLONG
+    " ── 4b) 관리 필드 ───────────────────────────────────────────────
+    "       모든 대상 테이블이 같은 이름으로 이 여섯 필드를 가지므로 목록을 고정한다.
+    "       RAP BO를 거치면 determination이 채우지만 여기서는 직접 INSERT라 아무도
+    "       안 채운다. 타임스탬프는 전부 TSTMPL(=TIMESTAMPL)이라 값이 하나로 통일된다.
+    DATA(lt_admin_user) = VALUE string_table( ( `CREATEDBY` )
+                                              ( `LOCALLASTCHANGEDBY` )
+                                              ( `LASTCHANGEDBY` ) ).
 
-    LOOP AT lo_struct->components INTO ls_component.
-
-      DATA(lv_plain) = replace( val  = to_upper( CONV string( ls_component-name ) )
-                                sub  = `_`
-                                with = ``
-                                occ  = 0 ).
-
-      IF lv_plain = 'CREATEDBY' OR lv_plain = 'LASTCHANGEDBY' OR lv_plain = 'LOCALLASTCHANGEDBY'.
-        APPEND CONV string( ls_component-name ) TO lt_admin_user.
-
-      ELSEIF lv_plain = 'CREATEDAT' OR lv_plain = 'LASTCHANGEDAT' OR lv_plain = 'LOCALLASTCHANGEDAT'.
-        " 같은 의미의 필드라도 테이블에 따라 UTCLONG이거나 TIMESTAMPL이라 대입할 값이 다르다.
-        IF ls_component-type_kind = cl_abap_typedescr=>typekind_utclong.
-          APPEND CONV string( ls_component-name ) TO lt_admin_utc.
-        ELSE.
-          APPEND CONV string( ls_component-name ) TO lt_admin_ts.
-        ENDIF.
-      ENDIF.
-
-    ENDLOOP.
+    DATA(lt_admin_time) = VALUE string_table( ( `CREATEDAT` )
+                                              ( `LOCALLASTCHANGEDAT` )
+                                              ( `LASTCHANGEDAT` ) ).
 
     DATA(lv_user) = cl_abap_context_info=>get_user_technical_name( ).
-    DATA(lv_utclong) = utclong_current( ).
     GET TIME STAMP FIELD DATA(lv_timestamp).
 
     " ── 5) 행 복사 ──────────────────────────────────────────────────
@@ -256,15 +238,7 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
 
-      LOOP AT lt_admin_utc INTO lv_admin_field.
-        UNASSIGN <lv_target>.
-        ASSIGN COMPONENT lv_admin_field OF STRUCTURE <ls_wa> TO <lv_target>.
-        IF <lv_target> IS ASSIGNED.
-          <lv_target> = lv_utclong.
-        ENDIF.
-      ENDLOOP.
-
-      LOOP AT lt_admin_ts INTO lv_admin_field.
+      LOOP AT lt_admin_time INTO lv_admin_field.
         UNASSIGN <lv_target>.
         ASSIGN COMPONENT lv_admin_field OF STRUCTURE <ls_wa> TO <lv_target>.
         IF <lv_target> IS ASSIGNED.

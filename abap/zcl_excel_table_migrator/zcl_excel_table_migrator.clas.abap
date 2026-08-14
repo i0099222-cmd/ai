@@ -128,6 +128,10 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
     FIELD-SYMBOLS: <lv_source> TYPE any,
                    <lv_target> TYPE any.
 
+    " 대상 테이블에 없는 헤더는 잘못된 템플릿을 올렸다는 신호다.
+    " 조용히 버리면 사용자는 그 컬럼이 왜 안 들어갔는지 알 수 없으므로 모아서 알려준다.
+    DATA lt_unknown TYPE string_table.
+
     LOOP AT lt_components INTO DATA(ls_component).
 
       " ASSIGN이 실패하면 필드심볼은 미할당으로 남는다. IS ASSIGNED로 확인해야 한다.
@@ -136,14 +140,33 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       CHECK <lv_source> IS ASSIGNED.
 
       DATA(lv_field) = to_upper( condense( CONV string( <lv_source> ) ) ).
-      CHECK line_exists( lo_struct->components[ name = lv_field ] ).
+
+      " 헤더 칸이 비어 있는 건 컬럼 수가 대상 테이블보다 적다는 뜻이라 오류가 아니다.
+      IF lv_field IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      IF NOT line_exists( lo_struct->components[ name = lv_field ] ).
+        APPEND lv_field TO lt_unknown.
+        CONTINUE.
+      ENDIF.
 
       APPEND VALUE #( col = ls_component-name field = lv_field ) TO lt_map.
 
     ENDLOOP.
 
     IF lt_map IS INITIAL.
-      RETURN.   " 매칭되는 헤더가 하나도 없음
+      APPEND |파일의 헤더가 { iv_tabname } 필드명과 하나도 맞지 않습니다. | &&
+             |1행에 대상 테이블의 필드명이 들어있는지 확인해 주세요|
+             TO rs_result-errors.
+      RETURN.
+    ENDIF.
+
+    IF lt_unknown IS NOT INITIAL.
+      APPEND |{ iv_tabname }에 없는 컬럼입니다: | &&
+             |{ concat_lines_of( table = lt_unknown sep = `, ` ) }|
+             TO rs_result-errors.
+      RETURN.
     ENDIF.
 
     " ── 4) UUID 필드 목록 ───────────────────────────────────────────

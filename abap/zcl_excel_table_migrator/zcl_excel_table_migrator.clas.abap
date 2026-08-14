@@ -116,7 +116,47 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       RETURN.   " 헤더만 있거나 빈 시트
     ENDIF.
 
-    " ── 3) 헤더 행으로 "컬럼 -> 필드명" 매핑 ─────────────────────────
+    " ── 3) 우리가 채우는 필드 ────────────────────────────────────────
+    "      UUID 데이터엘리먼트(SYSUUID_X16, GUID_16, OS_GUID)는 전부 RAW16이다.
+    DATA lt_uuid_fields TYPE string_table.
+    LOOP AT lo_struct->components INTO DATA(ls_field)
+         WHERE type_kind = cl_abap_typedescr=>typekind_hex
+           AND length    = 16.
+      APPEND CONV string( ls_field-name ) TO lt_uuid_fields.
+    ENDLOOP.
+
+    "      모든 대상 테이블이 같은 이름으로 이 여섯 필드를 가지므로 목록을 고정한다.
+    "      RAP BO를 거치면 determination이 채우지만 여기서는 직접 INSERT라 아무도
+    "      안 채운다. 타임스탬프는 전부 TSTMPL(=TIMESTAMPL)이라 값이 하나로 통일된다.
+    DATA(lt_admin_user) = VALUE string_table( ( `CREATEDBY` )
+                                              ( `LOCALLASTCHANGEDBY` )
+                                              ( `LASTCHANGEDBY` ) ).
+
+    DATA(lt_admin_time) = VALUE string_table( ( `CREATEDAT` )
+                                              ( `LOCALLASTCHANGEDAT` )
+                                              ( `LASTCHANGEDAT` ) ).
+
+    " 파일이 반드시 담고 있어야 할 필드. 우리가 채우는 것들만 빼고 전부다.
+    " 몇 개만 맞아도 통과시키면, 모든 테이블이 공통으로 갖는 CREATEDBY 같은
+    " 필드 때문에 엉뚱한 테이블에 올려도 넘어가 버린다.
+    DATA lt_required TYPE string_table.
+
+    LOOP AT lo_struct->components INTO ls_field.
+
+      DATA(lv_name) = to_upper( CONV string( ls_field-name ) ).
+
+      IF lv_name = 'MANDT' OR lv_name = 'CLIENT'
+         OR line_exists( lt_uuid_fields[ table_line = lv_name ] )
+         OR line_exists( lt_admin_user[ table_line = lv_name ] )
+         OR line_exists( lt_admin_time[ table_line = lv_name ] ).
+        CONTINUE.
+      ENDIF.
+
+      APPEND lv_name TO lt_required.
+
+    ENDLOOP.
+
+    " ── 4) 헤더 행으로 "컬럼 -> 필드명" 매핑 ─────────────────────────
     READ TABLE <lt_rows> ASSIGNING FIELD-SYMBOL(<ls_header>) INDEX 1.
 
     TYPES: BEGIN OF ty_map,
@@ -169,26 +209,22 @@ CLASS zcl_excel_table_migrator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    " ── 4) UUID 필드 목록 ───────────────────────────────────────────
-    "      UUID 데이터엘리먼트(SYSUUID_X16, GUID_16, OS_GUID)는 전부 RAW16이다.
-    DATA lt_uuid_fields TYPE string_table.
-    LOOP AT lo_struct->components INTO ls_component
-         WHERE type_kind = cl_abap_typedescr=>typekind_hex
-           AND length    = 16.
-      APPEND CONV string( ls_component-name ) TO lt_uuid_fields.
+    " 대상 테이블 필드가 파일에 빠져 있는 경우. 위의 unknown 검사와 짝을 이뤄
+    " "파일 컬럼 = 대상 테이블 필드"가 정확히 일치할 때만 통과시킨다.
+    DATA lt_missing TYPE string_table.
+
+    LOOP AT lt_required INTO DATA(lv_required).
+      IF NOT line_exists( lt_map[ field = lv_required ] ).
+        APPEND lv_required TO lt_missing.
+      ENDIF.
     ENDLOOP.
 
-    " ── 4b) 관리 필드 ───────────────────────────────────────────────
-    "       모든 대상 테이블이 같은 이름으로 이 여섯 필드를 가지므로 목록을 고정한다.
-    "       RAP BO를 거치면 determination이 채우지만 여기서는 직접 INSERT라 아무도
-    "       안 채운다. 타임스탬프는 전부 TSTMPL(=TIMESTAMPL)이라 값이 하나로 통일된다.
-    DATA(lt_admin_user) = VALUE string_table( ( `CREATEDBY` )
-                                              ( `LOCALLASTCHANGEDBY` )
-                                              ( `LASTCHANGEDBY` ) ).
-
-    DATA(lt_admin_time) = VALUE string_table( ( `CREATEDAT` )
-                                              ( `LOCALLASTCHANGEDAT` )
-                                              ( `LASTCHANGEDAT` ) ).
+    IF lt_missing IS NOT INITIAL.
+      APPEND |파일에 없는 필드입니다: | &&
+             |{ concat_lines_of( table = lt_missing sep = `, ` ) }|
+             TO rs_result-errors.
+      RETURN.
+    ENDIF.
 
     DATA(lv_user) = cl_abap_context_info=>get_user_technical_name( ).
     GET TIME STAMP FIELD DATA(lv_timestamp).

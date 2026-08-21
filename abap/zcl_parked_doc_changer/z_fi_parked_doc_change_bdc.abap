@@ -3,20 +3,26 @@
 *&---------------------------------------------------------------------*
 *& 임시전표(파킹 문서) 수정 - CALL TRANSACTION 'FBV2' BDC 래퍼.
 *&
-*& SE37에서 아래대로 생성:
+*& [사전 작업] SE11에서 DDIC 오브젝트 3개 생성 (DDIC_OBJECTS.md 참고)
+*&   ZSFI_PARKED_HDR : 헤더 구조
+*&   ZSFI_PARKED_ITM : 명세 구조
+*&   ZTFI_PARKED_ITM : ZSFI_PARKED_ITM 의 테이블 타입
+*&
+*& [SE37 생성]
 *&   Function Group : (기존 Z_FI_POST_PARKED_DOC 재사용 또는 신규)
 *&   Function Module: Z_FI_PARKED_DOC_CHANGE_BDC
 *&
 *&   Import 탭
-*&     IS_HEADER TYPE ZIF_PARKED_DOC_CHANGER=>TY_HEADER
-*&     IT_ITEM   TYPE ZIF_PARKED_DOC_CHANGER=>TT_ITEM   (optional)
-*&     IV_MODE   TYPE CTU_PARAMS-DISMODE  Default 'N'   (optional)
+*&     IS_HEADER TYPE ZSFI_PARKED_HDR
+*&     IT_ITEM   TYPE ZTFI_PARKED_ITM        (optional)
+*&     IV_MODE   TYPE CTU_PARAMS-DISMODE  Default 'N'  (optional)
 *&   Export 탭
 *&     EV_MESSAGETYPE TYPE SYMSGTY
 *&     EV_MESSAGETEXT TYPE STRING
-*&     ET_MESSAGE     TYPE ZIF_PARKED_DOC_CHANGER=>TT_MESSAGE
+*&     ET_MESSAGE     TYPE TAB_BDCMSGCOLL    (선택. 표준 테이블타입이
+*&                                            없으면 이 파라미터는 빼도 됨)
 *&
-*&   (TABLES 탭은 쓰지 않음 - IMPORTING/EXPORTING만 사용)
+*&   (TABLES 탭은 쓰지 않음 - ABAP Cloud 에서 호출 불가)
 *&
 *&   CALL TRANSACTION 은 ABAP Cloud 언어버전에서 금지이므로 이 FM은
 *&   Standard ABAP 언어버전 패키지에 두고, SE37 > API State 에서
@@ -25,18 +31,32 @@
 *&   RAP에서 호출할 때는 CALL TRANSACTION 이 자체 COMMIT WORK 를 수행하므로
 *&   반드시 SAVE 단계(unmanaged save / late numbering 이후)에서 호출한다.
 *&
+*& [변경 대상 지정 방식]
+*&   구조의 CHGFLD 에 변경할 필드명을 콤마로 나열한다.
+*&     예) CHGFLD = 'SGTXT,ZLSPR'  -> 이 두 필드만 화면에 전송
+*&   CHGFLD 를 비워두면 "값이 채워진 필드만 변경" 으로 동작한다.
+*&   CHGFLD 에 적고 값을 공란으로 주면 해당 필드 값이 삭제된다.
+*&
 *& [중요] 아래 화면/OK코드 상수는 클래식 FBV2 흐름 기준 기본값이다.
-*&        릴리스/커스터마이징에 따라 화면번호와 OK코드가 다를 수 있으므로
-*&        대상 시스템에서 SHDB로 FBV2를 1회 녹화한 뒤 상수 블록만
-*&        녹화 결과에 맞춰 교체하면 나머지 로직은 그대로 쓸 수 있다.
+*&        대상 시스템에서 SHDB로 FBV2를 1회 녹화한 뒤(SHDB_RECORDING.md)
+*&        상수 블록만 녹화 결과로 교체하면 나머지 로직은 그대로 쓸 수 있다.
 *&---------------------------------------------------------------------*
 FUNCTION z_fi_parked_doc_change_bdc.
+
+*----------------------------------------------------------------------*
+* 처리 결과 상수
+*----------------------------------------------------------------------*
+  CONSTANTS:
+    lc_msgtype_s TYPE symsgty VALUE 'S',
+    lc_msgtype_e TYPE symsgty VALUE 'E',
+    lc_text_s    TYPE string  VALUE `Document has been updated`,
+    lc_text_e    TYPE string  VALUE `Failed to update the document`.
 
 *----------------------------------------------------------------------*
 * 화면/OK코드 상수 - SHDB 녹화 결과에 맞춰 이 블록만 조정한다.
 *----------------------------------------------------------------------*
   CONSTANTS:
-    lc_tcode      TYPE sy-tcode      VALUE 'FBV2',
+    lc_tcode      TYPE sy-tcode        VALUE 'FBV2',
     " 초기화면(회사코드/전표번호/회계연도)
     lc_prog_init  TYPE bdcdata-program VALUE 'SAPMF05V',
     lc_dynp_init  TYPE bdcdata-dynpro  VALUE '0100',
@@ -63,6 +83,7 @@ FUNCTION z_fi_parked_doc_change_bdc.
 *----------------------------------------------------------------------*
   TYPES:
     ty_t_bdc TYPE STANDARD TABLE OF bdcdata WITH DEFAULT KEY,
+    ty_t_chg TYPE STANDARD TABLE OF string WITH DEFAULT KEY,
     " 구조 컴포넌트명 -> 화면 필드명 매핑
     BEGIN OF ty_map,
       comp   TYPE string,
@@ -84,15 +105,14 @@ FUNCTION z_fi_parked_doc_change_bdc.
     lt_hdr_fld  TYPE ty_t_bdc,
     lt_item_bdc TYPE ty_t_item_bdc,
     ls_item_bdc TYPE ty_item_bdc,
-    lt_message  TYPE zif_parked_doc_changer=>tt_message,
+    lt_message  TYPE STANDARD TABLE OF bdcmsgcoll WITH DEFAULT KEY,
+    lt_chg      TYPE ty_t_chg,
     lv_fval     TYPE bdcdata-fval,
     lv_change   TYPE abap_bool,
     lv_cursor   TYPE bdcdata-fval,
     lv_okcode   TYPE bdcdata-fval.
 
-  FIELD-SYMBOLS:
-    <lv_val> TYPE any,
-    <lv_upd> TYPE any.
+  FIELD-SYMBOLS <lv_val> TYPE any.
 
   CLEAR: ev_messagetype, ev_messagetext, et_message.
 
@@ -102,8 +122,8 @@ FUNCTION z_fi_parked_doc_change_bdc.
   IF is_header-bukrs IS INITIAL
   OR is_header-belnr IS INITIAL
   OR is_header-gjahr IS INITIAL.
-    ev_messagetype = zif_parked_doc_changer=>gc_msgtype-error.
-    ev_messagetext = zif_parked_doc_changer=>gc_text_error.
+    ev_messagetype = lc_msgtype_e.
+    ev_messagetext = lc_text_e.
     RETURN.
   ENDIF.
 
@@ -114,27 +134,30 @@ FUNCTION z_fi_parked_doc_change_bdc.
     ( comp = `BKTXT` dynfld = 'BKPF-BKTXT' block = 0 )
     ( comp = `XBLNR` dynfld = 'BKPF-XBLNR' block = 0 ) ).
 
-  " 변경지시자(UPD)를 하나도 안 넘기면 "값이 채워진 필드만 변경"으로 동작한다.
-  " 지시자를 넘기면 공란 지정으로 필드 값 삭제도 가능하다.
-  DATA(lv_hdr_by_flag) = xsdbool( is_header-upd IS NOT INITIAL ).
+  " CHGFLD 에 나열된 필드만 전송한다(공란 지정 = 값 삭제).
+  " CHGFLD 가 비어 있으면 값이 채워진 필드만 전송한다.
+  CLEAR lt_chg.
+  IF is_header-chgfld IS NOT INITIAL.
+    SPLIT is_header-chgfld AT ',' INTO TABLE lt_chg.
+    LOOP AT lt_chg ASSIGNING FIELD-SYMBOL(<lv_chg>).
+      CONDENSE <lv_chg> NO-GAPS.
+      TRANSLATE <lv_chg> TO UPPER CASE.
+    ENDLOOP.
+  ENDIF.
 
   " IMPORTING 파라미터는 읽기전용이므로 ASSIGN 대상은 로컬 복사본을 쓴다.
   DATA(ls_header) = is_header.
 
   LOOP AT lt_hdr_map INTO DATA(ls_hdr_map).
 
-    UNASSIGN: <lv_val>, <lv_upd>.
+    UNASSIGN <lv_val>.
     ASSIGN COMPONENT ls_hdr_map-comp OF STRUCTURE ls_header TO <lv_val>.
     CHECK <lv_val> IS ASSIGNED.
-    ASSIGN COMPONENT ls_hdr_map-comp OF STRUCTURE ls_header-upd TO <lv_upd>.
 
-    CLEAR lv_change.
-    IF lv_hdr_by_flag = abap_true.
-      IF <lv_upd> IS ASSIGNED.
-        lv_change = xsdbool( <lv_upd> = abap_true ).
-      ENDIF.
-    ELSE.
+    IF lt_chg IS INITIAL.
       lv_change = xsdbool( <lv_val> IS NOT INITIAL ).
+    ELSE.
+      lv_change = xsdbool( line_exists( lt_chg[ table_line = ls_hdr_map-comp ] ) ).
     ENDIF.
     CHECK lv_change = abap_true.
 
@@ -152,6 +175,7 @@ FUNCTION z_fi_parked_doc_change_bdc.
 *----------------------------------------------------------------------*
   " block 1 : 명세 상세화면에 있는 필드
   " block 2 : 추가 데이터 팝업에 있는 필드
+  " -> SHDB 녹화 결과와 다르면 block 값과 화면 필드명을 여기서 조정한다.
   DATA(lt_item_map) = VALUE ty_t_map(
     ( comp = `SGTXT` dynfld = 'BSEG-SGTXT' block = 1 )
     ( comp = `ZUONR` dynfld = 'BSEG-ZUONR' block = 1 )
@@ -180,22 +204,25 @@ FUNCTION z_fi_parked_doc_change_bdc.
                                 THEN ls_item-posid
                                 ELSE ls_item-buzei ).
 
-    DATA(lv_item_by_flag) = xsdbool( ls_item-upd IS NOT INITIAL ).
+    CLEAR lt_chg.
+    IF ls_item-chgfld IS NOT INITIAL.
+      SPLIT ls_item-chgfld AT ',' INTO TABLE lt_chg.
+      LOOP AT lt_chg ASSIGNING <lv_chg>.
+        CONDENSE <lv_chg> NO-GAPS.
+        TRANSLATE <lv_chg> TO UPPER CASE.
+      ENDLOOP.
+    ENDIF.
 
     LOOP AT lt_item_map INTO DATA(ls_item_map).
 
-      UNASSIGN: <lv_val>, <lv_upd>.
+      UNASSIGN <lv_val>.
       ASSIGN COMPONENT ls_item_map-comp OF STRUCTURE ls_item TO <lv_val>.
       CHECK <lv_val> IS ASSIGNED.
-      ASSIGN COMPONENT ls_item_map-comp OF STRUCTURE ls_item-upd TO <lv_upd>.
 
-      CLEAR lv_change.
-      IF lv_item_by_flag = abap_true.
-        IF <lv_upd> IS ASSIGNED.
-          lv_change = xsdbool( <lv_upd> = abap_true ).
-        ENDIF.
-      ELSE.
+      IF lt_chg IS INITIAL.
         lv_change = xsdbool( <lv_val> IS NOT INITIAL ).
+      ELSE.
+        lv_change = xsdbool( line_exists( lt_chg[ table_line = ls_item_map-comp ] ) ).
       ENDIF.
       CHECK lv_change = abap_true.
 
@@ -221,8 +248,8 @@ FUNCTION z_fi_parked_doc_change_bdc.
 
   " 변경 대상이 하나도 없으면 트랜잭션을 타지 않고 정상 종료한다.
   IF lt_hdr_fld IS INITIAL AND lt_item_bdc IS INITIAL.
-    ev_messagetype = zif_parked_doc_changer=>gc_msgtype-success.
-    ev_messagetext = zif_parked_doc_changer=>gc_text_success.
+    ev_messagetype = lc_msgtype_s.
+    ev_messagetext = lc_text_s.
     RETURN.
   ENDIF.
 
@@ -230,11 +257,11 @@ FUNCTION z_fi_parked_doc_change_bdc.
 * 3) BDC 생성 - 초기화면
 *----------------------------------------------------------------------*
   APPEND VALUE #( program = lc_prog_init dynpro = lc_dynp_init dynbegin = abap_true ) TO lt_bdc.
-  APPEND VALUE #( fnam = 'BDC_CURSOR'   fval = 'RF05V-BELNR' )      TO lt_bdc.
-  APPEND VALUE #( fnam = 'BDC_OKCODE'   fval = lc_ok_enter )        TO lt_bdc.
-  APPEND VALUE #( fnam = 'RF05V-BUKRS'  fval = is_header-bukrs )    TO lt_bdc.
-  APPEND VALUE #( fnam = 'RF05V-BELNR'  fval = is_header-belnr )    TO lt_bdc.
-  APPEND VALUE #( fnam = 'RF05V-GJAHR'  fval = is_header-gjahr )    TO lt_bdc.
+  APPEND VALUE #( fnam = 'BDC_CURSOR'   fval = 'RF05V-BELNR' )   TO lt_bdc.
+  APPEND VALUE #( fnam = 'BDC_OKCODE'   fval = lc_ok_enter )     TO lt_bdc.
+  APPEND VALUE #( fnam = 'RF05V-BUKRS'  fval = is_header-bukrs ) TO lt_bdc.
+  APPEND VALUE #( fnam = 'RF05V-BELNR'  fval = is_header-belnr ) TO lt_bdc.
+  APPEND VALUE #( fnam = 'RF05V-GJAHR'  fval = is_header-gjahr ) TO lt_bdc.
 
 *----------------------------------------------------------------------*
 * 4) BDC 생성 - 개요화면(헤더 변경) + 첫 명세 진입/저장
@@ -318,11 +345,11 @@ FUNCTION z_fi_parked_doc_change_bdc.
   IF lv_subrc = 0
   AND NOT line_exists( lt_message[ msgtyp = 'E' ] )
   AND NOT line_exists( lt_message[ msgtyp = 'A' ] ).
-    ev_messagetype = zif_parked_doc_changer=>gc_msgtype-success.
-    ev_messagetext = zif_parked_doc_changer=>gc_text_success.
+    ev_messagetype = lc_msgtype_s.
+    ev_messagetext = lc_text_s.
   ELSE.
-    ev_messagetype = zif_parked_doc_changer=>gc_msgtype-error.
-    ev_messagetext = zif_parked_doc_changer=>gc_text_error.
+    ev_messagetype = lc_msgtype_e.
+    ev_messagetext = lc_text_e.
   ENDIF.
 
 ENDFUNCTION.

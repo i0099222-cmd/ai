@@ -17,7 +17,6 @@
 *&     I_GJAHR TYPE GJAHR
 *&     I_BKTXT TYPE BKTXT                    (optional)
 *&     I_XBLNR TYPE XBLNR1                   (optional)
-*&     I_MODE  TYPE CTU_PARAMS-DISMODE  Default 'N'   (optional)
 *&     IT_ITEM TYPE ZTFI_PARKED_ITM          (optional)
 *&   Export 탭
 *&     EV_MESSAGETYPE TYPE SYMSGTY
@@ -60,7 +59,11 @@ FUNCTION z_fi_parked_doc_change_bdc.
     lc_ok_item    TYPE bdcdata-fval    VALUE '=PA',       " 명세 상세 진입
     lc_ok_more    TYPE bdcdata-fval    VALUE '=ZK',       " 추가 데이터 팝업
     lc_ok_back    TYPE bdcdata-fval    VALUE '=BACK',     " 개요화면 복귀
-    lc_ok_save    TYPE bdcdata-fval    VALUE '=BU'.       " 저장
+    lc_ok_save    TYPE bdcdata-fval    VALUE '=BU',       " 저장
+    " 화면 표시 모드. 운영은 'N'(무화면).
+    " SHDB 맞춰가는 동안만 'A'(전체화면) / 'E'(오류시만)로 바꿔서 확인한다.
+    " RAP/백그라운드에서는 화면을 띄울 수 없으므로 반드시 'N' 이어야 한다.
+    lc_dismode    TYPE ctu_params-dismode VALUE 'N'.
 
   DATA: lt_bdc  TYPE STANDARD TABLE OF bdcdata WITH DEFAULT KEY,
         lt_f1   TYPE STANDARD TABLE OF bdcdata WITH DEFAULT KEY,
@@ -187,7 +190,7 @@ FUNCTION z_fi_parked_doc_change_bdc.
 * 4) 실행
 *----------------------------------------------------------------------*
   DATA(ls_options) = VALUE ctu_params(
-    dismode = COND #( WHEN i_mode IS NOT INITIAL THEN i_mode ELSE 'N' )
+    dismode = lc_dismode
     updmode = 'S'      " 동기 업데이트 - 호출자 응답 시점에 결과 확정
     defsize = 'X' ).   " 화면 크기 고정
 

@@ -39,7 +39,6 @@ CALL FUNCTION 'Z_FI_PARKED_DOC_CHANGE_BDC'
     i_belnr        = '1900000123'
     i_gjahr        = '2026'
     i_bktxt        = 'HEADER TEXT'
-    i_mode         = 'N'              " 'A' 전체화면 / 'E' 오류시만 / 'N' 무화면
     it_item        = lt_item
   IMPORTING
     ev_messagetype = lv_msgty

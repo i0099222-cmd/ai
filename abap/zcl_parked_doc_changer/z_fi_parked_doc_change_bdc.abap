@@ -51,7 +51,11 @@ FUNCTION z_fi_parked_doc_change_bdc.
     lc_prog_item  TYPE bdcdata-program VALUE 'SAPMF05A',  " 명세 상세화면
     lc_dynp_item  TYPE bdcdata-dynpro  VALUE '0302',
     lc_dynp_more  TYPE bdcdata-dynpro  VALUE '0331',      " 추가 데이터 팝업
-    lc_fld_pos    TYPE bdcdata-fnam    VALUE 'RF05V-NEWBS', " 개요화면 커서 컬럼
+    " 개요화면에서 기존 명세를 고를 때 커서를 놓을 테이블컨트롤 컬럼.
+    " [반드시 녹화값으로 교체] RF05V-NEWBS / NEWKO / NEWBK 는 화면 하단의
+    " "다음 명세 입력" 필드라 기존 명세 선택용 컬럼과 다르다.
+    " SHDB에서 명세를 더블클릭한 스텝의 BDC_CURSOR 값을 그대로 넣을 것.
+    lc_fld_pos    TYPE bdcdata-fnam    VALUE 'RF05V-NEWBS',
     lc_ok_enter   TYPE bdcdata-fval    VALUE '/00',
     lc_ok_item    TYPE bdcdata-fval    VALUE '=PA',       " 명세 상세 진입
     lc_ok_more    TYPE bdcdata-fval    VALUE '=ZK',       " 추가 데이터 팝업

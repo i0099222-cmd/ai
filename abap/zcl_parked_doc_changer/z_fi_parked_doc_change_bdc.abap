@@ -42,11 +42,13 @@
 *&   SAPLF040 0332  추가데이터 팝업 - 채권/채무용  (상세화면에서 '=ZK')
 *&   SAPLKACB 0002  계정지정 팝업 - G/L 명세를 상세화면에서 저장할 때. 'ENTE'
 *&
-*&   저장 위치가 경로마다 다르다.
-*&     상세화면 필드만        -> 상세화면에서 '=BP' (G/L 은 계정지정 팝업 통과)
-*&     G/L + 추가데이터 팝업  -> 팝업을 '=RW' 로 닫고 개요화면에서 '=BP'
-*&     채권/채무 + 팝업       -> 팝업에서 바로 '=BP'
-*&     헤더만                 -> 개요화면에서 '=BP'
+*&   저장('=BP')은 마지막으로 값을 넣은 화면에서 한다.
+*&     상세화면 필드만   -> 상세화면에서 '=BP'
+*&     추가데이터 팝업   -> 팝업에서 '=BP'
+*&     헤더만            -> 개요화면에서 '=BP'
+*&   G/L 명세는 저장할 때 계정지정 팝업(SAPLKACB 0002)이 한 번 뜬다.
+*&
+*&   '=RW'(뒤로)는 쓰지 않는다. 그 화면에 넣은 값이 반영되지 않는다.
 *&
 *&   명세 상세화면 번호는 명세 유형마다 다르므로 FM 이 직접 판단한다.
 *&   (파킹 전표 명세는 계정유형별 테이블로 나뉜다:
@@ -89,7 +91,6 @@ FUNCTION z_fi_parked_doc_change_bdc.
     lc_ok_enter   TYPE bdcdata-fval    VALUE '=ENTR',  " 초기화면 진행
     lc_ok_item    TYPE bdcdata-fval    VALUE '=PI',    " 개요화면 -> 명세 상세
     lc_ok_more    TYPE bdcdata-fval    VALUE '=ZK',    " 상세화면 -> 추가데이터 팝업
-    lc_ok_back    TYPE bdcdata-fval    VALUE '=RW',    " 뒤로 -> 개요화면
     lc_ok_kacb    TYPE bdcdata-fval    VALUE 'ENTE',   " 계정지정 팝업 확인
     lc_ok_save    TYPE bdcdata-fval    VALUE '=BP',    " 저장(트랜잭션 종료)
     " 화면 표시 모드. 운영은 'N'(무화면).
@@ -243,28 +244,20 @@ FUNCTION z_fi_parked_doc_change_bdc.
                       fval = COND #( WHEN lt_f2 IS INITIAL THEN lc_ok_save ELSE lc_ok_more ) ) TO lt_bdc.
       APPEND LINES OF lt_f1 TO lt_bdc.
 
+      " 3-4) 추가 데이터 팝업 - 이 팝업에서 바로 저장한다.
+      " '=RW'(뒤로)로 닫으면 팝업에 넣은 값이 반영되지 않으므로 쓰지 않는다.
       IF lt_f2 IS NOT INITIAL.
-
-        " 3-4) 추가 데이터 팝업
-        "   채권/채무 : 팝업에서 바로 저장된다
-        "   G/L       : '=RW' 로 닫으면 개요화면으로 빠지고 거기서 저장한다
         APPEND VALUE #( program = lc_prog_more dynpro = lv_dynp_more dynbegin = 'X' ) TO lt_bdc.
-        APPEND VALUE #( fnam = 'BDC_OKCODE'
-                        fval = COND #( WHEN lv_kd = abap_true THEN lc_ok_save ELSE lc_ok_back ) ) TO lt_bdc.
+        APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_save ) TO lt_bdc.
         APPEND LINES OF lt_f2 TO lt_bdc.
+      ENDIF.
 
-        IF lv_kd = abap_false.
-          APPEND VALUE #( program = lc_prog_ovw dynpro = lc_dynp_ovw dynbegin = 'X' ) TO lt_bdc.
-          APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_save ) TO lt_bdc.
-        ENDIF.
-
-      ELSEIF lv_kd = abap_false.
-
-        " 3-5) G/L 명세를 상세화면에서 저장하면 계정지정 팝업이 뜬다.
-        "      값은 그대로 두고 Enter 로 통과한다.
+      " 3-5) G/L 명세는 저장할 때 CO 계정지정 팝업이 뜬다.
+      "      값은 그대로 두고 Enter 로 통과한다.
+      "      (팝업이 안 뜨는 전표에서 오류가 나면 이 블록을 빼면 된다)
+      IF lv_kd = abap_false.
         APPEND VALUE #( program = lc_prog_kacb dynpro = lc_dynp_kacb dynbegin = 'X' ) TO lt_bdc.
         APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_kacb ) TO lt_bdc.
-
       ENDIF.
 
     ENDIF.

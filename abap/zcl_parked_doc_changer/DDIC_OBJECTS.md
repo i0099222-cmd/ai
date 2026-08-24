@@ -1,8 +1,8 @@
 # SE11 DDIC 오브젝트
 
-FM 파라미터는 전역 타입만 쓸 수 있어서 명세 구조 1개만 만든다.
-헤더는 스칼라 파라미터(I_BUKRS/I_BELNR/I_GJAHR/I_BKTXT/I_XBLNR)로 넘기고,
-FM 이 명세 1건씩 처리하므로 테이블 타입도 필요 없다.
+FM 파라미터는 전역 타입만 쓸 수 있어서 명세용으로 2개를 만든다.
+헤더는 스칼라 파라미터(I_BUKRS/I_BELNR/I_GJAHR/I_BKTXT/I_XBLNR)로 넘기므로
+구조가 필요 없다. (TABLES 파라미터는 ABAP Cloud에서 호출 불가라 안 씀)
 
 > 데이터 엘리먼트가 확실하지 않으면 SE11에서 BSEG 를 열어
 > 해당 필드의 데이터 엘리먼트를 그대로 복사해 넣으면 된다.
@@ -36,7 +36,12 @@ FM 이 명세 1건씩 처리하므로 테이블 타입도 필요 없다.
 > 요청 목록의 ZBD3R / BD1PM 은 표준 필드명 기준으로 각각
 > BSEG-ZBD3T(지급기한) / BSEG-ZBD1P(1차 할인율)로 매핑했다.
 
-## 2. ET_MESSAGE 타입
+## 2. 테이블 타입 ZTFI_PARKED_ITM
+
+- 라인 타입: `ZSFI_PARKED_ITM`
+- 액세스: Standard Table / 키: Standard(또는 Not Specified)
+
+## 3. ET_MESSAGE 타입
 
 - 표준 테이블 타입 `TAB_BDCMSGCOLL`(라인타입 BDCMSGCOLL)을 쓴다.
 - 시스템에 없으면 라인타입 `BDCMSGCOLL` 로 `ZTFI_BDCMSG` 를 만들거나,

@@ -11,8 +11,7 @@ CLASS zcl_parked_doc_changer DEFINITION
 
   PUBLIC SECTION.
 
-    "! 임시전표의 헤더/명세 1건을 수정한다(FBV2 BDC 호출).
-    "! 명세가 여러 건이면 호출하는 쪽에서 명세별로 반복 호출한다.
+    "! 임시전표 1건의 헤더/명세 필드를 수정한다(FBV2 BDC 호출).
     CLASS-METHODS change
       IMPORTING
         i_bukrs        TYPE bukrs
@@ -20,7 +19,7 @@ CLASS zcl_parked_doc_changer DEFINITION
         i_gjahr        TYPE gjahr
         i_bktxt        TYPE bktxt  OPTIONAL
         i_xblnr        TYPE xblnr1 OPTIONAL
-        is_item        TYPE zsfi_parked_itm OPTIONAL
+        it_item        TYPE ztfi_parked_itm OPTIONAL
       EXPORTING
         ev_messagetype TYPE symsgty
         ev_messagetext TYPE string
@@ -42,7 +41,7 @@ CLASS zcl_parked_doc_changer IMPLEMENTATION.
         i_gjahr        = i_gjahr
         i_bktxt        = i_bktxt
         i_xblnr        = i_xblnr
-        is_item        = is_item
+        it_item        = it_item
       IMPORTING
         ev_messagetype = ev_messagetype
         ev_messagetext = ev_messagetext

@@ -29,7 +29,8 @@
 *&                                  명세 선택 커서 RF05V-ANZDT(nn) + '=PI'
 *&   SAPLF040 0300  명세 상세화면 - G/L 명세.   BSEG-* 필드
 *&   SAPLF040 0302  명세 상세화면 - 채권/채무 명세
-*&   SAPLF040 0330  추가데이터 팝업 - G/L 명세.   HZUON / XREF1~3, '=RW'
+*&   SAPLF040 0330  추가데이터 팝업 - G/L 명세.   HZUON / XREF1~3.
+*&                  '=RW' 로 닫으면 개요화면으로 빠지고, 거기서 '=BP' 저장
 *&   SAPLF040 0332  추가데이터 팝업 - 채권/채무 명세. '=BP' 로 바로 저장
 *&                  (팝업 진입은 상세화면에서 '=ZK')
 *&   SAPLKACB 0002  계정지정 팝업 - G/L 명세 저장 시. 'ENTE'
@@ -68,7 +69,7 @@ FUNCTION z_fi_parked_doc_change_bdc.
     " 팝업 OK코드가 저장(=BP)이 아니면, 팝업을 닫은 뒤 상세화면에서 저장한다.
     lc_prog_more  TYPE bdcdata-program VALUE 'SAPLF040',
     lc_dynp_more  TYPE bdcdata-dynpro  VALUE '0330',  " G/L 명세의 팝업
-    lc_ok_more2   TYPE bdcdata-fval    VALUE '=RW',   " G/L 팝업 확인
+    lc_ok_more2   TYPE bdcdata-fval    VALUE '=RW',   " G/L 팝업 확인 -> 개요화면
     lc_dynp_more2 TYPE bdcdata-dynpro  VALUE '0332',  " 채권/채무 명세의 팝업
     lc_ok_more3   TYPE bdcdata-fval    VALUE '=BP',   " 채권/채무 팝업에서 바로 저장
     " 저장 시 뜨는 CO 계정지정 팝업
@@ -83,8 +84,8 @@ FUNCTION z_fi_parked_doc_change_bdc.
     lc_ok_more    TYPE bdcdata-fval    VALUE '=ZK',    " 추가 데이터 팝업 진입
     lc_ok_kacb    TYPE bdcdata-fval    VALUE 'ENTE',   " 계정지정 팝업 확인
     " CO 계정지정 팝업(SAPLKACB 0002)이 뜨는 명세 상세화면.
-    " 녹화상 G/L 명세(0300) 저장 때는 뜨고 채권/채무 명세(0302) 때는 안 떴다.
-    " 팝업이 안 뜨는데 블록이 남아 있으면 오류가 나므로 이 화면일 때만 붙인다.
+    " 녹화상 G/L 명세(0300)를 상세화면에서 저장할 때만 떴다.
+    " 팝업이 안 뜨는데 블록이 남아 있으면 오류가 나므로 이 경우에만 붙인다.
     lc_kacb_dynp  TYPE bdcdata-dynpro  VALUE '0300',
     " 화면 표시 모드. 운영은 'N'(무화면).
     " SHDB 맞춰가는 동안만 'A'(전체화면) / 'E'(오류시만)로 바꿔서 확인한다.
@@ -214,15 +215,18 @@ FUNCTION z_fi_parked_doc_change_bdc.
       APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lv_ok_more ) TO lt_bdc.
       APPEND LINES OF lt_f2 TO lt_bdc.
 
-      " 팝업에서 바로 저장되지 않는 경우, 상세화면으로 돌아와 저장한다.
+      " 팝업에서 바로 저장되지 않는 경우(G/L 의 '=RW'), 팝업을 닫으면
+      " 상세화면이 아니라 전표 개요화면으로 빠지고 거기서 저장한다.
       IF lv_ok_more <> lc_ok_save.
-        APPEND VALUE #( program = lc_prog_item dynpro = lv_dynp dynbegin = 'X' ) TO lt_bdc.
+        APPEND VALUE #( program = lc_prog_ovw dynpro = lc_dynp_ovw dynbegin = 'X' ) TO lt_bdc.
         APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_save ) TO lt_bdc.
       ENDIF.
     ENDIF.
 
-    " 3-3) G/L 명세 저장 시 뜨는 계정지정 팝업 - 값은 그대로 두고 Enter
-    IF lv_dynp = lc_kacb_dynp.
+    " 3-3) 계정지정 팝업 - 값은 그대로 두고 Enter 로 통과.
+    " 녹화상 G/L 명세를 "상세화면에서 저장"할 때만 떴다.
+    " 추가데이터 팝업을 거쳐 개요화면에서 저장하는 경로에서는 안 떴다.
+    IF lv_dynp = lc_kacb_dynp AND lt_f2 IS INITIAL.
       APPEND VALUE #( program = lc_prog_kacb dynpro = lc_dynp_kacb dynbegin = 'X' ) TO lt_bdc.
       APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_kacb ) TO lt_bdc.
     ENDIF.

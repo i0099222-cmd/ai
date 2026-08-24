@@ -76,17 +76,21 @@ perform bdc_field       using 'RF05V-BUKRS' '1000'.
 | `lc_prog_ovw` / `lc_dynp_ovw` | `SAPLF040` / `0700` | 개요화면. BKPF-BKTXT / BKPF-XBLNR 이 이 화면에 있다 |
 | `lc_fld_pos` | `RF05V-ANZDT` | 명세 선택 커서 (`RF05V-ANZDT(01)`) |
 | `lc_ok_item` | `=PI` | 개요화면 → 명세 상세 진입 |
-| `lc_prog_item` / `lc_dynp_item` | `SAPLF040` / `0300` | 명세 상세화면. BSEG-SGTXT 등이 여기 |
+| `lc_prog_item` / `lc_dynp_item` | `SAPLF040` / `0300` | 명세 상세화면 **기본값(G/L)**. 채권/채무 명세는 `0302` 라서 명세별로 `DYNNR` 로 넘긴다 |
+| `lc_prog_more` / `lc_dynp_more` | `SAPLF040` / `0332` | 추가 데이터 팝업 (HZUON, XREF1~3) |
+| `lc_ok_more` | `=ZK` | 상세화면 → 추가 데이터 팝업 |
 | `lc_ok_save` | `=BP` | 상세화면에서 바로 저장(파킹) |
-| `lc_prog_kacb` / `lc_dynp_kacb` | `SAPLKACB` / `0002` | 저장 시 뜨는 CO 계정지정 팝업 |
+| `lc_prog_kacb` / `lc_dynp_kacb` | `SAPLKACB` / `0002` | 저장 시 뜨는 CO 계정지정 팝업. G/L 명세(0300)에서만 떴고 채권/채무(0302)에서는 안 떴다 |
 | `lc_ok_kacb` | `ENTE` | 팝업 확인 (앞에 `=` 없음) |
+
+저장(`=BP`)은 명세 상세화면에서, 추가 데이터 팝업을 거치는 경우엔 **그 팝업에서** 수행된다.
 
 ### 아직 확인 안 된 것
 
 | 항목 | 왜 | 필요한 녹화 |
 |---|---|---|
-| 추가 데이터 팝업 (`lc_dynp_more`, `lc_ok_more`) | XREF1~3 / HZUON 이 이 팝업에 있는데 연 적이 없음 | 상세화면에서 "추가 데이터" 버튼을 눌러 XREF1 입력 후 저장 |
-| 상세화면 → 개요화면 복귀 OK코드 | 녹화가 상세화면에서 바로 저장(`=BP`)하고 끝남 | 명세 2건을 연달아 수정하는 녹화 |
+| 상세화면 → 개요화면 복귀 OK코드 | 녹화가 상세화면(또는 추가데이터 팝업)에서 바로 저장(`=BP`)하고 끝남 | 명세 2건을 연달아 수정하는 녹화 |
+| G/L 외 명세 유형의 상세화면 번호 | G/L `0300`, 채권/채무 `0302` 만 확인됨 | 자산/특별G/L 등 다른 유형 명세를 수정하는 녹화 |
 
 두 번째 항목 때문에 FM은 **명세 1건당 CALL TRANSACTION 1회**로 처리한다.
 복귀 OK코드가 확인되면 한 번의 CALL TRANSACTION 으로 합칠 수 있다.

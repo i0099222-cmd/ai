@@ -6,6 +6,7 @@
 
 DATA(lt_item) = VALUE ztfi_parked_itm(
   ( buzei = 1
+    dynnr = '0302'                " 채권/채무 명세 상세화면 (G/L 이면 생략 = 0300)
     sgtxt = 'ITEM TEXT'
     zuonr = 'ASSIGN-01'
     zterm = 'ZB01'
@@ -54,4 +55,5 @@ CALL FUNCTION 'Z_FI_PARKED_DOC_CHANGE_BDC'
 "  3) 값을 공란으로 지우는 기능은 없다(빈 값 = 변경 안 함).
 "  4) 명세 1건당 CALL TRANSACTION 을 1회씩 수행한다(회차별 COMMIT).
 "     중간에 실패하면 앞 회차는 이미 반영된 상태다.
-"  5) XREF1~3 / HZUON 은 추가 데이터 팝업 화면번호가 아직 미검증이다.
+"  5) DYNNR 은 명세 유형별 상세화면 번호다. G/L=0300(기본), 채권/채무=0302.
+"     틀리게 넘기면 "화면이 다름" 오류가 난다.

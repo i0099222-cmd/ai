@@ -29,7 +29,9 @@
 *&                                  명세 선택 커서 RF05V-ANZDT(nn) + '=PI'
 *&   SAPLF040 0300  명세 상세화면 - G/L 명세.   BSEG-* 필드
 *&   SAPLF040 0302  명세 상세화면 - 채권/채무 명세
-*&   SAPLF040 0332  추가데이터 팝업 - HZUON / XREF1~3. 상세화면에서 '=ZK'
+*&   SAPLF040 0330  추가데이터 팝업 - G/L 명세.   HZUON / XREF1~3, '=RW'
+*&   SAPLF040 0332  추가데이터 팝업 - 채권/채무 명세. '=BP' 로 바로 저장
+*&                  (팝업 진입은 상세화면에서 '=ZK')
 *&   SAPLKACB 0002  계정지정 팝업 - G/L 명세 저장 시. 'ENTE'
 *&   저장은 '=BP'. 추가데이터 팝업을 쓰면 그 팝업에서 바로 '=BP' 로 저장된다.
 *&
@@ -57,13 +59,18 @@ FUNCTION z_fi_parked_doc_change_bdc.
     " 전표 개요화면
     lc_prog_ovw   TYPE bdcdata-program VALUE 'SAPLF040',
     lc_dynp_ovw   TYPE bdcdata-dynpro  VALUE '0700',
-    " 명세 상세화면 - 화면번호는 명세 유형마다 다르다(G/L 0300, 채권/채무 0302).
-    " IS_ITEM-DYNNR 로 넘기고, 안 넘기면 아래 기본값을 쓴다.
+    " 명세 상세화면 - 화면번호는 명세 유형마다 다르다.
+    " IS_ITEM-DYNNR 로 넘기고, 안 넘기면 G/L 기준 기본값을 쓴다.
     lc_prog_item  TYPE bdcdata-program VALUE 'SAPLF040',
-    lc_dynp_item  TYPE bdcdata-dynpro  VALUE '0300',
-    " 추가 데이터 팝업 (HZUON, XREF1~3). 이 팝업에서 바로 저장까지 된다.
+    lc_dynp_item  TYPE bdcdata-dynpro  VALUE '0300',  " G/L 명세 (기본)
+    lc_dynp_item2 TYPE bdcdata-dynpro  VALUE '0302',  " 채권/채무 명세
+    " 추가 데이터 팝업 (HZUON, XREF1~3) - 이것도 명세 유형마다 화면이 다르다.
+    " 팝업 OK코드가 저장(=BP)이 아니면, 팝업을 닫은 뒤 상세화면에서 저장한다.
     lc_prog_more  TYPE bdcdata-program VALUE 'SAPLF040',
-    lc_dynp_more  TYPE bdcdata-dynpro  VALUE '0332',
+    lc_dynp_more  TYPE bdcdata-dynpro  VALUE '0330',  " G/L 명세의 팝업
+    lc_ok_more2   TYPE bdcdata-fval    VALUE '=RW',   " G/L 팝업 확인
+    lc_dynp_more2 TYPE bdcdata-dynpro  VALUE '0332',  " 채권/채무 명세의 팝업
+    lc_ok_more3   TYPE bdcdata-fval    VALUE '=BP',   " 채권/채무 팝업에서 바로 저장
     " 저장 시 뜨는 CO 계정지정 팝업
     lc_prog_kacb  TYPE bdcdata-program VALUE 'SAPLKACB',
     lc_dynp_kacb  TYPE bdcdata-dynpro  VALUE '0002',
@@ -89,6 +96,8 @@ FUNCTION z_fi_parked_doc_change_bdc.
         lt_f2   TYPE STANDARD TABLE OF bdcdata WITH DEFAULT KEY,
         lt_msg  TYPE STANDARD TABLE OF bdcmsgcoll WITH DEFAULT KEY,
         lv_dynp TYPE bdcdata-dynpro,
+        lv_dynp_more TYPE bdcdata-dynpro,
+        lv_ok_more   TYPE bdcdata-fval,
         lv_date TYPE char10,
         lv_1t   TYPE char10,
         lv_1p   TYPE char10,
@@ -143,8 +152,16 @@ FUNCTION z_fi_parked_doc_change_bdc.
 *----------------------------------------------------------------------*
   IF lv_has_item = abap_true.
 
-    " 명세 유형별 상세화면 번호 (G/L 0300 / 채권·채무 0302)
+    " 명세 유형별 상세화면 / 추가데이터 팝업 화면
     lv_dynp = COND #( WHEN is_item-dynnr IS NOT INITIAL THEN is_item-dynnr ELSE lc_dynp_item ).
+
+    IF lv_dynp = lc_dynp_item2.
+      lv_dynp_more = lc_dynp_more2.    " 채권/채무
+      lv_ok_more   = lc_ok_more3.
+    ELSE.
+      lv_dynp_more = lc_dynp_more.     " G/L
+      lv_ok_more   = lc_ok_more2.
+    ENDIF.
 
     " 날짜/수치는 사용자 형식으로 변환해서 전송한다.
     IF is_item-zfbdt IS NOT INITIAL. WRITE is_item-zfbdt TO lv_date.              ENDIF.
@@ -191,11 +208,17 @@ FUNCTION z_fi_parked_doc_change_bdc.
                     fval = COND #( WHEN lt_f2 IS INITIAL THEN lc_ok_save ELSE lc_ok_more ) ) TO lt_bdc.
     APPEND LINES OF lt_f1 TO lt_bdc.
 
-    " 3-2) 추가 데이터 팝업 - 이 팝업에서 바로 저장된다
+    " 3-2) 추가 데이터 팝업
     IF lt_f2 IS NOT INITIAL.
-      APPEND VALUE #( program = lc_prog_more dynpro = lc_dynp_more dynbegin = 'X' ) TO lt_bdc.
-      APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_save ) TO lt_bdc.
+      APPEND VALUE #( program = lc_prog_more dynpro = lv_dynp_more dynbegin = 'X' ) TO lt_bdc.
+      APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lv_ok_more ) TO lt_bdc.
       APPEND LINES OF lt_f2 TO lt_bdc.
+
+      " 팝업에서 바로 저장되지 않는 경우, 상세화면으로 돌아와 저장한다.
+      IF lv_ok_more <> lc_ok_save.
+        APPEND VALUE #( program = lc_prog_item dynpro = lv_dynp dynbegin = 'X' ) TO lt_bdc.
+        APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_save ) TO lt_bdc.
+      ENDIF.
     ENDIF.
 
     " 3-3) G/L 명세 저장 시 뜨는 계정지정 팝업 - 값은 그대로 두고 Enter

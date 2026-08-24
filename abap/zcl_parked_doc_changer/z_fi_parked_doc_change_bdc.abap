@@ -38,9 +38,11 @@
 *&   SAPLF040 0700  개요화면   명세를 다 처리한 뒤 '=BP' 로 저장
 *&
 *&   명세 상세화면 번호는 명세 유형마다 다르다. 호출자가 안 넘기면
-*&   파킹 전표 라인(VBSEG)의 계정유형(KOART)을 읽어 자동으로 정한다.
-*&     KOART = D(고객) / K(공급업체) -> '0302'
-*&     그 외(S 등)                   -> '0300'
+*&   파킹 전표 명세 테이블에서 계정유형을 찾아 자동으로 정한다.
+*&   (파킹 전표 명세는 계정유형별 테이블로 나뉜다:
+*&    VBSEGK 공급업체 / VBSEGD 고객 / VBSEGS G/L / VBSEGA 자산)
+*&     VBSEGK / VBSEGD 에 있으면 -> '0302'
+*&     그 외                     -> '0300'
 *&   자동 판단이 맞지 않는 유형(자산 등)은 ZSFI_PARKED_ITM-DYNNR 로
 *&   명세별로 직접 넘기면 그 값이 우선한다.
 *&   추가데이터 팝업 화면도 이 상세화면 번호로부터 결정된다.
@@ -61,7 +63,8 @@ FUNCTION z_fi_parked_doc_change_bdc.
     lc_prog_ovw   TYPE bdcdata-program VALUE 'SAPLF040',
     lc_dynp_ovw   TYPE bdcdata-dynpro  VALUE '0700',
     " 명세 상세화면 - 화면번호는 명세 유형마다 다르다.
-    " 기본은 VBSEG-KOART 로 자동 판단하고, DYNNR 을 넘기면 그 값이 우선한다.
+    " 기본은 파킹 명세 테이블(VBSEGK/VBSEGD)로 자동 판단하고,
+    " DYNNR 을 넘기면 그 값이 우선한다.
     lc_prog_item  TYPE bdcdata-program VALUE 'SAPLF040',
     lc_dynp_gl    TYPE bdcdata-dynpro  VALUE '0300',  " G/L 명세
     lc_dynp_kd    TYPE bdcdata-dynpro  VALUE '0302',  " 채권/채무 명세
@@ -90,7 +93,8 @@ FUNCTION z_fi_parked_doc_change_bdc.
         lt_f1        TYPE STANDARD TABLE OF bdcdata WITH DEFAULT KEY,
         lt_f2        TYPE STANDARD TABLE OF bdcdata WITH DEFAULT KEY,
         lt_msg       TYPE STANDARD TABLE OF bdcmsgcoll WITH DEFAULT KEY,
-        lv_koart     TYPE vbseg-koart,
+        lv_buzei     TYPE vbsegk-buzei,
+        lv_kd        TYPE abap_bool,
         lv_dynp      TYPE bdcdata-dynpro,
         lv_dynp_more TYPE bdcdata-dynpro,
         lv_ok_exit   TYPE bdcdata-fval,
@@ -127,7 +131,7 @@ FUNCTION z_fi_parked_doc_change_bdc.
   LOOP AT it_item INTO DATA(ls_item).
 
     DATA(lv_i) = sy-tabix.
-    CLEAR: lt_f1, lt_f2, lv_koart, lv_dynp, lv_dynp_more, lv_ok_exit,
+    CLEAR: lt_f1, lt_f2, lv_buzei, lv_kd, lv_dynp, lv_dynp_more, lv_ok_exit,
            lv_date, lv_1t, lv_1p, lv_2t, lv_2p, lv_3t.
 
     " 2-1) 개요화면 - 헤더 필드(첫 진입 시)와 명세 선택
@@ -147,17 +151,33 @@ FUNCTION z_fi_parked_doc_change_bdc.
     ENDIF.
 
     " 2-2) 명세 유형별 화면 결정
+    " 파킹 전표 명세는 계정유형별로 테이블이 나뉜다.
+    "   VBSEGK 공급업체 / VBSEGD 고객 / VBSEGS G/L / VBSEGA 자산
+    " 채권·채무 테이블에 있으면 상세화면이 0302, 아니면 0300 이다.
     IF ls_item-dynnr IS NOT INITIAL.
       lv_dynp = ls_item-dynnr.
     ELSE.
-      SELECT SINGLE koart FROM vbseg
-        INTO lv_koart
-        WHERE ausbk = i_bukrs
-          AND belnr = i_belnr
-          AND gjahr = i_gjahr
-          AND buzei = ls_item-buzei.
-      lv_dynp = COND #( WHEN lv_koart = 'D' OR lv_koart = 'K'
-                        THEN lc_dynp_kd ELSE lc_dynp_gl ).
+      CLEAR lv_kd.
+
+      SELECT SINGLE buzei FROM vbsegk INTO @lv_buzei
+        WHERE ausbk = @i_bukrs
+          AND belnr = @i_belnr
+          AND gjahr = @i_gjahr
+          AND buzei = @ls_item-buzei.
+      IF sy-subrc = 0.
+        lv_kd = abap_true.
+      ELSE.
+        SELECT SINGLE buzei FROM vbsegd INTO @lv_buzei
+          WHERE ausbk = @i_bukrs
+            AND belnr = @i_belnr
+            AND gjahr = @i_gjahr
+            AND buzei = @ls_item-buzei.
+        IF sy-subrc = 0.
+          lv_kd = abap_true.
+        ENDIF.
+      ENDIF.
+
+      lv_dynp = COND #( WHEN lv_kd = abap_true THEN lc_dynp_kd ELSE lc_dynp_gl ).
     ENDIF.
 
     lv_dynp_more = COND #( WHEN lv_dynp = lc_dynp_kd

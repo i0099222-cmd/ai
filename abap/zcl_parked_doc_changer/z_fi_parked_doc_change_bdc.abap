@@ -2,19 +2,18 @@
 *& Function Module Z_FI_PARKED_DOC_CHANGE_BDC
 *&---------------------------------------------------------------------*
 *& 임시전표(파킹 문서) 수정 - CALL TRANSACTION 'FBV2' BDC 래퍼.
+*& 명세 1건을 수정한다. 여러 건이면 호출하는 쪽에서 루프를 돈다.
 *&
-*& [사전 작업] SE11 오브젝트 2개 (DDIC_OBJECTS.md 참고)
-*&   ZSFI_PARKED_ITM : 명세 구조
-*&   ZTFI_PARKED_ITM : ZSFI_PARKED_ITM 의 테이블 타입
+*& [사전 작업] SE11 구조 ZSFI_PARKED_ITM (DDIC_OBJECTS.md 참고)
 *&
 *& [SE37 생성]
 *&   Import 탭
 *&     I_BUKRS TYPE BUKRS
 *&     I_BELNR TYPE BELNR_D
 *&     I_GJAHR TYPE GJAHR
-*&     I_BKTXT TYPE BKTXT                    (optional)
-*&     I_XBLNR TYPE XBLNR1                   (optional)
-*&     IT_ITEM TYPE ZTFI_PARKED_ITM          (optional)
+*&     I_BKTXT TYPE BKTXT              (optional)
+*&     I_XBLNR TYPE XBLNR1             (optional)
+*&     IS_ITEM TYPE ZSFI_PARKED_ITM    (optional)
 *&   Export 탭
 *&     EV_MESSAGETYPE TYPE SYMSGTY
 *&     EV_MESSAGETEXT TYPE STRING
@@ -35,14 +34,13 @@
 *&   저장은 '=BP'. 추가데이터 팝업을 쓰면 그 팝업에서 바로 '=BP' 로 저장된다.
 *&
 *&   명세 상세화면 번호는 명세 유형마다 다르므로 ZSFI_PARKED_ITM-DYNNR 로
-*&   명세별로 넘긴다. 비워두면 G/L 기준 '0300' 을 쓴다.
+*&   넘긴다. 비워두면 G/L 기준 '0300' 을 쓴다.
 *&
-*& [처리 방식] 녹화된 흐름이 "명세 1건 수정 후 바로 저장" 이므로,
-*&   명세가 여러 건이면 명세 1건당 CALL TRANSACTION 을 1회씩 수행한다.
-*&   (상세화면 -> 개요화면 복귀 OK코드가 녹화에 없어서 추측하지 않았다.
-*&    명세 여러 건을 한 번에 처리하려면 그 복귀 스텝을 재녹화해야 한다)
-*&   헤더 필드는 첫 회차에 같이 전송한다. 명세가 없으면 헤더만 1회 처리.
-*&   회차별로 COMMIT 되므로 중간에 실패하면 앞 회차는 이미 반영된 상태다.
+*& [호출 단위]
+*&   IS_ITEM 을 넘기면 그 명세 1건 + (넘긴 경우) 헤더 필드를 수정한다.
+*&   IS_ITEM 없이 헤더 필드만 넘기면 헤더만 수정한다.
+*&   명세가 여러 건이면 호출하는 쪽에서 명세별로 이 FM 을 호출한다.
+*&   (헤더 필드는 첫 호출에만 같이 넘기면 된다)
 *&
 *& [변경 규칙] 값이 채워진 필드만 화면에 전송한다.
 *&             (공란으로 값을 지우는 기능은 없음)
@@ -60,7 +58,7 @@ FUNCTION z_fi_parked_doc_change_bdc.
     lc_prog_ovw   TYPE bdcdata-program VALUE 'SAPLF040',
     lc_dynp_ovw   TYPE bdcdata-dynpro  VALUE '0700',
     " 명세 상세화면 - 화면번호는 명세 유형마다 다르다(G/L 0300, 채권/채무 0302).
-    " 명세별로 DYNNR 을 넘기고, 안 넘기면 아래 기본값을 쓴다.
+    " IS_ITEM-DYNNR 로 넘기고, 안 넘기면 아래 기본값을 쓴다.
     lc_prog_item  TYPE bdcdata-program VALUE 'SAPLF040',
     lc_dynp_item  TYPE bdcdata-dynpro  VALUE '0300',
     " 추가 데이터 팝업 (HZUON, XREF1~3). 이 팝업에서 바로 저장까지 된다.
@@ -90,9 +88,7 @@ FUNCTION z_fi_parked_doc_change_bdc.
         lt_f1   TYPE STANDARD TABLE OF bdcdata WITH DEFAULT KEY,
         lt_f2   TYPE STANDARD TABLE OF bdcdata WITH DEFAULT KEY,
         lt_msg  TYPE STANDARD TABLE OF bdcmsgcoll WITH DEFAULT KEY,
-        ls_item TYPE zsfi_parked_itm,
-        lv_dynp_item TYPE bdcdata-dynpro,
-        lv_ok   TYPE abap_bool,
+        lv_dynp TYPE bdcdata-dynpro,
         lv_date TYPE char10,
         lv_1t   TYPE char10,
         lv_1p   TYPE char10,
@@ -103,157 +99,133 @@ FUNCTION z_fi_parked_doc_change_bdc.
   CLEAR: ev_messagetype, ev_messagetext, et_message.
 
   " 변경할 게 없으면 트랜잭션을 타지 않는다.
-  IF i_bktxt IS INITIAL AND i_xblnr IS INITIAL AND it_item IS INITIAL.
+  IF i_bktxt IS INITIAL AND i_xblnr IS INITIAL AND is_item IS INITIAL.
     ev_messagetype = 'S'.
     ev_messagetext = `Document has been updated`.
     RETURN.
   ENDIF.
 
-  " 명세가 없으면 헤더만 1회, 있으면 명세 1건당 1회 실행한다.
-  DATA(lv_times) = COND i( WHEN it_item IS INITIAL THEN 1 ELSE lines( it_item ) ).
-
-  DO lv_times TIMES.
-
-    DATA(lv_i) = sy-index.
-    CLEAR: lt_bdc, lt_f1, lt_f2, lt_msg, ls_item, lv_dynp_item.
-
-    READ TABLE it_item INTO ls_item INDEX lv_i.
-    DATA(lv_has_item) = xsdbool( sy-subrc = 0 ).
+  DATA(lv_has_item) = xsdbool( is_item IS NOT INITIAL ).
 
 *----------------------------------------------------------------------*
 * 1) 초기화면 - 회사코드 / 전표번호 / 회계연도
 *----------------------------------------------------------------------*
-    lt_bdc = VALUE #(
-      ( program = lc_prog_init dynpro = lc_dynp_init dynbegin = 'X' )
-      ( fnam = 'BDC_CURSOR'   fval = 'RF05V-BUKRS' )
-      ( fnam = 'BDC_OKCODE'   fval = lc_ok_enter )
-      ( fnam = 'RF05V-BUKRS'  fval = i_bukrs )
-      ( fnam = 'RF05V-BELNR'  fval = i_belnr )
-      ( fnam = 'RF05V-GJAHR'  fval = i_gjahr ) ).
+  lt_bdc = VALUE #(
+    ( program = lc_prog_init dynpro = lc_dynp_init dynbegin = 'X' )
+    ( fnam = 'BDC_CURSOR'   fval = 'RF05V-BUKRS' )
+    ( fnam = 'BDC_OKCODE'   fval = lc_ok_enter )
+    ( fnam = 'RF05V-BUKRS'  fval = i_bukrs )
+    ( fnam = 'RF05V-BELNR'  fval = i_belnr )
+    ( fnam = 'RF05V-GJAHR'  fval = i_gjahr ) ).
 
 *----------------------------------------------------------------------*
-* 2) 개요화면 - 헤더 필드(첫 회차만) + 명세 진입 / 저장
+* 2) 개요화면 - 헤더 필드 + 명세 진입 / 저장
 *----------------------------------------------------------------------*
-    APPEND VALUE #( program = lc_prog_ovw dynpro = lc_dynp_ovw dynbegin = 'X' ) TO lt_bdc.
-    APPEND VALUE #( fnam = 'BDC_OKCODE'
-                    fval = COND #( WHEN lv_has_item = abap_true THEN lc_ok_item ELSE lc_ok_save ) ) TO lt_bdc.
+  APPEND VALUE #( program = lc_prog_ovw dynpro = lc_dynp_ovw dynbegin = 'X' ) TO lt_bdc.
+  APPEND VALUE #( fnam = 'BDC_OKCODE'
+                  fval = COND #( WHEN lv_has_item = abap_true THEN lc_ok_item ELSE lc_ok_save ) ) TO lt_bdc.
 
-    IF lv_has_item = abap_true.
-      " 명세의 화면 행번호로 BUZEI 를 그대로 사용한다.
-      APPEND VALUE #( fnam = 'BDC_CURSOR'
-                      fval = |{ lc_fld_pos }({ ls_item-buzei WIDTH = 2 PAD = '0' ALIGN = RIGHT })| ) TO lt_bdc.
-    ENDIF.
+  IF lv_has_item = abap_true.
+    " 명세의 화면 행번호로 BUZEI 를 그대로 사용한다.
+    APPEND VALUE #( fnam = 'BDC_CURSOR'
+                    fval = |{ lc_fld_pos }({ is_item-buzei WIDTH = 2 PAD = '0' ALIGN = RIGHT })| ) TO lt_bdc.
+  ENDIF.
 
-    IF lv_i = 1.
-      IF i_bktxt IS NOT INITIAL.
-        APPEND VALUE #( fnam = 'BKPF-BKTXT' fval = i_bktxt ) TO lt_bdc.
-      ENDIF.
-      IF i_xblnr IS NOT INITIAL.
-        APPEND VALUE #( fnam = 'BKPF-XBLNR' fval = i_xblnr ) TO lt_bdc.
-      ENDIF.
-    ENDIF.
+  IF i_bktxt IS NOT INITIAL.
+    APPEND VALUE #( fnam = 'BKPF-BKTXT' fval = i_bktxt ) TO lt_bdc.
+  ENDIF.
+  IF i_xblnr IS NOT INITIAL.
+    APPEND VALUE #( fnam = 'BKPF-XBLNR' fval = i_xblnr ) TO lt_bdc.
+  ENDIF.
 
 *----------------------------------------------------------------------*
 * 3) 명세 상세화면 - 변경 필드 전송 후 저장
 *----------------------------------------------------------------------*
-    IF lv_has_item = abap_true.
+  IF lv_has_item = abap_true.
 
-      " 명세 유형별 상세화면 번호 (G/L 0300 / 채권·채무 0302)
-      lv_dynp_item = COND #( WHEN ls_item-dynnr IS NOT INITIAL
-                             THEN ls_item-dynnr ELSE lc_dynp_item ).
+    " 명세 유형별 상세화면 번호 (G/L 0300 / 채권·채무 0302)
+    lv_dynp = COND #( WHEN is_item-dynnr IS NOT INITIAL THEN is_item-dynnr ELSE lc_dynp_item ).
 
-      " 날짜/수치는 사용자 형식으로 변환해서 전송한다.
-      CLEAR: lv_date, lv_1t, lv_1p, lv_2t, lv_2p, lv_3t.
-      IF ls_item-zfbdt IS NOT INITIAL. WRITE ls_item-zfbdt TO lv_date.              ENDIF.
-      IF ls_item-zbd1t IS NOT INITIAL. WRITE ls_item-zbd1t TO lv_1t LEFT-JUSTIFIED. ENDIF.
-      IF ls_item-zbd1p IS NOT INITIAL. WRITE ls_item-zbd1p TO lv_1p LEFT-JUSTIFIED. ENDIF.
-      IF ls_item-zbd2t IS NOT INITIAL. WRITE ls_item-zbd2t TO lv_2t LEFT-JUSTIFIED. ENDIF.
-      IF ls_item-zbd2p IS NOT INITIAL. WRITE ls_item-zbd2p TO lv_2p LEFT-JUSTIFIED. ENDIF.
-      IF ls_item-zbd3t IS NOT INITIAL. WRITE ls_item-zbd3t TO lv_3t LEFT-JUSTIFIED. ENDIF.
+    " 날짜/수치는 사용자 형식으로 변환해서 전송한다.
+    IF is_item-zfbdt IS NOT INITIAL. WRITE is_item-zfbdt TO lv_date.              ENDIF.
+    IF is_item-zbd1t IS NOT INITIAL. WRITE is_item-zbd1t TO lv_1t LEFT-JUSTIFIED. ENDIF.
+    IF is_item-zbd1p IS NOT INITIAL. WRITE is_item-zbd1p TO lv_1p LEFT-JUSTIFIED. ENDIF.
+    IF is_item-zbd2t IS NOT INITIAL. WRITE is_item-zbd2t TO lv_2t LEFT-JUSTIFIED. ENDIF.
+    IF is_item-zbd2p IS NOT INITIAL. WRITE is_item-zbd2p TO lv_2p LEFT-JUSTIFIED. ENDIF.
+    IF is_item-zbd3t IS NOT INITIAL. WRITE is_item-zbd3t TO lv_3t LEFT-JUSTIFIED. ENDIF.
 
-      " 명세 상세화면 필드
-      " (지급조건 관련 필드는 채권/채무 명세 화면에만 있다. G/L 명세에
-      "  ZTERM/ZFBDT 등을 넘기면 "필드가 화면에 없음" 오류가 난다)
-      lt_f1 = VALUE #(
-        ( fnam = 'BSEG-SGTXT' fval = ls_item-sgtxt )
-        ( fnam = 'BSEG-ZUONR' fval = ls_item-zuonr )
-        ( fnam = 'BSEG-BVTYP' fval = ls_item-bvtyp )
-        ( fnam = 'BSEG-HBKID' fval = ls_item-hbkid )
-        ( fnam = 'BSEG-ZTERM' fval = ls_item-zterm )
-        ( fnam = 'BSEG-ZFBDT' fval = lv_date )
-        ( fnam = 'BSEG-ZBD1T' fval = lv_1t )
-        ( fnam = 'BSEG-ZBD1P' fval = lv_1p )
-        ( fnam = 'BSEG-ZBD2T' fval = lv_2t )
-        ( fnam = 'BSEG-ZBD2P' fval = lv_2p )
-        ( fnam = 'BSEG-ZBD3T' fval = lv_3t )
-        ( fnam = 'BSEG-ZLSCH' fval = ls_item-zlsch )
-        ( fnam = 'BSEG-ZLSPR' fval = ls_item-zlspr )
-        ( fnam = 'BSEG-ZBFIX' fval = ls_item-zbfix )
-        ( fnam = 'BSEG-RSTGR' fval = ls_item-rstgr ) ).
+    " 명세 상세화면 필드
+    " (지급조건 관련 필드는 채권/채무 명세 화면에만 있다. G/L 명세에
+    "  ZTERM/ZFBDT 등을 넘기면 "필드가 화면에 없음" 오류가 난다)
+    lt_f1 = VALUE #(
+      ( fnam = 'BSEG-SGTXT' fval = is_item-sgtxt )
+      ( fnam = 'BSEG-ZUONR' fval = is_item-zuonr )
+      ( fnam = 'BSEG-BVTYP' fval = is_item-bvtyp )
+      ( fnam = 'BSEG-HBKID' fval = is_item-hbkid )
+      ( fnam = 'BSEG-ZTERM' fval = is_item-zterm )
+      ( fnam = 'BSEG-ZFBDT' fval = lv_date )
+      ( fnam = 'BSEG-ZBD1T' fval = lv_1t )
+      ( fnam = 'BSEG-ZBD1P' fval = lv_1p )
+      ( fnam = 'BSEG-ZBD2T' fval = lv_2t )
+      ( fnam = 'BSEG-ZBD2P' fval = lv_2p )
+      ( fnam = 'BSEG-ZBD3T' fval = lv_3t )
+      ( fnam = 'BSEG-ZLSCH' fval = is_item-zlsch )
+      ( fnam = 'BSEG-ZLSPR' fval = is_item-zlspr )
+      ( fnam = 'BSEG-ZBFIX' fval = is_item-zbfix )
+      ( fnam = 'BSEG-RSTGR' fval = is_item-rstgr ) ).
 
-      " 추가 데이터 팝업 필드
-      lt_f2 = VALUE #(
-        ( fnam = 'BSEG-HZUON' fval = ls_item-hzuon )
-        ( fnam = 'BSEG-XREF1' fval = ls_item-xref1 )
-        ( fnam = 'BSEG-XREF2' fval = ls_item-xref2 )
-        ( fnam = 'BSEG-XREF3' fval = ls_item-xref3 ) ).
+    " 추가 데이터 팝업 필드
+    lt_f2 = VALUE #(
+      ( fnam = 'BSEG-HZUON' fval = is_item-hzuon )
+      ( fnam = 'BSEG-XREF1' fval = is_item-xref1 )
+      ( fnam = 'BSEG-XREF2' fval = is_item-xref2 )
+      ( fnam = 'BSEG-XREF3' fval = is_item-xref3 ) ).
 
-      " 값이 안 넘어온 필드는 전송하지 않는다.
-      DELETE lt_f1 WHERE fval IS INITIAL.
-      DELETE lt_f2 WHERE fval IS INITIAL.
+    " 값이 안 넘어온 필드는 전송하지 않는다.
+    DELETE lt_f1 WHERE fval IS INITIAL.
+    DELETE lt_f2 WHERE fval IS INITIAL.
 
-      " 3-1) 상세화면 - 추가 데이터가 있으면 팝업으로, 없으면 바로 저장
-      APPEND VALUE #( program = lc_prog_item dynpro = lv_dynp_item dynbegin = 'X' ) TO lt_bdc.
-      APPEND VALUE #( fnam = 'BDC_OKCODE'
-                      fval = COND #( WHEN lt_f2 IS INITIAL THEN lc_ok_save ELSE lc_ok_more ) ) TO lt_bdc.
-      APPEND LINES OF lt_f1 TO lt_bdc.
+    " 3-1) 상세화면 - 추가 데이터가 있으면 팝업으로, 없으면 바로 저장
+    APPEND VALUE #( program = lc_prog_item dynpro = lv_dynp dynbegin = 'X' ) TO lt_bdc.
+    APPEND VALUE #( fnam = 'BDC_OKCODE'
+                    fval = COND #( WHEN lt_f2 IS INITIAL THEN lc_ok_save ELSE lc_ok_more ) ) TO lt_bdc.
+    APPEND LINES OF lt_f1 TO lt_bdc.
 
-      " 3-2) 추가 데이터 팝업 - 이 팝업에서 바로 저장된다
-      IF lt_f2 IS NOT INITIAL.
-        APPEND VALUE #( program = lc_prog_more dynpro = lc_dynp_more dynbegin = 'X' ) TO lt_bdc.
-        APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_save ) TO lt_bdc.
-        APPEND LINES OF lt_f2 TO lt_bdc.
-      ENDIF.
-
+    " 3-2) 추가 데이터 팝업 - 이 팝업에서 바로 저장된다
+    IF lt_f2 IS NOT INITIAL.
+      APPEND VALUE #( program = lc_prog_more dynpro = lc_dynp_more dynbegin = 'X' ) TO lt_bdc.
+      APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_save ) TO lt_bdc.
+      APPEND LINES OF lt_f2 TO lt_bdc.
     ENDIF.
 
-*----------------------------------------------------------------------*
-* 4) 저장 시 뜨는 CO 계정지정 팝업 - 값은 건드리지 않고 Enter 로 통과
-*----------------------------------------------------------------------*
-    IF lv_has_item = abap_true AND lv_dynp_item = lc_kacb_dynp.
+    " 3-3) G/L 명세 저장 시 뜨는 계정지정 팝업 - 값은 그대로 두고 Enter
+    IF lv_dynp = lc_kacb_dynp.
       APPEND VALUE #( program = lc_prog_kacb dynpro = lc_dynp_kacb dynbegin = 'X' ) TO lt_bdc.
       APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_kacb ) TO lt_bdc.
     ENDIF.
 
-*----------------------------------------------------------------------*
-* 5) 실행
-*----------------------------------------------------------------------*
-    DATA(ls_options) = VALUE ctu_params(
-      dismode = lc_dismode
-      updmode = 'S'      " 동기 업데이트 - 호출자 응답 시점에 결과 확정
-      defsize = 'X' ).   " 화면 크기 고정
-
-    CALL TRANSACTION 'FBV2' USING lt_bdc
-      OPTIONS FROM ls_options
-      MESSAGES INTO lt_msg.
-
-    lv_ok = xsdbool( sy-subrc = 0
-                 AND NOT line_exists( lt_msg[ msgtyp = 'E' ] )
-                 AND NOT line_exists( lt_msg[ msgtyp = 'A' ] ) ).
-
-    APPEND LINES OF lt_msg TO et_message.
-
-    " 한 건이라도 실패하면 뒤 명세는 진행하지 않는다.
-    IF lv_ok = abap_false.
-      EXIT.
-    ENDIF.
-
-  ENDDO.
+  ENDIF.
 
 *----------------------------------------------------------------------*
-* 6) 결과 처리
+* 4) 실행
 *----------------------------------------------------------------------*
-  IF lv_ok = abap_true.
+  DATA(ls_options) = VALUE ctu_params(
+    dismode = lc_dismode
+    updmode = 'S'      " 동기 업데이트 - 호출자 응답 시점에 결과 확정
+    defsize = 'X' ).   " 화면 크기 고정
+
+  CALL TRANSACTION 'FBV2' USING lt_bdc
+    OPTIONS FROM ls_options
+    MESSAGES INTO lt_msg.
+
+*----------------------------------------------------------------------*
+* 5) 결과 처리
+*----------------------------------------------------------------------*
+  et_message = lt_msg.
+
+  IF sy-subrc = 0
+  AND NOT line_exists( lt_msg[ msgtyp = 'E' ] )
+  AND NOT line_exists( lt_msg[ msgtyp = 'A' ] ).
     ev_messagetype = 'S'.
     ev_messagetext = `Document has been updated`.
   ELSE.

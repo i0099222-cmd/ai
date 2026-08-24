@@ -63,6 +63,5 @@ zcl_parked_doc_changer=>change(
 "  3) BUZEI 를 개요화면 테이블컨트롤 행 번호로 그대로 쓴다.
 "     명세가 많아 스크롤이 필요한 전표는 페이징(P+) 블록 추가 필요.
 "  4) 값을 공란으로 지우는 기능은 없다(빈 값 = 변경 안 함).
-"  5) 명세 1건당 CALL TRANSACTION 1회(= COMMIT 1회)씩 수행된다.
-"     중간에 실패하면 앞 명세는 이미 반영된 상태이고, 뒤 명세는 처리되지 않는다.
-"     ET_MESSAGE 에는 회차별 메시지가 모두 누적된다.
+"  5) 명세가 몇 건이든 CALL TRANSACTION 은 1회다(저장도 1회).
+"     ET_MESSAGE 에 CALL TRANSACTION 원본 메시지가 담긴다.

@@ -65,31 +65,41 @@ perform bdc_field       using 'RF05V-BUKRS' '1000'.
 
 ---
 
-## 3. FM 상수 블록에 옮기기
+## 3. FM 상수 블록 (녹화로 확인된 값)
 
-`z_fi_parked_doc_change_bdc.abap` 상단의 상수 블록과 1:1로 대응된다.
+명세 1건(001 라인)의 텍스트만 바꾼 녹화 결과 기준으로 아래가 확정되었다.
 
-| 상수 | 녹화에서 확인할 값 |
-|---|---|
-| `lc_prog_init` / `lc_dynp_init` | 첫 번째 화면(회사코드/전표번호/회계연도 입력) |
-| `lc_prog_ovw` / `lc_dynp_ovw`   | 두 번째 화면(헤더 + 명세 목록이 같이 보이는 개요화면) |
-| `lc_prog_item` / `lc_dynp_item` | 명세를 더블클릭했을 때 나온 상세화면 |
-| `lc_dynp_more` | 추가 데이터 팝업 (프로그램은 상세화면과 같은 SAPMF05A 기준) |
-| `lc_fld_pos` | 개요화면에서 **기존 명세를 더블클릭**한 스텝의 `BDC_CURSOR` 괄호 앞부분<br>주의: `RF05V-NEWBS/NEWKO/NEWBK` 는 화면 하단의 "다음 명세 입력" 필드라 기존 명세 선택 컬럼과 다르다. 코드의 기본값은 임시값이니 반드시 녹화값으로 교체할 것 |
-| `lc_ok_enter` | 초기화면에서 Enter 쳤을 때의 OK코드 (`/00` 또는 `=ENTR`) |
-| `lc_ok_item` | 개요화면 → 명세 상세로 갈 때의 OK코드 |
-| `lc_ok_more` | 상세화면 → 추가 데이터 팝업 OK코드 |
-| `lc_ok_back` | 상세화면 → 개요화면 복귀 OK코드 |
-| `lc_ok_save` | 저장 OK코드 |
+| 상수 | 값 | 근거 |
+|---|---|---|
+| `lc_prog_init` / `lc_dynp_init` | `SAPMF05V` / `0100` | 초기화면 |
+| `lc_ok_enter` | `=ENTR` | 초기화면 OK코드 |
+| `lc_prog_ovw` / `lc_dynp_ovw` | `SAPLF040` / `0700` | 개요화면. BKPF-BKTXT / BKPF-XBLNR 이 이 화면에 있다 |
+| `lc_fld_pos` | `RF05V-ANZDT` | 명세 선택 커서 (`RF05V-ANZDT(01)`) |
+| `lc_ok_item` | `=PI` | 개요화면 → 명세 상세 진입 |
+| `lc_prog_item` / `lc_dynp_item` | `SAPLF040` / `0300` | 명세 상세화면. BSEG-SGTXT 등이 여기 |
+| `lc_ok_save` | `=BP` | 상세화면에서 바로 저장(파킹) |
+| `lc_prog_kacb` / `lc_dynp_kacb` | `SAPLKACB` / `0002` | 저장 시 뜨는 CO 계정지정 팝업 |
+| `lc_ok_kacb` | `ENTE` | 팝업 확인 (앞에 `=` 없음) |
 
-그리고 **필드가 어느 화면에 있었는지**에 따라 FM 본문의 두 테이블을 맞춘다.
+### 아직 확인 안 된 것
 
-- `lt_f1` : 명세 상세화면에 있던 필드
-- `lt_f2` : 추가 데이터 팝업에 있던 필드
+| 항목 | 왜 | 필요한 녹화 |
+|---|---|---|
+| 추가 데이터 팝업 (`lc_dynp_more`, `lc_ok_more`) | XREF1~3 / HZUON 이 이 팝업에 있는데 연 적이 없음 | 상세화면에서 "추가 데이터" 버튼을 눌러 XREF1 입력 후 저장 |
+| 상세화면 → 개요화면 복귀 OK코드 | 녹화가 상세화면에서 바로 저장(`=BP`)하고 끝남 | 명세 2건을 연달아 수정하는 녹화 |
 
-화면 필드명이 다르면(`BSEG-XREF1` 이 아니라 다른 이름이면) 그 줄의 `fnam` 을 고친다.
+두 번째 항목 때문에 FM은 **명세 1건당 CALL TRANSACTION 1회**로 처리한다.
+복귀 OK코드가 확인되면 한 번의 CALL TRANSACTION 으로 합칠 수 있다.
 
----
+### 녹화에 남지만 보내지 않는 것
+
+SHDB는 화면의 **기존 값까지 전부** 기록한다. 아래는 녹화에 있어도 전송하지 않는다.
+바꿀 필드가 아닌데 보내면 오히려 값이 덮어써지기 때문이다.
+
+- `BSEG-WRBTR`, `BSEG-MWSKZ` (금액/세금코드)
+- `COBL-KOSTL`, `COBL-FKBER` (계정지정 값) → 팝업은 Enter로만 통과
+- `BDC_SUBSCR` (서브스크린 영역 지정) → 서브스크린 필드를 채울 때만 필요
+- `DKACB-FMORE` (추가 계정지정 화면 호출 플래그)
 
 ## 4. SHDB 없이 확인하는 방법 (보조)
 

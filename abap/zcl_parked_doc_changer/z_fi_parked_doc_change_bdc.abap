@@ -36,9 +36,13 @@
 *&                  (팝업 진입은 상세화면에서 '=ZK')
 *&   SAPLKACB 0002  계정지정 팝업 - G/L 명세를 상세화면에서 저장할 때. 'ENTE'
 *&
-*&   명세 상세화면 번호는 명세 유형마다 다르므로 ZSFI_PARKED_ITM-DYNNR 로
-*&   명세별로 넘긴다. 비워두면 G/L 기준 '0300' 을 쓴다.
-*&   추가데이터 팝업 화면/OK코드는 이 DYNNR 로부터 결정된다.
+*&   명세 상세화면 번호는 명세 유형마다 다르다. 호출자가 안 넘기면
+*&   파킹 전표 라인(VBSEG)의 계정유형(KOART)을 읽어 자동으로 정한다.
+*&     KOART = D(고객) / K(공급업체) -> '0302'
+*&     그 외(S 등)                   -> '0300'
+*&   자동 판단이 맞지 않는 유형(자산 등)은 ZSFI_PARKED_ITM-DYNNR 로
+*&   명세별로 직접 넘기면 그 값이 우선한다.
+*&   추가데이터 팝업 화면/OK코드는 이 상세화면 번호로부터 결정된다.
 *&
 *& [처리 단위] 녹화된 흐름이 "명세 1건 수정 후 바로 저장" 이라
 *&   상세화면에서 개요화면으로 되돌아가는 스텝이 없다. 그래서 명세가
@@ -62,7 +66,7 @@ FUNCTION z_fi_parked_doc_change_bdc.
     lc_prog_ovw   TYPE bdcdata-program VALUE 'SAPLF040',
     lc_dynp_ovw   TYPE bdcdata-dynpro  VALUE '0700',
     " 명세 상세화면 - 화면번호는 명세 유형마다 다르다.
-    " ZSFI_PARKED_ITM-DYNNR 로 넘기고, 안 넘기면 G/L 기준 기본값을 쓴다.
+    " 기본은 VBSEG-KOART 로 자동 판단하고, DYNNR 을 넘기면 그 값이 우선한다.
     lc_prog_item  TYPE bdcdata-program VALUE 'SAPLF040',
     lc_dynp_item  TYPE bdcdata-dynpro  VALUE '0300',  " G/L 명세 (기본)
     lc_dynp_item2 TYPE bdcdata-dynpro  VALUE '0302',  " 채권/채무 명세
@@ -101,6 +105,7 @@ FUNCTION z_fi_parked_doc_change_bdc.
         lv_dynp      TYPE bdcdata-dynpro,
         lv_dynp_more TYPE bdcdata-dynpro,
         lv_ok_more   TYPE bdcdata-fval,
+        lv_koart     TYPE vbseg-koart,
         lv_ok        TYPE abap_bool,
         lv_date      TYPE char10,
         lv_1t        TYPE char10,
@@ -169,8 +174,22 @@ FUNCTION z_fi_parked_doc_change_bdc.
 *----------------------------------------------------------------------*
     IF lv_has_item = abap_true.
 
-      " 명세 유형별 상세화면 / 추가데이터 팝업 화면
-      lv_dynp = COND #( WHEN ls_item-dynnr IS NOT INITIAL THEN ls_item-dynnr ELSE lc_dynp_item ).
+      " 명세 유형별 상세화면 / 추가데이터 팝업 화면.
+      " DYNNR 을 넘기면 그 값을 쓰고, 안 넘기면 파킹 전표 라인(VBSEG)의
+      " 계정유형(KOART)으로 판단한다. S=G/L, D=고객, K=공급업체.
+      IF ls_item-dynnr IS NOT INITIAL.
+        lv_dynp = ls_item-dynnr.
+      ELSE.
+        CLEAR lv_koart.
+        SELECT SINGLE koart FROM vbseg
+          INTO lv_koart
+          WHERE ausbk = i_bukrs
+            AND belnr = i_belnr
+            AND gjahr = i_gjahr
+            AND buzei = ls_item-buzei.
+        lv_dynp = COND #( WHEN lv_koart = 'D' OR lv_koart = 'K'
+                          THEN lc_dynp_item2 ELSE lc_dynp_item ).
+      ENDIF.
 
       IF lv_dynp = lc_dynp_item2.
         lv_dynp_more = lc_dynp_more2.    " 채권/채무

@@ -11,8 +11,8 @@ DATA: lv_msgty   TYPE symsgty,
 " 명세 여러 건 + 헤더를 한 번에 넘긴다.
 DATA(lt_item) = VALUE ztfi_parked_itm(
   " 채권/채무 명세 - 상세화면 필드 + 추가데이터 팝업 필드
+  " DYNNR 은 안 넘겨도 된다. VBSEG-KOART 로 FM 이 알아서 판단한다.
   ( buzei = 1
-    dynnr = '0302'                 " 채권/채무 명세. G/L 이면 생략(= 0300)
     sgtxt = 'ITEM TEXT'
     zuonr = 'ASSIGN-01'
     zterm = 'ZB01'
@@ -23,7 +23,11 @@ DATA(lt_item) = VALUE ztfi_parked_itm(
     xref1 = 'REF1' )
   " G/L 명세 - 상세화면 필드만
   ( buzei = 2
-    sgtxt = 'GL ITEM TEXT' ) ).
+    sgtxt = 'GL ITEM TEXT' )
+  " 자동 판단이 안 맞는 유형(자산 등)만 DYNNR 을 직접 지정한다
+  ( buzei = 3
+    dynnr = '0302'
+    sgtxt = 'FORCED SCREEN' ) ).
 
 zcl_parked_doc_changer=>change(
   EXPORTING
@@ -52,8 +56,8 @@ zcl_parked_doc_changer=>change(
     et_message     = lt_message ).
 
 " 주의
-"  1) DYNNR 은 명세 유형별 상세화면 번호다. G/L=0300(기본), 채권/채무=0302.
-"     추가데이터 팝업 화면번호도 이 값으로 결정되므로 정확히 넘겨야 한다.
+"  1) DYNNR 은 보통 안 넘겨도 된다. FM 이 VBSEG-KOART 로
+"     G/L(0300) / 채권·채무(0302) 를 판단한다. 넘기면 그 값이 우선한다.
 "  2) G/L 명세에는 ZTERM/ZFBDT 등 지급 관련 필드가 화면에 없으므로
 "     해당 명세에는 그 필드들을 넘기지 않는다.
 "  3) BUZEI 를 개요화면 테이블컨트롤 행 번호로 그대로 쓴다.

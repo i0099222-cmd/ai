@@ -76,7 +76,7 @@ perform bdc_field       using 'RF05V-BUKRS' '1000'.
 | `lc_prog_ovw` / `lc_dynp_ovw` | `SAPLF040` / `0700` | 개요화면. BKPF-BKTXT / BKPF-XBLNR 이 이 화면에 있다 |
 | `lc_fld_pos` | `RF05V-ANZDT` | 명세 선택 커서 (`RF05V-ANZDT(01)`) |
 | `lc_ok_item` | `=PI` | 개요화면 → 명세 상세 진입 |
-| `lc_prog_item` / `lc_dynp_item` | `SAPLF040` / `0300` | 명세 상세화면 **기본값(G/L)**. 채권/채무 명세는 `0302` 라서 명세별로 `DYNNR` 로 넘긴다 |
+| `lc_prog_item` / `lc_dynp_item` / `lc_dynp_item2` | `SAPLF040` / `0300` / `0302` | 명세 상세화면. G/L 은 `0300`, 채권/채무는 `0302`. FM 이 VBSEG-KOART 로 골라 쓴다 |
 | `lc_ok_more` | `=ZK` | 상세화면 → 추가 데이터 팝업 |
 | `lc_dynp_more` / `lc_ok_more2` | `0330` / `=RW` | **G/L 명세**의 추가 데이터 팝업 (HZUON, XREF1~3). `=RW` 로 닫으면 개요화면으로 빠진다 |
 | `lc_dynp_more2` / `lc_ok_more3` | `0332` / `=BP` | **채권/채무 명세**의 추가 데이터 팝업. 여기서 바로 저장됨 |

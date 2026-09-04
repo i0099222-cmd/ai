@@ -8,7 +8,7 @@ define abstract entity ZD_JOB_SCHEDULE
       // --- 잡 파라미터 (템플릿 파라미터로 전달) --------------------------
       @EndUserText.label: '테스트 태그'
       RunTag            : abap.char(20);
-      RecordCount       : abap.int4;
+      MessageCount      : abap.int4;
       SleepSeconds      : abap.int4;
       ForceFail         : abap_boolean;
 

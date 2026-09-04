@@ -17,7 +17,7 @@ define root view entity ZC_JOB_RUN
 
       @Search.defaultSearchElement: true
       RunTag,
-      RecordCount,
+      MessageCount,
       SleepSeconds,
       ForceFail,
 
@@ -41,7 +41,5 @@ define root view entity ZC_JOB_RUN
       CreatedBy,
       CreatedAt,
       LastChangedBy,
-      LastChangedAt : LocalLastChangedAt,
-
-      _Probe : redirected to ZC_JOB_PROBE
+      LastChangedAt : LocalLastChangedAt
 }

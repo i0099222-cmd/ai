@@ -93,7 +93,7 @@ CLASS lhc_jobrun IMPLEMENTATION.
       DATA(ls_request) = VALUE zcl_job_apj_adapter=>ty_schedule_request(
         job_template_name  = ls_p-jobtemplatename
         params             = VALUE #( run_tag    = ls_p-runtag
-                                      rec_count  = ls_p-recordcount
+                                      msg_count  = ls_p-messagecount
                                       sleep_secs = ls_p-sleepseconds
                                       force_fail = ls_p-forcefail )
         start_immediately  = ls_p-startimmediately
@@ -121,7 +121,7 @@ CLASS lhc_jobrun IMPLEMENTATION.
         jobname           = ls_sched-job_name
         jobcount          = ls_sched-job_count
         runtag            = ls_p-runtag
-        recordcount       = ls_p-recordcount
+        messagecount      = ls_p-messagecount
         sleepseconds      = ls_p-sleepseconds
         forcefail         = ls_p-forcefail
         startimmediately  = ls_p-startimmediately
@@ -142,7 +142,7 @@ CLASS lhc_jobrun IMPLEMENTATION.
     MODIFY ENTITIES OF zi_job_run IN LOCAL MODE
       ENTITY jobrun
         CREATE FIELDS ( jobtemplatename jobname jobcount
-                        runtag recordcount sleepseconds forcefail
+                        runtag messagecount sleepseconds forcefail
                         startimmediately startdate starttime timezone
                         recurrenceminutes enddate
                         jobstatus scheduledat lastmessage )

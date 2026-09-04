@@ -4,13 +4,16 @@
 "! 이 클래스만 호출한다. "실행 로직은 동일 / 스케줄링 방식만 다름"이라는
 "! 비교 조건을 성립시키기 위해서다.
 "!
-"! 하는 일: 실행 컨텍스트(사용자/시각/타임존/서버/잡ID)를 ZTJOB_PROBE 에 기록.
-"! 업무 마스터데이터 의존이 전혀 없어서 어느 시스템에서도 바로 돌릴 수 있다.
+"! 하는 일: 실행 컨텍스트(사용자/일자/시각/타임존/서버/잡ID)를 담은 메시지를
+"! 잡 로그에 찍는다. DB 도, 업무 마스터데이터도 건드리지 않는다.
 "!
 "! 언어버전: ABAP for Cloud Development.
-"! 그래서 sy-batch / sy-host / sy-uname 같은 필드는 여기서 못 읽는다.
+"! 그래서 sy-batch / sy-host / sy-uname 을 여기서 못 읽는다.
 "! 그 값들은 Standard ABAP 인 클래식 리포트가 IS_CONTEXT 로 넘겨준다.
 "! (Cloud 티어에서 못 읽는다는 사실 자체가 비교 결과 중 하나다.)
+"!
+"! NOTE: MESSAGE ... TYPE 'I' 는 백그라운드에서 잡 로그로 수집되지만,
+"!       다이얼로그로 부르면 팝업이 뜬다. 이 클래스는 잡에서만 호출할 것.
 CLASS zcl_job_test_core DEFINITION
   PUBLIC
   FINAL
@@ -21,21 +24,25 @@ CLASS zcl_job_test_core DEFINITION
 
   PRIVATE SECTION.
 
+    DATA mt_message TYPE zif_job_test=>tt_message.
+
     METHODS fill_defaults
       IMPORTING
         is_params        TYPE zif_job_test=>ty_run_params
       RETURNING
         VALUE(rs_params) TYPE zif_job_test=>ty_run_params.
 
-    METHODS build_probe
+    "! 잡 로그에 한 줄 찍고 요약에도 남긴다.
+    METHODS emit
       IMPORTING
-        is_params      TYPE zif_job_test=>ty_run_params
+        iv_text TYPE string.
+
+    "! 실행 컨텍스트 한 줄 요약 - 두 방식의 차이가 여기서 드러난다.
+    METHODS context_line
+      IMPORTING
         is_context     TYPE zif_job_test=>ty_context
-        iv_seq_no      TYPE i
       RETURNING
-        VALUE(rs_probe) TYPE ztjob_probe
-      RAISING
-        zcx_job_test.
+        VALUE(rv_line) TYPE string.
 
 ENDCLASS.
 
@@ -44,51 +51,40 @@ CLASS zcl_job_test_core IMPLEMENTATION.
 
   METHOD zif_job_test~run.
 
+    CLEAR mt_message.
+
     DATA(ls_params) = fill_defaults( is_params ).
 
     rs_summary-run_tag   = ls_params-run_tag.
-    rs_summary-requested = ls_params-rec_count.
-    rs_summary-started   = utclong_current( ).
+    rs_summary-requested = ls_params-msg_count.
 
-    DO ls_params-rec_count TIMES.
+    emit( |[{ ls_params-run_tag }] START { context_line( is_context ) }| ).
 
-      DATA(lv_seq) = sy-index.
+    DO ls_params-msg_count TIMES.
 
-      DATA(ls_probe) = build_probe( is_params  = ls_params
-                                    is_context = is_context
-                                    iv_seq_no  = lv_seq ).
-
-      INSERT ztjob_probe FROM @ls_probe.
-
-      " 잡이 중간에 취소됐을 때 "몇 번째까지 커밋됐는지" 보려면 건별 커밋이어야 한다.
-      " (SM37 의 잡 중지 vs Application Jobs 앱의 Cancel 이 각각 어느 시점에
-      "  실제로 끊는지 비교 - COMPARISON.md 항목 #14)
-      COMMIT WORK.
+      emit( |[{ ls_params-run_tag }] #{ sy-index } at { utclong_current( ) }| ).
 
       rs_summary-written = rs_summary-written + 1.
 
-      APPEND VALUE #( seq_no  = lv_seq
-                      stamp   = ls_probe-exec_stamp
-                      message = |probe { lv_seq } written| )
-             TO rs_summary-t_result.
-
       " 실행시간을 늘려서 "실행 중" 상태와 취소를 관찰할 시간을 번다.
-      " NOTE: WAIT UP TO 가 Cloud 언어버전에서 막히면, 이 블록만
-      "       Standard ABAP FM 으로 빼거나 rec_count 를 늘려 대체한다.
+      " (SM37 의 잡 중지 vs Application Jobs 앱의 Cancel 이 각각 어느 시점에
+      "  실제로 끊는지 - 잡 로그에 몇 번째 메시지까지 남았는지로 비교)
+      " NOTE: WAIT UP TO 가 Cloud 언어버전에서 막히면 이 블록만 걷어내고
+      "       msg_count 를 크게 잡아 대체한다.
       IF ls_params-sleep_secs > 0.
         WAIT UP TO ls_params-sleep_secs SECONDS.
       ENDIF.
 
     ENDDO.
 
-    rs_summary-finished = utclong_current( ).
+    emit( |[{ ls_params-run_tag }] END written={ rs_summary-written }/{ rs_summary-requested }| ).
+
+    rs_summary-t_message = mt_message.
 
     " 강제 오류: 잡을 "오류 종료" 상태로 만든다.
     IF ls_params-force_fail = abap_true.
-      rs_summary-failed = abap_true.
       RAISE EXCEPTION NEW zcx_job_test(
-        message = |Forced failure after { rs_summary-written } probe(s) | &&
-                  |(run_tag={ ls_params-run_tag })| ).
+        message = |[{ ls_params-run_tag }] forced failure after { rs_summary-written } message(s)| ).
     ENDIF.
 
   ENDMETHOD.
@@ -102,8 +98,8 @@ CLASS zcl_job_test_core IMPLEMENTATION.
       rs_params-run_tag = 'NOTAG'.
     ENDIF.
 
-    IF rs_params-rec_count <= 0.
-      rs_params-rec_count = 1.
+    IF rs_params-msg_count <= 0.
+      rs_params-msg_count = 1.
     ENDIF.
 
     IF rs_params-sleep_secs < 0.
@@ -113,36 +109,34 @@ CLASS zcl_job_test_core IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD build_probe.
+  METHOD emit.
 
-    TRY.
-        DATA(lv_uuid) = cl_system_uuid=>create_uuid_x16_static( ).
-      CATCH cx_uuid_error INTO DATA(lx_uuid).
-        RAISE EXCEPTION NEW zcx_job_test( message  = |UUID creation failed|
-                                          previous = lx_uuid ).
-    ENDTRY.
+    APPEND iv_text TO mt_message.
 
-    rs_probe = VALUE #(
-      probe_uuid    = lv_uuid
-      run_tag       = is_params-run_tag
-      seq_no        = iv_seq_no
+    " 백그라운드 실행이면 잡 로그로 수집된다.
+    MESSAGE iv_text TYPE 'I'.
 
-      schedule_mode = is_context-schedule_mode
-      job_name      = is_context-job_name
-      job_count     = is_context-job_count
+  ENDMETHOD.
 
-      " ABAP Cloud 에서 실행 컨텍스트를 읽는 정식 경로
-      exec_user     = cl_abap_context_info=>get_user_technical_name( )
-      exec_stamp    = utclong_current( )
-      exec_date     = cl_abap_context_info=>get_system_date( )
-      exec_time     = cl_abap_context_info=>get_system_time( )
-      user_timezone = cl_abap_context_info=>get_user_time_zone( )
 
-      " 아래 두 개는 Standard ABAP 호출자만 채워줄 수 있다
-      host          = is_context-host
-      is_batch      = is_context-is_batch
+  METHOD context_line.
 
-      message       = |mode={ is_context-schedule_mode } seq={ iv_seq_no }| ).
+    " ABAP Cloud 에서 실행 컨텍스트를 읽는 정식 경로
+    rv_line = |mode={ is_context-schedule_mode } | &&
+              |user={ cl_abap_context_info=>get_user_technical_name( ) } | &&
+              |date={ cl_abap_context_info=>get_system_date( ) } | &&
+              |time={ cl_abap_context_info=>get_system_time( ) } | &&
+              |tz={ cl_abap_context_info=>get_user_time_zone( ) }|.
+
+    " 아래는 Standard ABAP 호출자만 채워줄 수 있다.
+    " -> mode=A 메시지에는 job/host/batch 가 비어 있고 mode=C 에만 찍힌다.
+    IF is_context-job_name IS NOT INITIAL.
+      rv_line = |{ rv_line } job={ is_context-job_name }/{ is_context-job_count }|.
+    ENDIF.
+
+    IF is_context-host IS NOT INITIAL.
+      rv_line = |{ rv_line } host={ is_context-host } batch={ is_context-is_batch }|.
+    ENDIF.
 
   ENDMETHOD.
 

@@ -4,10 +4,6 @@
 @ObjectModel.usageType:{ serviceQuality: #X, sizeCategory: #S, dataClass: #MIXED }
 define root view entity ZI_JOB_RUN
   as select from ztjob_run
-  // 프로브는 별도 root 엔티티로 두고 run_tag 로 연결만 한다.
-  // (APJ 는 잡 이름을 자동 생성하므로 스케줄 시점에 잡 키를 알 수 없다.
-  //  그래서 composition 대신 태그 기반 association 을 쓴다.)
-  association [0..*] to ZI_JOB_PROBE as _Probe on $projection.RunTag = _Probe.RunTag
 {
   key run_uuid                    as RunUuid,
 
@@ -16,7 +12,7 @@ define root view entity ZI_JOB_RUN
       job_count                   as JobCount,
 
       run_tag                     as RunTag,
-      rec_count                   as RecordCount,
+      msg_count                   as MessageCount,
       sleep_secs                  as SleepSeconds,
       force_fail                  as ForceFail,
 
@@ -55,7 +51,5 @@ define root view entity ZI_JOB_RUN
       @Semantics.user.localInstanceLastChangedBy: true
       last_changed_by             as LastChangedBy,
       @Semantics.systemDateTime.localInstanceLastChangedAt: true
-      local_last_changed_at       as LocalLastChangedAt,
-
-      _Probe
+      local_last_changed_at       as LocalLastChangedAt
 }

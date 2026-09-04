@@ -195,7 +195,7 @@ CLASS zcl_job_apj_adapter IMPLEMENTATION.
       sign   = 'I'
       option = 'EQ'
       ( selname = zif_job_test=>gc_param-run_tag    low = is_params-run_tag )
-      ( selname = zif_job_test=>gc_param-rec_count  low = |{ is_params-rec_count }| )
+      ( selname = zif_job_test=>gc_param-msg_count  low = |{ is_params-msg_count }| )
       ( selname = zif_job_test=>gc_param-sleep_secs low = |{ is_params-sleep_secs }| )
       ( selname = zif_job_test=>gc_param-force_fail low = COND #( WHEN is_params-force_fail = abap_true
                                                                   THEN 'X' ELSE space ) ) ).

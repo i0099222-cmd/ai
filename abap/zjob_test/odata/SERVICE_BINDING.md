@@ -11,12 +11,11 @@ ADT: New → Other ABAP Repository Object → `Service Binding`
 생성 후 **Activate → Publish**. Publish 하면 로컬 서비스 엔드포인트가 잡히고,
 `Preview` 버튼으로 Fiori Elements 화면이 바로 뜬다.
 
-노출 엔티티:
+노출 엔티티: `JobRun` — 이 서비스로 스케줄한 잡의 이력 + APJ 제어 액션.
 
-| 엔티티셋 | 내용 |
-|---------|------|
-| `JobRun` | 스케줄 이력 + APJ 제어 액션 |
-| `Probe`  | 잡이 실제로 남긴 실행 흔적 (읽기 전용) |
+잡 자체는 DB 를 안 쓴다. `ZTJOB_RUN` 은 `refreshStatus` / `cancelJob` 을 부르려면
+잡 이름·카운트를 들고 있어야 해서 서비스가 기억용으로 쓰는 테이블이다.
+**실행 결과는 잡 로그에서 본다** (Application Jobs 앱의 Log / SM37 > Job log).
 
 ## 액션 = 테스트 대상 APJ 기능
 
@@ -45,7 +44,7 @@ X-CSRF-Token: {token}
 {
   "JobTemplateName":   "ZJT_JOB_TEST",
   "RunTag":            "TC08-ODATA-A",
-  "RecordCount":       3,
+  "MessageCount":      3,
   "SleepSeconds":      0,
   "ForceFail":         false,
   "StartImmediately":  true
@@ -61,7 +60,7 @@ X-CSRF-Token: {token}
 {
   "JobTemplateName":   "ZJT_JOB_TEST",
   "RunTag":            "TC02-PERIOD-A",
-  "RecordCount":       1,
+  "MessageCount":      1,
   "StartImmediately":  false,
   "StartDate":         "2026-09-05",
   "StartTime":         "09:00:00",
@@ -72,8 +71,7 @@ X-CSRF-Token: {token}
 ```
 
 `TimeZone` 은 **APJ 우위 항목**(COMPARISON.md A4). SM36 은 시스템 타임존 기준이다.
-여기에 넣은 타임존이 `ZTJOB_PROBE-user_timezone` / 실제 실행 시각에 어떻게
-반영되는지 확인할 것.
+여기에 넣은 타임존이 잡 로그의 `tz=` / 실제 실행 시각에 어떻게 반영되는지 확인할 것.
 
 ### 3) 상태 폴링
 
@@ -87,23 +85,20 @@ POST {base}/JobRun(RunUuid={uuid})/com.sap.gateway.srvd.zui_job_test.v0001.refre
 POST {base}/JobRun(RunUuid={uuid})/com.sap.gateway.srvd.zui_job_test.v0001.cancelJob
 ```
 
-`SleepSeconds=10, RecordCount=5` 로 돌려놓고 취소한 뒤
-`Probe` 를 조회해 **몇 건까지 커밋됐는지** 확인 → SM37 의 잡 중지와 비교 (#14).
+`SleepSeconds=10, MessageCount=5` 로 돌려놓고 취소한 뒤
+잡 로그에 `#n` 이 몇 번까지 찍혔는지 확인 → SM37 의 잡 중지와 비교 (#14).
 
-### 5) 결과 조회
-
-```http
-GET {base}/Probe?$filter=RunTag eq 'TC08-ODATA-A'&$orderby=SequenceNumber
-```
-
-두 방식 비교:
+### 5) 스케줄 이력 조회
 
 ```http
-GET {base}/Probe?$filter=startswith(RunTag,'TC01')&$orderby=ExecutedAt
+GET {base}/JobRun?$filter=startswith(RunTag,'TC') &$orderby=ScheduledAt desc
 ```
 
-`ScheduleMode` 가 `A`(Application Job) / `C`(Classic) 로 갈리고,
-`HostName` / `IsBackgroundRun` 은 `C` 행에만 차 있는 것을 확인.
+`JobName` / `JobCount` 를 확인해서 **SM37 에서 같은 잡이 보이는지** 대조한다 (#16).
+실행 결과 자체는 잡 로그에서 본다:
+
+- Application Job → "Application Jobs" 앱 > 해당 잡 > Log
+- Classic → SM37 > 잡 선택 > Job log (그리고 Spool)
 
 ## 주의
 

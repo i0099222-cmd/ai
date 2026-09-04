@@ -8,21 +8,30 @@ S/4HANA **PCE** 환경에서 배치잡 두 방식을 같은 로직으로 돌려�
 
 ## 잡이 하는 일
 
-업무 로직은 일부러 없다. 실행될 때 **실행 컨텍스트를 `ZTJOB_PROBE` 에 기록**할 뿐이다.
+업무 로직은 일부러 없다. **잡 로그에 메시지를 찍는 게 전부**다.
+DB 도, 마스터데이터도 건드리지 않으니 어느 시스템에서도 바로 돌아간다.
 
-기록 항목: 실행 사용자 / UTC 타임스탬프 / 시스템 일자·시각 / 사용자 타임존 /
-애플리케이션 서버 / 백그라운드 여부 / 잡 이름·카운트 / 스케줄 방식(A|C).
+메시지에 실행 컨텍스트를 담아서, 비교하고 싶은 게 로그에 그대로 남게 했다:
 
-마스터데이터 의존이 0이라 어느 시스템에서도 바로 돌아가고,
-비교하고 싶은 것들이 전부 데이터로 남는다.
+```
+[TC01-BASE-C] START mode=C user=SAPUSER date=20260904 time=101530 tz=CET job=ZJOBTEST01/12345600 host=s4host01 batch=X
+[TC01-BASE-C] #1 at 2026-09-04T10:15:30.123456
+[TC01-BASE-C] #2 at 2026-09-04T10:15:40.234567
+[TC01-BASE-C] END written=2/2
+```
+
+`mode=A`(Application Job) 로그와 `mode=C`(SM36) 로그를 나란히 놓고 보면
+실행 사용자 / 타임존 / 서버 / 잡 이름이 어떻게 다른지 바로 보인다.
+`job=` `host=` `batch=` 는 Cloud 언어버전에서 못 읽는 값이라 **`mode=C` 에만 찍힌다** —
+그 자체가 티어 차이의 증거다.
 
 파라미터:
 
 | 이름 | 의미 |
 |------|------|
-| `P_TAG` | 테스트 케이스 태그 (프로브 조회 키) |
-| `P_COUNT` | 남길 프로브 건수 |
-| `P_SLEEP` | 건별 지연(초) — "실행 중" 관찰 / 취소 테스트용 |
+| `P_TAG` | 테스트 케이스 태그 (로그 검색 키) |
+| `P_COUNT` | 찍을 메시지 건수 |
+| `P_SLEEP` | 메시지 간 지연(초) — "실행 중" 관찰 / 취소 테스트용 |
 | `P_FAIL` | 강제 오류 종료 — 상태 표기 비교용 |
 
 ## 오브젝트 구성
@@ -30,20 +39,17 @@ S/4HANA **PCE** 환경에서 배치잡 두 방식을 같은 로직으로 돌려�
 ```
 core/     ZIF_JOB_TEST          공통 타입/상수 (파라미터·상태·모드)
           ZCX_JOB_TEST          테스트 예외 (강제 오류용)
-          ZCL_JOB_TEST_CORE     코어 로직 — 양쪽이 공유           [ABAP Cloud]
-          ZTJOB_PROBE           프로브 테이블
-          ZI_JOB_PROBE          프로브 인터페이스 뷰
+          ZCL_JOB_TEST_CORE     코어 — 양쪽이 공유. 메시지만 찍는다  [ABAP Cloud]
 
-apj/      ZCL_APJ_JOB_TEST      Application Job 실행 오브젝트     [ABAP Cloud]
+apj/      ZCL_APJ_JOB_TEST      Application Job 실행 오브젝트         [ABAP Cloud]
                                 IF_APJ_DT_EXEC_OBJECT + IF_APJ_RT_EXEC_OBJECT
           CATALOG_TEMPLATE.md   잡 카탈로그 엔트리 / 템플릿 생성 절차
 
-classic/  ZR_JOB_TEST           SM36/37 용 리포트                 [Standard ABAP]
+classic/  ZR_JOB_TEST           SM36/37 용 리포트                     [Standard ABAP]
 
-odata/    ZTJOB_RUN             스케줄 이력 테이블
-          ZI_JOB_RUN            인터페이스 뷰 (+ _Probe 연결)
+odata/    ZTJOB_RUN             스케줄 이력 테이블 (OData 서비스의 유일한 DB)
+          ZI_JOB_RUN            인터페이스 뷰
           ZC_JOB_RUN            프로젝션 뷰
-          ZC_JOB_PROBE          프로브 프로젝션 뷰
           ZD_JOB_SCHEDULE       scheduleJob 액션 파라미터 (abstract entity)
           ZI_JOB_RUN.bdef       behavior definition (managed)
           ZBP_I_JOB_RUN         behavior implementation — APJ 액션 3종
@@ -51,6 +57,9 @@ odata/    ZTJOB_RUN             스케줄 이력 테이블
           ZUI_JOB_TEST          service definition
           SERVICE_BINDING.md    서비스 바인딩 + 호출 예시
 ```
+
+`ZTJOB_RUN` 은 잡이 쓰는 게 아니라 **OData 서비스가 "내가 스케줄한 잡"을 기억하려고**
+쓰는 테이블이다. `refreshStatus` / `cancelJob` 을 부르려면 잡 이름·카운트를 들고 있어야 해서.
 
 ## 언어버전 배치 (PCE 3-tier)
 
@@ -82,7 +91,11 @@ odata/    ZTJOB_RUN             스케줄 이력 테이블
 |------|----------|
 | `apj/ZCL_APJ_JOB_TEST` | `IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS` / `CHECK_PARAMETERS` 의 파라미터명, `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 의 파라미터명, `CX_APJ_DT_CONTENT` 의 textid |
 | `odata/ZCL_JOB_APJ_ADAPTER` | `CL_APJ_RT_API=>TY_START_INFO` 구조 필드명, `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
-| `core/ZCL_JOB_TEST_CORE` | `WAIT UP TO n SECONDS` 가 Cloud 언어버전에서 통과하는지 |
+| `core/ZCL_JOB_TEST_CORE` | `WAIT UP TO n SECONDS` 가 Cloud 언어버전에서 통과하는지 / `MESSAGE ... TYPE 'I'` 가 APJ 잡 로그에 실제로 수집되는지 |
 
 APJ API 호출은 전부 `ZCL_JOB_APJ_ADAPTER` 한 파일에 격리해뒀으므로,
 시그니처가 달라도 그 파일만 고치면 나머지는 그대로 쓸 수 있다.
+
+> `MESSAGE ... TYPE 'I'` 는 백그라운드에서만 로그로 간다.
+> `ZR_JOB_TEST` 를 SE38 에서 F8 로 돌리면 메시지마다 팝업이 뜬다 —
+> 비교 테스트는 어차피 배치로 돌리는 게 목적이니 SM36 으로 실행할 것.

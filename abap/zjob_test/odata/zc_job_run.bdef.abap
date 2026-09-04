@@ -10,6 +10,4 @@ define behavior for ZC_JOB_RUN alias JobRun
   use action scheduleJob;
   use action refreshStatus;
   use action cancelJob;
-
-  use association _Probe;
 }

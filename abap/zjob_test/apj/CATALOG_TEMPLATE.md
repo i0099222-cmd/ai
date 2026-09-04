@@ -61,6 +61,6 @@ ADT: New → Other ABAP Repository Object → `Application Job Template`
 
 - 스케줄된 잡이 **SM37 에도 보이는지** 확인 (COMPARISON.md #16)
   - 잡 이름이 무엇으로 생성되는지 기록할 것
-  - `ZTJOB_PROBE-job_name` 이 비어 있는지 (APJ 런타임에서 잡 이름을 못 읽는 경우)
+  - 잡 로그 메시지의 `job=` 부분이 비는지 (APJ 런타임에서 잡 이름을 못 읽는 경우)
 - 잡 로그: Application Jobs 앱의 로그 vs SM37 > Job log 내용 비교 (#18)
 - `EXECUTE` 안의 `MESSAGE ... TYPE 'I'` 가 어느 로그에 남는지 확인

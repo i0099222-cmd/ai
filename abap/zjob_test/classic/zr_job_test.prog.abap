@@ -14,6 +14,9 @@
 *&   - WRITE 스풀 리스트 -> SM37 > Spool
 *&   - SM36 다중 스텝 / 이벤트 시작 / 선행 잡 후 시작 / 대상 서버 / 잡 클래스
 *&   - sy-batch, sy-host 로 실행 환경 직접 확인
+*&
+*& NOTE: 코어가 MESSAGE ... TYPE 'I' 를 쓰므로 SE38 에서 F8(다이얼로그)로 돌리면
+*&       메시지마다 팝업이 뜬다. SM36 으로 배치 실행할 것.
 *&---------------------------------------------------------------------*
 REPORT zr_job_test.
 
@@ -29,16 +32,15 @@ START-OF-SELECTION.
 
   DATA(ls_params) = VALUE zif_job_test=>ty_run_params(
     run_tag    = p_tag
-    rec_count  = p_count
+    msg_count  = p_count
     sleep_secs = p_sleep
     force_fail = p_fail ).
 
   " Cloud 티어에서는 못 읽는 값들을 여기서 채워 넘긴다.
-  " -> ZTJOB_PROBE 에서 schedule_mode='C' 행에만 host/is_batch 가 차 있고
-  "    'A' 행은 비어 있는 것이 그대로 비교 결과가 된다.
+  " -> 잡 로그 메시지에서 mode=C 줄에만 job=/host=/batch= 가 찍히고
+  "    mode=A 줄에는 없는 것이 그대로 비교 결과가 된다.
   DATA(ls_context) = VALUE zif_job_test=>ty_context(
     schedule_mode = zif_job_test=>gc_mode-classic
-    job_name      = sy-cprog
     host          = sy-host
     is_batch      = xsdbool( sy-batch = abap_true ) ).
 
@@ -85,18 +87,16 @@ START-OF-SELECTION.
   WRITE: / 'Written     :', ls_summary-written.
   ULINE.
 
-  LOOP AT ls_summary-t_result INTO DATA(ls_result).
-    WRITE: / ls_result-seq_no, ls_result-message.
+* 코어가 잡 로그에 찍은 메시지를 스풀 리스트로도 한 번 더 남긴다.
+* -> 같은 내용이 SM37 에서는 "Job log" 와 "Spool" 두 군데로 보이고,
+*    Application Job 은 로그 한 군데뿐이다.
+  LOOP AT ls_summary-t_message INTO DATA(lv_message).
+    WRITE: / lv_message.
   ENDLOOP.
 
   IF lv_error IS NOT INITIAL.
     ULINE.
     WRITE: / 'ERROR:', lv_error.
-  ENDIF.
-
-* --- 잡 로그 메시지 (SM37 > Job log) ----------------------------------
-  IF sy-batch = abap_true.
-    MESSAGE |ZR_JOB_TEST tag={ p_tag } written={ ls_summary-written }| TYPE 'I'.
   ENDIF.
 
 * --- 강제 오류: 잡을 "abort" 상태로 만든다 ----------------------------

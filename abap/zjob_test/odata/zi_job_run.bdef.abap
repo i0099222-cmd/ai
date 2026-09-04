@@ -41,9 +41,6 @@ etag master LocalLastChangedAt
   action refreshStatus result [1] $self;
   action ( features : instance ) cancelJob result [1] $self;
 
-  // 잡이 남긴 프로브 조회용
-  association _Probe;
-
   mapping for ztjob_run
   {
     RunUuid            = run_uuid;
@@ -51,7 +48,7 @@ etag master LocalLastChangedAt
     JobName            = job_name;
     JobCount           = job_count;
     RunTag             = run_tag;
-    RecordCount        = rec_count;
+    MessageCount       = msg_count;
     SleepSeconds       = sleep_secs;
     ForceFail          = force_fail;
     StartImmediately   = start_immediately;

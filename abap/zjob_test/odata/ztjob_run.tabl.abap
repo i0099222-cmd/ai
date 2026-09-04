@@ -17,7 +17,7 @@ define table ztjob_run {
 
   // --- 잡 파라미터 -----------------------------------------------------
   run_tag               : abap.char(20);
-  rec_count             : abap.int4;
+  msg_count             : abap.int4;
   sleep_secs            : abap.int4;
   force_fail            : abap_boolean;
 

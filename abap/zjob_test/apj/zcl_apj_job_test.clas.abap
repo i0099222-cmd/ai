@@ -57,12 +57,12 @@ CLASS zcl_apj_job_test IMPLEMENTATION.
         datatype      = 'CHAR'  length = 20
         param_text    = '테스트 태그'
         mandatory_ind = abap_true )
-      ( selname       = zif_job_test=>gc_param-rec_count
+      ( selname       = zif_job_test=>gc_param-msg_count
         datatype      = 'INT4'  length = 10
-        param_text    = '프로브 건수' )
+        param_text    = '메시지 건수' )
       ( selname       = zif_job_test=>gc_param-sleep_secs
         datatype      = 'INT4'  length = 10
-        param_text    = '건별 지연(초)' )
+        param_text    = '메시지 간 지연(초)' )
       ( selname       = zif_job_test=>gc_param-force_fail
         datatype      = 'CHAR'  length = 1
         param_text    = '강제 오류' ) ).
@@ -73,7 +73,7 @@ CLASS zcl_apj_job_test IMPLEMENTATION.
       sign   = 'I'
       option = 'EQ'
       ( selname = zif_job_test=>gc_param-run_tag    low = 'APJ-DEFAULT' )
-      ( selname = zif_job_test=>gc_param-rec_count  low = '3' )
+      ( selname = zif_job_test=>gc_param-msg_count  low = '3' )
       ( selname = zif_job_test=>gc_param-sleep_secs low = '0' )
       ( selname = zif_job_test=>gc_param-force_fail low = space ) ).
 
@@ -91,7 +91,7 @@ CLASS zcl_apj_job_test IMPLEMENTATION.
 
     DATA(lt_vals) = CORRESPONDING if_apj_rt_exec_object=>tt_templ_val( it_parameters ).
 
-    DATA(lv_count) = get_value( it_params = lt_vals iv_selname = zif_job_test=>gc_param-rec_count ).
+    DATA(lv_count) = get_value( it_params = lt_vals iv_selname = zif_job_test=>gc_param-msg_count ).
     IF lv_count IS NOT INITIAL AND ( CONV i( lv_count ) < 1 OR CONV i( lv_count ) > 1000 ).
       " TODO: CX_APJ_DT_CONTENT 의 textid 를 시스템에서 확인해 지정하면
       "       Fiori 화면에 사유가 표시된다.
@@ -116,22 +116,16 @@ CLASS zcl_apj_job_test IMPLEMENTATION.
 
     " 비교 포인트: APJ 실행 컨텍스트에서 현재 잡 이름/카운트를 얻는 표준 경로가
     " SM36 쪽만큼 명확하지 않다. 잡 이름은 프레임워크가 자동 생성하며
-    " 사용자가 지정할 수 없다. -> ZTJOB_PROBE 의 job_name 이 비는지,
+    " 사용자가 지정할 수 없다. -> 잡 로그 메시지에 job= 부분이 비는지,
     " SM37 에서 어떤 이름으로 보이는지 확인하는 것이 테스트 항목 #16.
     DATA(ls_context) = VALUE zif_job_test=>ty_context(
       schedule_mode = zif_job_test=>gc_mode-app_job ).
 
-    MESSAGE |APJ start: tag={ ls_params-run_tag } count={ ls_params-rec_count } | &&
-            |sleep={ ls_params-sleep_secs } fail={ ls_params-force_fail }| TYPE 'I'.
-
     TRY.
 
         DATA(lo_core) = NEW zcl_job_test_core( ).
-        DATA(ls_summary) = lo_core->zif_job_test~run( is_params  = ls_params
-                                                      is_context = ls_context ).
-
-        MESSAGE |APJ end: written={ ls_summary-written } / | &&
-                |requested={ ls_summary-requested }| TYPE 'I'.
+        lo_core->zif_job_test~run( is_params  = ls_params
+                                   is_context = ls_context ).
 
       CATCH zcx_job_test INTO DATA(lx_job).
         " 예외를 다시 던지면 잡이 오류 종료된다.
@@ -160,9 +154,9 @@ CLASS zcl_apj_job_test IMPLEMENTATION.
     rs_params-force_fail = xsdbool( get_value( it_params  = it_params
                                                iv_selname = zif_job_test=>gc_param-force_fail ) = 'X' ).
 
-    DATA(lv_count) = get_value( it_params = it_params iv_selname = zif_job_test=>gc_param-rec_count ).
+    DATA(lv_count) = get_value( it_params = it_params iv_selname = zif_job_test=>gc_param-msg_count ).
     IF lv_count IS NOT INITIAL.
-      rs_params-rec_count = CONV i( lv_count ).
+      rs_params-msg_count = CONV i( lv_count ).
     ENDIF.
 
     DATA(lv_sleep) = get_value( it_params = it_params iv_selname = zif_job_test=>gc_param-sleep_secs ).

@@ -1,22 +1,17 @@
-"! <p class="shorttext synchronized">APJ 컨버전 공통 타입</p>
-"!
-"! AS-IS(ZBCS0011 헤더 + ZBCS0012 스텝)를 Application Job Framework 위에서
-"! 재현하기 위한 계약.
-"!
-"! 핵심 설계:
-"!   APJ 파라미터(tt_templ_val)는 selname/low/high 구조라 테이블을 못 넘긴다.
-"!   그래서 스텝 목록은 ZTJOB_STEP 에 저장하고, APJ 에는 잡 정의 ID(P_DEFID)
-"!   하나만 넘긴다. 런처가 그 ID 로 DEF/STEP 을 읽어 실행한다.
+"! <p class="shorttext synchronized">배치잡 공통 상수/타입</p>
 INTERFACE zif_bc_job
   PUBLIC.
 
-  "! APJ 실행 클래스 파라미터 - 딱 하나뿐이다.
+  "! APJ 실행 클래스 파라미터.
+  "! APJ 파라미터(tt_templ_val)는 selname/low/high 구조라 스텝 테이블을 넘길 수 없다.
+  "! 그래서 스케줄 행의 UUID 하나만 넘기고, 런처가 그 UUID 로
+  "! ZTJOB_RUN + ZTJOB_STEP 을 읽어서 실행한다.
   CONSTANTS:
     BEGIN OF gc_param,
-      def_id TYPE c LENGTH 8 VALUE 'P_DEFID',
+      run_id TYPE c LENGTH 8 VALUE 'P_RUNID',
     END OF gc_param.
 
-  "! 스텝 종류
+  "! 스텝 종류 (AS-IS pgtype)
   CONSTANTS:
     BEGIN OF gc_pgtype,
       abap_program TYPE c LENGTH 4 VALUE 'PROG',
@@ -24,15 +19,16 @@ INTERFACE zif_bc_job
       ext_program  TYPE c LENGTH 4 VALUE 'EXT',
     END OF gc_pgtype.
 
-  "! 실행 이력 상태
+  "! ZTJOB_RUN-JOB_STATUS
   CONSTANTS:
     BEGIN OF gc_status,
+      initial   TYPE c LENGTH 1 VALUE ' ',   "! 아직 스케줄 안 함
       scheduled TYPE c LENGTH 1 VALUE 'S',
       running   TYPE c LENGTH 1 VALUE 'R',
       finished  TYPE c LENGTH 1 VALUE 'F',
       error     TYPE c LENGTH 1 VALUE 'E',
       cancelled TYPE c LENGTH 1 VALUE 'C',
-      skipped   TYPE c LENGTH 1 VALUE 'K',  "! 실행 조건 불충족으로 건너뜀
+      skipped   TYPE c LENGTH 1 VALUE 'K',   "! 실행 조건 불충족
       unknown   TYPE c LENGTH 1 VALUE '?',
     END OF gc_status.
 
@@ -40,18 +36,18 @@ INTERFACE zif_bc_job
   CONSTANTS:
     BEGIN OF gc_skip,
       none        TYPE c LENGTH 1 VALUE ' ',
-      after_close TYPE c LENGTH 1 VALUE 'C',  "! laststrtdt/tm 초과
+      after_close TYPE c LENGTH 1 VALUE 'C',  "! last_start 시각 초과
       not_workday TYPE c LENGTH 1 VALUE 'W',  "! 팩토리 캘린더 비작업일
-      no_step     TYPE c LENGTH 1 VALUE 'N',  "! 스텝 없음
-      def_missing TYPE c LENGTH 1 VALUE 'D',  "! 잡 정의 없음
+      no_step     TYPE c LENGTH 1 VALUE 'N',
+      run_missing TYPE c LENGTH 1 VALUE 'D',
     END OF gc_skip.
 
   "! 스텝 1건 실행 결과
   TYPES:
     BEGIN OF ty_step_result,
+      step_uuid TYPE sysuuid_x16,
       step_no   TYPE i,
       pg_id     TYPE c LENGTH 40,
-      pg_variant TYPE c LENGTH 14,
       success   TYPE abap_bool,
       message   TYPE string,
     END OF ty_step_result,
@@ -60,13 +56,13 @@ INTERFACE zif_bc_job
   "! 런처 1회 실행 요약
   TYPES:
     BEGIN OF ty_run_summary,
-      def_id     TYPE sysuuid_x16,
-      skipped    TYPE abap_bool,
+      run_uuid    TYPE sysuuid_x16,
+      skipped     TYPE abap_bool,
       skip_reason TYPE c LENGTH 1,
-      requested  TYPE i,
-      executed   TYPE i,
-      failed     TYPE i,
-      t_step     TYPE tt_step_result,
+      requested   TYPE i,
+      executed    TYPE i,
+      failed      TYPE i,
+      t_step      TYPE tt_step_result,
     END OF ty_run_summary.
 
 ENDINTERFACE.

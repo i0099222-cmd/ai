@@ -1,4 +1,4 @@
-@EndUserText.label : '배치잡 정의 스텝 (AS-IS ZBCS0012 / lt_pg 대응)'
+@EndUserText.label : '배치잡 스텝 (AS-IS ZBCS0012 / lt_pg 대응)'
 @AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
 @AbapCatalog.tableCategory : #TRANSPARENT
 @AbapCatalog.deliveryClass : #A
@@ -6,14 +6,13 @@
 define table ztjob_step {
 
   key client            : abap.clnt not null;
+  key run_uuid          : sysuuid_x16 not null;   // 부모 키
   key step_uuid         : sysuuid_x16 not null;
 
-  @EndUserText.label : '잡 정의 ID'
-  def_id                : sysuuid_x16;
   @EndUserText.label : '스텝 순번'
   step_no               : abap.int4;
 
-  @EndUserText.label : '스텝 종류 (PROG/CMD/EXT)'
+  @EndUserText.label : '스텝 종류 (PROG / CMD / EXT)'
   pg_type               : abap.char(4);
   @EndUserText.label : '실행할 리포트'
   pg_id                 : abap.char(40);
@@ -23,6 +22,12 @@ define table ztjob_step {
   pg_lang               : abap.lang;
   @EndUserText.label : '스텝 실행 사용자 (APJ 미지원 - 보관만)'
   step_user             : abap.char(12);
+
+  // --- 실행 결과 (런처가 채운다) -----------------------------------------
+  @EndUserText.label : '실행 성공'
+  exec_success          : abap_boolean;
+  @EndUserText.label : '실행 메시지'
+  exec_message          : abap.char(255);
 
   @Semantics.user.localInstanceLastChangedBy : true
   last_changed_by       : abp_locinst_lastchange_user;

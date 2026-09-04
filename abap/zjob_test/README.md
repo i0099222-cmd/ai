@@ -47,19 +47,10 @@ apj/      ZCL_APJ_JOB_TEST      Application Job 실행 오브젝트         [ABA
 
 classic/  ZR_JOB_TEST           SM36/37 용 리포트                     [Standard ABAP]
 
-odata/    ZTJOB_RUN             스케줄 이력 테이블 (OData 서비스의 유일한 DB)
-          ZI_JOB_RUN            인터페이스 뷰
-          ZC_JOB_RUN            프로젝션 뷰
-          ZD_JOB_SCHEDULE       scheduleJob 액션 파라미터 (abstract entity)
-          ZI_JOB_RUN.bdef       behavior definition (managed)
-          ZBP_I_JOB_RUN         behavior implementation — APJ 액션 3종
-          ZCL_JOB_APJ_ADAPTER   CL_APJ_RT_API 래퍼
-          ZUI_JOB_TEST          service definition
-          SERVICE_BINDING.md    서비스 바인딩 + 호출 예시
 ```
 
-`ZTJOB_RUN` 은 잡이 쓰는 게 아니라 **OData 서비스가 "내가 스케줄한 잡"을 기억하려고**
-쓰는 테이블이다. `refreshStatus` / `cancelJob` 을 부르려면 잡 이름·카운트를 들고 있어야 해서.
+> 이 디렉토리는 **SM36/37 과 APJ 를 비교하는 테스트 전용**이다.
+> 실제 컨버전 산출물은 [`../zbc_job/`](../zbc_job/) 에 있다.
 
 ## 언어버전 배치 (PCE 3-tier)
 
@@ -77,10 +68,9 @@ odata/    ZTJOB_RUN             스케줄 이력 테이블 (OData 서비스의 �
 1. 패키지 2개
    - `ZJOB_TEST` (ABAP for Cloud Development)
    - `ZJOB_TEST_CLASSIC` (Standard ABAP) — `ZR_JOB_TEST` 만 들어간다
-2. `core/` → `apj/` → `odata/` → `classic/` 순으로 오브젝트 생성 (의존 순서)
+2. `core/` → `apj/` → `classic/` 순으로 오브젝트 생성 (의존 순서)
 3. `apj/CATALOG_TEMPLATE.md` 대로 잡 카탈로그 엔트리 + 잡 템플릿 생성
-4. `odata/SERVICE_BINDING.md` 대로 서비스 바인딩 생성 후 Publish
-5. `COMPARISON.md` 의 TC01~TC08 실행
+4. `COMPARISON.md` 의 TC01~TC08 실행
 
 ## 미확인 지점 (시스템에서 확인 필요)
 

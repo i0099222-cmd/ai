@@ -55,6 +55,23 @@ CLASS zcl_batch_apj_adapter DEFINITION
       RETURNING
         VALUE(rv_message) TYPE string.
 
+  PRIVATE SECTION.
+
+    "! 반복 주기를 APJ 의 주기 구조로 변환한다.
+    "!
+    "! TY_START_INFO 에는 반복 관련 필드가 없고 TY_PERIOD_INFO 가 따로 있으므로,
+    "! SCHEDULE_JOB 의 별도 파라미터로 넘긴다고 보고 구성했다.
+    "!
+    "! TODO: 시그니처 확인
+    "!   CL_APJ_RT_API=>TY_PERIOD_INFO 의 구성 필드를 ADT 에서 확인하고
+    "!   아래 매핑의 필드명을 맞출 것. 클래식 JOB_CLOSE 의
+    "!   PRDMINS/PRDHOURS/PRDDAYS/PRDWEEKS/PRDMONTHS 에 대응한다고 가정했다.
+    METHODS build_period_info
+      IMPORTING
+        is_start         TYPE zif_batch_job=>ty_start_option
+      RETURNING
+        VALUE(rs_period) TYPE cl_apj_rt_api=>ty_period_info.
+
 ENDCLASS.
 
 
@@ -75,9 +92,8 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
           ls_start_info-timezone            = is_start-timezone.
         ENDIF.
 
-        " 반복 주기는 릴리스마다 자리가 달라서 별도 메서드로 격리했다.
-        fill_recurrence( EXPORTING is_start      = is_start
-                         CHANGING  cs_start_info = ls_start_info ).
+        " 반복 주기. TY_START_INFO 에는 없고 TY_PERIOD_INFO 로 따로 넘긴다.
+        DATA(ls_period_info) = build_period_info( is_start ).
 
         " 실행 클래스가 GET_PARAMETERS 로 정의한 파라미터의 값들
         DATA(lt_param) = zcl_batch_param=>to_apj( iv_param ).
@@ -92,6 +108,10 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
             " APJ 는 잡 이름을 자동 생성하므로 이게 최선이다. (COMPARISON #16)
             iv_job_text          = CONV #( iv_jobtext )
             is_start_info        = ls_start_info
+            " TODO: 시그니처 확인 - 파라미터명이 IS_PERIOD_INFO 가 맞는지.
+            "       TY_START_INFO 안에 중첩된 필드라면 이 줄을 지우고
+            "       ls_start_info-<필드> = ls_period_info 로 바꿀 것.
+            is_period_info       = ls_period_info
             it_job_parameter_val = lt_param
           IMPORTING
             ev_jobname           = lv_job_name
@@ -144,28 +164,39 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD fill_recurrence.
+  METHOD build_period_info.
 
 *----------------------------------------------------------------------*
-* !! 미구현 !!
-* 이 시스템의 TY_START_INFO 에 RECURRENCE_DESC 가 없다.
-* 실제 필드를 확인한 뒤 아래 매핑을 살려야 반복(주기) 스케줄이 동작한다.
-* 그때까지는 1회성 스케줄만 걸린다.
-*
-* AS-IS 대응:
+* AS-IS 대응
 *   반복주기   -> prd_mins / prd_hours / prd_weeks / prd_months
 *   일반복주기 -> prd_days
 *
-*   IF is_start-prd_mins   > 0. cs_start_info-<필드> = is_start-prd_mins.   ENDIF.
-*   IF is_start-prd_hours  > 0. cs_start_info-<필드> = is_start-prd_hours.  ENDIF.
-*   IF is_start-prd_days   > 0. cs_start_info-<필드> = is_start-prd_days.   ENDIF.
-*   IF is_start-prd_weeks  > 0. cs_start_info-<필드> = is_start-prd_weeks.  ENDIF.
-*   IF is_start-prd_months > 0. cs_start_info-<필드> = is_start-prd_months. ENDIF.
+* TODO: 시그니처 확인
+*   CL_APJ_RT_API=>TY_PERIOD_INFO 의 실제 필드명으로 맞출 것.
+*   min / hour / day / week / month 로 가정했다.
 *
-* 팩토리 캘린더(공장근무일)는 어느 경우든 APJ 반복 패턴에 대응이 없다.
-* 필요하면 실행 클래스가 EXECUTE 안에서 직접 판정해야 한다.
+* 주기는 한 단위만 채운다. 여러 개를 채우면 APJ 가 거부할 수 있어
+* ELSEIF 로 배타 처리했다.
+*
+* NOTE 팩토리 캘린더(공장근무일)는 APJ 주기 패턴에 대응이 없다.
+*      필요하면 실행 클래스가 EXECUTE 안에서 직접 판정해야 한다.
 *----------------------------------------------------------------------*
-    RETURN.
+    IF is_start-prd_mins > 0.
+      rs_period-min = is_start-prd_mins.
+
+    ELSEIF is_start-prd_hours > 0.
+      rs_period-hour = is_start-prd_hours.
+
+    ELSEIF is_start-prd_days > 0.
+      rs_period-day = is_start-prd_days.
+
+    ELSEIF is_start-prd_weeks > 0.
+      rs_period-week = is_start-prd_weeks.
+
+    ELSEIF is_start-prd_months > 0.
+      rs_period-month = is_start-prd_months.
+
+    ENDIF.
 
   ENDMETHOD.
 

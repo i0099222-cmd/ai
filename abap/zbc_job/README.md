@@ -194,35 +194,38 @@ Fiori Elements 는 이쪽을 기대하고, 액션은 AS-IS 인터페이스와 1:
 
 | 파일 | 확인할 것 |
 |------|----------|
-| `zcl_batch_apj_adapter` | **반복 주기 (`fill_recurrence` 미구현)** — 이 시스템의 `TY_START_INFO` 에 `RECURRENCE_DESC` 가 없음. 실제 자리 확인 필요 (아래) |
+| `zcl_batch_apj_adapter` | **반복 주기** — `TY_PERIOD_INFO` 의 구성 필드명, `SCHEDULE_JOB` 의 파라미터명이 `IS_PERIOD_INFO` 인지 (아래) |
 | `zcl_batch_apj_adapter` | `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
 | `example_zcl_apj_batch_sample` | `IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS`/`CHECK_PARAMETERS`, `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 시그니처, `CX_APJ_DT_CONTENT` textid |
 | — | 팩토리 캘린더 판정이 필요하면 Cloud 에서 쓸 수 있는 released API 확인 |
 | `zcl_batch_param` | `XCO_CP_JSON` 메서드 체인 (`from_abap`/`to_string`/`from_string`/`write_to`) |
 | — | `CL_APJ_RT_API` 에 change/modify 메서드가 있는지 (없으면 change = cancel + 재스케줄) |
 
-### 반복 주기 — 확인 필요
+### 반복 주기 — 부분 확인됨
 
-`ZCL_BATCH_APJ_ADAPTER->fill_recurrence` 가 **미구현 스텁**이다.
-이 시스템의 `CL_APJ_RT_API=>TY_START_INFO` 에 `RECURRENCE_DESC` 가 없어서,
-반복 주기를 어디에 넣어야 하는지 확정하지 못했다.
+`CL_APJ_RT_API=>TY_START_INFO` 에 반복 관련 필드가 없고, 대신
+**`TY_PERIOD_INFO`** 가 별도 타입으로 존재한다는 것까지 확인됐다.
+→ 반복 주기가 `SCHEDULE_JOB` 의 **별도 파라미터**로 빠져 있다고 보고 구성했다.
 
-**현재 상태: 1회성 스케줄만 걸린다. 반복은 안 걸린다.**
+`ZCL_BATCH_APJ_ADAPTER->build_period_info` 가 그 변환을 담당한다.
 
-ADT 에서 확인할 것:
+아직 확인이 필요한 두 가지:
 
-1. `CL_APJ_RT_API` 열기 → `TY_START_INFO` 에 F2 → **구성 필드 목록**
-2. `SCHEDULE_JOB` 의 **전체 IMPORTING 파라미터 목록**
+| # | 확인할 것 | 틀렸을 때 조치 |
+|---|----------|---------------|
+| 1 | `TY_PERIOD_INFO` 의 **구성 필드명** — `min` / `hour` / `day` / `week` / `month` 로 가정 | `build_period_info` 의 5줄만 수정 |
+| 2 | `SCHEDULE_JOB` 의 **파라미터명이 `IS_PERIOD_INFO`** 인지 | 호출부 한 줄 수정. `TY_START_INFO` 안에 중첩된 필드라면 그 줄을 지우고 `ls_start_info-<필드> = ls_period_info` 로 |
 
-세 가지 경우로 갈린다.
+두 경우 모두 이 파일 안에서만 고치면 된다.
 
-| 경우 | 조치 |
-|------|------|
-| (a) `TY_START_INFO` 안에 다른 이름으로 있음 | `fill_recurrence` 안에서 그 필드에 매핑 |
-| (b) `SCHEDULE_JOB` 의 별도 파라미터로 분리 | `schedule` 호출부에 파라미터 추가, `fill_recurrence` 삭제 |
-| (c) 이 릴리스는 API 로 반복 스케줄 불가 | Application Jobs 앱에서만 반복 설정 가능 → **제약으로 문서화.** AS-IS 의 반복주기/일반복주기가 API 로 못 넘어감 |
+AS-IS 매핑:
 
-(c) 라면 AS-IS 대비 기능 손실이 하나 늘어난다 — 5절에 추가할 것.
+| AS-IS | `ty_start_option` | `TY_PERIOD_INFO` (가정) |
+|-------|-------------------|------------------------|
+| 반복주기 (분/시/주/월) | `prd_mins` / `prd_hours` / `prd_weeks` / `prd_months` | `min` / `hour` / `week` / `month` |
+| 일반복주기 | `prd_days` | `day` |
+
+주기는 **한 단위만** 채운다 (`ELSEIF` 로 배타 처리). 여러 개를 채우면 APJ 가 거부할 수 있다.
 
 ---
 

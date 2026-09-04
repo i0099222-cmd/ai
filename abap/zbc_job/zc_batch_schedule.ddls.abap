@@ -11,8 +11,6 @@ define root view entity ZC_BATCH_SCHEDULE
       JobTemplateName,
       @Search.defaultSearchElement: true
       JobText,
-      @Search.defaultSearchElement: true
-      ExecutionClass,
       Parameters,
 
       @EndUserText.label: 'Job Name (SM37)'

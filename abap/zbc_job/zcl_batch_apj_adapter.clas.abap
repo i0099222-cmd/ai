@@ -1,6 +1,7 @@
 "! <p class="shorttext synchronized">Application Job API 어댑터 (CL_APJ_RT_API 래퍼)</p>
 "!
 "! RAP 핸들러가 CL_APJ_RT_API 를 직접 부르지 않고 이 클래스만 부른다.
+"! 실행 대상은 잡 템플릿이 결정한다 (템플릿 -> 카탈로그 엔트리 -> 실행 클래스).
 "! 릴리스마다 달라질 수 있는 APJ API 시그니처를 한 파일에 격리하기 위해서다.
 "! 시스템에 맞춰야 할 곳은 "TODO: 시그니처 확인" 으로 표시했다.
 CLASS zcl_batch_apj_adapter DEFINITION
@@ -24,14 +25,18 @@ CLASS zcl_batch_apj_adapter DEFINITION
         message TYPE string,
       END OF ty_status_result.
 
-    "! ZTBATCH_SCHED 한 건을 Application Job 으로 스케줄한다.
-    "! 잡 파라미터는 P_RUNID 하나뿐이고, 나머지 설정은 런처가 DB 에서 읽는다.
-    "! 시작 조건은 DB 가 아니라 액션 파라미터에서 온다.
+    "! 잡 템플릿을 Application Job 으로 스케줄한다.
+    "!
+    "! @parameter iv_template | 실행 대상을 결정한다. 템플릿 -> 카탈로그 -> 실행 클래스.
+    "! @parameter iv_jobtext  | 잡 텍스트. APJ 는 잡 이름을 자동 생성하므로
+    "!                          사용자가 지은 이름은 여기로 넘긴다.
+    "! @parameter iv_param    | 잡 파라미터 값 (JSON). 실행 클래스가 정의한 SELNAME 기준.
+    "! @parameter is_start    | 시작 조건. DB 가 아니라 액션 파라미터에서 온다.
     METHODS schedule
       IMPORTING
-        iv_run_uuid      TYPE sysuuid_x16
         iv_template      TYPE clike
         iv_jobtext       TYPE clike
+        iv_param         TYPE string OPTIONAL
         is_start         TYPE zif_batch_job=>ty_start_option
       RETURNING
         VALUE(rs_result) TYPE ty_schedule_result.
@@ -76,20 +81,16 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
         ENDIF.
 
         " 반복 주기. AS-IS 의 반복주기 / 일반복주기.
-        " 팩토리 캘린더(공장근무일)는 APJ 에 대응이 없어 런처가 판정한다.
+        " 팩토리 캘린더(공장근무일)는 APJ 반복 패턴에 대응이 없다.
+        " 필요하면 실행 클래스가 EXECUTE 안에서 직접 판정해야 한다.
         IF is_start-prd_mins   > 0. ls_start_info-recurrence_desc-min   = is_start-prd_mins.   ENDIF.
         IF is_start-prd_hours  > 0. ls_start_info-recurrence_desc-hour  = is_start-prd_hours.  ENDIF.
         IF is_start-prd_days   > 0. ls_start_info-recurrence_desc-day   = is_start-prd_days.   ENDIF.
         IF is_start-prd_weeks  > 0. ls_start_info-recurrence_desc-week  = is_start-prd_weeks.  ENDIF.
         IF is_start-prd_months > 0. ls_start_info-recurrence_desc-month = is_start-prd_months. ENDIF.
 
-        " 잡 파라미터는 스케줄 행 UUID 하나뿐
-        DATA(lt_param) = VALUE if_apj_rt_exec_object=>tt_templ_val(
-          ( selname = zif_batch_job=>gc_param-run_id
-            kind    = if_apj_dt_exec_object=>parameter
-            sign    = 'I'
-            option  = 'EQ'
-            low     = iv_run_uuid ) ).
+        " 실행 클래스가 GET_PARAMETERS 로 정의한 파라미터의 값들
+        DATA(lt_param) = zcl_batch_param=>to_apj( iv_param ).
 
         DATA lv_job_name  TYPE c LENGTH 32.
         DATA lv_job_count TYPE c LENGTH 8.

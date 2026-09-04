@@ -29,7 +29,7 @@ etag master LocalLastChangedAt
                      CreatedAt,
                      LocalLastChangedAt;
 
-  field ( mandatory ) JobTemplateName, JobText, ExecutionClass;
+  field ( mandatory ) JobTemplateName, JobText;
 
   create;
   update;
@@ -52,7 +52,6 @@ etag master LocalLastChangedAt
     RunUuid            = run_uuid;
     JobTemplateName    = template;
     JobText            = jobtext;
-    ExecutionClass     = exec_class;
     Parameters         = param;
     JobName            = jobname;
     JobCount           = jobcount;

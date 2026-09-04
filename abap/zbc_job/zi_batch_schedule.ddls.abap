@@ -9,7 +9,6 @@ define root view entity ZI_BATCH_SCHEDULE
 
       template              as JobTemplateName,
       jobtext               as JobText,
-      exec_class            as ExecutionClass,
       param                 as Parameters,
 
       jobname               as JobName,

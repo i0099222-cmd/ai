@@ -1,9 +1,12 @@
-"! <p class="shorttext synchronized">ZTBATCH_SCHED-PARAM 직렬화</p>
+"! <p class="shorttext synchronized">잡 파라미터 값 변환</p>
 "!
-"! 런처가 실행 시점에 읽어야 하는 값들을 JSON 한 필드에 담는다.
-"! 컬럼을 늘리는 대신 param 하나로 묶는 이유:
-"!   - APJ 가 이미 갖고 있는 값(시작일시/주기/타임존)은 저장할 필요가 없고
-"!   - 나머지는 런처만 읽으므로 SQL 조건으로 쓸 일이 없다
+"! ZTBATCH_SCHED-PARAM (JSON) <-> APJ 파라미터 테이블(tt_templ_val).
+"!
+"! JSON 형태:
+"!   [{"name":"P_BUKRS","value":"1000"},{"name":"P_TEST","value":"X"}]
+"!
+"! name 은 실행 클래스의 IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS 가 정의한
+"! SELNAME 과 일치해야 한다. 값 검증은 실행 클래스의 CHECK_PARAMETERS 가 한다.
 "!
 "! XCO 는 ABAP Cloud 에서 released 된 직렬화 API 다.
 "! TODO: 시그니처 확인 - XCO_CP_JSON 의 메서드 체인은 릴리스별로 차이가 있을 수 있다.
@@ -14,44 +17,59 @@ CLASS zcl_batch_param DEFINITION
 
   PUBLIC SECTION.
 
-    CLASS-METHODS serialize
+    "! JSON -> APJ 파라미터 테이블
+    CLASS-METHODS to_apj
       IMPORTING
-        is_param       TYPE zif_batch_job=>ty_param
+        iv_json        TYPE string
+      RETURNING
+        VALUE(rt_vals) TYPE if_apj_rt_exec_object=>tt_templ_val.
+
+    "! APJ 파라미터 테이블 -> JSON
+    CLASS-METHODS from_apj
+      IMPORTING
+        it_vals        TYPE if_apj_rt_exec_object=>tt_templ_val
       RETURNING
         VALUE(rv_json) TYPE string.
-
-    CLASS-METHODS deserialize
-      IMPORTING
-        iv_json         TYPE string
-      RETURNING
-        VALUE(rs_param) TYPE zif_batch_job=>ty_param.
 
 ENDCLASS.
 
 
 CLASS zcl_batch_param IMPLEMENTATION.
 
-  METHOD serialize.
+  METHOD to_apj.
+
+    CHECK iv_json IS NOT INITIAL.
+
+    DATA lt_kv TYPE zif_batch_job=>tt_param_value.
 
     TRY.
-        rv_json = xco_cp_json=>data->from_abap( is_param )->to_string( ).
+        xco_cp_json=>data->from_string( iv_json )->write_to( REF #( lt_kv ) ).
       CATCH cx_root.
-        CLEAR rv_json.
+        RETURN.
     ENDTRY.
+
+    rt_vals = VALUE #(
+      kind   = if_apj_dt_exec_object=>parameter
+      sign   = 'I'
+      option = 'EQ'
+      FOR ls_kv IN lt_kv
+      ( selname = ls_kv-name
+        low     = ls_kv-value ) ).
 
   ENDMETHOD.
 
 
-  METHOD deserialize.
+  METHOD from_apj.
 
-    CLEAR rs_param.
-
-    CHECK iv_json IS NOT INITIAL.
+    DATA(lt_kv) = VALUE zif_batch_job=>tt_param_value(
+      FOR ls_val IN it_vals
+      ( name  = ls_val-selname
+        value = CONV #( ls_val-low ) ) ).
 
     TRY.
-        xco_cp_json=>data->from_string( iv_json )->write_to( REF #( rs_param ) ).
+        rv_json = xco_cp_json=>data->from_abap( lt_kv )->to_string( ).
       CATCH cx_root.
-        CLEAR rs_param.
+        CLEAR rv_json.
     ENDTRY.
 
   ENDMETHOD.

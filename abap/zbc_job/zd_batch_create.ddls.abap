@@ -11,8 +11,6 @@ define abstract entity ZD_BATCH_CREATE
       JobTemplateName   : abap.char(60);
       @EndUserText.label: '잡 텍스트 (논리 잡명)'
       JobText           : abap.char(64);
-      @EndUserText.label: '실행 클래스'
-      ExecutionClass    : abap.char(30);
       @EndUserText.label: '파라미터 (JSON)'
       Parameters        : abap.string(0);
 

@@ -120,7 +120,6 @@ CLASS lhc_schedule IMPLEMENTATION.
       APPEND VALUE #( %cid            = ls_key-%cid
                       jobtemplatename = ls_p-jobtemplatename
                       jobtext         = ls_p-jobtext
-                      executionclass  = ls_p-executionclass
                       parameters      = ls_p-parameters )
              TO lt_create.
     ENDLOOP.
@@ -130,7 +129,7 @@ CLASS lhc_schedule IMPLEMENTATION.
     " 1) 행 생성 - UUID 를 여기서 얻는다
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        CREATE FIELDS ( jobtemplatename jobtext executionclass parameters )
+        CREATE FIELDS ( jobtemplatename jobtext parameters )
         WITH lt_create
       MAPPED DATA(ls_mapped)
       FAILED DATA(ls_failed)
@@ -154,9 +153,9 @@ CLASS lhc_schedule IMPLEMENTATION.
       DATA(ls_cp) = ls_ck-%param.
 
       DATA(ls_sched) = lo_adapter->schedule(
-        iv_run_uuid = ls_new-runuuid
         iv_template = ls_cp-jobtemplatename
         iv_jobtext  = ls_cp-jobtext
+        iv_param    = ls_cp-parameters
         is_start    = VALUE #( start_immediately = ls_cp-startimmediately
                                start_date        = ls_cp-startdate
                                start_time        = ls_cp-starttime
@@ -203,7 +202,7 @@ CLASS lhc_schedule IMPLEMENTATION.
 
     READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        FIELDS ( jobtemplatename jobtext jobname jobcount )
+        FIELDS ( jobtemplatename jobtext parameters jobname jobcount )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_run)
       FAILED failed.
@@ -229,9 +228,9 @@ CLASS lhc_schedule IMPLEMENTATION.
       DATA(ls_p) = keys[ %tky = ls_run-%tky ]-%param.
 
       DATA(ls_sched) = lo_adapter->schedule(
-        iv_run_uuid = ls_run-runuuid
         iv_template = ls_run-jobtemplatename
         iv_jobtext  = ls_run-jobtext
+        iv_param    = ls_run-parameters
         is_start    = VALUE #( start_immediately = ls_p-startimmediately
                                start_date        = ls_p-startdate
                                start_time        = ls_p-starttime
@@ -282,7 +281,7 @@ CLASS lhc_schedule IMPLEMENTATION.
 
     READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        FIELDS ( jobtemplatename jobtext )
+        FIELDS ( jobtemplatename jobtext parameters )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_run)
       FAILED failed.
@@ -306,9 +305,9 @@ CLASS lhc_schedule IMPLEMENTATION.
         prd_months        = ls_p-periodmonths ).
 
       DATA(ls_sched) = lo_adapter->schedule(
-        iv_run_uuid = ls_run-runuuid
         iv_template = ls_run-jobtemplatename
         iv_jobtext  = ls_run-jobtext
+        iv_param    = ls_run-parameters
         is_start    = ls_start ).
 
       IF ls_sched-success = abap_false.

@@ -8,7 +8,9 @@ strict ( 2 );
 //   ZBC_BATCH_JOB_STATUS  -> action refreshStatus / 조회
 //
 // 액션은 전부 CL_APJ_RT_API 를 호출한다. BDC 는 없다.
-// 잡 하나 = 프로그램 하나 구조라 자식 엔티티가 없다.
+//
+// 시작일시/반복주기/타임존은 DB 에 없다. scheduleJob 액션 파라미터로만 받아
+// APJ 에 넘긴다. 그 값들의 진실의 원천은 APJ 이므로 중복 저장하지 않는다.
 define behavior for ZI_JOB_RUN alias JobRun
 persistent table ztjob_run
 lock master
@@ -18,20 +20,16 @@ etag master LocalLastChangedAt
   field ( numbering : managed, readonly ) RunUuid;
 
   // APJ 가 만들어주는 값과 상태는 사용자가 못 바꾼다
-  field ( readonly ) JobTemplateName,
-                     JobName,
+  field ( readonly ) JobName,
                      JobCount,
                      JobStatus,
-                     ScheduledAt,
-                     LastCheckedAt,
-                     LastMessage,
+                     Message,
                      CreatedBy,
                      CreatedAt,
                      LastChangedBy,
-                     LocalLastChangedAt,
-                     LastChangedAt;
+                     LocalLastChangedAt;
 
-  field ( mandatory ) JobLabel, ProgramName;
+  field ( mandatory ) JobTemplateName, JobText, ProgramName;
 
   create;
   update;
@@ -42,51 +40,20 @@ etag master LocalLastChangedAt
   action ( features : instance ) cancelJob   result [1] $self;
   action refreshStatus result [1] $self;
 
-  // 스케줄 전 검증. BDC 화면이 걸러주던 것을 코드로 대신한다.
-  validation validateSchedule on save { create; update; }
-
   mapping for ztjob_run
   {
     RunUuid            = run_uuid;
-    ProgramType        = pg_type;
-    ProgramName        = pg_id;
-    Variant            = pg_variant;
-    Language           = pg_lang;
-    SystemId           = sys_id;
-    TargetClient       = target_client;
-    BusinessArea       = biz_area;
-    RequesterId        = req_id;
-    RequesterName      = req_name;
-    RequestedAt        = req_datetime;
-    RequestReason      = req_reason;
-    JobLabel           = job_label;
-    JobClass           = job_class;
-    JobUser            = job_user;
-    StartImmediately   = start_immediately;
-    StartDate          = start_date;
-    StartTime          = start_time;
-    TimeZone           = timezone;
-    PeriodMinutes      = prd_mins;
-    PeriodHours        = prd_hours;
-    PeriodDays         = prd_days;
-    PeriodWeeks        = prd_weeks;
-    PeriodMonths       = prd_months;
-    LastStartDate      = last_start_date;
-    LastStartTime      = last_start_time;
-    CalendarId         = calendar_id;
-    WorkdayNumber      = workday_nr;
-    WorkdayTime        = workday_time;
-    JobTemplateName    = job_template;
-    JobName            = job_name;
-    JobCount           = job_count;
-    JobStatus          = job_status;
-    ScheduledAt        = scheduled_at;
-    LastCheckedAt      = last_checked_at;
-    LastMessage        = last_message;
+    JobTemplateName    = template;
+    JobText            = jobtext;
+    ProgramName        = pgmid;
+    Parameters         = param;
+    JobName            = jobname;
+    JobCount           = jobcount;
+    JobStatus          = status;
+    Message            = message;
     CreatedBy          = created_by;
     CreatedAt          = created_at;
     LastChangedBy      = last_changed_by;
     LocalLastChangedAt = local_last_changed_at;
-    LastChangedAt      = last_changed_at;
   }
 }

@@ -26,9 +26,13 @@ CLASS zcl_job_apj_adapter DEFINITION
 
     "! ZTJOB_RUN 한 건을 Application Job 으로 스케줄한다.
     "! 잡 파라미터는 P_RUNID 하나뿐이고, 나머지 설정은 런처가 DB 에서 읽는다.
+    "! 시작 조건은 DB 가 아니라 액션 파라미터에서 온다.
     METHODS schedule
       IMPORTING
-        is_run           TYPE ztjob_run
+        iv_run_uuid      TYPE sysuuid_x16
+        iv_template      TYPE clike
+        iv_jobtext       TYPE clike
+        is_start         TYPE zif_bc_job=>ty_start_option
       RETURNING
         VALUE(rs_result) TYPE ty_schedule_result.
 
@@ -62,22 +66,22 @@ CLASS zcl_job_apj_adapter IMPLEMENTATION.
 *----------------------------------------------------------------------*
         DATA ls_start_info TYPE cl_apj_rt_api=>ty_start_info.
 
-        IF is_run-start_immediately = abap_true.
+        IF is_start-start_immediately = abap_true.
           ls_start_info-start_immediately = abap_true.
         ELSE.
-          ls_start_info-earliest_start_date = is_run-start_date.
-          ls_start_info-earliest_start_time = is_run-start_time.
+          ls_start_info-earliest_start_date = is_start-start_date.
+          ls_start_info-earliest_start_time = is_start-start_time.
           " 타임존은 APJ 가 처리한다. AS-IS 는 직접 변환했다. (COMPARISON A4)
-          ls_start_info-timezone            = is_run-timezone.
+          ls_start_info-timezone            = is_start-timezone.
         ENDIF.
 
         " 반복 주기. AS-IS 의 반복주기 / 일반복주기.
         " 팩토리 캘린더(공장근무일)는 APJ 에 대응이 없어 런처가 판정한다.
-        IF is_run-prd_mins   > 0. ls_start_info-recurrence_desc-min   = is_run-prd_mins.   ENDIF.
-        IF is_run-prd_hours  > 0. ls_start_info-recurrence_desc-hour  = is_run-prd_hours.  ENDIF.
-        IF is_run-prd_days   > 0. ls_start_info-recurrence_desc-day   = is_run-prd_days.   ENDIF.
-        IF is_run-prd_weeks  > 0. ls_start_info-recurrence_desc-week  = is_run-prd_weeks.  ENDIF.
-        IF is_run-prd_months > 0. ls_start_info-recurrence_desc-month = is_run-prd_months. ENDIF.
+        IF is_start-prd_mins   > 0. ls_start_info-recurrence_desc-min   = is_start-prd_mins.   ENDIF.
+        IF is_start-prd_hours  > 0. ls_start_info-recurrence_desc-hour  = is_start-prd_hours.  ENDIF.
+        IF is_start-prd_days   > 0. ls_start_info-recurrence_desc-day   = is_start-prd_days.   ENDIF.
+        IF is_start-prd_weeks  > 0. ls_start_info-recurrence_desc-week  = is_start-prd_weeks.  ENDIF.
+        IF is_start-prd_months > 0. ls_start_info-recurrence_desc-month = is_start-prd_months. ENDIF.
 
         " 잡 파라미터는 스케줄 행 UUID 하나뿐
         DATA(lt_param) = VALUE if_apj_rt_exec_object=>tt_templ_val(
@@ -85,17 +89,17 @@ CLASS zcl_job_apj_adapter IMPLEMENTATION.
             kind    = if_apj_dt_exec_object=>parameter
             sign    = 'I'
             option  = 'EQ'
-            low     = is_run-run_uuid ) ).
+            low     = iv_run_uuid ) ).
 
         DATA lv_job_name  TYPE c LENGTH 32.
         DATA lv_job_count TYPE c LENGTH 8.
 
         cl_apj_rt_api=>schedule_job(
           EXPORTING
-            iv_job_template_name = CONV #( is_run-job_template )
+            iv_job_template_name = CONV #( iv_template )
             " 사용자가 지은 논리 잡 이름을 잡 텍스트로 넘긴다.
             " APJ 는 잡 이름을 자동 생성하므로 이게 최선이다. (COMPARISON #16)
-            iv_job_text          = CONV #( is_run-job_label )
+            iv_job_text          = CONV #( iv_jobtext )
             is_start_info        = ls_start_info
             it_job_parameter_val = lt_param
           IMPORTING

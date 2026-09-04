@@ -96,11 +96,11 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
     ENDIF.
 
     " 실행할 프로그램이 지정돼 있어야 한다.
-    SELECT SINGLE pg_id FROM ztjob_run
+    SELECT SINGLE pgmid FROM ztjob_run
       WHERE run_uuid = @lv_run_id
-      INTO @DATA(lv_pg_id).
+      INTO @DATA(lv_pgmid).
 
-    IF lv_pg_id IS INITIAL.
+    IF lv_pgmid IS INITIAL.
       RAISE EXCEPTION NEW cx_apj_dt_content( ).
     ENDIF.
 
@@ -156,13 +156,12 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
         WHEN zif_bc_job=>gc_skip-after_close THEN 'past close time (last_start)'
         WHEN zif_bc_job=>gc_skip-not_workday THEN 'not a factory working day'
         WHEN zif_bc_job=>gc_skip-no_program  THEN 'no program specified'
-        WHEN zif_bc_job=>gc_skip-unsupported THEN 'program type not supported on APJ'
         WHEN zif_bc_job=>gc_skip-run_missing THEN 'schedule row not found'
         ELSE 'unknown' ) }| TYPE 'I'.
       RETURN.
     ENDIF.
 
-    MESSAGE |Launcher end: { is_result-pg_id } -> | &&
+    MESSAGE |Launcher end: { is_result-pgmid } -> | &&
             |{ COND string( WHEN is_result-success = abap_true THEN 'OK' ELSE 'NG' ) } | &&
             |{ is_result-message }|
       TYPE COND #( WHEN is_result-success = abap_true THEN 'I' ELSE 'W' ).

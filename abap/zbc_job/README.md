@@ -5,36 +5,60 @@ AS-IS `ZBC_BATCH_JOB_CREATE` / `_CHANGE` / `_DELETE` / `_STATUS` (BDC on SM36) �
 
 ---
 
-## 1. 데이터 모델 — 테이블 1개
+## 1. 데이터 모델 — 테이블 1개, 컬럼 12개
 
-**잡 하나 = 프로그램 하나.** AS-IS 의 스텝 테이블(`lt_pg` / ZBCS0012)은
-헤더로 평탄화했다.
+**필드를 3종류로 나눠서, DB 에는 꼭 필요한 것만 남겼다.**
+
+| 종류 | 예 | 어디에 |
+|------|-----|--------|
+| APJ 가 이미 갖고 있는 것 | 시작일시, 반복주기, 타임존 | **DB 저장 안 함.** `scheduleJob` 액션 파라미터로만 받아 APJ 에 넘김 |
+| 런처가 실행 시점에 읽는 것 | 배리언트, 팩토리캘린더, close 시각 | **`param` 에 JSON 직렬화** |
+| 포인터 | template, jobname, jobcount, pgmid | DB 컬럼 |
 
 ```
 ZTJOB_RUN
-├─ 실행 대상    pg_id, pg_variant, pg_type, pg_lang
-├─ 잡 정보      job_label(논리명), job_class, job_user
-├─ 시작 조건    start_immediately, start_date/time, timezone
-├─ 반복 주기    prd_mins / hours / days / weeks / months
-├─ 실행 제한    last_start_date/time (close), calendar_id, workday_nr/time
-├─ 요청자       req_id, req_name, req_datetime, req_reason
-├─ 대상         sys_id, target_client, biz_area
-├─ APJ 결과     job_template, job_name(SM37), job_count(SM37)
-└─ 상태         job_status, scheduled_at, last_checked_at, last_message
+  run_uuid    RAP 키
+  template    APJ 잡 템플릿
+  jobtext     잡 텍스트 (논리 잡명)
+  pgmid       실행할 프로그램
+  param       런처 전달 파라미터 (JSON)
+  jobname     APJ 가 만든 잡 이름 (SM37)
+  jobcount    APJ 잡 카운트 (SM37)
+  status      상태 캐시
+  message     마지막 메시지
+  + created_by / created_at / last_changed_by / local_last_changed_at
 ```
 
-예시:
+### 왜 `jobcount` 가 필요한가
 
-```
-run_uuid = A1
-job_label = '월마감'   pg_id = ZR_MONTH_CLOSE   pg_variant = MONTH
-start_date = 2026.10.01   prd_months = 1   calendar_id = 'KR'
-job_name = BTC_xxx (APJ 자동생성)   job_status = S
+APJ 잡의 키는 **`jobname + jobcount`** 다.
+`jobcount` 없이는 `GET_JOB_STATUS` / `CANCEL_JOB` 을 호출할 수 없다.
+
+### 요청자 정보는
+
+`created_by` / `created_at` (RAP 관리 필드)이 대신한다.
+요청사유처럼 별도 텍스트가 필요하면 `param` 에 넣거나 컬럼 하나만 추가한다.
+
+### `param` 에 들어가는 것
+
+```abap
+TYPES: BEGIN OF ty_param,
+         variant         TYPE c LENGTH 14,  " 리포트 배리언트
+         calendar_id     TYPE c LENGTH 2,   " 공장시간
+         workday_nr      TYPE i,            " 공장근무일수
+         workday_time    TYPE t,            " 공장근무시간
+         last_start_date TYPE d,            " close 일
+         last_start_time TYPE t,            " close 시각
+       END OF ty_param.
 ```
 
-> **2스텝 잡이 필요해지면**: 잡을 2개로 쪼개서 시간차를 두거나,
-> 나중에 자식 테이블(`ZTJOB_STEP`)을 composition 으로 붙이면 된다.
-> 지금 구조에서 자식 추가는 CDS/BDEF 에 composition 만 얹으면 되므로 확장이 열려 있다.
+`ZCL_BC_JOB_PARAM` 이 XCO(Cloud released 직렬화 API)로 JSON 변환한다.
+이 값들은 런처만 읽으므로 SQL 조건으로 쓸 일이 없어 컬럼으로 뺄 이유가 없다.
+
+### 상태의 진실의 원천은 APJ
+
+`status` 는 **목록 조회 때마다 API 를 부르지 않으려는 캐시**다.
+`refreshStatus` 액션이 `GET_JOB_STATUS` 로 갱신한다.
 
 ---
 
@@ -70,7 +94,7 @@ scheduleJob 액션 → CL_APJ_RT_API=>SCHEDULE_JOB (P_RUNID = run_uuid)
 
 | 파일 | 언어버전 | 내용 |
 |------|---------|------|
-| `ztjob_run.tabl.abap` | — | 테이블 (유일) |
+| `ztjob_run.tabl.abap` | — | 테이블 (유일, 12 컬럼) |
 | `zi_job_run.ddls.abap` / `zc_job_run.ddls.abap` | — | interface / projection view |
 | `zd_job_schedule.ddls.abap` | — | `scheduleJob` 파라미터 |
 | `zi_job_run.bdef.abap` / `zc_job_run.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
@@ -78,7 +102,8 @@ scheduleJob 액션 → CL_APJ_RT_API=>SCHEDULE_JOB (P_RUNID = run_uuid)
 | `zcl_job_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
 | `zcl_apj_job_launcher.clas.abap` | ABAP Cloud | **APJ 실행 오브젝트** |
 | `zcl_bc_job_runner.clas.abap` | ABAP Cloud | 조건 판정 + 실행 |
-| `zif_bc_job.intf.abap` | ABAP Cloud | 상수/타입 |
+| `zif_bc_job.intf.abap` | ABAP Cloud | 상수/타입 (`ty_param`, `ty_start_option`) |
+| `zcl_bc_job_param.clas.abap` | ABAP Cloud | `param` JSON 직렬화 (XCO) |
 | `z_bc_run_report.abap` | **Standard ABAP** | `SUBMIT` 래퍼 |
 | `z_bc_check_workday.abap` | **Standard ABAP** | 팩토리 캘린더 판정 |
 | `zui_bc_job.srvd.abap` | — | service definition |
@@ -107,9 +132,9 @@ Standard ABAP FM 2개는 SE37 > Goto > API State >
 |-------|------|----------|
 | **`jobuser` 실행 사용자** | **불가.** `SUBMIT` 은 현재 사용자 권한. 컬럼에 보관만 | AS-IS 에서 잡마다 사용자가 다른가? |
 | **`jobclass` A/B/C** | **불가.** APJ 에 개념 없음. 컬럼에 보관만 | 실제로 A/B 를 쓰나? |
-| **`pgtype` ≠ PROG** | **불가.** 저장 시 검증에서 거부 | `PROG` 외 값이 쓰이나? |
+| **`pgtype` ≠ PROG** | **모델에서 제외.** ABAP 리포트만 지원 | `PROG` 외 값이 쓰이나? |
 | 다중 스텝 | **모델에서 제외.** 잡 1개 = 프로그램 1개 | 2스텝 잡을 어떻게 나눌지 |
-| `jobname` 지정 | 논리명 `job_label`, SM37 이름 `job_name` 을 나란히 보관 | — |
+| `jobname` 지정 | 논리명은 `jobtext`, SM37 이름은 `jobname` 으로 나란히 보관 | — |
 | 팩토리 캘린더 주기 | APJ 는 "매일"로 걸고 런처가 작업일 판정해 skip. **잡은 매일 돌고 skip 로그가 쌓임** | — |
 | `laststrt` (close 시각) | 런처가 실행 시 판정해 skip | — |
 | **타임존** | **APJ 가 기본 제공** — AS-IS 는 직접 변환했음 | — (개선) |
@@ -137,6 +162,7 @@ Standard ABAP FM 2개는 SE37 > Goto > API State >
 | `zcl_apj_job_launcher` | `IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS`/`CHECK_PARAMETERS`, `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 시그니처, `CX_APJ_DT_CONTENT` textid |
 | `zcl_job_apj_adapter` | `CL_APJ_RT_API=>TY_START_INFO` 필드명, `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
 | `z_bc_check_workday` | `DATE_CONVERT_TO_FACTORYDATE` 파라미터/예외명, `WORKINGDAY_INDICATOR` 값 의미 |
+| `zcl_bc_job_param` | `XCO_CP_JSON` 메서드 체인 (`from_abap`/`to_string`/`from_string`/`write_to`) |
 | — | `CL_APJ_RT_API` 에 change/modify 메서드가 있는지 (없으면 change = cancel + 재스케줄) |
 | — | 백그라운드 `SUBMIT ... AND RETURN` 의 스풀 생성 여부 |
 

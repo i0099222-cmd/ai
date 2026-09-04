@@ -3,22 +3,13 @@ INTERFACE zif_bc_job
   PUBLIC.
 
   "! APJ 실행 클래스 파라미터.
-  "! 스케줄 행의 UUID 하나만 넘기고, 런처가 그 UUID 로 ZTJOB_RUN 을 읽어
-  "! 무엇을 어떤 조건으로 실행할지 판단한다.
+  "! 스케줄 행의 UUID 하나만 넘기고, 런처가 그 UUID 로 ZTJOB_RUN 을 읽는다.
   CONSTANTS:
     BEGIN OF gc_param,
       run_id TYPE c LENGTH 8 VALUE 'P_RUNID',
     END OF gc_param.
 
-  "! 실행 대상 종류 (AS-IS pgtype)
-  CONSTANTS:
-    BEGIN OF gc_pgtype,
-      abap_program TYPE c LENGTH 4 VALUE 'PROG',
-      ext_command  TYPE c LENGTH 4 VALUE 'CMD',
-      ext_program  TYPE c LENGTH 4 VALUE 'EXT',
-    END OF gc_pgtype.
-
-  "! ZTJOB_RUN-JOB_STATUS
+  "! ZTJOB_RUN-STATUS
   CONSTANTS:
     BEGIN OF gc_status,
       initial   TYPE c LENGTH 1 VALUE ' ',   "! 아직 스케줄 안 함
@@ -35,12 +26,38 @@ INTERFACE zif_bc_job
   CONSTANTS:
     BEGIN OF gc_skip,
       none        TYPE c LENGTH 1 VALUE ' ',
-      after_close TYPE c LENGTH 1 VALUE 'C',  "! last_start 시각 초과
+      after_close TYPE c LENGTH 1 VALUE 'C',  "! close 시각 초과
       not_workday TYPE c LENGTH 1 VALUE 'W',  "! 팩토리 캘린더 비작업일
       no_program  TYPE c LENGTH 1 VALUE 'N',  "! 실행 대상 없음
       run_missing TYPE c LENGTH 1 VALUE 'D',  "! 스케줄 행 없음
-      unsupported TYPE c LENGTH 1 VALUE 'U',  "! APJ 로 실행 불가한 종류
     END OF gc_skip.
+
+  "! ZTJOB_RUN-PARAM 에 JSON 으로 담기는 내용.
+  "! 런처가 실행 시점에 읽어야 하는 값들만 여기 들어간다.
+  "! 시작일시/반복주기/타임존은 APJ 가 갖고 있으므로 여기 없다.
+  TYPES:
+    BEGIN OF ty_param,
+      variant         TYPE c LENGTH 14,  "! 리포트 배리언트
+      calendar_id     TYPE c LENGTH 2,   "! 공장시간 (팩토리 캘린더)
+      workday_nr      TYPE i,            "! 공장근무일수
+      workday_time    TYPE t,            "! 공장근무시간
+      last_start_date TYPE d,            "! close 일
+      last_start_time TYPE t,            "! close 시각
+    END OF ty_param.
+
+  "! 스케줄 옵션. 액션 파라미터로만 존재하고 DB 에 저장하지 않는다.
+  TYPES:
+    BEGIN OF ty_start_option,
+      start_immediately TYPE abap_bool,
+      start_date        TYPE d,
+      start_time        TYPE t,
+      timezone          TYPE c LENGTH 6,
+      prd_mins          TYPE i,
+      prd_hours         TYPE i,
+      prd_days          TYPE i,
+      prd_weeks         TYPE i,
+      prd_months        TYPE i,
+    END OF ty_start_option.
 
   "! 런처 1회 실행 결과
   TYPES:
@@ -49,7 +66,7 @@ INTERFACE zif_bc_job
       skipped     TYPE abap_bool,
       skip_reason TYPE c LENGTH 1,
       success     TYPE abap_bool,
-      pg_id       TYPE c LENGTH 40,
+      pgmid       TYPE c LENGTH 40,
       message     TYPE string,
     END OF ty_run_result.
 

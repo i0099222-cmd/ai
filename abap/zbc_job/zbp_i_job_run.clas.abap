@@ -2,7 +2,7 @@
 "!
 "! AS-IS 인터페이스 대응:
 "!   ZBC_BATCH_JOB_CREATE -> create 후 scheduleJob
-"!   ZBC_BATCH_JOB_CHANGE -> update 후 재스케줄
+"!   ZBC_BATCH_JOB_CHANGE -> update 후 cancelJob + scheduleJob
 "!   ZBC_BATCH_JOB_DELETE -> cancelJob
 "!   ZBC_BATCH_JOB_STATUS -> refreshStatus
 "!
@@ -28,9 +28,6 @@ CLASS lhc_jobrun DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS get_instance_features FOR INSTANCE FEATURES
       IMPORTING keys REQUEST requested_features FOR jobrun RESULT result.
 
-    METHODS validateschedule FOR VALIDATE ON SAVE
-      IMPORTING keys FOR jobrun~validateschedule.
-
     METHODS schedulejob FOR MODIFY
       IMPORTING keys FOR ACTION jobrun~schedulejob RESULT result.
 
@@ -44,16 +41,13 @@ CLASS lhc_jobrun DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING keys          TYPE ANY TABLE
       RETURNING VALUE(result) TYPE TABLE FOR ACTION RESULT zi_job_run~schedulejob.
 
-    METHODS now
-      RETURNING VALUE(rv_stamp) TYPE timestampl.
-
 ENDCLASS.
 
 
 CLASS lhc_jobrun IMPLEMENTATION.
 
   METHOD get_global_authorizations.
-    " 테스트 단계 - 전부 허용. 운영에서는 업무구분/시스템 단위로 제한할 것.
+    " 테스트 단계 - 전부 허용. 운영에서는 업무 권한객체로 제한할 것.
   ENDMETHOD.
 
 
@@ -69,7 +63,7 @@ CLASS lhc_jobrun IMPLEMENTATION.
     result = VALUE #( FOR ls_run IN lt_run
       ( %tky = ls_run-%tky
 
-        " 아직 스케줄 안 했거나 끝난 잡만 스케줄 가능
+        " 아직 안 걸었거나 끝난 잡만 스케줄 가능
         %action-schedulejob = COND #(
           WHEN ls_run-jobstatus = zif_bc_job=>gc_status-initial
             OR ls_run-jobstatus = zif_bc_job=>gc_status-finished
@@ -78,7 +72,7 @@ CLASS lhc_jobrun IMPLEMENTATION.
           THEN if_abap_behv=>fc-o-enabled
           ELSE if_abap_behv=>fc-o-disabled )
 
-        " 스케줄됐거나 도는 중인 잡만 취소 가능
+        " 걸려 있거나 도는 중인 잡만 취소 가능
         %action-canceljob = COND #(
           WHEN ls_run-jobstatus = zif_bc_job=>gc_status-scheduled
             OR ls_run-jobstatus = zif_bc_job=>gc_status-running
@@ -89,70 +83,15 @@ CLASS lhc_jobrun IMPLEMENTATION.
 
 
 *----------------------------------------------------------------------*
-* 저장 시 검증
-*   AS-IS 는 BDC 화면이 걸러주던 것들. 이제 코드가 막아야 한다.
-*----------------------------------------------------------------------*
-  METHOD validateschedule.
-
-    READ ENTITIES OF zi_job_run IN LOCAL MODE
-      ENTITY jobrun
-        ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_run).
-
-    LOOP AT lt_run INTO DATA(ls_run).
-
-      DATA(lv_error) = VALUE string( ).
-
-      IF ls_run-joblabel IS INITIAL.
-        lv_error = '배치잡 명이 필요합니다'.
-
-      ELSEIF ls_run-programname IS INITIAL.
-        lv_error = '실행할 프로그램이 필요합니다'.
-
-      ELSEIF ls_run-programtype IS NOT INITIAL
-             AND ls_run-programtype <> zif_bc_job=>gc_pgtype-abap_program.
-        lv_error = |'{ ls_run-programtype }' 종류는 Application Job 으로 실행할 수 없습니다|.
-
-      ELSEIF ls_run-startimmediately = abap_false
-             AND ls_run-startdate IS INITIAL.
-        lv_error = '즉시 시작이 아니면 시작일이 필요합니다'.
-
-      ELSE.
-        " 반복 주기는 한 단위만 채워야 한다
-        DATA(lv_prd) = 0.
-        IF ls_run-periodminutes > 0. lv_prd = lv_prd + 1. ENDIF.
-        IF ls_run-periodhours   > 0. lv_prd = lv_prd + 1. ENDIF.
-        IF ls_run-perioddays    > 0. lv_prd = lv_prd + 1. ENDIF.
-        IF ls_run-periodweeks   > 0. lv_prd = lv_prd + 1. ENDIF.
-        IF ls_run-periodmonths  > 0. lv_prd = lv_prd + 1. ENDIF.
-
-        IF lv_prd > 1.
-          lv_error = '반복 주기는 한 단위만 지정할 수 있습니다'.
-        ENDIF.
-      ENDIF.
-
-      IF lv_error IS NOT INITIAL.
-        APPEND VALUE #( %tky = ls_run-%tky ) TO failed-jobrun.
-        APPEND VALUE #( %tky = ls_run-%tky
-                        %msg = new_message_with_text(
-                                 severity = if_abap_behv_message=>severity-error
-                                 text     = lv_error ) )
-               TO reported-jobrun.
-      ENDIF.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-*----------------------------------------------------------------------*
 * 스케줄 - AS-IS ZBC_BATCH_JOB_CREATE 의 실행 부분
+*   시작 조건은 DB 가 아니라 액션 파라미터(%param)에서 온다.
 *----------------------------------------------------------------------*
   METHOD schedulejob.
 
     READ ENTITIES OF zi_job_run IN LOCAL MODE
       ENTITY jobrun
-        ALL FIELDS WITH CORRESPONDING #( keys )
+        FIELDS ( jobtemplatename jobtext )
+        WITH CORRESPONDING #( keys )
       RESULT DATA(lt_run)
       FAILED failed.
 
@@ -161,24 +100,24 @@ CLASS lhc_jobrun IMPLEMENTATION.
 
     LOOP AT lt_run INTO DATA(ls_run).
 
-      DATA(ls_key) = keys[ %tky = ls_run-%tky ].
+      DATA(ls_p) = keys[ %tky = ls_run-%tky ]-%param.
 
-      " CDS 요소명 -> 테이블 필드명으로 되돌려서 어댑터에 넘긴다
-      DATA(ls_db) = VALUE ztjob_run(
-        run_uuid          = ls_run-runuuid
-        job_label         = ls_run-joblabel
-        job_template      = ls_key-%param-jobtemplatename
-        start_immediately = ls_run-startimmediately
-        start_date        = ls_run-startdate
-        start_time        = ls_run-starttime
-        timezone          = ls_run-timezone
-        prd_mins          = ls_run-periodminutes
-        prd_hours         = ls_run-periodhours
-        prd_days          = ls_run-perioddays
-        prd_weeks         = ls_run-periodweeks
-        prd_months        = ls_run-periodmonths ).
+      DATA(ls_start) = VALUE zif_bc_job=>ty_start_option(
+        start_immediately = ls_p-startimmediately
+        start_date        = ls_p-startdate
+        start_time        = ls_p-starttime
+        timezone          = ls_p-timezone
+        prd_mins          = ls_p-periodminutes
+        prd_hours         = ls_p-periodhours
+        prd_days          = ls_p-perioddays
+        prd_weeks         = ls_p-periodweeks
+        prd_months        = ls_p-periodmonths ).
 
-      DATA(ls_sched) = lo_adapter->schedule( ls_db ).
+      DATA(ls_sched) = lo_adapter->schedule(
+        iv_run_uuid = ls_run-runuuid
+        iv_template = ls_run-jobtemplatename
+        iv_jobtext  = ls_run-jobtext
+        is_start    = ls_start ).
 
       IF ls_sched-success = abap_false.
         APPEND VALUE #( %tky = ls_run-%tky ) TO failed-jobrun.
@@ -190,21 +129,18 @@ CLASS lhc_jobrun IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      APPEND VALUE #( %tky            = ls_run-%tky
-                      jobtemplatename = ls_key-%param-jobtemplatename
-                      jobname         = ls_sched-job_name
-                      jobcount        = ls_sched-job_count
-                      jobstatus       = zif_bc_job=>gc_status-scheduled
-                      scheduledat     = now( )
-                      lastmessage     = CONV #( ls_sched-message ) )
+      APPEND VALUE #( %tky      = ls_run-%tky
+                      jobname   = ls_sched-job_name
+                      jobcount  = ls_sched-job_count
+                      jobstatus = zif_bc_job=>gc_status-scheduled
+                      message   = CONV #( ls_sched-message ) )
              TO lt_update.
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zi_job_run IN LOCAL MODE
       ENTITY jobrun
-        UPDATE FIELDS ( jobtemplatename jobname jobcount
-                        jobstatus scheduledat lastmessage )
+        UPDATE FIELDS ( jobname jobcount jobstatus message )
         WITH lt_update.
 
     result = read_self( keys ).
@@ -232,10 +168,9 @@ CLASS lhc_jobrun IMPLEMENTATION.
       DATA(lv_message) = lo_adapter->cancel( iv_job_name  = ls_run-jobname
                                              iv_job_count = ls_run-jobcount ).
 
-      APPEND VALUE #( %tky          = ls_run-%tky
-                      jobstatus     = zif_bc_job=>gc_status-cancelled
-                      lastcheckedat = now( )
-                      lastmessage   = CONV #( lv_message ) )
+      APPEND VALUE #( %tky      = ls_run-%tky
+                      jobstatus = zif_bc_job=>gc_status-cancelled
+                      message   = CONV #( lv_message ) )
              TO lt_update.
 
       APPEND VALUE #( %tky = ls_run-%tky
@@ -248,7 +183,7 @@ CLASS lhc_jobrun IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_job_run IN LOCAL MODE
       ENTITY jobrun
-        UPDATE FIELDS ( jobstatus lastcheckedat lastmessage )
+        UPDATE FIELDS ( jobstatus message )
         WITH lt_update.
 
     result = read_self( keys ).
@@ -258,6 +193,7 @@ CLASS lhc_jobrun IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
 * 상태 조회 - AS-IS ZBC_BATCH_JOB_STATUS
+*   진실의 원천은 APJ 다. 여기서 읽어 DB 캐시를 갱신한다.
 *----------------------------------------------------------------------*
   METHOD refreshstatus.
 
@@ -279,17 +215,16 @@ CLASS lhc_jobrun IMPLEMENTATION.
       DATA(ls_status) = lo_adapter->get_status( iv_job_name  = ls_run-jobname
                                                 iv_job_count = ls_run-jobcount ).
 
-      APPEND VALUE #( %tky          = ls_run-%tky
-                      jobstatus     = ls_status-status
-                      lastcheckedat = now( )
-                      lastmessage   = CONV #( ls_status-message ) )
+      APPEND VALUE #( %tky      = ls_run-%tky
+                      jobstatus = ls_status-status
+                      message   = CONV #( ls_status-message ) )
              TO lt_update.
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zi_job_run IN LOCAL MODE
       ENTITY jobrun
-        UPDATE FIELDS ( jobstatus lastcheckedat lastmessage )
+        UPDATE FIELDS ( jobstatus message )
         WITH lt_update.
 
     result = read_self( keys ).
@@ -307,11 +242,6 @@ CLASS lhc_jobrun IMPLEMENTATION.
     result = VALUE #( FOR ls_res IN lt_result
                       ( %tky = ls_res-%tky %param = ls_res ) ).
 
-  ENDMETHOD.
-
-
-  METHOD now.
-    GET TIME STAMP FIELD rv_stamp.
   ENDMETHOD.
 
 ENDCLASS.

@@ -8,45 +8,13 @@ define root view entity ZC_JOB_RUN
 {
   key RunUuid,
 
-      ProgramType,
-      @Search.defaultSearchElement: true
-      @EndUserText.label: 'Program'
-      ProgramName,
-      Variant,
-      Language,
-
-      SystemId,
-      TargetClient,
-      BusinessArea,
-
-      RequesterId,
-      RequesterName,
-      RequestedAt,
-      RequestReason,
-
-      @Search.defaultSearchElement: true
-      JobLabel,
-      JobClass,
-      JobUser,
-
-      StartImmediately,
-      StartDate,
-      StartTime,
-      TimeZone,
-
-      PeriodMinutes,
-      PeriodHours,
-      PeriodDays,
-      PeriodWeeks,
-      PeriodMonths,
-
-      LastStartDate,
-      LastStartTime,
-      CalendarId,
-      WorkdayNumber,
-      WorkdayTime,
-
       JobTemplateName,
+      @Search.defaultSearchElement: true
+      JobText,
+      @Search.defaultSearchElement: true
+      ProgramName,
+      Parameters,
+
       @EndUserText.label: 'Job Name (SM37)'
       JobName,
       @EndUserText.label: 'Job Count (SM37)'
@@ -58,12 +26,10 @@ define root view entity ZC_JOB_RUN
       @UI.hidden: true
       JobStatusCriticality,
 
-      ScheduledAt,
-      LastCheckedAt,
-      LastMessage,
+      Message,
 
       CreatedBy,
       CreatedAt,
       LastChangedBy,
-      LastChangedAt
+      LocalLastChangedAt
 }

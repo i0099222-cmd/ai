@@ -1,10 +1,9 @@
 "! <p class="shorttext synchronized">스케줄 1건 실행 (런처 코어)</p>
 "!
 "! ZTJOB_RUN 한 건을 읽어서
-"!   1) 실행 조건 판정 (close 시각 / 팩토리 캘린더 작업일)
-"!   2) 지정된 리포트 실행
+"!   1) PARAM(JSON)을 풀어 실행 조건 판정 (close 시각 / 팩토리 캘린더)
+"!   2) PGMID 실행
 "!   3) 결과를 ZTJOB_RUN 에 기록
-"! 을 수행한다. 잡 하나 = 프로그램 하나 구조라 반복이 없다.
 "!
 "! 언어버전: ABAP for Cloud Development.
 "! SUBMIT 과 팩토리 캘린더 조회는 Standard ABAP FM(Local API released)에 위임한다.
@@ -28,7 +27,7 @@ CLASS zcl_bc_job_runner DEFINITION
     "! APJ 스케줄 옵션으로 표현할 수 없는 조건을 코드로 판정한다.
     METHODS check_run_condition
       IMPORTING
-        is_run         TYPE ztjob_run
+        is_param       TYPE zif_bc_job=>ty_param
       RETURNING
         VALUE(rv_skip) TYPE c.
 
@@ -48,7 +47,8 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
 *----------------------------------------------------------------------*
 * 1) 스케줄 행 조회
 *----------------------------------------------------------------------*
-    SELECT SINGLE * FROM ztjob_run
+    SELECT SINGLE pgmid, param
+      FROM ztjob_run
       WHERE run_uuid = @iv_run_uuid
       INTO @DATA(ls_run).
 
@@ -58,13 +58,22 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
       RETURN.   " 행이 없으니 기록할 곳도 없다
     ENDIF.
 
-    rs_result-pg_id = ls_run-pg_id.
+    rs_result-pgmid = ls_run-pgmid.
+
+    IF ls_run-pgmid IS INITIAL.
+      rs_result-skipped     = abap_true.
+      rs_result-skip_reason = zif_bc_job=>gc_skip-no_program.
+      save_result( rs_result ).
+      RETURN.
+    ENDIF.
 
 *----------------------------------------------------------------------*
-* 2) 실행 조건 판정
+* 2) PARAM 을 풀어 실행 조건 판정
 *    AS-IS 가 SM36 스케줄 옵션으로 처리하던 것을 런처가 대신한다.
 *----------------------------------------------------------------------*
-    DATA(lv_skip) = check_run_condition( ls_run ).
+    DATA(ls_param) = zcl_bc_job_param=>deserialize( ls_run-param ).
+
+    DATA(lv_skip) = check_run_condition( ls_param ).
 
     IF lv_skip <> zif_bc_job=>gc_skip-none.
       rs_result-skipped     = abap_true.
@@ -78,8 +87,8 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
 *----------------------------------------------------------------------*
     CALL FUNCTION 'Z_BC_RUN_REPORT'
       EXPORTING
-        iv_program = ls_run-pg_id
-        iv_variant = ls_run-pg_variant
+        iv_program = ls_run-pgmid
+        iv_variant = ls_param-variant
       IMPORTING
         ev_subrc   = DATA(lv_subrc)
         ev_message = DATA(lv_message).
@@ -96,41 +105,28 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
 
     rv_skip = zif_bc_job=>gc_skip-none.
 
-    " --- 실행 대상이 있는가
-    IF is_run-pg_id IS INITIAL.
-      rv_skip = zif_bc_job=>gc_skip-no_program.
-      RETURN.
-    ENDIF.
-
-    " --- 외부 커맨드/외부 프로그램은 APJ 로 실행할 수 없다 (COMPARISON #3)
-    IF is_run-pg_type IS NOT INITIAL
-       AND is_run-pg_type <> zif_bc_job=>gc_pgtype-abap_program.
-      rv_skip = zif_bc_job=>gc_skip-unsupported.
-      RETURN.
-    ENDIF.
-
     DATA(lv_today) = cl_abap_context_info=>get_system_date( ).
     DATA(lv_now)   = cl_abap_context_info=>get_system_time( ).
 
     " --- close 시각 (AS-IS 배치잡 close시간). APJ 에 대응 없음 (COMPARISON #19)
-    IF is_run-last_start_date IS NOT INITIAL.
-      IF lv_today > is_run-last_start_date
-         OR ( lv_today = is_run-last_start_date
-              AND is_run-last_start_time IS NOT INITIAL
-              AND lv_now > is_run-last_start_time ).
+    IF is_param-last_start_date IS NOT INITIAL.
+      IF lv_today > is_param-last_start_date
+         OR ( lv_today = is_param-last_start_date
+              AND is_param-last_start_time IS NOT INITIAL
+              AND lv_now > is_param-last_start_time ).
         rv_skip = zif_bc_job=>gc_skip-after_close.
         RETURN.
       ENDIF.
     ENDIF.
 
     " --- 팩토리 캘린더 (AS-IS 공장시간/공장근무일수/공장근무시간). COMPARISON #12
-    IF is_run-calendar_id IS NOT INITIAL.
+    IF is_param-calendar_id IS NOT INITIAL.
 
       CALL FUNCTION 'Z_BC_CHECK_WORKDAY'
         EXPORTING
           iv_date        = lv_today
-          iv_calendar_id = is_run-calendar_id
-          iv_workday_nr  = is_run-workday_nr
+          iv_calendar_id = is_param-calendar_id
+          iv_workday_nr  = is_param-workday_nr
         IMPORTING
           ev_is_workday  = DATA(lv_is_workday).
 
@@ -139,8 +135,8 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
         RETURN.
       ENDIF.
 
-      IF is_run-workday_time IS NOT INITIAL
-         AND lv_now < is_run-workday_time.
+      IF is_param-workday_time IS NOT INITIAL
+         AND lv_now < is_param-workday_time.
         rv_skip = zif_bc_job=>gc_skip-not_workday.
         RETURN.
       ENDIF.
@@ -163,17 +159,12 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
                WHEN zif_bc_job=>gc_skip-after_close THEN 'past close time'
                WHEN zif_bc_job=>gc_skip-not_workday THEN 'not a factory working day'
                WHEN zif_bc_job=>gc_skip-no_program  THEN 'no program specified'
-               WHEN zif_bc_job=>gc_skip-unsupported THEN 'program type not supported on APJ'
                ELSE 'unknown' ) }|
       ELSE is_result-message ).
 
-    DATA lv_now_ts TYPE timestampl.
-    GET TIME STAMP FIELD lv_now_ts.
-
     UPDATE ztjob_run
-      SET job_status      = @lv_status,
-          last_checked_at = @lv_now_ts,
-          last_message    = @( CONV ztjob_run-last_message( lv_message ) )
+      SET status  = @lv_status,
+          message = @( CONV ztjob_run-message( lv_message ) )
       WHERE run_uuid = @is_result-run_uuid.
 
     COMMIT WORK.

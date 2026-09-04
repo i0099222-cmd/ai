@@ -61,6 +61,7 @@
 | 16 | **잡 이름 직접 지정** | O | X — 자동 생성 | SM36 은 Job name 자유 입력. APJ 는 프레임워크가 생성 → SM37 에서 어떤 이름으로 보이는지 확인 |
 | 17 | **잡 인터셉션 / 병렬처리 그룹** (SM61, BTCTRNS1/2) | O | X | 운영 통제용. APJ 에 대응 개념 없음 |
 | 18 | **스텝 로그 / 런타임 통계 상세** | O | 제한적 | SM37 > Job log, Step list |
+| 19 | **최종 시작 가능 일시** (이 시각 넘으면 실행 안 함) | O | ? | SM36 > Start condition > Date/Time > "No start after". `JOB_CLOSE` 의 `LASTSTRTDT`/`LASTSTRTTM`. APJ 스케줄 UI/`CL_APJ_RT_API` 에 대응 필드가 있는지 확인 |
 
 ## 2. Application Job 쪽이 나은 것 (역방향 비교)
 

@@ -1,7 +1,7 @@
 # AS-IS 분석 & TO-BE 판정 — 배치잡 관리 인터페이스
 
 > 대상: `ZBC_BATCH_JOB_CREATE` / `_DELETE` / `_STATUS` (GBC 시리즈 인터페이스)
-> 상태: **판정 확정 — Application Job 전면 대체 불가**
+> 상태: **APJ 컨버전 설계 확정** — 구현 뼈대는 [tobe/](tobe/) 참고
 
 ---
 
@@ -82,76 +82,70 @@ BDC 가 채우는 필드 **9종이 전부** Application Job 에 대응이 없다
 ### 결론
 
 AS-IS 는 **"임의의 프로그램을 다중 스텝으로 스케줄하는 범용 잡 생성기"** 다.
-Application Job Framework 는 **화이트리스트 + 단일 실행 오브젝트** 모델이므로
-이 요구사항을 구조적으로 만족할 수 없다. 대체 가능한 필드가 하나도 없다.
+APJ 는 **화이트리스트 + 단일 실행 오브젝트** 모델이라 위 필드를 **직접은** 못 받는다.
+
+다만 **런처(launcher) 패턴**으로 대부분을 우회할 수 있다 — 아래 3절.
+직접 대응이 없다는 것과 구현이 불가능하다는 것은 다르다.
 
 ---
 
-## 3. TO-BE 권고 — A안: BDC 제거 + 클래식 유지
+## 3. TO-BE 설계 — 런처 패턴으로 APJ 컨버전
 
-BDC 를 표준 FM 으로 바꾸면 **AS-IS 기능을 하나도 잃지 않고** 화면 의존을 제거할 수 있다.
+상세 설계와 코드는 **[tobe/README.md](tobe/README.md)** 에 있다. 요약하면:
 
-필드 단위 매핑이 거의 1:1 이다. BDC 가 원래 그 화면 필드를 채우던 것이라 이름까지 같다.
-
-| AS-IS 필드 | 표준 FM | 파라미터 |
-|-----------|---------|---------|
-| `jobname` | `JOB_OPEN` | `JOBNAME` |
-| `jobclass` | `JOB_OPEN` | `JOBCLASS` |
-| `pgid` | `JOB_SUBMIT` | `REPORT` |
-| `pgvariant` | `JOB_SUBMIT` | `VARIANT` |
-| `jobuser` | `JOB_SUBMIT` | `AUTHCKNAM` |
-| `pglang` | `JOB_SUBMIT` | `LANGUAGE` |
-| `pgtype` | `JOB_SUBMIT` | `REPORT` / `COMMANDNAME` / `EXTPGM_NAME` 로 분기 |
-| `sdlstrtdt` / `sdlstrttm` | `JOB_CLOSE` | `SDLSTRTDT` / `SDLSTRTTM` |
-| `laststrtdt` / `laststrttm` | `JOB_CLOSE` | `LASTSTRTDT` / `LASTSTRTTM` |
-| `workperiod` (주기) | `JOB_CLOSE` | `PRDMINS` / `PRDHOURS` / `PRDDAYS` / `PRDWEEKS` / `PRDMONTHS` |
-| `facdatetime` / `workday` | `JOB_CLOSE` | `CALENDAR_ID`, `START_ON_WORKDAY_NR`, `WORKDAY_COUNT_DIRECTION`, `START_ON_WORKDAY_NOT_BEFORE` |
-| (삭제) | `BP_JOB_DELETE` | |
-| (조회) | `BP_JOB_SELECT` / `BP_JOB_READ` / TBTCO·TBTCP | |
-
-> `JOB_SUBMIT` 은 스텝마다 반복 호출한다. `lt_pg` 를 그대로 LOOP 돌리면 된다.
-> 정확한 파라미터명은 SE37 에서 각 FM 의 시그니처로 확인할 것.
-
-**BDC 대비 이점**: 화면을 타지 않으므로 조건부 팝업·SP 업그레이드로 인한 화면 변경 리스크가 사라진다.
-
-### 아키텍처
+| 벽 | 해법 |
+|----|------|
+| APJ 는 등록된 클래스만 실행 | **"무엇이든 실행하는" 런처 클래스 1개**를 카탈로그에 등록. 무엇을 돌릴지는 파라미터로 |
+| APJ 파라미터에 테이블(스텝 목록)을 못 넘김 | 스텝을 `ZTJOB_STEP` 에 저장하고 **잡 정의 ID 하나만** 파라미터로 전달 |
+| Cloud 언어버전에서 `SUBMIT` 금지 | `Z_BC_RUN_REPORT` (Standard ABAP, Local API released) 에만 두고 런처가 호출 |
+| 팩토리 캘린더 주기 옵션 없음 | APJ 는 "매일"로 걸고, 런처가 실행 시점에 작업일 판정해 skip |
+| close 시각(`laststrt`) 옵션 없음 | 런처가 실행 시점에 시각 판정해 skip |
 
 ```
-AS-IS:  화면 → Spring → (PI?) → RFC → BDC → SM36 화면
-TO-BE:  화면 → OData V4 → RAP action → Z_BC_JOB_SCHEDULE (Standard ABAP FM)
-                                          → JOB_OPEN / JOB_SUBMIT / JOB_CLOSE
+화면 → OData V4 → RAP action scheduleJob → CL_APJ_RT_API=>SCHEDULE_JOB (P_DEFID)
+                                              → ZCL_APJ_JOB_LAUNCHER
+                                                 → ZCL_BC_JOB_RUNNER
+                                                    → Z_BC_RUN_REPORT (SUBMIT)
 ```
 
-`JOB_*` FM 은 ABAP Cloud 언어버전에서 호출 불가이므로,
-**Standard ABAP FM 으로 감싸고 Local API 로 release** 해서 RAP(Cloud 티어)에서 호출한다.
-→ 이 리포의 `ZCL_PARKED_DOC_POSTER` → `Z_FI_PARKED_DOC_POST_BDC` 와 동일한 패턴.
+### 기능 손실 — 3개
 
-### RAP 계층 재사용
+| 항목 | 사유 | 확인 필요 |
+|------|------|----------|
+| **스텝별 실행 사용자** (`jobuser`) | `SUBMIT` 은 현재 사용자 권한으로 실행. 우회 없음 | AS-IS 에서 스텝마다 사용자가 실제로 다른가? |
+| **잡 클래스 A/B/C** (`jobclass`) | APJ 에 개념 없음 | 실제로 A/B 를 쓰는 잡이 있나? |
+| **외부 커맨드/프로그램** (`pgtype`≠PROG) | APJ 는 ABAP 클래스만 | `PROG` 외 값이 쓰이나? |
 
-`odata/` 의 뼈대를 그대로 쓰되 액션 매핑만 바꾼다:
+이 3개가 전부 "안 쓴다"면 **APJ 컨버전에 기능 손실이 없다.**
 
-| AS-IS RFC | RAP action | 내부 |
-|-----------|-----------|------|
-| `ZBC_BATCH_JOB_CREATE` | `scheduleJob` | `JOB_OPEN` → `JOB_SUBMIT`(n회) → `JOB_CLOSE` |
-| `ZBC_BATCH_JOB_DELETE` | `deleteJob` | `BP_JOB_DELETE` |
-| `ZBC_BATCH_JOB_STATUS` | `refreshStatus` | `BP_JOB_SELECT` |
-| `..._CHANGE` | `changeJob` | `BP_JOB_MODIFY` 또는 delete + 재생성 |
+### 품질 저하 — 3개 (동작은 하되 SM36 만 못함)
 
-`ZTJOB_RUN` 에 `reqid` / `reqname` / `reqdatetime` 컬럼을 추가하면
-요청자 추적이 그대로 유지된다.
+| 항목 | 저하 내용 |
+|------|----------|
+| 다중 스텝 | 런처 LOOP 로 순차 실행은 되나 **스텝별 상태 구분이 안 되고 로그가 합쳐짐** |
+| 잡 이름 | 사용자 지정 이름은 `ZTJOB_DEF-job_label` 에 보관. **SM37 에는 자동생성명으로 보임** |
+| 팩토리 캘린더 | 잡은 매일 돌고 비작업일엔 skip 로그만 남음 |
 
----
+### 개선 — 1개
 
-## 4. Application Job 적용 범위 — 혼합
-
-| 대상 | 방식 |
+| 항목 | 내용 |
 |------|------|
-| 신규 잡, 대상 프로그램이 **고정** | **Application Job** (카탈로그 엔트리 생성 가능) |
-| 기존 범용 스케줄러 | **클래식 + BDC 제거** |
-| 중장기 | 사용 빈도 높은 프로그램 Top-N 을 카탈로그 엔트리로 올려 점진 이관 |
+| **타임존** | AS-IS 는 "시스템 zone시간" 을 받아 직접 변환했다. **APJ 는 프레임워크가 처리** (COMPARISON A4) |
 
-`ZJOB_TEST` 비교 테스트는 **"왜 APJ 로 전면 전환하지 않았는가"** 를 설명하는 실증 근거로 쓴다.
-COMPARISON.md 의 #1 / #4 / #5 / #16 이 여기 직접 대응한다.
+---
+
+## 4. ZJOB_TEST 비교 테스트의 역할
+
+`zjob_test/` 의 비교 테스트는 위 "기능 손실 3개 / 품질 저하 3개"를 **실측으로 확정**하는 데 쓴다.
+
+| 확정할 것 | 대응 TC |
+|----------|---------|
+| APJ 잡이 SM37 에 어떤 이름으로 보이는가 | TC01 (#16) |
+| APJ 잡 로그 vs SM37 Job log 내용 차이 | TC01 (#18) |
+| APJ 에 스풀이 생기는가 | TC07 (#9) |
+| 취소 시 어느 시점에 끊기는가 | TC05 (#14) |
+| 오류 종료 시 상태 표기 | TC06 (#15) |
+| APJ 반복 주기의 실제 정확도 | TC02 |
 
 ---
 

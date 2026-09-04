@@ -4,9 +4,14 @@
 @ObjectModel.usageType:{ serviceQuality: #X, sizeCategory: #S, dataClass: #MIXED }
 define root view entity ZI_JOB_RUN
   as select from ztjob_run
-  composition [0..*] of ZI_JOB_STEP as _Step
 {
   key run_uuid              as RunUuid,
+
+      // --- 실행 대상 ---
+      pg_type               as ProgramType,
+      pg_id                 as ProgramName,
+      pg_variant            as Variant,
+      pg_lang               as Language,
 
       sys_id                as SystemId,
       target_client         as TargetClient,
@@ -74,7 +79,5 @@ define root view entity ZI_JOB_RUN
       @Semantics.systemDateTime.localInstanceLastChangedAt: true
       local_last_changed_at as LocalLastChangedAt,
       @Semantics.systemDateTime.lastChangedAt: true
-      last_changed_at       as LastChangedAt,
-
-      _Step
+      last_changed_at       as LastChangedAt
 }

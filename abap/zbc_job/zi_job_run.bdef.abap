@@ -2,12 +2,13 @@ managed implementation in class zbp_i_job_run unique;
 strict ( 2 );
 
 // AS-IS 인터페이스 대응
-//   ZBC_BATCH_JOB_CREATE  -> create (+ 스텝 deep create) + action scheduleJob
-//   ZBC_BATCH_JOB_CHANGE  -> update (+ 재스케줄)
+//   ZBC_BATCH_JOB_CREATE  -> create + action scheduleJob
+//   ZBC_BATCH_JOB_CHANGE  -> update (+ cancelJob + scheduleJob 재스케줄)
 //   ZBC_BATCH_JOB_DELETE  -> action cancelJob (+ delete)
 //   ZBC_BATCH_JOB_STATUS  -> action refreshStatus / 조회
 //
 // 액션은 전부 CL_APJ_RT_API 를 호출한다. BDC 는 없다.
+// 잡 하나 = 프로그램 하나 구조라 자식 엔티티가 없다.
 define behavior for ZI_JOB_RUN alias JobRun
 persistent table ztjob_run
 lock master
@@ -30,13 +31,11 @@ etag master LocalLastChangedAt
                      LocalLastChangedAt,
                      LastChangedAt;
 
-  field ( mandatory ) JobLabel;
+  field ( mandatory ) JobLabel, ProgramName;
 
   create;
   update;
   delete;
-
-  association _Step { create; }
 
   // --- APJ 제어 액션 ------------------------------------------------------
   action ( features : instance ) scheduleJob parameter ZD_JOB_SCHEDULE result [1] $self;
@@ -49,6 +48,10 @@ etag master LocalLastChangedAt
   mapping for ztjob_run
   {
     RunUuid            = run_uuid;
+    ProgramType        = pg_type;
+    ProgramName        = pg_id;
+    Variant            = pg_variant;
+    Language           = pg_lang;
     SystemId           = sys_id;
     TargetClient       = target_client;
     BusinessArea       = biz_area;
@@ -85,39 +88,5 @@ etag master LocalLastChangedAt
     LastChangedBy      = last_changed_by;
     LocalLastChangedAt = local_last_changed_at;
     LastChangedAt      = last_changed_at;
-  }
-}
-
-
-define behavior for ZI_JOB_STEP alias Step
-persistent table ztjob_step
-lock dependent by _Run
-authorization dependent by _Run
-{
-  field ( numbering : managed, readonly ) StepUuid;
-  field ( readonly ) RunUuid, ExecutionSuccess, ExecutionMessage,
-                     LastChangedBy, LocalLastChangedAt;
-
-  field ( mandatory ) ProgramName;
-
-  update;
-  delete;
-
-  association _Run;
-
-  mapping for ztjob_step
-  {
-    RunUuid            = run_uuid;
-    StepUuid           = step_uuid;
-    StepNumber         = step_no;
-    ProgramType        = pg_type;
-    ProgramName        = pg_id;
-    Variant            = pg_variant;
-    Language           = pg_lang;
-    StepUser           = step_user;
-    ExecutionSuccess   = exec_success;
-    ExecutionMessage   = exec_message;
-    LastChangedBy      = last_changed_by;
-    LocalLastChangedAt = local_last_changed_at;
   }
 }

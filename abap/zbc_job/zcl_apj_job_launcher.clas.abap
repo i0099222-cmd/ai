@@ -37,9 +37,9 @@ CLASS zcl_apj_job_launcher DEFINITION
       RETURNING
         VALUE(rv_value) TYPE string.
 
-    METHODS log_summary
+    METHODS log_result
       IMPORTING
-        is_summary TYPE zif_bc_job=>ty_run_summary.
+        is_result TYPE zif_bc_job=>ty_run_result.
 
 ENDCLASS.
 
@@ -95,12 +95,12 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
       RAISE EXCEPTION NEW cx_apj_dt_content( ).
     ENDIF.
 
-    " 스텝이 하나도 없으면 돌 이유가 없다.
-    SELECT SINGLE @abap_true FROM ztjob_step
+    " 실행할 프로그램이 지정돼 있어야 한다.
+    SELECT SINGLE pg_id FROM ztjob_run
       WHERE run_uuid = @lv_run_id
-      INTO @DATA(lv_has_step).
+      INTO @DATA(lv_pg_id).
 
-    IF lv_has_step <> abap_true.
+    IF lv_pg_id IS INITIAL.
       RAISE EXCEPTION NEW cx_apj_dt_content( ).
     ENDIF.
 
@@ -126,14 +126,14 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
 
     MESSAGE |Launcher start: run_id={ lv_run_id_str }| TYPE 'I'.
 
-    DATA(ls_summary) = NEW zcl_bc_job_runner( )->run( lv_run_uuid ).
+    DATA(ls_result) = NEW zcl_bc_job_runner( )->run( lv_run_uuid ).
 
-    log_summary( ls_summary ).
+    log_result( ls_result ).
 
-    " 스텝이 실패했으면 잡을 오류 종료시킨다.
+    " 실패했으면 잡을 오류 종료시킨다.
     " Application Jobs 앱 / SM37 에서 각각 어떤 상태로 보이는지가 비교 항목 #15.
-    IF ls_summary-failed > 0.
-      MESSAGE |Launcher: { ls_summary-failed } step(s) failed| TYPE 'E'.
+    IF ls_result-skipped = abap_false AND ls_result-success = abap_false.
+      MESSAGE |Launcher failed: { ls_result-message }| TYPE 'E'.
     ENDIF.
 
   ENDMETHOD.
@@ -149,27 +149,23 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD log_summary.
+  METHOD log_result.
 
-    IF is_summary-skipped = abap_true.
-      MESSAGE |Launcher SKIPPED: { SWITCH string( is_summary-skip_reason
+    IF is_result-skipped = abap_true.
+      MESSAGE |Launcher SKIPPED: { SWITCH string( is_result-skip_reason
         WHEN zif_bc_job=>gc_skip-after_close THEN 'past close time (last_start)'
         WHEN zif_bc_job=>gc_skip-not_workday THEN 'not a factory working day'
-        WHEN zif_bc_job=>gc_skip-no_step     THEN 'no step defined'
+        WHEN zif_bc_job=>gc_skip-no_program  THEN 'no program specified'
+        WHEN zif_bc_job=>gc_skip-unsupported THEN 'program type not supported on APJ'
         WHEN zif_bc_job=>gc_skip-run_missing THEN 'schedule row not found'
         ELSE 'unknown' ) }| TYPE 'I'.
       RETURN.
     ENDIF.
 
-    LOOP AT is_summary-t_step INTO DATA(ls_step).
-      MESSAGE |Step { ls_step-step_no }: { ls_step-pg_id } -> | &&
-              |{ COND string( WHEN ls_step-success = abap_true THEN 'OK' ELSE 'NG' ) } | &&
-              |{ ls_step-message }|
-        TYPE COND #( WHEN ls_step-success = abap_true THEN 'I' ELSE 'W' ).
-    ENDLOOP.
-
-    MESSAGE |Launcher end: executed={ is_summary-executed } | &&
-            |failed={ is_summary-failed } / requested={ is_summary-requested }| TYPE 'I'.
+    MESSAGE |Launcher end: { is_result-pg_id } -> | &&
+            |{ COND string( WHEN is_result-success = abap_true THEN 'OK' ELSE 'NG' ) } | &&
+            |{ is_result-message }|
+      TYPE COND #( WHEN is_result-success = abap_true THEN 'I' ELSE 'W' ).
 
   ENDMETHOD.
 

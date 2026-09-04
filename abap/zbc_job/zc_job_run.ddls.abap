@@ -8,6 +8,13 @@ define root view entity ZC_JOB_RUN
 {
   key RunUuid,
 
+      ProgramType,
+      @Search.defaultSearchElement: true
+      @EndUserText.label: 'Program'
+      ProgramName,
+      Variant,
+      Language,
+
       SystemId,
       TargetClient,
       BusinessArea,
@@ -58,7 +65,5 @@ define root view entity ZC_JOB_RUN
       CreatedBy,
       CreatedAt,
       LastChangedBy,
-      LastChangedAt,
-
-      _Step : redirected to composition child ZC_JOB_STEP
+      LastChangedAt
 }

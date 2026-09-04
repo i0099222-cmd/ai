@@ -3,15 +3,14 @@ INTERFACE zif_bc_job
   PUBLIC.
 
   "! APJ 실행 클래스 파라미터.
-  "! APJ 파라미터(tt_templ_val)는 selname/low/high 구조라 스텝 테이블을 넘길 수 없다.
-  "! 그래서 스케줄 행의 UUID 하나만 넘기고, 런처가 그 UUID 로
-  "! ZTJOB_RUN + ZTJOB_STEP 을 읽어서 실행한다.
+  "! 스케줄 행의 UUID 하나만 넘기고, 런처가 그 UUID 로 ZTJOB_RUN 을 읽어
+  "! 무엇을 어떤 조건으로 실행할지 판단한다.
   CONSTANTS:
     BEGIN OF gc_param,
       run_id TYPE c LENGTH 8 VALUE 'P_RUNID',
     END OF gc_param.
 
-  "! 스텝 종류 (AS-IS pgtype)
+  "! 실행 대상 종류 (AS-IS pgtype)
   CONSTANTS:
     BEGIN OF gc_pgtype,
       abap_program TYPE c LENGTH 4 VALUE 'PROG',
@@ -38,31 +37,20 @@ INTERFACE zif_bc_job
       none        TYPE c LENGTH 1 VALUE ' ',
       after_close TYPE c LENGTH 1 VALUE 'C',  "! last_start 시각 초과
       not_workday TYPE c LENGTH 1 VALUE 'W',  "! 팩토리 캘린더 비작업일
-      no_step     TYPE c LENGTH 1 VALUE 'N',
-      run_missing TYPE c LENGTH 1 VALUE 'D',
+      no_program  TYPE c LENGTH 1 VALUE 'N',  "! 실행 대상 없음
+      run_missing TYPE c LENGTH 1 VALUE 'D',  "! 스케줄 행 없음
+      unsupported TYPE c LENGTH 1 VALUE 'U',  "! APJ 로 실행 불가한 종류
     END OF gc_skip.
 
-  "! 스텝 1건 실행 결과
+  "! 런처 1회 실행 결과
   TYPES:
-    BEGIN OF ty_step_result,
-      step_uuid TYPE sysuuid_x16,
-      step_no   TYPE i,
-      pg_id     TYPE c LENGTH 40,
-      success   TYPE abap_bool,
-      message   TYPE string,
-    END OF ty_step_result,
-    tt_step_result TYPE STANDARD TABLE OF ty_step_result WITH EMPTY KEY.
-
-  "! 런처 1회 실행 요약
-  TYPES:
-    BEGIN OF ty_run_summary,
+    BEGIN OF ty_run_result,
       run_uuid    TYPE sysuuid_x16,
       skipped     TYPE abap_bool,
       skip_reason TYPE c LENGTH 1,
-      requested   TYPE i,
-      executed    TYPE i,
-      failed      TYPE i,
-      t_step      TYPE tt_step_result,
-    END OF ty_run_summary.
+      success     TYPE abap_bool,
+      pg_id       TYPE c LENGTH 40,
+      message     TYPE string,
+    END OF ty_run_result.
 
 ENDINTERFACE.

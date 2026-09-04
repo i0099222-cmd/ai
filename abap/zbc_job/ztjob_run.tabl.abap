@@ -1,4 +1,4 @@
-@EndUserText.label : '배치잡 스케줄 (AS-IS ZBCS0011 대응)'
+@EndUserText.label : '배치잡 스케줄'
 @AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
 @AbapCatalog.tableCategory : #TRANSPARENT
 @AbapCatalog.deliveryClass : #A
@@ -7,6 +7,17 @@ define table ztjob_run {
 
   key client            : abap.clnt not null;
   key run_uuid          : sysuuid_x16 not null;
+
+  // ===== 실행 대상 (AS-IS ZBCS0012 / lt_pg 를 평탄화) =====================
+  // 잡 하나 = 프로그램 하나.
+  @EndUserText.label : '스텝 종류 (PROG / CMD / EXT)'
+  pg_type               : abap.char(4);
+  @EndUserText.label : '실행할 리포트'
+  pg_id                 : abap.char(40);
+  @EndUserText.label : '배리언트'
+  pg_variant            : abap.char(14);
+  @EndUserText.label : '실행 언어'
+  pg_lang               : abap.lang;
 
   // ===== AS-IS ZBCS0011 =================================================
 

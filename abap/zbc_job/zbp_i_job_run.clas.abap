@@ -1,7 +1,7 @@
 "! <p class="shorttext synchronized">ZI_JOB_RUN Behavior Implementation</p>
 "!
 "! AS-IS 인터페이스 대응:
-"!   ZBC_BATCH_JOB_CREATE -> create(+ 스텝) 후 scheduleJob
+"!   ZBC_BATCH_JOB_CREATE -> create 후 scheduleJob
 "!   ZBC_BATCH_JOB_CHANGE -> update 후 재스케줄
 "!   ZBC_BATCH_JOB_DELETE -> cancelJob
 "!   ZBC_BATCH_JOB_STATUS -> refreshStatus
@@ -105,6 +105,13 @@ CLASS lhc_jobrun IMPLEMENTATION.
 
       IF ls_run-joblabel IS INITIAL.
         lv_error = '배치잡 명이 필요합니다'.
+
+      ELSEIF ls_run-programname IS INITIAL.
+        lv_error = '실행할 프로그램이 필요합니다'.
+
+      ELSEIF ls_run-programtype IS NOT INITIAL
+             AND ls_run-programtype <> zif_bc_job=>gc_pgtype-abap_program.
+        lv_error = |'{ ls_run-programtype }' 종류는 Application Job 으로 실행할 수 없습니다|.
 
       ELSEIF ls_run-startimmediately = abap_false
              AND ls_run-startdate IS INITIAL.

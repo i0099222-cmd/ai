@@ -1,5 +1,5 @@
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: '배치잡 스케줄'
+@EndUserText.label: '배치잡 스케줄 등록부'
 @Metadata.allowExtensions: true
 @Search.searchable: true
 define root view entity ZC_JOB_RUN
@@ -20,16 +20,10 @@ define root view entity ZC_JOB_RUN
       @EndUserText.label: 'Job Count (SM37)'
       JobCount,
 
-      @ObjectModel.text.element: ['JobStatusText']
-      JobStatus,
-      JobStatusText,
-      @UI.hidden: true
-      JobStatusCriticality,
-
-      Message,
+      @EndUserText.label: 'Scheduled'
+      IsScheduled,
 
       CreatedBy,
       CreatedAt,
-      LastChangedBy,
       LocalLastChangedAt
 }

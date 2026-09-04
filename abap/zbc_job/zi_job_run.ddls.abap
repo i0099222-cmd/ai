@@ -1,5 +1,5 @@
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: '배치잡 스케줄 (Interface)'
+@EndUserText.label: '배치잡 스케줄 등록부 (Interface)'
 @Metadata.ignorePropagatedAnnotations: true
 @ObjectModel.usageType:{ serviceQuality: #X, sizeCategory: #S, dataClass: #MIXED }
 define root view entity ZI_JOB_RUN
@@ -15,33 +15,14 @@ define root view entity ZI_JOB_RUN
       jobname               as JobName,
       jobcount              as JobCount,
 
-      status                as JobStatus,
-      case status
-        when 'S' then 'Scheduled'
-        when 'R' then 'Running'
-        when 'F' then 'Finished'
-        when 'E' then 'Error'
-        when 'C' then 'Cancelled'
-        when 'K' then 'Skipped'
-        else          'Not scheduled'
-      end                   as JobStatusText,
-      // Fiori criticality: 0 중립 / 1 부정 / 2 경고 / 3 긍정
-      case status
-        when 'F' then 3
-        when 'E' then 1
-        when 'C' then 2
-        when 'K' then 2
-        else          0
-      end                   as JobStatusCriticality,
-
-      message               as Message,
+      // 스케줄 여부는 잡 이름 유무로 판단한다. 상태 컬럼을 두지 않는다.
+      // 실제 실행 상태는 별도 로그 기능 / refreshStatus 액션이 APJ 에서 읽는다.
+      case when jobname <> '' then 'X' else '' end as IsScheduled,
 
       @Semantics.user.createdBy: true
       created_by            as CreatedBy,
       @Semantics.systemDateTime.createdAt: true
       created_at            as CreatedAt,
-      @Semantics.user.localInstanceLastChangedBy: true
-      last_changed_by       as LastChangedBy,
       @Semantics.systemDateTime.localInstanceLastChangedAt: true
       local_last_changed_at as LocalLastChangedAt
 }

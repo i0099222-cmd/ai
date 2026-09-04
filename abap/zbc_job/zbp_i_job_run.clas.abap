@@ -4,9 +4,13 @@
 "!   ZBC_BATCH_JOB_CREATE -> create 후 scheduleJob
 "!   ZBC_BATCH_JOB_CHANGE -> update 후 cancelJob + scheduleJob
 "!   ZBC_BATCH_JOB_DELETE -> cancelJob
-"!   ZBC_BATCH_JOB_STATUS -> refreshStatus
+"!   ZBC_BATCH_JOB_STATUS -> refreshStatus (APJ 에서 읽어 메시지로 반환)
 "!
 "! 액션은 전부 ZCL_JOB_APJ_ADAPTER 를 거쳐 CL_APJ_RT_API 를 호출한다. BDC 없음.
+"!
+"! 이 BO 는 상태 컬럼을 갖지 않는다. 스케줄 여부는 JobName 유무로 판단하고,
+"! 실제 실행 상태는 refreshStatus 가 APJ 에서 읽어 메시지로만 돌려준다.
+"! 실행 이력은 별도 로그 기능이 담당한다.
 CLASS zbp_i_job_run DEFINITION
   PUBLIC
   ABSTRACT
@@ -55,27 +59,29 @@ CLASS lhc_jobrun IMPLEMENTATION.
 
     READ ENTITIES OF zi_job_run IN LOCAL MODE
       ENTITY jobrun
-        FIELDS ( jobstatus )
+        FIELDS ( jobname )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_run)
       FAILED failed.
 
+    " 상태 컬럼 없이 잡 이름 유무만으로 판단한다.
+    "   비어 있음 = 아직 스케줄 안 함 -> scheduleJob 가능
+    "   차 있음   = 스케줄됨          -> cancelJob / refreshStatus 가능
     result = VALUE #( FOR ls_run IN lt_run
       ( %tky = ls_run-%tky
 
-        " 아직 안 걸었거나 끝난 잡만 스케줄 가능
         %action-schedulejob = COND #(
-          WHEN ls_run-jobstatus = zif_bc_job=>gc_status-initial
-            OR ls_run-jobstatus = zif_bc_job=>gc_status-finished
-            OR ls_run-jobstatus = zif_bc_job=>gc_status-error
-            OR ls_run-jobstatus = zif_bc_job=>gc_status-cancelled
+          WHEN ls_run-jobname IS INITIAL
           THEN if_abap_behv=>fc-o-enabled
           ELSE if_abap_behv=>fc-o-disabled )
 
-        " 걸려 있거나 도는 중인 잡만 취소 가능
         %action-canceljob = COND #(
-          WHEN ls_run-jobstatus = zif_bc_job=>gc_status-scheduled
-            OR ls_run-jobstatus = zif_bc_job=>gc_status-running
+          WHEN ls_run-jobname IS NOT INITIAL
+          THEN if_abap_behv=>fc-o-enabled
+          ELSE if_abap_behv=>fc-o-disabled )
+
+        %action-refreshstatus = COND #(
+          WHEN ls_run-jobname IS NOT INITIAL
           THEN if_abap_behv=>fc-o-enabled
           ELSE if_abap_behv=>fc-o-disabled ) ) ).
 
@@ -129,18 +135,22 @@ CLASS lhc_jobrun IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      APPEND VALUE #( %tky      = ls_run-%tky
-                      jobname   = ls_sched-job_name
-                      jobcount  = ls_sched-job_count
-                      jobstatus = zif_bc_job=>gc_status-scheduled
-                      message   = CONV #( ls_sched-message ) )
+      APPEND VALUE #( %tky     = ls_run-%tky
+                      jobname  = ls_sched-job_name
+                      jobcount = ls_sched-job_count )
              TO lt_update.
+
+      APPEND VALUE #( %tky = ls_run-%tky
+                      %msg = new_message_with_text(
+                               severity = if_abap_behv_message=>severity-success
+                               text     = ls_sched-message ) )
+             TO reported-jobrun.
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zi_job_run IN LOCAL MODE
       ENTITY jobrun
-        UPDATE FIELDS ( jobname jobcount jobstatus message )
+        UPDATE FIELDS ( jobname jobcount )
         WITH lt_update.
 
     result = read_self( keys ).
@@ -168,9 +178,10 @@ CLASS lhc_jobrun IMPLEMENTATION.
       DATA(lv_message) = lo_adapter->cancel( iv_job_name  = ls_run-jobname
                                              iv_job_count = ls_run-jobcount ).
 
-      APPEND VALUE #( %tky      = ls_run-%tky
-                      jobstatus = zif_bc_job=>gc_status-cancelled
-                      message   = CONV #( lv_message ) )
+      " 취소했으면 APJ 포인터를 비운다. 같은 행을 다시 스케줄할 수 있게 된다.
+      APPEND VALUE #( %tky     = ls_run-%tky
+                      jobname  = space
+                      jobcount = space )
              TO lt_update.
 
       APPEND VALUE #( %tky = ls_run-%tky
@@ -183,7 +194,7 @@ CLASS lhc_jobrun IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_job_run IN LOCAL MODE
       ENTITY jobrun
-        UPDATE FIELDS ( jobstatus message )
+        UPDATE FIELDS ( jobname jobcount )
         WITH lt_update.
 
     result = read_self( keys ).
@@ -204,28 +215,24 @@ CLASS lhc_jobrun IMPLEMENTATION.
       RESULT DATA(lt_run)
       FAILED failed.
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_job_run.
     DATA(lo_adapter) = NEW zcl_job_apj_adapter( ).
 
     LOOP AT lt_run INTO DATA(ls_run).
 
-      " 아직 스케줄 안 한 행은 건너뛴다
       CHECK ls_run-jobname IS NOT INITIAL.
 
       DATA(ls_status) = lo_adapter->get_status( iv_job_name  = ls_run-jobname
                                                 iv_job_count = ls_run-jobcount ).
 
-      APPEND VALUE #( %tky      = ls_run-%tky
-                      jobstatus = ls_status-status
-                      message   = CONV #( ls_status-message ) )
-             TO lt_update.
+      " DB 에 쓰지 않는다. 진실의 원천은 APJ 이고, 이력은 로그 기능이 갖는다.
+      APPEND VALUE #( %tky = ls_run-%tky
+                      %msg = new_message_with_text(
+                               severity = if_abap_behv_message=>severity-information
+                               text     = |{ ls_run-jobname }/{ ls_run-jobcount }: | &&
+                                          |{ ls_status-message }| ) )
+             TO reported-jobrun.
 
     ENDLOOP.
-
-    MODIFY ENTITIES OF zi_job_run IN LOCAL MODE
-      ENTITY jobrun
-        UPDATE FIELDS ( jobstatus message )
-        WITH lt_update.
 
     result = read_self( keys ).
 

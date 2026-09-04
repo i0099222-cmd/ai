@@ -3,7 +3,8 @@
 "! ZTJOB_RUN 한 건을 읽어서
 "!   1) PARAM(JSON)을 풀어 실행 조건 판정 (close 시각 / 팩토리 캘린더)
 "!   2) PGMID 실행
-"!   3) 결과를 ZTJOB_RUN 에 기록
+"! 결과는 호출자(런처)에 돌려주기만 하고 DB 에 쓰지 않는다.
+"! 실행 이력은 별도 로그 기능이 담당하고, 여기서는 잡 로그(MESSAGE)만 남긴다.
 "!
 "! 언어버전: ABAP for Cloud Development.
 "! SUBMIT 과 팩토리 캘린더 조회는 Standard ABAP FM(Local API released)에 위임한다.
@@ -30,10 +31,6 @@ CLASS zcl_bc_job_runner DEFINITION
         is_param       TYPE zif_bc_job=>ty_param
       RETURNING
         VALUE(rv_skip) TYPE c.
-
-    METHODS save_result
-      IMPORTING
-        is_result TYPE zif_bc_job=>ty_run_result.
 
 ENDCLASS.
 
@@ -63,7 +60,6 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
     IF ls_run-pgmid IS INITIAL.
       rs_result-skipped     = abap_true.
       rs_result-skip_reason = zif_bc_job=>gc_skip-no_program.
-      save_result( rs_result ).
       RETURN.
     ENDIF.
 
@@ -78,7 +74,6 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
     IF lv_skip <> zif_bc_job=>gc_skip-none.
       rs_result-skipped     = abap_true.
       rs_result-skip_reason = lv_skip.
-      save_result( rs_result ).
       RETURN.
     ENDIF.
 
@@ -95,8 +90,6 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
 
     rs_result-success = xsdbool( lv_subrc = 0 ).
     rs_result-message = lv_message.
-
-    save_result( rs_result ).
 
   ENDMETHOD.
 
@@ -145,30 +138,5 @@ CLASS zcl_bc_job_runner IMPLEMENTATION.
 
   ENDMETHOD.
 
-
-  METHOD save_result.
-
-    DATA(lv_status) = COND #(
-      WHEN is_result-skipped = abap_true THEN zif_bc_job=>gc_status-skipped
-      WHEN is_result-success = abap_true THEN zif_bc_job=>gc_status-finished
-      ELSE                                    zif_bc_job=>gc_status-error ).
-
-    DATA(lv_message) = COND #(
-      WHEN is_result-skipped = abap_true
-        THEN |Skipped: { SWITCH string( is_result-skip_reason
-               WHEN zif_bc_job=>gc_skip-after_close THEN 'past close time'
-               WHEN zif_bc_job=>gc_skip-not_workday THEN 'not a factory working day'
-               WHEN zif_bc_job=>gc_skip-no_program  THEN 'no program specified'
-               ELSE 'unknown' ) }|
-      ELSE is_result-message ).
-
-    UPDATE ztjob_run
-      SET status  = @lv_status,
-          message = @( CONV ztjob_run-message( lv_message ) )
-      WHERE run_uuid = @is_result-run_uuid.
-
-    COMMIT WORK.
-
-  ENDMETHOD.
 
 ENDCLASS.

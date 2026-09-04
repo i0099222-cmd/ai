@@ -5,15 +5,9 @@ AS-IS `ZBC_BATCH_JOB_CREATE` / `_CHANGE` / `_DELETE` / `_STATUS` (BDC on SM36) �
 
 ---
 
-## 1. 데이터 모델 — 테이블 1개, 컬럼 12개
+## 1. 데이터 모델 — 테이블 1개, 컬럼 10개
 
-**필드를 3종류로 나눠서, DB 에는 꼭 필요한 것만 남겼다.**
-
-| 종류 | 예 | 어디에 |
-|------|-----|--------|
-| APJ 가 이미 갖고 있는 것 | 시작일시, 반복주기, 타임존 | **DB 저장 안 함.** `scheduleJob` 액션 파라미터로만 받아 APJ 에 넘김 |
-| 런처가 실행 시점에 읽는 것 | 배리언트, 팩토리캘린더, close 시각 | **`param` 에 JSON 직렬화** |
-| 포인터 | template, jobname, jobcount, pgmid | DB 컬럼 |
+이 테이블은 **스케줄 등록부**다. 실행 상태와 로그는 갖지 않는다 — 별도 로그 기능 담당.
 
 ```
 ZTJOB_RUN
@@ -24,20 +18,43 @@ ZTJOB_RUN
   param       런처 전달 파라미터 (JSON)
   jobname     APJ 가 만든 잡 이름 (SM37)
   jobcount    APJ 잡 카운트 (SM37)
-  status      상태 캐시
-  message     마지막 메시지
-  + created_by / created_at / last_changed_by / local_last_changed_at
+  created_by  누가 걸었나
+  created_at  언제 걸었나
+  local_last_changed_at   etag
 ```
+
+### 필드를 3종류로 나눈 결과
+
+| 종류 | 예 | 어디에 |
+|------|-----|--------|
+| APJ 가 이미 갖고 있는 것 | 시작일시, 반복주기, 타임존 | **저장 안 함.** `scheduleJob` 액션 파라미터로만 받아 APJ 에 넘김 |
+| 런처가 실행 시점에 읽는 것 | 배리언트, 팩토리캘린더, close 시각 | **`param` 에 JSON 직렬화** |
+| 실행 상태 / 이력 | 상태, 실행 메시지 | **저장 안 함.** 별도 로그 기능 |
+| 포인터 | template, jobname, jobcount, pgmid | DB 컬럼 |
+
+### 상태 컬럼이 없어도 되는 이유
+
+**`jobname` 유무가 곧 스케줄 여부다.**
+
+| `jobname` | 의미 | 활성 액션 |
+|-----------|------|----------|
+| 비어 있음 | 아직 스케줄 안 함 | `scheduleJob` |
+| 차 있음 | 스케줄됨 | `cancelJob`, `refreshStatus` |
+
+`cancelJob` 은 취소 후 `jobname`/`jobcount` 를 비운다 → 같은 행을 다시 스케줄할 수 있다.
+실제 실행 상태(Running / Finished / Aborted)는 `refreshStatus` 가 APJ 에서 읽어
+**메시지로만** 돌려준다. DB 에 쓰지 않는다.
+
+### 런처는 DB 에 아무것도 안 쓴다
+
+`ZCL_BC_JOB_RUNNER` 는 읽고 → 판정하고 → 실행하고 → 결과를 반환만 한다.
+`COMMIT WORK` 도 없다. 실행 흔적은 잡 로그(`MESSAGE`)로만 남고,
+그 로그는 별도 로그 기능이 수집한다.
 
 ### 왜 `jobcount` 가 필요한가
 
 APJ 잡의 키는 **`jobname + jobcount`** 다.
 `jobcount` 없이는 `GET_JOB_STATUS` / `CANCEL_JOB` 을 호출할 수 없다.
-
-### 요청자 정보는
-
-`created_by` / `created_at` (RAP 관리 필드)이 대신한다.
-요청사유처럼 별도 텍스트가 필요하면 `param` 에 넣거나 컬럼 하나만 추가한다.
 
 ### `param` 에 들어가는 것
 
@@ -53,12 +70,7 @@ TYPES: BEGIN OF ty_param,
 ```
 
 `ZCL_BC_JOB_PARAM` 이 XCO(Cloud released 직렬화 API)로 JSON 변환한다.
-이 값들은 런처만 읽으므로 SQL 조건으로 쓸 일이 없어 컬럼으로 뺄 이유가 없다.
-
-### 상태의 진실의 원천은 APJ
-
-`status` 는 **목록 조회 때마다 API 를 부르지 않으려는 캐시**다.
-`refreshStatus` 액션이 `GET_JOB_STATUS` 로 갱신한다.
+런처만 읽는 값이라 SQL 조건으로 쓸 일이 없어 컬럼으로 뺄 이유가 없다.
 
 ---
 
@@ -94,14 +106,14 @@ scheduleJob 액션 → CL_APJ_RT_API=>SCHEDULE_JOB (P_RUNID = run_uuid)
 
 | 파일 | 언어버전 | 내용 |
 |------|---------|------|
-| `ztjob_run.tabl.abap` | — | 테이블 (유일, 12 컬럼) |
+| `ztjob_run.tabl.abap` | — | 테이블 (유일, 10 컬럼) |
 | `zi_job_run.ddls.abap` / `zc_job_run.ddls.abap` | — | interface / projection view |
 | `zd_job_schedule.ddls.abap` | — | `scheduleJob` 파라미터 |
 | `zi_job_run.bdef.abap` / `zc_job_run.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
-| `zbp_i_job_run.clas.abap` | ABAP Cloud | 액션 구현 |
+| `zbp_i_job_run.clas.abap` | ABAP Cloud | 액션 구현 (상태 컬럼 없이 `jobname` 유무로 제어) |
 | `zcl_job_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
 | `zcl_apj_job_launcher.clas.abap` | ABAP Cloud | **APJ 실행 오브젝트** |
-| `zcl_bc_job_runner.clas.abap` | ABAP Cloud | 조건 판정 + 실행 |
+| `zcl_bc_job_runner.clas.abap` | ABAP Cloud | 조건 판정 + 실행 (DB 쓰기 없음) |
 | `zif_bc_job.intf.abap` | ABAP Cloud | 상수/타입 (`ty_param`, `ty_start_option`) |
 | `zcl_bc_job_param.clas.abap` | ABAP Cloud | `param` JSON 직렬화 (XCO) |
 | `z_bc_run_report.abap` | **Standard ABAP** | `SUBMIT` 래퍼 |
@@ -120,9 +132,10 @@ Standard ABAP FM 2개는 SE37 > Goto > API State >
 | `ZBC_BATCH_JOB_CREATE` | `JobRun` create → action `scheduleJob` |
 | `ZBC_BATCH_JOB_CHANGE` | `JobRun` update → `cancelJob` + `scheduleJob` |
 | `ZBC_BATCH_JOB_DELETE` | action `cancelJob` (+ delete) |
-| `ZBC_BATCH_JOB_STATUS` | action `refreshStatus` / `JobRun` 조회 |
+| `ZBC_BATCH_JOB_STATUS` | action `refreshStatus` — APJ 에서 읽어 메시지로 반환 (DB 저장 안 함) |
 
-`reqid` / `reqname` / `reqdatetime` / 요청사유 → `ZTJOB_RUN` 컬럼으로 그대로 보존.
+`reqid` / `reqname` / `reqdatetime` → RAP 관리 필드 `created_by` / `created_at` 이 대신한다.
+요청사유처럼 별도 텍스트가 필요하면 `param` 에 넣거나 컬럼 하나만 추가한다.
 
 ---
 

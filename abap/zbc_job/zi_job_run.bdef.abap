@@ -5,12 +5,11 @@ strict ( 2 );
 //   ZBC_BATCH_JOB_CREATE  -> create + action scheduleJob
 //   ZBC_BATCH_JOB_CHANGE  -> update (+ cancelJob + scheduleJob 재스케줄)
 //   ZBC_BATCH_JOB_DELETE  -> action cancelJob (+ delete)
-//   ZBC_BATCH_JOB_STATUS  -> action refreshStatus / 조회
+//   ZBC_BATCH_JOB_STATUS  -> action refreshStatus (APJ 에서 읽어 메시지로 반환)
 //
-// 액션은 전부 CL_APJ_RT_API 를 호출한다. BDC 는 없다.
-//
-// 시작일시/반복주기/타임존은 DB 에 없다. scheduleJob 액션 파라미터로만 받아
-// APJ 에 넘긴다. 그 값들의 진실의 원천은 APJ 이므로 중복 저장하지 않는다.
+// 이 BO 는 "스케줄 등록부"다. 실행 상태와 로그는 갖지 않는다 - 별도 로그 기능 담당.
+// 시작일시/반복주기/타임존도 DB 에 없다. scheduleJob 액션 파라미터로만 받아
+// APJ 에 넘긴다.
 define behavior for ZI_JOB_RUN alias JobRun
 persistent table ztjob_run
 lock master
@@ -19,14 +18,12 @@ etag master LocalLastChangedAt
 {
   field ( numbering : managed, readonly ) RunUuid;
 
-  // APJ 가 만들어주는 값과 상태는 사용자가 못 바꾼다
+  // APJ 가 만들어주는 포인터는 사용자가 못 바꾼다
   field ( readonly ) JobName,
                      JobCount,
-                     JobStatus,
-                     Message,
+                     IsScheduled,
                      CreatedBy,
                      CreatedAt,
-                     LastChangedBy,
                      LocalLastChangedAt;
 
   field ( mandatory ) JobTemplateName, JobText, ProgramName;
@@ -38,7 +35,7 @@ etag master LocalLastChangedAt
   // --- APJ 제어 액션 ------------------------------------------------------
   action ( features : instance ) scheduleJob parameter ZD_JOB_SCHEDULE result [1] $self;
   action ( features : instance ) cancelJob   result [1] $self;
-  action refreshStatus result [1] $self;
+  action ( features : instance ) refreshStatus result [1] $self;
 
   mapping for ztjob_run
   {
@@ -49,11 +46,8 @@ etag master LocalLastChangedAt
     Parameters         = param;
     JobName            = jobname;
     JobCount           = jobcount;
-    JobStatus          = status;
-    Message            = message;
     CreatedBy          = created_by;
     CreatedAt          = created_at;
-    LastChangedBy      = last_changed_by;
     LocalLastChangedAt = local_last_changed_at;
   }
 }

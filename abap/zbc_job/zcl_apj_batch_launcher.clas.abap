@@ -19,7 +19,7 @@
 "!
 "! !! IF_APJ_* 시그니처는 릴리스마다 다르다. ADT 에서 F2 로 확인 후
 "!    "TODO: 시그니처 확인" 표시된 곳만 맞출 것. !!
-CLASS zcl_apj_job_launcher DEFINITION
+CLASS zcl_apj_batch_launcher DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC.
@@ -39,24 +39,24 @@ CLASS zcl_apj_job_launcher DEFINITION
 
     METHODS log_result
       IMPORTING
-        is_result TYPE zif_bc_job=>ty_run_result.
+        is_result TYPE zif_batch_job=>ty_run_result.
 
 ENDCLASS.
 
 
-CLASS zcl_apj_job_launcher IMPLEMENTATION.
+CLASS zcl_apj_batch_launcher IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
 * 디자인타임 - 파라미터 정의
 *   딱 하나. 스케줄 행 UUID.
-*   AS-IS 의 나머지 필드(잡명/클래스/스텝/주기/캘린더)는 전부 ZTJOB_RUN·
+*   AS-IS 의 나머지 필드(잡명/클래스/스텝/주기/캘린더)는 전부 ZTBATCH_SCHED·
 *   ZTJOB_STEP 에 있고 OData 서비스가 관리한다.
 *----------------------------------------------------------------------*
   METHOD if_apj_dt_exec_object~get_parameters.
     " TODO: 시그니처 확인
 
     et_parameter_def = VALUE #(
-      ( selname        = zif_bc_job=>gc_param-run_id
+      ( selname        = zif_batch_job=>gc_param-run_id
         kind           = if_apj_dt_exec_object=>parameter
         datatype       = 'CHAR'
         length         = 32                 " sysuuid_x16 을 32자리 hex 로 전달
@@ -81,13 +81,13 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
     DATA(lt_vals) = CORRESPONDING if_apj_rt_exec_object=>tt_templ_val( it_parameters ).
 
     DATA(lv_run_id) = get_value( it_params  = lt_vals
-                                 iv_selname = zif_bc_job=>gc_param-run_id ).
+                                 iv_selname = zif_batch_job=>gc_param-run_id ).
 
     IF lv_run_id IS INITIAL.
       RAISE EXCEPTION NEW cx_apj_dt_content( ).
     ENDIF.
 
-    SELECT SINGLE @abap_true FROM ztjob_run
+    SELECT SINGLE @abap_true FROM ztbatch_sched
       WHERE run_uuid = @lv_run_id
       INTO @DATA(lv_exists).
 
@@ -96,7 +96,7 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
     ENDIF.
 
     " 실행 클래스가 지정돼 있어야 한다.
-    SELECT SINGLE exec_class FROM ztjob_run
+    SELECT SINGLE exec_class FROM ztbatch_sched
       WHERE run_uuid = @lv_run_id
       INTO @DATA(lv_exec_class).
 
@@ -114,7 +114,7 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
     " TODO: 시그니처 확인 - IMPORTING it_parameters TYPE if_apj_rt_exec_object=>tt_templ_val
 
     DATA(lv_run_id_str) = get_value( it_params  = it_parameters
-                                     iv_selname = zif_bc_job=>gc_param-run_id ).
+                                     iv_selname = zif_batch_job=>gc_param-run_id ).
 
     IF lv_run_id_str IS INITIAL.
       MESSAGE 'Launcher: P_RUNID is empty' TYPE 'E'.
@@ -126,7 +126,7 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
 
     MESSAGE |Launcher start: run_id={ lv_run_id_str }| TYPE 'I'.
 
-    DATA(ls_result) = NEW zcl_bc_job_runner( )->run( lv_run_uuid ).
+    DATA(ls_result) = NEW zcl_batch_runner( )->run( lv_run_uuid ).
 
     log_result( ls_result ).
 
@@ -153,11 +153,11 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
 
     IF is_result-skipped = abap_true.
       MESSAGE |Launcher SKIPPED: { SWITCH string( is_result-skip_reason
-        WHEN zif_bc_job=>gc_skip-after_close THEN 'past close time (last_start)'
-        WHEN zif_bc_job=>gc_skip-not_workday THEN 'not a factory working day'
-        WHEN zif_bc_job=>gc_skip-no_class    THEN 'no execution class specified'
-        WHEN zif_bc_job=>gc_skip-bad_class   THEN 'execution class could not be instantiated'
-        WHEN zif_bc_job=>gc_skip-run_missing THEN 'schedule row not found'
+        WHEN zif_batch_job=>gc_skip-after_close THEN 'past close time (last_start)'
+        WHEN zif_batch_job=>gc_skip-not_workday THEN 'not a factory working day'
+        WHEN zif_batch_job=>gc_skip-no_class    THEN 'no execution class specified'
+        WHEN zif_batch_job=>gc_skip-bad_class   THEN 'execution class could not be instantiated'
+        WHEN zif_batch_job=>gc_skip-run_missing THEN 'schedule row not found'
         ELSE 'unknown' ) }| TYPE 'I'.
       RETURN.
     ENDIF.

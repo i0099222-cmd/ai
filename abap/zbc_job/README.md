@@ -10,11 +10,11 @@ AS-IS `ZBC_BATCH_JOB_CREATE` / `_CHANGE` / `_DELETE` / `_STATUS` (BDC on SM36) �
 이 테이블은 **스케줄 등록부**다. 실행 상태와 로그는 갖지 않는다 — 별도 로그 기능 담당.
 
 ```
-ZTJOB_RUN
+ZTBATCH_SCHED
   run_uuid    RAP 키
   template    APJ 잡 템플릿
   jobtext     잡 텍스트 (논리 잡명)
-  exec_class  실행 클래스 (ZIF_BC_JOB_STEP 구현체)
+  exec_class  실행 클래스 (ZIF_BATCH_STEP 구현체)
   param       런처 전달 파라미터 (JSON)
   jobname     APJ 가 만든 잡 이름 (SM37)
   jobcount    APJ 잡 카운트 (SM37)
@@ -48,7 +48,7 @@ ZTJOB_RUN
 
 ### 런처는 DB 에 아무것도 안 쓴다
 
-`ZCL_BC_JOB_RUNNER` 는 읽고 → 판정하고 → 실행하고 → 결과를 반환만 한다.
+`ZCL_BATCH_RUNNER` 는 읽고 → 판정하고 → 실행하고 → 결과를 반환만 한다.
 `COMMIT WORK` 도 없다. 실행 흔적은 잡 로그(`MESSAGE`)로만 남고,
 그 로그는 별도 로그 기능이 수집한다.
 
@@ -74,7 +74,7 @@ TYPES: BEGIN OF ty_param,
        END OF ty_param.
 ```
 
-`ZCL_BC_JOB_PARAM` 이 XCO(Cloud released 직렬화 API)로 JSON 변환한다.
+`ZCL_BATCH_PARAM` 이 XCO(Cloud released 직렬화 API)로 JSON 변환한다.
 `app` 은 런처가 해석하지 않고 스텝 클래스에 그대로 넘긴다 — **리포트 배리언트를 대신하는 자리**다.
 
 ---
@@ -97,8 +97,8 @@ APJ 파라미터(`tt_templ_val`)는 `selname`/`low`/`high` 구조라 복잡한 �
 
 ```
 scheduleJob 액션 → CL_APJ_RT_API=>SCHEDULE_JOB (P_RUNID = run_uuid)
-                     → ZCL_APJ_JOB_LAUNCHER
-                        → ZCL_BC_JOB_RUNNER   (조건 판정 + 실행)
+                     → ZCL_APJ_BATCH_LAUNCHER
+                        → ZCL_BATCH_RUNNER   (조건 판정 + 실행)
                            → Z_BC_RUN_REPORT  (SUBMIT)
 ```
 
@@ -112,22 +112,22 @@ scheduleJob 액션 → CL_APJ_RT_API=>SCHEDULE_JOB (P_RUNID = run_uuid)
 **`SUBMIT` 은 ABAP for Cloud Development 에서 금지된다.**
 임의 리포트를 돌리려면 Standard ABAP FM 을 경유해야 하고, 그러면 순수 Cloud 구성이 깨진다.
 
-그래서 실행 대상을 **`ZIF_BC_JOB_STEP` 을 구현한 클래스**로 둔다.
+그래서 실행 대상을 **`ZIF_BATCH_STEP` 을 구현한 클래스**로 둔다.
 이 구성에는 Standard ABAP 오브젝트가 **하나도 없다.**
 
 ```abap
-INTERFACE zif_bc_job_step PUBLIC.
+INTERFACE zif_batch_step PUBLIC.
   METHODS execute
     IMPORTING iv_param          TYPE string OPTIONAL
     RETURNING VALUE(rv_message) TYPE string
-    RAISING   zcx_bc_job.
+    RAISING   zcx_batch_job.
 ENDINTERFACE.
 ```
 
 런처는 `EXEC_CLASS` 이름으로 동적 생성해서 부른다:
 
 ```abap
-DATA lo_step TYPE REF TO zif_bc_job_step.
+DATA lo_step TYPE REF TO zif_batch_step.
 CREATE OBJECT lo_step TYPE (ls_run-exec_class).
 rs_result-message = lo_step->execute( ls_param-app ).
 ```
@@ -139,9 +139,9 @@ rs_result-message = lo_step->execute( ls_param-app ).
 | `START-OF-SELECTION` 로직 | `EXECUTE` 메서드 |
 | 셀렉션 스크린 파라미터 | `IV_PARAM` (JSON) — 배리언트를 대신함 |
 | `WRITE` 리스트 | `MESSAGE` 또는 반환 문자열 → 잡 로그 |
-| 실패 처리 | `RAISE EXCEPTION NEW zcx_bc_job( )` → 잡 오류 종료 |
+| 실패 처리 | `RAISE EXCEPTION NEW zcx_batch_job( )` → 잡 오류 종료 |
 
-`example_zcl_bc_step_sample.clas.abap` 이 그 형태의 예시다.
+`example_zcl_batch_step_sample.clas.abap` 이 그 형태의 예시다.
 
 ---
 
@@ -149,20 +149,21 @@ rs_result-message = lo_step->execute( ls_param-app ).
 
 | 파일 | 언어버전 | 내용 |
 |------|---------|------|
-| `ztjob_run.tabl.abap` | — | 테이블 (유일, 10 컬럼) |
-| `zi_job_run.ddls.abap` / `zc_job_run.ddls.abap` | — | interface / projection view |
-| `zd_job_schedule.ddls.abap` | — | `scheduleJob` 파라미터 |
-| `zi_job_run.bdef.abap` / `zc_job_run.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
-| `zbp_i_job_run.clas.abap` | ABAP Cloud | 액션 구현 (상태 컬럼 없이 `jobname` 유무로 제어) |
-| `zcl_job_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
-| `zcl_apj_job_launcher.clas.abap` | ABAP Cloud | **APJ 실행 오브젝트** |
-| `zcl_bc_job_runner.clas.abap` | ABAP Cloud | 조건 판정 + 실행 클래스 동적 호출 (DB 쓰기 없음) |
-| `zif_bc_job_step.intf.abap` | ABAP Cloud | **실행 클래스가 구현할 인터페이스** |
-| `zcx_bc_job.clas.abap` | ABAP Cloud | 실행 예외 |
-| `example_zcl_bc_step_sample.clas.abap` | ABAP Cloud | 실행 클래스 작성 예시 (참고용) |
-| `zif_bc_job.intf.abap` | ABAP Cloud | 상수/타입 (`ty_param`, `ty_start_option`) |
-| `zcl_bc_job_param.clas.abap` | ABAP Cloud | `param` JSON 직렬화 (XCO) |
-| `zui_bc_job.srvd.abap` | — | service definition |
+| `ztbatch_sched.tabl.abap` | — | 테이블 (유일, 10 컬럼) |
+| `zi_batch_schedule.ddls.abap` / `zc_batch_schedule.ddls.abap` | — | interface / projection view |
+| `zd_batch_start_option.ddls.abap` | — | `scheduleJob` / `rescheduleJob` 파라미터 |
+| `zd_batch_create.ddls.abap` | — | `createAndSchedule` 파라미터 |
+| `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
+| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 구현 (상태 컬럼 없이 `jobname` 유무로 제어) |
+| `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
+| `zcl_apj_batch_launcher.clas.abap` | ABAP Cloud | **APJ 실행 오브젝트** |
+| `zcl_batch_runner.clas.abap` | ABAP Cloud | 조건 판정 + 실행 클래스 동적 호출 (DB 쓰기 없음) |
+| `zif_batch_step.intf.abap` | ABAP Cloud | **실행 클래스가 구현할 인터페이스** |
+| `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 예외 |
+| `example_zcl_batch_step_sample.clas.abap` | ABAP Cloud | 실행 클래스 작성 예시 (참고용) |
+| `zif_batch_job.intf.abap` | ABAP Cloud | 상수/타입 (`ty_param`, `ty_start_option`) |
+| `zcl_batch_param.clas.abap` | ABAP Cloud | `param` JSON 직렬화 (XCO) |
+| `zui_batch_schedule.srvd.abap` | — | service definition |
 
 **전부 ABAP for Cloud Development 다.** Standard ABAP 오브젝트가 하나도 없고,
 Local API release 도 필요 없다.
@@ -171,12 +172,22 @@ Local API release 도 필요 없다.
 
 ## 4. AS-IS 인터페이스 대응
 
-| AS-IS | TO-BE |
-|-------|-------|
-| `ZBC_BATCH_JOB_CREATE` | `JobRun` create → action `scheduleJob` |
-| `ZBC_BATCH_JOB_CHANGE` | `JobRun` update → `cancelJob` + `scheduleJob` |
-| `ZBC_BATCH_JOB_DELETE` | action `cancelJob` (+ delete) |
-| `ZBC_BATCH_JOB_STATUS` | action `refreshStatus` — APJ 에서 읽어 메시지로 반환 (DB 저장 안 함) |
+| AS-IS RFC | TO-BE 액션 | OData |
+|-----------|-----------|-------|
+| `ZBC_BATCH_JOB_CREATE` | **`createAndSchedule`** (static factory) | `POST /BatchSchedule/...createAndSchedule` |
+| `ZBC_BATCH_JOB_CHANGE` | `PATCH` + **`rescheduleJob`** | `PATCH /BatchSchedule(...)` → `POST .../rescheduleJob` |
+| `ZBC_BATCH_JOB_DELETE` | **`cancelJob`** (+ `DELETE`) | `POST .../cancelJob` |
+| `ZBC_BATCH_JOB_STATUS` | **`refreshStatus`** | `POST .../refreshStatus` |
+
+표준 CRUD(`POST` / `PATCH` / `DELETE`)도 그대로 열려 있다.
+Fiori Elements 는 이쪽을 기대하고, 액션은 AS-IS 인터페이스와 1:1 로 맞추기 위한 것이다.
+
+`createAndSchedule` 이 따로 있는 이유: AS-IS 는 "등록 + 스케줄"을 한 번에 하는데
+표준 CRUD 로는 `create` → `scheduleJob` 2회 호출이 필요하다. 화면이 한 번에 던지므로
+두 단계를 묶었다.
+
+`rescheduleJob` 은 취소 + 재생성이다. **APJ 에 잡 수정 API 가 없어서** 그렇고,
+그 결과 SM37 의 `jobname`/`jobcount` 가 바뀐다.
 
 `reqid` / `reqname` / `reqdatetime` → RAP 관리 필드 `created_by` / `created_at` 이 대신한다.
 요청사유처럼 별도 텍스트가 필요하면 `param` 에 넣거나 컬럼 하나만 추가한다.
@@ -193,7 +204,7 @@ Local API release 도 필요 없다.
 | 다중 스텝 | **모델에서 제외.** 잡 1개 = 프로그램 1개 | 2스텝 잡을 어떻게 나눌지 |
 | `jobname` 지정 | 논리명은 `jobtext`, SM37 이름은 `jobname` 으로 나란히 보관 | — |
 | **팩토리 캘린더** | **미구현.** 판정에 쓸 released API 확인 필요 (아래 7절) | 실제로 쓰는 잡이 있나? |
-| 기존 배치 리포트 | **클래스로 이관 필요.** `ZIF_BC_JOB_STEP` 구현체로 다시 작성 | 대상 리포트가 몇 개인가? |
+| 기존 배치 리포트 | **클래스로 이관 필요.** `ZIF_BATCH_STEP` 구현체로 다시 작성 | 대상 리포트가 몇 개인가? |
 | `laststrt` (close 시각) | 런처가 실행 시 판정해 skip | — |
 | **타임존** | **APJ 가 기본 제공** — AS-IS 는 직접 변환했음 | — (개선) |
 
@@ -202,12 +213,12 @@ Local API release 도 필요 없다.
 ## 6. 생성 순서
 
 1. 패키지 1개 — `ZBC_JOB` (ABAP for Cloud Development)
-2. `ztjob_run` → `zif_bc_job` → `zcx_bc_job` → `zif_bc_job_step` → `zcl_bc_job_param`
-3. 실행 클래스들 (`ZIF_BC_JOB_STEP` 구현) — 기존 배치 리포트 이관분
-4. `zcl_bc_job_runner` → `zcl_apj_job_launcher`
-5. **Job Catalog Entry `ZJC_BC_JOB`** (실행클래스 = `ZCL_APJ_JOB_LAUNCHER`) → **Job Template `ZJT_BC_JOB`**
-6. CDS(interface → projection) → BDEF → `zbp_i_job_run`
-7. Service Definition `ZUI_BC_JOB` → Service Binding (OData V4 - UI) → Publish
+2. `ztbatch_sched` → `zif_batch_job` → `zcx_batch_job` → `zif_batch_step` → `zcl_batch_param`
+3. 실행 클래스들 (`ZIF_BATCH_STEP` 구현) — 기존 배치 리포트 이관분
+4. `zcl_batch_runner` → `zcl_apj_batch_launcher`
+5. **Job Catalog Entry `ZJC_BC_JOB`** (실행클래스 = `ZCL_APJ_BATCH_LAUNCHER`) → **Job Template `ZJT_BC_JOB`**
+6. CDS(interface → projection) → BDEF → `zbp_i_batch_schedule`
+7. Service Definition `ZUI_BATCH_SCHEDULE` → Service Binding (OData V4 - UI) → Publish
 
 ---
 
@@ -217,11 +228,11 @@ Local API release 도 필요 없다.
 
 | 파일 | 확인할 것 |
 |------|----------|
-| `zcl_apj_job_launcher` | `IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS`/`CHECK_PARAMETERS`, `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 시그니처, `CX_APJ_DT_CONTENT` textid |
-| `zcl_job_apj_adapter` | `CL_APJ_RT_API=>TY_START_INFO` 필드명, `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
-| `zcl_bc_job_runner` | `CREATE OBJECT ... TYPE (name)` 동적 생성이 Cloud 언어버전에서 통과하는지. 막히면 CASE 분기 레지스트리로 대체 |
-| `zcl_bc_job_runner` | **팩토리 캘린더 판정용 released API.** 후보: released CDS 뷰 / 없으면 Standard ABAP FM 을 Local API release (순수 Cloud 깨짐) / 요구사항 드롭 |
-| `zcl_bc_job_param` | `XCO_CP_JSON` 메서드 체인 (`from_abap`/`to_string`/`from_string`/`write_to`) |
+| `zcl_apj_batch_launcher` | `IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS`/`CHECK_PARAMETERS`, `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 시그니처, `CX_APJ_DT_CONTENT` textid |
+| `zcl_batch_apj_adapter` | `CL_APJ_RT_API=>TY_START_INFO` 필드명, `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
+| `zcl_batch_runner` | `CREATE OBJECT ... TYPE (name)` 동적 생성이 Cloud 언어버전에서 통과하는지. 막히면 CASE 분기 레지스트리로 대체 |
+| `zcl_batch_runner` | **팩토리 캘린더 판정용 released API.** 후보: released CDS 뷰 / 없으면 Standard ABAP FM 을 Local API release (순수 Cloud 깨짐) / 요구사항 드롭 |
+| `zcl_batch_param` | `XCO_CP_JSON` 메서드 체인 (`from_abap`/`to_string`/`from_string`/`write_to`) |
 | — | `CL_APJ_RT_API` 에 change/modify 메서드가 있는지 (없으면 change = cancel + 재스케줄) |
 
 기능 비교 자료는 [`../zjob_test/COMPARISON.md`](../zjob_test/COMPARISON.md),

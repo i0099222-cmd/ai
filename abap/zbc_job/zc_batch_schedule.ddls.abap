@@ -2,9 +2,9 @@
 @EndUserText.label: '배치잡 스케줄 등록부'
 @Metadata.allowExtensions: true
 @Search.searchable: true
-define root view entity ZC_JOB_RUN
+define root view entity ZC_BATCH_SCHEDULE
   provider contract transactional_query
-  as projection on ZI_JOB_RUN
+  as projection on ZI_BATCH_SCHEDULE
 {
   key RunUuid,
 

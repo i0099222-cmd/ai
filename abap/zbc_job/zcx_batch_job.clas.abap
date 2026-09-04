@@ -1,7 +1,7 @@
 "! <p class="shorttext synchronized">배치잡 실행 예외</p>
 "!
 "! 스텝 클래스가 실패를 알릴 때 던진다. 런처가 잡아서 잡을 오류 종료시킨다.
-CLASS zcx_bc_job DEFINITION
+CLASS zcx_batch_job DEFINITION
   PUBLIC
   INHERITING FROM cx_static_check
   FINAL
@@ -19,7 +19,7 @@ CLASS zcx_bc_job DEFINITION
 ENDCLASS.
 
 
-CLASS zcx_bc_job IMPLEMENTATION.
+CLASS zcx_batch_job IMPLEMENTATION.
 
   METHOD constructor.
     super->constructor( previous = previous ).

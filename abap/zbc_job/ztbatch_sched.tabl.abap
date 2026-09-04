@@ -3,7 +3,7 @@
 @AbapCatalog.tableCategory : #TRANSPARENT
 @AbapCatalog.deliveryClass : #A
 @AbapCatalog.dataMaintenance : #RESTRICTED
-define table ztjob_run {
+define table ztbatch_sched {
 
   key client       : abap.clnt not null;
   key run_uuid     : sysuuid_x16 not null;
@@ -13,10 +13,10 @@ define table ztjob_run {
   template         : abap.char(60);
   @EndUserText.label : '잡 텍스트 (논리 잡명)'
   jobtext          : abap.char(64);
-  // 실행 대상은 리포트가 아니라 ZIF_BC_JOB_STEP 을 구현한 클래스다.
+  // 실행 대상은 리포트가 아니라 ZIF_BATCH_STEP 을 구현한 클래스다.
   // SUBMIT 이 Cloud 언어버전에서 금지되므로, 리포트를 돌리려면 Standard ABAP
   // 티어를 경유해야 한다. 클래스로 두면 순수 Cloud 구성이 유지된다.
-  @EndUserText.label : '실행 클래스 (ZIF_BC_JOB_STEP 구현체)'
+  @EndUserText.label : '실행 클래스 (ZIF_BATCH_STEP 구현체)'
   exec_class       : abap.char(30);
 
   // 런처가 읽는 실행 조건 + 스텝 클래스에 넘길 업무 파라미터를 JSON 으로 담는다.

@@ -1,9 +1,9 @@
 "! <p class="shorttext synchronized">배치잡 공통 상수/타입</p>
-INTERFACE zif_bc_job
+INTERFACE zif_batch_job
   PUBLIC.
 
   "! APJ 실행 클래스 파라미터.
-  "! 스케줄 행의 UUID 하나만 넘기고, 런처가 그 UUID 로 ZTJOB_RUN 을 읽는다.
+  "! 스케줄 행의 UUID 하나만 넘기고, 런처가 그 UUID 로 ZTBATCH_SCHED 을 읽는다.
   CONSTANTS:
     BEGIN OF gc_param,
       run_id TYPE c LENGTH 8 VALUE 'P_RUNID',
@@ -31,7 +31,7 @@ INTERFACE zif_bc_job
       bad_class   TYPE c LENGTH 1 VALUE 'X',  "! 클래스 생성 실패
     END OF gc_skip.
 
-  "! ZTJOB_RUN-PARAM 에 JSON 으로 담기는 내용.
+  "! ZTBATCH_SCHED-PARAM 에 JSON 으로 담기는 내용.
   "! cond = 런처가 읽는 실행 조건 / app = 스텝 클래스에 그대로 넘기는 업무 파라미터
   TYPES:
     BEGIN OF ty_condition,

@@ -2,8 +2,8 @@
 @EndUserText.label: '배치잡 스케줄 등록부 (Interface)'
 @Metadata.ignorePropagatedAnnotations: true
 @ObjectModel.usageType:{ serviceQuality: #X, sizeCategory: #S, dataClass: #MIXED }
-define root view entity ZI_JOB_RUN
-  as select from ztjob_run
+define root view entity ZI_BATCH_SCHEDULE
+  as select from ztbatch_sched
 {
   key run_uuid              as RunUuid,
 

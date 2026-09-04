@@ -3,7 +3,7 @@
 "! RAP 핸들러가 CL_APJ_RT_API 를 직접 부르지 않고 이 클래스만 부른다.
 "! 릴리스마다 달라질 수 있는 APJ API 시그니처를 한 파일에 격리하기 위해서다.
 "! 시스템에 맞춰야 할 곳은 "TODO: 시그니처 확인" 으로 표시했다.
-CLASS zcl_job_apj_adapter DEFINITION
+CLASS zcl_batch_apj_adapter DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC.
@@ -24,7 +24,7 @@ CLASS zcl_job_apj_adapter DEFINITION
         message TYPE string,
       END OF ty_status_result.
 
-    "! ZTJOB_RUN 한 건을 Application Job 으로 스케줄한다.
+    "! ZTBATCH_SCHED 한 건을 Application Job 으로 스케줄한다.
     "! 잡 파라미터는 P_RUNID 하나뿐이고, 나머지 설정은 런처가 DB 에서 읽는다.
     "! 시작 조건은 DB 가 아니라 액션 파라미터에서 온다.
     METHODS schedule
@@ -32,7 +32,7 @@ CLASS zcl_job_apj_adapter DEFINITION
         iv_run_uuid      TYPE sysuuid_x16
         iv_template      TYPE clike
         iv_jobtext       TYPE clike
-        is_start         TYPE zif_bc_job=>ty_start_option
+        is_start         TYPE zif_batch_job=>ty_start_option
       RETURNING
         VALUE(rs_result) TYPE ty_schedule_result.
 
@@ -53,7 +53,7 @@ CLASS zcl_job_apj_adapter DEFINITION
 ENDCLASS.
 
 
-CLASS zcl_job_apj_adapter IMPLEMENTATION.
+CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
   METHOD schedule.
 
@@ -85,7 +85,7 @@ CLASS zcl_job_apj_adapter IMPLEMENTATION.
 
         " 잡 파라미터는 스케줄 행 UUID 하나뿐
         DATA(lt_param) = VALUE if_apj_rt_exec_object=>tt_templ_val(
-          ( selname = zif_bc_job=>gc_param-run_id
+          ( selname = zif_batch_job=>gc_param-run_id
             kind    = if_apj_dt_exec_object=>parameter
             sign    = 'I'
             option  = 'EQ'
@@ -121,7 +121,7 @@ CLASS zcl_job_apj_adapter IMPLEMENTATION.
 
   METHOD get_status.
 
-    rs_status-status = zif_bc_job=>gc_status-unknown.
+    rs_status-status = zif_batch_job=>gc_status-unknown.
 
     TRY.
 
@@ -136,17 +136,17 @@ CLASS zcl_job_apj_adapter IMPLEMENTATION.
             ev_job_status = lv_apj_status ).
 
         rs_status-status = SWITCH #( lv_apj_status
-          WHEN 'S' THEN zif_bc_job=>gc_status-scheduled
-          WHEN 'R' THEN zif_bc_job=>gc_status-running
-          WHEN 'F' THEN zif_bc_job=>gc_status-finished
-          WHEN 'A' THEN zif_bc_job=>gc_status-error
-          WHEN 'X' THEN zif_bc_job=>gc_status-cancelled
-          ELSE          zif_bc_job=>gc_status-unknown ).
+          WHEN 'S' THEN zif_batch_job=>gc_status-scheduled
+          WHEN 'R' THEN zif_batch_job=>gc_status-running
+          WHEN 'F' THEN zif_batch_job=>gc_status-finished
+          WHEN 'A' THEN zif_batch_job=>gc_status-error
+          WHEN 'X' THEN zif_batch_job=>gc_status-cancelled
+          ELSE          zif_batch_job=>gc_status-unknown ).
 
         rs_status-message = |APJ status '{ lv_apj_status }'|.
 
       CATCH cx_root INTO DATA(lx_error).
-        rs_status-status  = zif_bc_job=>gc_status-unknown.
+        rs_status-status  = zif_batch_job=>gc_status-unknown.
         rs_status-message = lx_error->get_text( ).
     ENDTRY.
 

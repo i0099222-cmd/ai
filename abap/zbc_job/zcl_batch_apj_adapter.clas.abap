@@ -64,11 +64,6 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
     TRY.
 
-*----------------------------------------------------------------------*
-* TODO: 시그니처 확인
-*   CL_APJ_RT_API=>TY_START_INFO 의 필드명은 릴리스마다 다르다.
-*   ADT 에서 CL_APJ_RT_API 를 열어 확인한 뒤 이 블록만 맞추면 된다.
-*----------------------------------------------------------------------*
         DATA ls_start_info TYPE cl_apj_rt_api=>ty_start_info.
 
         IF is_start-start_immediately = abap_true.
@@ -80,14 +75,9 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
           ls_start_info-timezone            = is_start-timezone.
         ENDIF.
 
-        " 반복 주기. AS-IS 의 반복주기 / 일반복주기.
-        " 팩토리 캘린더(공장근무일)는 APJ 반복 패턴에 대응이 없다.
-        " 필요하면 실행 클래스가 EXECUTE 안에서 직접 판정해야 한다.
-        IF is_start-prd_mins   > 0. ls_start_info-recurrence_desc-min   = is_start-prd_mins.   ENDIF.
-        IF is_start-prd_hours  > 0. ls_start_info-recurrence_desc-hour  = is_start-prd_hours.  ENDIF.
-        IF is_start-prd_days   > 0. ls_start_info-recurrence_desc-day   = is_start-prd_days.   ENDIF.
-        IF is_start-prd_weeks  > 0. ls_start_info-recurrence_desc-week  = is_start-prd_weeks.  ENDIF.
-        IF is_start-prd_months > 0. ls_start_info-recurrence_desc-month = is_start-prd_months. ENDIF.
+        " 반복 주기는 릴리스마다 자리가 달라서 별도 메서드로 격리했다.
+        fill_recurrence( EXPORTING is_start      = is_start
+                         CHANGING  cs_start_info = ls_start_info ).
 
         " 실행 클래스가 GET_PARAMETERS 로 정의한 파라미터의 값들
         DATA(lt_param) = zcl_batch_param=>to_apj( iv_param ).
@@ -150,6 +140,32 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
         rs_status-status  = zif_batch_job=>gc_status-unknown.
         rs_status-message = lx_error->get_text( ).
     ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD fill_recurrence.
+
+*----------------------------------------------------------------------*
+* !! 미구현 !!
+* 이 시스템의 TY_START_INFO 에 RECURRENCE_DESC 가 없다.
+* 실제 필드를 확인한 뒤 아래 매핑을 살려야 반복(주기) 스케줄이 동작한다.
+* 그때까지는 1회성 스케줄만 걸린다.
+*
+* AS-IS 대응:
+*   반복주기   -> prd_mins / prd_hours / prd_weeks / prd_months
+*   일반복주기 -> prd_days
+*
+*   IF is_start-prd_mins   > 0. cs_start_info-<필드> = is_start-prd_mins.   ENDIF.
+*   IF is_start-prd_hours  > 0. cs_start_info-<필드> = is_start-prd_hours.  ENDIF.
+*   IF is_start-prd_days   > 0. cs_start_info-<필드> = is_start-prd_days.   ENDIF.
+*   IF is_start-prd_weeks  > 0. cs_start_info-<필드> = is_start-prd_weeks.  ENDIF.
+*   IF is_start-prd_months > 0. cs_start_info-<필드> = is_start-prd_months. ENDIF.
+*
+* 팩토리 캘린더(공장근무일)는 어느 경우든 APJ 반복 패턴에 대응이 없다.
+* 필요하면 실행 클래스가 EXECUTE 안에서 직접 판정해야 한다.
+*----------------------------------------------------------------------*
+    RETURN.
 
   ENDMETHOD.
 

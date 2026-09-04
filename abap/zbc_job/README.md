@@ -194,11 +194,37 @@ Fiori Elements 는 이쪽을 기대하고, 액션은 AS-IS 인터페이스와 1:
 
 | 파일 | 확인할 것 |
 |------|----------|
-| `zcl_batch_apj_adapter` | `CL_APJ_RT_API=>TY_START_INFO` 필드명, `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
+| `zcl_batch_apj_adapter` | **반복 주기 (`fill_recurrence` 미구현)** — 이 시스템의 `TY_START_INFO` 에 `RECURRENCE_DESC` 가 없음. 실제 자리 확인 필요 (아래) |
+| `zcl_batch_apj_adapter` | `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
 | `example_zcl_apj_batch_sample` | `IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS`/`CHECK_PARAMETERS`, `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 시그니처, `CX_APJ_DT_CONTENT` textid |
 | — | 팩토리 캘린더 판정이 필요하면 Cloud 에서 쓸 수 있는 released API 확인 |
 | `zcl_batch_param` | `XCO_CP_JSON` 메서드 체인 (`from_abap`/`to_string`/`from_string`/`write_to`) |
 | — | `CL_APJ_RT_API` 에 change/modify 메서드가 있는지 (없으면 change = cancel + 재스케줄) |
+
+### 반복 주기 — 확인 필요
+
+`ZCL_BATCH_APJ_ADAPTER->fill_recurrence` 가 **미구현 스텁**이다.
+이 시스템의 `CL_APJ_RT_API=>TY_START_INFO` 에 `RECURRENCE_DESC` 가 없어서,
+반복 주기를 어디에 넣어야 하는지 확정하지 못했다.
+
+**현재 상태: 1회성 스케줄만 걸린다. 반복은 안 걸린다.**
+
+ADT 에서 확인할 것:
+
+1. `CL_APJ_RT_API` 열기 → `TY_START_INFO` 에 F2 → **구성 필드 목록**
+2. `SCHEDULE_JOB` 의 **전체 IMPORTING 파라미터 목록**
+
+세 가지 경우로 갈린다.
+
+| 경우 | 조치 |
+|------|------|
+| (a) `TY_START_INFO` 안에 다른 이름으로 있음 | `fill_recurrence` 안에서 그 필드에 매핑 |
+| (b) `SCHEDULE_JOB` 의 별도 파라미터로 분리 | `schedule` 호출부에 파라미터 추가, `fill_recurrence` 삭제 |
+| (c) 이 릴리스는 API 로 반복 스케줄 불가 | Application Jobs 앱에서만 반복 설정 가능 → **제약으로 문서화.** AS-IS 의 반복주기/일반복주기가 API 로 못 넘어감 |
+
+(c) 라면 AS-IS 대비 기능 손실이 하나 늘어난다 — 5절에 추가할 것.
+
+---
 
 기능 비교 자료는 [`../zjob_test/COMPARISON.md`](../zjob_test/COMPARISON.md),
 AS-IS 분석은 [`../zjob_test/TO_BE.md`](../zjob_test/TO_BE.md).

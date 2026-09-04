@@ -9,7 +9,7 @@ define root view entity ZI_JOB_RUN
 
       template              as JobTemplateName,
       jobtext               as JobText,
-      pgmid                 as ProgramName,
+      exec_class            as ExecutionClass,
       param                 as Parameters,
 
       jobname               as JobName,

@@ -9,16 +9,14 @@ INTERFACE zif_bc_job
       run_id TYPE c LENGTH 8 VALUE 'P_RUNID',
     END OF gc_param.
 
-  "! ZTJOB_RUN-STATUS
+  "! APJ 잡 상태 (adapter 가 정규화해서 돌려주는 값)
   CONSTANTS:
     BEGIN OF gc_status,
-      initial   TYPE c LENGTH 1 VALUE ' ',   "! 아직 스케줄 안 함
       scheduled TYPE c LENGTH 1 VALUE 'S',
       running   TYPE c LENGTH 1 VALUE 'R',
       finished  TYPE c LENGTH 1 VALUE 'F',
       error     TYPE c LENGTH 1 VALUE 'E',
       cancelled TYPE c LENGTH 1 VALUE 'C',
-      skipped   TYPE c LENGTH 1 VALUE 'K',   "! 실행 조건 불충족
       unknown   TYPE c LENGTH 1 VALUE '?',
     END OF gc_status.
 
@@ -28,21 +26,26 @@ INTERFACE zif_bc_job
       none        TYPE c LENGTH 1 VALUE ' ',
       after_close TYPE c LENGTH 1 VALUE 'C',  "! close 시각 초과
       not_workday TYPE c LENGTH 1 VALUE 'W',  "! 팩토리 캘린더 비작업일
-      no_program  TYPE c LENGTH 1 VALUE 'N',  "! 실행 대상 없음
+      no_class    TYPE c LENGTH 1 VALUE 'N',  "! 실행 클래스 미지정
       run_missing TYPE c LENGTH 1 VALUE 'D',  "! 스케줄 행 없음
+      bad_class   TYPE c LENGTH 1 VALUE 'X',  "! 클래스 생성 실패
     END OF gc_skip.
 
   "! ZTJOB_RUN-PARAM 에 JSON 으로 담기는 내용.
-  "! 런처가 실행 시점에 읽어야 하는 값들만 여기 들어간다.
-  "! 시작일시/반복주기/타임존은 APJ 가 갖고 있으므로 여기 없다.
+  "! cond = 런처가 읽는 실행 조건 / app = 스텝 클래스에 그대로 넘기는 업무 파라미터
   TYPES:
-    BEGIN OF ty_param,
-      variant         TYPE c LENGTH 14,  "! 리포트 배리언트
+    BEGIN OF ty_condition,
       calendar_id     TYPE c LENGTH 2,   "! 공장시간 (팩토리 캘린더)
       workday_nr      TYPE i,            "! 공장근무일수
       workday_time    TYPE t,            "! 공장근무시간
       last_start_date TYPE d,            "! close 일
       last_start_time TYPE t,            "! close 시각
+    END OF ty_condition.
+
+  TYPES:
+    BEGIN OF ty_param,
+      cond TYPE ty_condition,   "! 런처가 읽는 실행 조건
+      app  TYPE string,         "! 스텝 클래스에 넘길 업무 파라미터 (배리언트 대체)
     END OF ty_param.
 
   "! 스케줄 옵션. 액션 파라미터로만 존재하고 DB 에 저장하지 않는다.
@@ -66,7 +69,7 @@ INTERFACE zif_bc_job
       skipped     TYPE abap_bool,
       skip_reason TYPE c LENGTH 1,
       success     TYPE abap_bool,
-      pgmid       TYPE c LENGTH 40,
+      exec_class  TYPE c LENGTH 30,
       message     TYPE string,
     END OF ty_run_result.
 

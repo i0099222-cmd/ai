@@ -12,7 +12,7 @@ define root view entity ZC_JOB_RUN
       @Search.defaultSearchElement: true
       JobText,
       @Search.defaultSearchElement: true
-      ProgramName,
+      ExecutionClass,
       Parameters,
 
       @EndUserText.label: 'Job Name (SM37)'

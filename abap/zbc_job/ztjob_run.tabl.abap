@@ -13,14 +13,15 @@ define table ztjob_run {
   template         : abap.char(60);
   @EndUserText.label : '잡 텍스트 (논리 잡명)'
   jobtext          : abap.char(64);
-  @EndUserText.label : '실행할 프로그램'
-  pgmid            : abap.char(40);
+  // 실행 대상은 리포트가 아니라 ZIF_BC_JOB_STEP 을 구현한 클래스다.
+  // SUBMIT 이 Cloud 언어버전에서 금지되므로, 리포트를 돌리려면 Standard ABAP
+  // 티어를 경유해야 한다. 클래스로 두면 순수 Cloud 구성이 유지된다.
+  @EndUserText.label : '실행 클래스 (ZIF_BC_JOB_STEP 구현체)'
+  exec_class       : abap.char(30);
 
-  // 런처가 실행 시점에 읽는 값들을 JSON 으로 담는다.
-  //   variant / calendar_id / workday_nr / workday_time /
-  //   last_start_date / last_start_time
+  // 런처가 읽는 실행 조건 + 스텝 클래스에 넘길 업무 파라미터를 JSON 으로 담는다.
   // 시작일시·반복주기·타임존은 여기 없다. APJ 가 갖고 있으므로 저장하지 않는다.
-  @EndUserText.label : '런처 전달 파라미터 (JSON)'
+  @EndUserText.label : '파라미터 (JSON)'
   param            : abap.string(0);
 
   // --- APJ 포인터 --------------------------------------------------------

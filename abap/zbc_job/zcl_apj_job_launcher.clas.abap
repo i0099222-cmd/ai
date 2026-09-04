@@ -95,12 +95,12 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
       RAISE EXCEPTION NEW cx_apj_dt_content( ).
     ENDIF.
 
-    " 실행할 프로그램이 지정돼 있어야 한다.
-    SELECT SINGLE pgmid FROM ztjob_run
+    " 실행 클래스가 지정돼 있어야 한다.
+    SELECT SINGLE exec_class FROM ztjob_run
       WHERE run_uuid = @lv_run_id
-      INTO @DATA(lv_pgmid).
+      INTO @DATA(lv_exec_class).
 
-    IF lv_pgmid IS INITIAL.
+    IF lv_exec_class IS INITIAL.
       RAISE EXCEPTION NEW cx_apj_dt_content( ).
     ENDIF.
 
@@ -155,13 +155,14 @@ CLASS zcl_apj_job_launcher IMPLEMENTATION.
       MESSAGE |Launcher SKIPPED: { SWITCH string( is_result-skip_reason
         WHEN zif_bc_job=>gc_skip-after_close THEN 'past close time (last_start)'
         WHEN zif_bc_job=>gc_skip-not_workday THEN 'not a factory working day'
-        WHEN zif_bc_job=>gc_skip-no_program  THEN 'no program specified'
+        WHEN zif_bc_job=>gc_skip-no_class    THEN 'no execution class specified'
+        WHEN zif_bc_job=>gc_skip-bad_class   THEN 'execution class could not be instantiated'
         WHEN zif_bc_job=>gc_skip-run_missing THEN 'schedule row not found'
         ELSE 'unknown' ) }| TYPE 'I'.
       RETURN.
     ENDIF.
 
-    MESSAGE |Launcher end: { is_result-pgmid } -> | &&
+    MESSAGE |Launcher end: { is_result-exec_class } -> | &&
             |{ COND string( WHEN is_result-success = abap_true THEN 'OK' ELSE 'NG' ) } | &&
             |{ is_result-message }|
       TYPE COND #( WHEN is_result-success = abap_true THEN 'I' ELSE 'W' ).

@@ -1,10 +1,9 @@
-@EndUserText.label: 'createAndSchedule 액션 파라미터'
+@EndUserText.label: 'createJob 액션 파라미터'
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 define abstract entity ZD_BATCH_CREATE
 {
-      // AS-IS ZBC_BATCH_JOB_CREATE 는 "등록 + 스케줄" 을 한 번에 한다.
-      // 표준 CRUD 로는 create -> scheduleJob 2회 호출이 필요하므로,
-      // AS-IS 1:1 대응을 위해 두 단계를 묶은 액션의 파라미터다.
+      // AS-IS ZBC_BATCH_JOB_CREATE 대응. SAP 에서 잡 생성 = 스케줄 등록이다.
+      // 등록 내용은 DB 에 저장되고, 스케줄 옵션은 APJ 로만 전달된다.
 
       // --- 등록 내용 (ZTBATCH_SCHED 에 저장) -----------------------------
       @EndUserText.label: 'APJ 잡 템플릿'

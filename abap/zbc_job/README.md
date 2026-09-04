@@ -26,7 +26,7 @@ ZTBATCH_SCHED
 
 | 종류 | 예 | 어디에 |
 |------|-----|--------|
-| APJ 가 이미 갖고 있는 것 | 시작일시, 반복주기, 타임존 | **저장 안 함.** `scheduleJob` 액션 파라미터로만 받아 APJ 에 넘김 |
+| APJ 가 이미 갖고 있는 것 | 시작일시, 반복주기, 타임존 | **저장 안 함.** 액션 파라미터로만 받아 APJ 에 넘김 |
 | 잡 파라미터 값 | 리포트 배리언트를 대신 | **`param` 에 JSON 배열** |
 | 실행 상태 / 이력 | 상태, 실행 메시지 | **저장 안 함.** 별도 로그 기능 |
 | 포인터 | template, jobname, jobcount | DB 컬럼 |
@@ -37,8 +37,8 @@ ZTBATCH_SCHED
 
 | `jobname` | 의미 | 활성 액션 |
 |-----------|------|----------|
-| 비어 있음 | 아직 스케줄 안 함 | `scheduleJob` |
-| 차 있음 | 스케줄됨 | `cancelJob`, `refreshStatus` |
+| 차 있음 | 스케줄됨 | `changeJob`, `cancelJob`, `refreshStatus` |
+| 비어 있음 | 취소된 행 | 없음 — 다시 걸려면 `createJob` 으로 새로 만든다 |
 
 `cancelJob` 은 취소 후 `jobname`/`jobcount` 를 비운다 → 같은 행을 다시 스케줄할 수 있다.
 실제 실행 상태(Running / Finished / Aborted)는 `refreshStatus` 가 APJ 에서 읽어
@@ -119,8 +119,8 @@ AS-IS 가 리포트 이름(`pgmid`)을 파라미터로 받아 아무거나 스�
 |------|---------|------|
 | `ztbatch_sched.tabl.abap` | — | 테이블 (유일, 10 컬럼) |
 | `zi_batch_schedule.ddls.abap` / `zc_batch_schedule.ddls.abap` | — | interface / projection view |
-| `zd_batch_start_option.ddls.abap` | — | `scheduleJob` / `rescheduleJob` 파라미터 |
-| `zd_batch_create.ddls.abap` | — | `createAndSchedule` 파라미터 |
+| `zd_batch_start_option.ddls.abap` | — | `changeJob` 파라미터 (새 시작 조건) |
+| `zd_batch_create.ddls.abap` | — | `createJob` 파라미터 |
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
 | `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 구현 (상태 컬럼 없이 `jobname` 유무로 제어) |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
@@ -137,25 +137,40 @@ Local API release 도 필요 없다.
 
 ## 4. AS-IS 인터페이스 대응
 
-| AS-IS RFC | TO-BE 액션 | OData |
-|-----------|-----------|-------|
-| `ZBC_BATCH_JOB_CREATE` | **`createAndSchedule`** (static factory) | `POST /BatchSchedule/...createAndSchedule` |
-| `ZBC_BATCH_JOB_CHANGE` | `PATCH` + **`rescheduleJob`** | `PATCH /BatchSchedule(...)` → `POST .../rescheduleJob` |
-| `ZBC_BATCH_JOB_DELETE` | **`cancelJob`** (+ `DELETE`) | `POST .../cancelJob` |
+| AS-IS RFC | 액션 | OData |
+|-----------|------|-------|
+| `ZBC_BATCH_JOB_CREATE` | **`createJob`** (static factory) | `POST /BatchSchedule/...createJob` |
+| `ZBC_BATCH_JOB_CHANGE` | **`changeJob`** | `POST /BatchSchedule(...)/...changeJob` |
+| `ZBC_BATCH_JOB_DELETE` | **`cancelJob`** | `POST .../cancelJob` |
 | `ZBC_BATCH_JOB_STATUS` | **`refreshStatus`** | `POST .../refreshStatus` |
 
-표준 CRUD(`POST` / `PATCH` / `DELETE`)도 그대로 열려 있다.
-Fiori Elements 는 이쪽을 기대하고, 액션은 AS-IS 인터페이스와 1:1 로 맞추기 위한 것이다.
+### 잡 생성 = 스케줄 등록
 
-`createAndSchedule` 이 따로 있는 이유: AS-IS 는 "등록 + 스케줄"을 한 번에 하는데
-표준 CRUD 로는 `create` → `scheduleJob` 2회 호출이 필요하다. 화면이 한 번에 던지므로
-두 단계를 묶었다.
+SAP 에서 이 둘은 별개가 아니다. SM36 도 `JOB_OPEN` → `JOB_SUBMIT` → `JOB_CLOSE`
+가 끝나면 그게 곧 스케줄된 잡이고, APJ 는 아예 `SCHEDULE_JOB` 하나뿐이다.
 
-`rescheduleJob` 은 취소 + 재생성이다. **APJ 에 잡 수정 API 가 없어서** 그렇고,
-그 결과 SM37 의 `jobname`/`jobcount` 가 바뀐다.
+그래서 `createJob` 한 번이 두 가지를 만든다:
 
-`reqid` / `reqname` / `reqdatetime` → RAP 관리 필드 `created_by` / `created_at` 이 대신한다.
-요청사유처럼 별도 텍스트가 필요하면 `param` 에 넣거나 컬럼 하나만 추가한다.
+| | 무엇 | 성격 |
+|---|------|------|
+| 1 | **DB 등록부 행 1건** | SAP 개념이 아니라 이 서비스가 관리하려고 두는 것. AS-IS 도 자체 테이블에 template/jobtext/param 을 남겼다 |
+| 2 | **APJ 잡 1건** | 이것이 진짜 "잡 생성" |
+
+1번은 부수효과지 별도 단계가 아니다.
+
+### 표준 create / update 를 노출하지 않는 이유
+
+`POST` / `PATCH` 를 열어두면 **스케줄이 걸리지 않은 반쪽 행**이 생긴다.
+잡 생성은 `createJob`, 변경은 `changeJob` 으로만 한다.
+
+`DELETE` 는 열어둔다 — 등록부 행 정리용이며 APJ 잡과 무관하다.
+APJ 잡을 없애는 것은 `cancelJob` 이다.
+
+### `changeJob` 은 취소 + 재생성이다
+
+**APJ 에 잡 수정 API 가 없다.** 그래서 기존 잡을 취소하고 새 조건으로 다시 건다.
+그 결과 **SM37 의 `jobname`/`jobcount` 가 바뀐다.** SM36 은 제자리 변경이 되므로,
+화면 쪽에서 잡 ID 를 들고 있다면 영향이 있다 — 확인 필요.
 
 ---
 

@@ -1,8 +1,8 @@
-@EndUserText.label: 'scheduleJob 액션 파라미터'
+@EndUserText.label: 'changeJob 액션 파라미터'
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 define abstract entity ZD_BATCH_START_OPTION
 {
-      // 시작 조건과 반복 주기는 여기서만 존재한다.
+      // 스케줄 변경 시 새 시작 조건. 여기서만 존재한다.
       // APJ 에 넘기고 나면 APJ 가 갖고 있으므로 DB 에 저장하지 않는다.
       // 상태/스케줄 확인은 refreshStatus 로 APJ 에 물어본다.
 

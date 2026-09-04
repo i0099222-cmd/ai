@@ -7,7 +7,7 @@
 "!   1) 이 클래스 (ABAP for Cloud Development)
 "!   2) Application Job Catalog Entry  ZJC_BATCH_SAMPLE -> 실행클래스 지정
 "!   3) Application Job Template       ZJT_BATCH_SAMPLE -> 카탈로그 엔트리 지정
-"!   4) ZTBATCH_SCHED-TEMPLATE 에 'ZJT_BATCH_SAMPLE' 을 넣고 createAndSchedule
+"!   4) createJob 액션에 JobTemplateName='ZJT_BATCH_SAMPLE' 로 호출
 "!
 "! 기존 배치 리포트 이관:
 "!   리포트의 START-OF-SELECTION 로직 -> IF_APJ_RT_EXEC_OBJECT~EXECUTE

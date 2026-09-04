@@ -1,8 +1,8 @@
 "! <p class="shorttext synchronized">ZI_BATCH_SCHEDULE Behavior Implementation</p>
 "!
 "! AS-IS 인터페이스 대응:
-"!   ZBC_BATCH_JOB_CREATE -> create 후 scheduleJob
-"!   ZBC_BATCH_JOB_CHANGE -> update 후 cancelJob + scheduleJob
+"!   ZBC_BATCH_JOB_CREATE -> createJob   (등록부 행 + APJ 잡을 한 번에)
+"!   ZBC_BATCH_JOB_CHANGE -> changeJob   (취소 + 재생성)
 "!   ZBC_BATCH_JOB_DELETE -> cancelJob
 "!   ZBC_BATCH_JOB_STATUS -> refreshStatus (APJ 에서 읽어 메시지로 반환)
 "!
@@ -32,14 +32,11 @@ CLASS lhc_schedule DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS get_instance_features FOR INSTANCE FEATURES
       IMPORTING keys REQUEST requested_features FOR batchschedule RESULT result.
 
-    METHODS createandschedule FOR MODIFY
-      IMPORTING keys FOR ACTION batchschedule~createandschedule.
+    METHODS createjob FOR MODIFY
+      IMPORTING keys FOR ACTION batchschedule~createjob.
 
-    METHODS schedulejob FOR MODIFY
-      IMPORTING keys FOR ACTION batchschedule~schedulejob RESULT result.
-
-    METHODS reschedulejob FOR MODIFY
-      IMPORTING keys FOR ACTION batchschedule~reschedulejob RESULT result.
+    METHODS changejob FOR MODIFY
+      IMPORTING keys FOR ACTION batchschedule~changejob RESULT result.
 
     METHODS canceljob FOR MODIFY
       IMPORTING keys FOR ACTION batchschedule~canceljob RESULT result.
@@ -49,7 +46,7 @@ CLASS lhc_schedule DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     METHODS read_self
       IMPORTING keys          TYPE ANY TABLE
-      RETURNING VALUE(result) TYPE TABLE FOR ACTION RESULT zi_batch_schedule~schedulejob.
+      RETURNING VALUE(result) TYPE TABLE FOR ACTION RESULT zi_batch_schedule~changejob.
 
 ENDCLASS.
 
@@ -71,15 +68,10 @@ CLASS lhc_schedule IMPLEMENTATION.
       FAILED failed.
 
     " 상태 컬럼 없이 잡 이름 유무만으로 판단한다.
-    "   비어 있음 = 아직 스케줄 안 함 -> scheduleJob 가능
-    "   차 있음   = 스케줄됨          -> cancelJob / refreshStatus 가능
+    "   차 있음   = 스케줄됨   -> changeJob / cancelJob / refreshStatus 가능
+    "   비어 있음 = 취소된 행  -> 위 액션 전부 비활성 (createJob 으로 새로 만든다)
     result = VALUE #( FOR ls_run IN lt_run
       ( %tky = ls_run-%tky
-
-        %action-schedulejob = COND #(
-          WHEN ls_run-jobname IS INITIAL
-          THEN if_abap_behv=>fc-o-enabled
-          ELSE if_abap_behv=>fc-o-disabled )
 
         %action-canceljob = COND #(
           WHEN ls_run-jobname IS NOT INITIAL
@@ -91,8 +83,8 @@ CLASS lhc_schedule IMPLEMENTATION.
           THEN if_abap_behv=>fc-o-enabled
           ELSE if_abap_behv=>fc-o-disabled )
 
-        " 재스케줄은 이미 걸려 있는 잡을 취소하고 다시 거는 것
-        %action-reschedulejob = COND #(
+        " 변경은 이미 걸려 있는 잡을 취소하고 다시 거는 것
+        %action-changejob = COND #(
           WHEN ls_run-jobname IS NOT INITIAL
           THEN if_abap_behv=>fc-o-enabled
           ELSE if_abap_behv=>fc-o-disabled ) ) ).
@@ -102,15 +94,15 @@ CLASS lhc_schedule IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
 * 등록 + 스케줄 - AS-IS ZBC_BATCH_JOB_CREATE 1:1 대응
-*   표준 CRUD 로는 create -> scheduleJob 2회 호출이 필요하다.
-*   AS-IS 화면이 한 번에 던지므로 두 단계를 묶었다.
+*   SAP 에서 잡 생성 = 스케줄 등록이다. 한 번의 호출로
+*   등록부 행 1건 + APJ 잡 1건이 만들어진다.
 *
 *   NOTE: UUID 키는 managed numbering 이 early numbering 이라
 *         MODIFY 직후 mapped 에서 바로 읽을 수 있다. 그 값을 APJ 에 넘긴다.
 *   NOTE: APJ 호출이 인터랙션 단계에서 일어나므로, 이후 트랜잭션이 롤백되면
 *         잡만 남는다. 운영성 코드로 승격할 때는 saver 로 옮길 것.
 *----------------------------------------------------------------------*
-  METHOD createandschedule.
+  METHOD createjob.
 
     DATA lt_create TYPE TABLE FOR CREATE zi_batch_schedule.
 
@@ -198,7 +190,7 @@ CLASS lhc_schedule IMPLEMENTATION.
 *   NOTE: APJ 에 잡 수정 API 가 없어서 취소 + 재생성이다.
 *         그래서 SM37 의 jobname/jobcount 가 바뀐다.
 *----------------------------------------------------------------------*
-  METHOD reschedulejob.
+  METHOD changejob.
 
     READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
@@ -260,76 +252,6 @@ CLASS lhc_schedule IMPLEMENTATION.
                       jobname  = ls_sched-job_name
                       jobcount = ls_sched-job_count )
              TO lt_update.
-
-    ENDLOOP.
-
-    MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
-      ENTITY batchschedule
-        UPDATE FIELDS ( jobname jobcount )
-        WITH lt_update.
-
-    result = read_self( keys ).
-
-  ENDMETHOD.
-
-
-*----------------------------------------------------------------------*
-* 스케줄 - AS-IS ZBC_BATCH_JOB_CREATE 의 실행 부분
-*   시작 조건은 DB 가 아니라 액션 파라미터(%param)에서 온다.
-*----------------------------------------------------------------------*
-  METHOD schedulejob.
-
-    READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
-      ENTITY batchschedule
-        FIELDS ( jobtemplatename jobtext parameters )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_run)
-      FAILED failed.
-
-    DATA lt_update TYPE TABLE FOR UPDATE zi_batch_schedule.
-    DATA(lo_adapter) = NEW zcl_batch_apj_adapter( ).
-
-    LOOP AT lt_run INTO DATA(ls_run).
-
-      DATA(ls_p) = keys[ %tky = ls_run-%tky ]-%param.
-
-      DATA(ls_start) = VALUE zif_batch_job=>ty_start_option(
-        start_immediately = ls_p-startimmediately
-        start_date        = ls_p-startdate
-        start_time        = ls_p-starttime
-        timezone          = ls_p-timezone
-        prd_mins          = ls_p-periodminutes
-        prd_hours         = ls_p-periodhours
-        prd_days          = ls_p-perioddays
-        prd_weeks         = ls_p-periodweeks
-        prd_months        = ls_p-periodmonths ).
-
-      DATA(ls_sched) = lo_adapter->schedule(
-        iv_template = ls_run-jobtemplatename
-        iv_jobtext  = ls_run-jobtext
-        iv_param    = ls_run-parameters
-        is_start    = ls_start ).
-
-      IF ls_sched-success = abap_false.
-        APPEND VALUE #( %tky = ls_run-%tky ) TO failed-batchschedule.
-        APPEND VALUE #( %tky = ls_run-%tky
-                        %msg = new_message_with_text(
-                                 severity = if_abap_behv_message=>severity-error
-                                 text     = ls_sched-message ) )
-               TO reported-batchschedule.
-        CONTINUE.
-      ENDIF.
-
-      APPEND VALUE #( %tky     = ls_run-%tky
-                      jobname  = ls_sched-job_name
-                      jobcount = ls_sched-job_count )
-             TO lt_update.
-
-      APPEND VALUE #( %tky = ls_run-%tky
-                      %msg = new_message_with_text(
-                               severity = if_abap_behv_message=>severity-success
-                               text     = ls_sched-message ) )
-             TO reported-batchschedule.
 
     ENDLOOP.
 

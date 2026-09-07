@@ -103,11 +103,14 @@ P_MODU=SD;P_ZUID=X
 실행 클래스의 `GET_PARAMETERS` 가 선언한 `kind` 와 맞아야 하므로,
 추정이 다르면 JSON 에 `"kind":"S"` 처럼 명시한다.
 
-### 직렬화는 XCO 로
+### 직렬화
 
-**`/UI2/CL_JSON` 은 ABAP Cloud 에서 사용할 수 없다.** `XCO_CP_JSON` 을 쓴다.
-JSON 필드명 대소문자 규칙이 다를 수 있으므로, 실제 직렬화 결과를 한 번
-찍어보고 호출자와 맞출 것.
+`/UI2/CL_JSON` 을 쓴다. 기존 배치 인터페이스 코드와 같은 방식이라
+호출자(Spring)가 이미 이 형식을 만들고 있다.
+
+`pretty_name` 은 지정하지 않는다(기본값). 그래야 JSON 필드명이 ABAP 필드명
+그대로 `name` / `t_value` / `sign` / `option` / `low` / `high` 로 나온다.
+camelCase 가 필요하면 `pretty_name = /ui2/cl_json=>pretty_mode-camel_case`.
 
 ---
 
@@ -318,7 +321,6 @@ POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.cancelJob
 | `zcl_batch_apj_adapter` | `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
 | `example_zcl_apj_batch_sample` | `IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS`/`CHECK_PARAMETERS`, `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 시그니처, `CX_APJ_DT_CONTENT` textid |
 | — | 팩토리 캘린더 판정이 필요하면 Cloud 에서 쓸 수 있는 released API 확인 |
-| `zcl_batch_param` | `XCO_CP_JSON` 메서드 체인 (`from_abap`/`to_string`/`from_string`/`write_to`) |
 | — | `CL_APJ_RT_API` 에 change/modify 메서드가 있는지 (없으면 change = cancel + 재스케줄) |
 
 ### 반복 주기 — 부분 확인됨

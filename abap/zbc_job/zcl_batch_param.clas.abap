@@ -19,9 +19,12 @@
 "!      이스케이프해야 하는데, 이 형식은 그럴 필요가 없다.
 "!      값에 ';' 나 '=' 가 들어가거나 range 가 필요하면 JSON 을 쓴다.
 "!
-"! NOTE 직렬화는 XCO 를 쓴다. /UI2/CL_JSON 은 ABAP Cloud 에서 사용할 수 없다.
-"! TODO: 시그니처 확인 - XCO_CP_JSON 의 메서드 체인과 JSON 필드명 대소문자 규칙.
-"!       실제 직렬화 결과를 한 번 찍어보고 호출자와 맞출 것.
+"! 직렬화는 /UI2/CL_JSON 을 쓴다. 기존 배치 인터페이스 코드와 같은 방식이라
+"! 호출자(Spring)가 이미 이 형식을 만들고 있다.
+"!
+"! pretty_name 은 지정하지 않는다(기본값). 그래야 JSON 필드명이 ABAP 필드명
+"! 그대로 name / t_value / sign / option / low / high 로 나온다.
+"! camelCase 가 필요하면 pretty_name = /ui2/cl_json=>pretty_mode-camel_case.
 CLASS zcl_batch_param DEFINITION
   PUBLIC
   FINAL
@@ -123,22 +126,15 @@ CLASS zcl_batch_param IMPLEMENTATION.
 
     ENDLOOP.
 
-    TRY.
-        rv_param = xco_cp_json=>data->from_abap( lt_param )->to_string( ).
-      CATCH cx_root.
-        CLEAR rv_param.
-    ENDTRY.
+    rv_param = /ui2/cl_json=>serialize( data = lt_param ).
 
   ENDMETHOD.
 
 
   METHOD parse_json.
 
-    TRY.
-        xco_cp_json=>data->from_string( iv_param )->write_to( REF #( rt_param ) ).
-      CATCH cx_root.
-        CLEAR rt_param.
-    ENDTRY.
+    /ui2/cl_json=>deserialize( EXPORTING json = iv_param
+                               CHANGING  data = rt_param ).
 
   ENDMETHOD.
 

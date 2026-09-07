@@ -103,9 +103,6 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 *
 *   구조: [{ "name":"P_MODU",
 *            "t_value":[{ "sign":"I","option":"EQ","low":"SD" }] }]
-*
-* TODO: 시그니처 확인 - IT_JOB_PARAMETER_VALUE 의 실제 타입명.
-*       ADT 에서 CL_APJ_RT_API=>SCHEDULE_JOB 의 그 파라미터에 F2.
 *----------------------------------------------------------------------*
         DATA lt_param TYPE cl_apj_rt_api=>tt_job_parameter_value.
 

@@ -296,7 +296,6 @@ POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.cancelJob
 | 파일 | 확인할 것 |
 |------|----------|
 | `zcl_batch_apj_adapter` | **반복 주기** — `TY_PERIOD_INFO` 의 구성 필드명, `SCHEDULE_JOB` 의 파라미터명이 `IS_PERIOD_INFO` 인지 (아래) |
-| `zcl_batch_apj_adapter` | **`IT_JOB_PARAMETER_VALUE` 의 타입명** (`cl_apj_rt_api=>tt_job_parameter_value` 로 가정) |
 | `zcl_batch_apj_adapter` | `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
 | `example_zcl_apj_batch_sample` | `IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS`/`CHECK_PARAMETERS`, `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 시그니처, `CX_APJ_DT_CONTENT` textid |
 | — | 팩토리 캘린더 판정이 필요하면 Cloud 에서 쓸 수 있는 released API 확인 |

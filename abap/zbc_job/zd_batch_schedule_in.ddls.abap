@@ -31,4 +31,16 @@ define abstract entity ZD_BATCH_SCHEDULE_IN
       // 종료 일시 - AS-IS 배치잡 close시간. 같은 CHAR(15) 형식.
       @EndUserText.label: '종료 일시 (close)'
       EndDateTime       : abap.char(15);
+
+      // --- 제한 조건 (AS-IS SM36 Restrictions) ----------------------------
+      @EndUserText.label: '공장달력'
+      CalendarId        : abap.char(2);
+      @EndUserText.label: '월중 실행일 / n번째 작업일'
+      MonthDay          : abap.int4;
+      @EndUserText.label: '월말 실행'
+      EndOfMonth        : abap_boolean;
+      @EndUserText.label: '작업일 기준'
+      UseWorkingDays    : abap_boolean;
+      @EndUserText.label: '비근무일이면 앞당김'
+      ExecuteBefore     : abap_boolean;
 }

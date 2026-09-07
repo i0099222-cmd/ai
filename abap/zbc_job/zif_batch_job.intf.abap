@@ -31,6 +31,26 @@ INTERFACE zif_batch_job
       "! 종료 일시 - AS-IS 배치잡 close시간. 같은 CHAR(15) 형식.
       "! 값이 있으면 APJ END_INFO type = BY, 없으면 NONE(무한 반복)
       end_datetime      TYPE c LENGTH 15,
+
+      " --- 제한 조건 (AS-IS SM36 Restrictions 팝업) ---------------------
+      " AS-IS 어휘로 받고 APJ 구조로의 변환은 어댑터가 한다.
+      " EXCEPTION{calendar_id, start_restriction_code} 와
+      " MONTH_INFO{day, use_working_days_ind, shift_direction} 로 나뉜다.
+
+      "! 공장달력 ID. 어느 날이 근무일인지의 기준.
+      "! 비어 있으면 근무일 판정을 하지 않는다.
+      calendar_id       TYPE c LENGTH 2,
+      "! 월중 실행 일자. 1 이면 월초. CALENDAR_ID 와 USE_WORKING_DAYS 가
+      "! 같이 오면 "n 번째 작업일" 이 된다 (AS-IS 공장근무일수).
+      month_day         TYPE i,
+      "! 매월 말일 실행 (AS-IS EOFMONTH). 말일은 달마다 날짜가 달라
+      "! 일자로 표현할 수 없어 별도 플래그로 받는다.
+      eof_month         TYPE abap_bool,
+      "! MONTH_DAY 를 달력일이 아니라 작업일로 센다.
+      use_working_days  TYPE abap_bool,
+      "! 실행일이 근무일이 아니면 이전 근무일로 당긴다 (AS-IS EXECUTE_BEFORE).
+      "! 비어 있으면 다음 근무일로 미룬다.
+      execute_before    TYPE abap_bool,
     END OF ty_start_option.
 
 ENDINTERFACE.

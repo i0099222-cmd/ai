@@ -119,7 +119,12 @@ CLASS lhc_schedule IMPLEMENTATION.
                       perioddays        = ls_p-perioddays
                       periodweeks       = ls_p-periodweeks
                       periodmonths      = ls_p-periodmonths
-                      enddatetime       = ls_p-enddatetime )
+                      enddatetime       = ls_p-enddatetime
+                      calendarid        = ls_p-calendarid
+                      monthday          = ls_p-monthday
+                      endofmonth        = ls_p-endofmonth
+                      useworkingdays    = ls_p-useworkingdays
+                      executebefore     = ls_p-executebefore )
              TO lt_create.
     ENDLOOP.
 
@@ -130,7 +135,8 @@ CLASS lhc_schedule IMPLEMENTATION.
         CREATE FIELDS ( jobtemplatename jobtext parameters
                         startimmediately startdatetime timezone
                         periodminutes periodhours perioddays periodweeks periodmonths
-                        enddatetime )
+                        enddatetime
+                        calendarid monthday endofmonth useworkingdays executebefore )
         WITH lt_create
       MAPPED   DATA(ls_mapped)
       FAILED   DATA(ls_failed)
@@ -165,7 +171,12 @@ CLASS lhc_schedule IMPLEMENTATION.
                       perioddays       = ls_p-perioddays
                       periodweeks      = ls_p-periodweeks
                       periodmonths     = ls_p-periodmonths
-                      enddatetime      = ls_p-enddatetime )
+                      enddatetime      = ls_p-enddatetime
+                      calendarid       = ls_p-calendarid
+                      monthday         = ls_p-monthday
+                      endofmonth       = ls_p-endofmonth
+                      useworkingdays   = ls_p-useworkingdays
+                      executebefore    = ls_p-executebefore )
              TO lt_update.
     ENDLOOP.
 
@@ -173,7 +184,8 @@ CLASS lhc_schedule IMPLEMENTATION.
       ENTITY batchschedule
         UPDATE FIELDS ( startimmediately startdatetime timezone
                         periodminutes periodhours perioddays periodweeks periodmonths
-                        enddatetime )
+                        enddatetime
+                        calendarid monthday endofmonth useworkingdays executebefore )
         WITH lt_update
       FAILED   failed
       REPORTED reported.
@@ -359,7 +371,12 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
                              prd_days          = is_row-perioddays
                              prd_weeks         = is_row-periodweeks
                              prd_months        = is_row-periodmonths
-                             end_datetime      = is_row-enddatetime ) ).
+                             end_datetime      = is_row-enddatetime
+                             calendar_id       = is_row-calendarid
+                             month_day         = is_row-monthday
+                             eof_month         = is_row-endofmonth
+                             use_working_days  = is_row-useworkingdays
+                             execute_before    = is_row-executebefore ) ).
 
     " 실패하면 jobname 이 빈 채로 남는다. 사유는 message 에 적힌다.
     " save 단계라 reported 로 메시지를 돌려줄 수 없기 때문이다.

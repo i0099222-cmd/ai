@@ -98,6 +98,18 @@ CLASS zcl_batch_apj_adapter DEFINITION
     "! '20261001020000' / '20261001 020000' / '2026-10-01 02:00:00' 이
     "! 모두 동작한다. 시각이 없으면 IV_DEFAULT_TIME 을 쓴다 - 시작 일시는
     "! 00:00:00(그 날의 시작), 종료 일시는 23:59:59(그 날의 끝)가 의도다.
+    "! 비근무일(또는 없는 날짜)에 어느 방향으로 옮길지의 코드.
+    "!
+    "! START_RESTRICTION_CODE 와 SHIFT_DIRECTION 이 같은 값 도메인을 쓴다고
+    "! 보고 한 곳에서 만든다. 도메인이 다르면 여기서 갈라주면 된다.
+    "!
+    "! TODO: 시그니처 확인 - 실제 값. 'B'/'A' 는 추정이다.
+    METHODS shift_code
+      IMPORTING
+        iv_before      TYPE abap_bool
+      RETURNING
+        VALUE(rv_code) TYPE c LENGTH 1.
+
     METHODS to_timestamp
       IMPORTING
         iv_datetime         TYPE clike
@@ -306,14 +318,53 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
     ENDIF.
 
 *----------------------------------------------------------------------*
+* 제한 조건 - AS-IS SM36 Restrictions 팝업
+*
+*   EXCEPTION{ calendar_id, start_restriction_code }
+*     달력을 지정하지 않으면 근무일 판정 자체가 불가능하므로,
+*     CALENDAR_ID 가 비면 나머지 제한 조건도 무의미하다.
+*
+*   MONTH_INFO{ day, use_working_days_ind, shift_direction, week_number }
+*     WEEK_NUMBER 는 AS-IS 에 대응이 없어 쓰지 않는다.
+*
+* TODO: 시그니처 확인 - START_RESTRICTION_CODE / SHIFT_DIRECTION 의 값 도메인.
+*       아래 상수 두 개만 고치면 된다.
+*----------------------------------------------------------------------*
+    IF is_start-calendar_id IS NOT INITIAL.
+      rs_sched-exception-calendar_id = is_start-calendar_id.
+      rs_sched-exception-start_restriction_code = shift_code( is_start-execute_before ).
+    ENDIF.
+
+*   월중 실행일. 말일은 일자로 표현할 수 없어 31 로 넣고 없는 달은
+*   앞당기게 한다 - 2월이면 28/29일이 된다.
+*
+* TODO: 확인 - SHIFT_DIRECTION 이 "존재하지 않는 날짜" 에도 적용되는지,
+*       아니면 "근무일이 아닌 날" 에만 적용되는지. 후자면 이 방식으로는
+*       월말을 표현할 수 없다. 2월로 테스트해 SM37 에서 확인할 것.
+    IF is_start-eof_month = abap_true OR is_start-month_day > 0.
+
+      rs_sched-month_info-day = COND #( WHEN is_start-eof_month = abap_true
+                                        THEN 31 ELSE is_start-month_day ).
+
+      rs_sched-month_info-use_working_days_ind = is_start-use_working_days.
+
+      "  말일은 없는 달에서 반드시 앞당겨야 하므로 요청과 무관하게 이전 방향.
+      rs_sched-month_info-shift_direction =
+        shift_code( COND #( WHEN is_start-eof_month = abap_true
+                            THEN abap_true ELSE is_start-execute_before ) ).
+    ENDIF.
+
+*----------------------------------------------------------------------*
 * 미사용
-*   WEEKDAY_INFO / MONTH_INFO : 요일·월 지정. AS-IS 에 대응 항목이 없다.
-*   EXCEPTION                 : 비작업일 처리. AS-IS 의 공장근무일
-*                               (공장시간/공장근무일수/공장근무시간)을
-*                               여기로 옮길 수 있는지 확인이 필요하다.
-*   TEST_MODE                 : 테스트 모드
+*   WEEKDAY_INFO : 요일 지정. AS-IS 에 대응 항목이 없다.
+*   TEST_MODE    : 테스트 모드
 *----------------------------------------------------------------------*
 
+  ENDMETHOD.
+
+
+  METHOD shift_code.
+    rv_code = COND #( WHEN iv_before = abap_true THEN 'B' ELSE 'A' ).
   ENDMETHOD.
 
 

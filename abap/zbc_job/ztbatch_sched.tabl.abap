@@ -50,6 +50,19 @@ define table ztbatch_sched {
   @EndUserText.label : '종료 일시 (close)'
   end_datetime      : abap.char(15);
 
+  // --- 제한 조건 (AS-IS SM36 Restrictions) --------------------------------
+  // APJ 의 EXCEPTION / MONTH_INFO 로 나뉘어 들어간다. 변환은 어댑터가 한다.
+  @EndUserText.label : '공장달력'
+  calendar_id       : abap.char(2);
+  @EndUserText.label : '월중 실행일 / n번째 작업일'
+  month_day         : abap.int4;
+  @EndUserText.label : '월말 실행'
+  eof_month         : abap_boolean;
+  @EndUserText.label : '작업일 기준'
+  use_working_days  : abap_boolean;
+  @EndUserText.label : '비근무일이면 앞당김'
+  execute_before    : abap_boolean;
+
   // --- APJ 포인터 --------------------------------------------------------
   // 비어 있으면 아직 스케줄 안 한 상태. 차 있으면 스케줄된 상태.
   // 상태 컬럼 없이 이 두 필드만으로 액션 활성/비활성을 판단한다.

@@ -418,28 +418,51 @@ AS-IS `ZBCS0011` 의 형식이라 호출자가 값을 그대로 던질 수 있�
 즉 AS-IS 는 **"매월 말일, 단 휴무일이면 앞당겨서"** 같은 조건을 건다.
 월마감 배치의 전형적인 요구사항이라 안 쓰는 잡이 없을 가능성이 높다.
 
-### 확인 필요 — 이 순서로 보면 된다
+### APJ 대응 — 확인됨, 거의 전부 넘어간다
 
-APJ 대응 여부가 위 세트의 운명을 가른다. 둘 다 `TY_SCHEDULING_INFO` 안이다.
+`TY_SCHEDULING_INFO` 안에 두 구조가 있다.
 
-1. **`MONTH_INFO` 의 구조** — 월초/월말 지정이 있는가
-   - 있으면 `BOFMONTH`/`EOFMONTH` 그대로 이관
-   - 없으면 **월말 배치를 APJ 로 표현할 수 없다.** 가장 큰 구멍이 된다
-2. **`EXCEPTION` 의 구조** — **달력 ID 를 받는가**
-   - 받으면 `CALENDARID` + `EXECUTE_BEFORE` 이관 → "APJ 못 함" 목록에서 제거
-   - 안 받으면 시스템 기본 달력 고정. 사업장별 달력 지정 불가
-3. `PERIODIC_GRANULARITY` 의 값 도메인 (상수 클래스가 있는지)
-4. `END_INFO` 가 `TY_SCHEDULING_INFO` 의 컴포넌트인지 별도 파라미터인지,
-   `TYPE` 의 실제 값 (`NONE` / `AFTER` / `BY`)
-5. `WEEKDAY_INFO` 의 구조
+```
+EXCEPTION  { calendar_id, start_restriction_code }
+MONTH_INFO { day, use_working_days_ind, shift_direction, week_number }
+```
 
-### 대응이 없을 때의 우회책
+| AS-IS | APJ | 판정 |
+|-------|-----|------|
+| `CALENDARID` 공장달력 | `exception-calendar_id` | **○ 이관** |
+| `EXECUTE_BEFORE` 앞당김 | `start_restriction_code` / `shift_direction` | **○ 이관** (값 도메인 확인 필요) |
+| `BOFMONTH` 월초 | `month_info-day = 1` | **○ 이관** |
+| 공장근무일수 (n번째 작업일) | `month_info-day` + `use_working_days_ind` | **○ 이관** |
+| `EOFMONTH` 월말 | **직접 대응 없음** | **△ 우회 — 검증 필요** |
+| — | `month_info-week_number` | AS-IS 에 대응 없음, 안 씀 |
 
-실행 클래스가 **매일 돌면서 오늘이 조건에 맞는 날인지 직접 판정**하고,
-아니면 아무것도 안 하고 끝낸다. 근무일 판정도 말일 판정도 몇 줄이다.
+**공장달력은 "APJ 못 함" 목록에서 빠진다.**
 
-대가는 **잡 로그다.** "안 돌았다" 와 "돌았는데 아무것도 안 했다" 는 SM37 에서
-다르게 보인다. 월 1회 돌던 잡이 월 30회 로그를 남기게 되므로 운영 쪽 합의가 필요하다.
+### 남은 것 하나 — 월말(`EOFMONTH`)
+
+`MONTH_INFO-DAY` 는 일자 하나만 받는다. "말일" 은 달마다 28/29/30/31 이라
+일자로 표현할 수 없다.
+
+어댑터는 **`day = 31` + `shift_direction = 이전`** 으로 넣는다. 31일이 없는 달이면
+앞당겨져서 2월이면 28/29일이 된다는 계산이다.
+
+> **이게 성립하려면 `SHIFT_DIRECTION` 이 "존재하지 않는 날짜" 에도 적용돼야 한다.**
+> "근무일이 아닌 날" 에만 적용된다면 2월에 잡이 아예 안 돈다.
+> **2월로 스케줄해서 SM37 에서 확인할 것** — 지금 미확인 항목 중 가장 급하다.
+
+안 되면 우회책은 실행 클래스가 **매일 돌면서 오늘이 말일인지 판정**하고 아니면
+즉시 종료하는 것이다. 판정은 몇 줄이지만 대가는 잡 로그다 — 월 1회 돌던 잡이
+월 30회 로그를 남긴다. SM37 에서 "안 돌았다" 와 "돌았는데 아무것도 안 했다" 는
+다르게 보이므로 운영 쪽 합의가 먼저다.
+
+### 나머지 확인 필요
+
+- **`START_RESTRICTION_CODE` / `SHIFT_DIRECTION` 의 값 도메인** — 지금 `'B'`/`'A'`
+  로 넣고 있다. 어댑터의 `shift_code( )` 한 곳만 고치면 된다
+- `PERIODIC_GRANULARITY` 의 값 도메인 (상수 클래스가 있는지)
+- `END_INFO` 가 `TY_SCHEDULING_INFO` 의 컴포넌트인지 별도 파라미터인지,
+  `TYPE` 의 실제 값 (`NONE` / `AFTER` / `BY`)
+- `WEEKDAY_INFO` 의 구조
 
 ---
 
@@ -452,8 +475,9 @@ APJ 대응 여부가 위 세트의 운명을 가른다. 둘 다 `TY_SCHEDULING_I
 | **`pgtype` ≠ PROG** | **모델에서 제외.** 실행 클래스만 지원 | `PROG` 외 값이 쓰이나? |
 | 다중 스텝 | **모델에서 제외.** 잡 1개 = 프로그램 1개 | 2스텝 잡을 어떻게 나눌지 |
 | `jobname` 지정 | 논리명은 `jobtext`, SM37 이름은 `jobname` 으로 나란히 보관 | — |
-| **팩토리 캘린더** (`CALENDARID`) | **미확정.** `EXCEPTION` 이 달력 ID 를 받으면 이관 가능. 아니면 실행 클래스가 직접 판정 | `EXCEPTION` 구조 |
-| **월초/월말 실행** (`BOFMONTH`/`EOFMONTH`) | **미확정.** `MONTH_INFO` 에 대응이 없으면 월말 배치를 표현할 수 없다 | `MONTH_INFO` 구조 |
+| ~~팩토리 캘린더~~ (`CALENDARID`) | **해결.** `EXCEPTION-CALENDAR_ID` 로 이관 | ○ |
+| ~~월초 실행~~ (`BOFMONTH`) | **해결.** `MONTH_INFO-DAY = 1` | ○ |
+| **월말 실행** (`EOFMONTH`) | **우회.** `DAY = 31` + 앞당김. 2월 동작 검증 필요 | `SHIFT_DIRECTION` 이 없는 날짜에도 듣나? |
 | **합산 주기** (`PRDMONTHS` + `PRDDAYS` 동시) | **불가.** APJ 는 단위 1개 + 값 1개뿐. 어댑터가 실패시킨다 | 동시에 채운 잡이 실제로 있나? |
 | **close 시각** (`laststrt`) | 위와 동일 | 실제로 쓰나? |
 | 기존 배치 리포트 | **클래스로 이관 필요.** 배치마다 실행 클래스 + 카탈로그 + 템플릿 | 대상 리포트가 몇 개인가? |

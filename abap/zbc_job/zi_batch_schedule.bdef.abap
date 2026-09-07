@@ -72,6 +72,11 @@ with additional save
     PeriodWeeks        = prd_weeks;
     PeriodMonths       = prd_months;
     EndDateTime        = end_datetime;
+    CalendarId         = calendar_id;
+    MonthDay           = month_day;
+    EndOfMonth         = eof_month;
+    UseWorkingDays     = use_working_days;
+    ExecuteBefore      = execute_before;
     JobName            = jobname;
     JobCount           = jobcount;
     CancelRequested    = cancel_requested;

@@ -86,11 +86,13 @@ CLASS zcl_batch_apj_adapter DEFINITION
     "!
     "! 숫자만 뽑아 앞 8자리를 날짜, 다음 6자리를 시각으로 읽으므로
     "! '20261001020000' / '20261001 020000' / '2026-10-01 02:00:00' 이
-    "! 모두 동작한다. 시각이 없으면 00:00:00 으로 본다.
+    "! 모두 동작한다. 시각이 없으면 IV_DEFAULT_TIME 을 쓴다 - 시작 일시는
+    "! 00:00:00(그 날의 시작), 종료 일시는 23:59:59(그 날의 끝)가 의도다.
     METHODS to_timestamp
       IMPORTING
         iv_datetime         TYPE clike
         iv_timezone         TYPE timezone
+        iv_default_time     TYPE t DEFAULT '000000'
       RETURNING
         VALUE(rv_timestamp) TYPE timestamp.
 
@@ -258,7 +260,11 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
 * 종료 조건 - AS-IS 배치잡 close시간
-*   BY : 이 시각까지만 반복.
+*   BY : 이 시각 이후로는 더 스케줄하지 않는다. 이미 시작된 실행을
+*        중단시키는 것이 아니다 - SM36 의 laststrtdt/tm 과 같은 의미다.
+*
+*        날짜만 들어오면 그 날 23:59:59 로 본다. 00:00:00 으로 읽으면
+*        "9월 7일까지" 가 9월 6일까지가 되어 하루가 잘린다.
 *
 *   close시간이 없으면 END_INFO 를 통째로 비워 둔다. TYPE = 'NONE' 을
 *   명시하지 않는 이유는 값 도메인을 아직 확인하지 못했기 때문이고,
@@ -275,8 +281,9 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
       rs_sched-end_info-type      = 'BY'.
       rs_sched-end_info-timestamp = to_timestamp(
-        iv_datetime = is_start-end_datetime
-        iv_timezone = rs_sched-timezone ).
+        iv_datetime     = is_start-end_datetime
+        iv_timezone     = rs_sched-timezone
+        iv_default_time = '235959' ).
 
     ENDIF.
 
@@ -302,7 +309,7 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
     DATA(lv_date) = CONV d( lv_digits+0(8) ).
     DATA(lv_time) = COND t( WHEN strlen( lv_digits ) >= 14
                             THEN CONV t( lv_digits+8(6) )
-                            ELSE '000000' ).
+                            ELSE iv_default_time ).
 
     CONVERT DATE lv_date TIME lv_time
             INTO TIME STAMP rv_timestamp TIME ZONE iv_timezone.

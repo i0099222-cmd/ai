@@ -122,7 +122,7 @@ CLASS lhc_schedule IMPLEMENTATION.
                       enddatetime       = ls_p-enddatetime
                       calendarid        = ls_p-calendarid
                       monthday          = ls_p-monthday
-                      endofmonth        = ls_p-endofmonth
+                      countfrommonthend = ls_p-countfrommonthend
                       useworkingdays    = ls_p-useworkingdays
                       startrestriction  = ls_p-startrestriction )
              TO lt_create.
@@ -136,7 +136,7 @@ CLASS lhc_schedule IMPLEMENTATION.
                         startimmediately startdatetime timezone
                         periodminutes periodhours perioddays periodweeks periodmonths
                         enddatetime
-                        calendarid monthday endofmonth useworkingdays startrestriction )
+                        calendarid monthday useworkingdays countfrommonthend startrestriction )
         WITH lt_create
       MAPPED   DATA(ls_mapped)
       FAILED   DATA(ls_failed)
@@ -174,7 +174,7 @@ CLASS lhc_schedule IMPLEMENTATION.
                       enddatetime      = ls_p-enddatetime
                       calendarid       = ls_p-calendarid
                       monthday         = ls_p-monthday
-                      endofmonth       = ls_p-endofmonth
+                      countfrommonthend = ls_p-countfrommonthend
                       useworkingdays   = ls_p-useworkingdays
                       startrestriction = ls_p-startrestriction )
              TO lt_update.
@@ -185,7 +185,7 @@ CLASS lhc_schedule IMPLEMENTATION.
         UPDATE FIELDS ( startimmediately startdatetime timezone
                         periodminutes periodhours perioddays periodweeks periodmonths
                         enddatetime
-                        calendarid monthday endofmonth useworkingdays startrestriction )
+                        calendarid monthday useworkingdays countfrommonthend startrestriction )
         WITH lt_update
       FAILED   failed
       REPORTED reported.
@@ -374,7 +374,7 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
                              end_datetime      = is_row-enddatetime
                              calendar_id       = is_row-calendarid
                              month_day         = is_row-monthday
-                             eof_month         = is_row-endofmonth
+                             count_from_end    = is_row-countfrommonthend
                              use_working_days  = is_row-useworkingdays
                              start_restriction = is_row-startrestriction ) ).
 

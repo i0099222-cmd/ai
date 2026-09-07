@@ -54,12 +54,12 @@ define table ztbatch_sched {
   // APJ 의 EXCEPTION / MONTH_INFO 로 나뉘어 들어간다. 변환은 어댑터가 한다.
   @EndUserText.label : '공장달력'
   calendar_id       : abap.char(2);
-  @EndUserText.label : '월중 실행일 / n번째 작업일'
+  @EndUserText.label : 'n번째 작업일 (공장근무일수)'
   month_day         : abap.int4;
-  @EndUserText.label : '월말 실행'
-  eof_month         : abap_boolean;
   @EndUserText.label : '작업일 기준'
   use_working_days  : abap_boolean;
+  @EndUserText.label : '월말부터 역순'
+  count_from_end    : abap_boolean;
   // 비근무일 처리. D=건너뜀 B=앞당김 A=미룸 N=제한없음 (ZIF_BATCH_JOB=>GC_RESTRICTION)
   @EndUserText.label : '비근무일 처리'
   start_restriction : abap.char(1);

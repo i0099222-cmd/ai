@@ -35,12 +35,13 @@ define abstract entity ZD_BATCH_SCHEDULE_IN
       // --- 제한 조건 (AS-IS SM36 Restrictions) ----------------------------
       @EndUserText.label: '공장달력'
       CalendarId        : abap.char(2);
-      @EndUserText.label: '월중 실행일 / n번째 작업일'
+      @EndUserText.label: 'n번째 작업일 (공장근무일수)'
       MonthDay          : abap.int4;
-      @EndUserText.label: '월말 실행'
-      EndOfMonth        : abap_boolean;
       @EndUserText.label: '작업일 기준'
       UseWorkingDays    : abap_boolean;
+      // 비우면 월초부터, 'X' 면 월말부터 거꾸로 센다
+      @EndUserText.label: '월말부터 역순'
+      CountFromMonthEnd : abap_boolean;
       // D=건너뜀 B=앞당김 A=미룸 N=제한없음
       @EndUserText.label: '비근무일 처리'
       StartRestriction  : abap.char(1);

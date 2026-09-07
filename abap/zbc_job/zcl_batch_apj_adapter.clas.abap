@@ -315,36 +315,31 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 *   MONTH_INFO{ day, use_working_days_ind, shift_direction, week_number }
 *     WEEK_NUMBER 는 AS-IS 에 대응이 없어 쓰지 않는다.
 *
-*   START_RESTRICTION_CODE 는 D(건너뜀) / B(앞당김) / A(미룸) / N(제한없음).
-*   호출자가 AS-IS 값을 그대로 주므로 변환하지 않는다.
+*   두 구조의 역할이 겹치지 않는다.
+*     EXCEPTION   실행일이 비근무일일 때 어떻게 할지
+*     MONTH_INFO  실행일을 어떻게 고를지 (며칠째를, 어느 쪽에서부터)
 *----------------------------------------------------------------------*
     IF is_start-calendar_id IS NOT INITIAL.
-      rs_sched-exception-calendar_id            = is_start-calendar_id.
+      rs_sched-exception-calendar_id = is_start-calendar_id.
+      " D(건너뜀) / B(앞당김) / A(미룸) / N(제한없음). AS-IS 는 채우지 않아
+      " 보통 비어 있고, 그러면 APJ 기본 동작을 따른다.
       rs_sched-exception-start_restriction_code = is_start-start_restriction.
     ENDIF.
 
-*   월중 실행일. 말일은 일자로 표현할 수 없어 31 로 넣고 없는 달은
-*   앞당기게 한다 - 2월이면 28/29일이 된다.
+*   AS-IS 는 WDAYNO(공장근무일수) + BOFMONTH/EOFMONTH 로
+*   "월초부터 / 월말부터 N 번째 작업일" 을 지정한다.
+*   BOFMONTH/EOFMONTH 는 실행일 자체가 아니라 세는 방향이다.
 *
-* TODO: 확인 - SHIFT_DIRECTION 이 "존재하지 않는 날짜" 에도 적용되는지,
-*       아니면 "근무일이 아닌 날" 에만 적용되는지. 후자면 이 방식으로는
-*       월말을 표현할 수 없다. 2월로 테스트해 SM37 에서 확인할 것.
-*
-* TODO: 시그니처 확인 - SHIFT_DIRECTION 의 값 도메인. START_RESTRICTION_CODE
-*       와 같은 D/B/A/N 인지, 방향뿐이라 B/A 만인지.
-    IF is_start-eof_month = abap_true OR is_start-month_day > 0.
-
-      rs_sched-month_info-day = COND #( WHEN is_start-eof_month = abap_true
-                                        THEN 31 ELSE is_start-month_day ).
-
+* TODO: 시그니처 확인 - SHIFT_DIRECTION 이 세는 방향(월초/월말 기준)이
+*       맞는지. 비근무일 회피 방향이라면 그건 이미 EXCEPTION 이 하므로
+*       역할이 겹친다. 월말 기준으로 걸어 SM37 에서 실행일을 확인할 것.
+    IF is_start-month_day > 0.
+      rs_sched-month_info-day                  = is_start-month_day.
       rs_sched-month_info-use_working_days_ind = is_start-use_working_days.
-
-      "  말일은 없는 달에서 반드시 앞당겨야 하므로 요청과 무관하게 앞당김.
-      "  그 외에는 비근무일 처리 방식을 그대로 따른다.
-      rs_sched-month_info-shift_direction =
-        COND #( WHEN is_start-eof_month = abap_true
-                THEN zif_batch_job=>gc_restriction-before
-                ELSE is_start-start_restriction ).
+      rs_sched-month_info-shift_direction      =
+        COND #( WHEN is_start-count_from_end = abap_true
+                THEN zif_batch_job=>gc_restriction-before   " 월말에서 역순
+                ELSE zif_batch_job=>gc_restriction-after ). " 월초에서 순서
     ENDIF.
 
 *----------------------------------------------------------------------*

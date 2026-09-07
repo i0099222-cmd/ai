@@ -427,16 +427,43 @@ EXCEPTION  { calendar_id, start_restriction_code }
 MONTH_INFO { day, use_working_days_ind, shift_direction, week_number }
 ```
 
+### AS-IS 로직 — 확인됨
+
+```abap
+IF ls_info-공장시간 IS NOT INITIAL.        " 공장시간 = 공장달력 ID
+  calendarid = 공장시간.
+  wdayno     = 공장근무일수.
+  sdlstrttm  = 공장근무시간.
+
+  IF ls_info-실행관련시간 IS NOT INITIAL.
+    bofmonth = 'X'.                       " 월초부터 센다
+  ELSE.
+    eofmonth = 'X'.                       " 월말부터 센다
+  ENDIF.
+ENDIF.
+```
+
+읽어야 할 것 세 가지.
+
+1. **`공장시간` 은 시간이 아니라 공장달력 ID 다.** 이게 게이트고, 비어 있으면
+   제한 조건 전체를 걸지 않는다.
+2. **`BOFMONTH`/`EOFMONTH` 는 "월초/말일에 실행" 이 아니다.** `WDAYNO` 와 한
+   세트로 도는 **세는 방향**이다. `WDAYNO = 3` + `EOFMONTH` = "말일에서 3번째
+   작업일". 그래서 실행일은 매월 달라진다.
+3. **`실행관련시간`(`excutbefore`) 은 시각이 아니라 방향 스위치다.** 값이 있으면
+   월초 기준, 없으면 월말 기준. 비근무일 회피와는 무관하다.
+
 | AS-IS | APJ | 판정 |
 |-------|-----|------|
-| `CALENDARID` 공장달력 | `exception-calendar_id` | **○ 이관** |
-| `EXECUTE_BEFORE` 앞당김 | `exception-start_restriction_code` | **○ 이관** |
-| `BOFMONTH` 월초 | `month_info-day = 1` | **○ 이관** |
-| 공장근무일수 (n번째 작업일) | `month_info-day` + `use_working_days_ind` | **○ 이관** |
-| `EOFMONTH` 월말 | **직접 대응 없음** | **△ 우회 — 검증 필요** |
+| `공장시간` 공장달력 | `exception-calendar_id` | **○ 이관** |
+| `공장근무일수` → `WDAYNO` | `month_info-day` + `use_working_days_ind` | **○ 이관** |
+| `실행관련시간` → `BOFMONTH`/`EOFMONTH` | `month_info-shift_direction` | **○ 이관** (의미 확인 필요) |
+| `공장근무시간` → `SDLSTRTTM` | `StartDateTime` 의 **시각부** | **○ 이관** — 별도 필드 불필요 |
+| — | `exception-start_restriction_code` | **AS-IS 미사용.** APJ 기능이라 열어만 둠 |
 | — | `month_info-week_number` | AS-IS 에 대응 없음, 안 씀 |
 
-**공장달력은 "APJ 못 함" 목록에서 빠진다.**
+**공장달력 3종이 전부 "APJ 못 함" 목록에서 빠진다.** 월말 우회책도 필요 없다 —
+애초에 "말일 실행" 이 아니었다.
 
 ### `START_RESTRICTION_CODE` — 값 도메인 확인됨
 
@@ -447,38 +474,42 @@ MONTH_INFO { day, use_working_days_ind, shift_direction, week_number }
 | `A` | 다음 근무일로 미룬다 (after holiday) |
 | `N` | 제한 없이 그날 실행한다 (no) |
 
-**4지선다지 플래그가 아니다.** 처음에 `ExecuteBefore` 를 `abap_boolean` 으로
-받았는데 그러면 `D`(건너뜀)와 `N`(제한없음)을 표현할 수 없어 `StartRestriction`
-`CHAR(1)` 로 바꿨다. 상수는 `ZIF_BATCH_JOB=>GC_RESTRICTION`.
+**4지선다지 플래그가 아니다.** 그래서 `StartRestriction` 을 `CHAR(1)` 로 받는다
+(상수는 `ZIF_BATCH_JOB=>GC_RESTRICTION`). `abap_boolean` 으로는 `D`(건너뜀)와
+`N`(제한없음)을 표현할 수 없다.
 
-SM36 제한조건 팝업의 라디오 버튼 4개와 그대로 대응한다. 그래서 AS-IS 값을
-변환 없이 넘긴다.
+**AS-IS 는 이 값을 채우지 않는다.** BDC 로직에 대응 코드가 없어 SM36 기본 동작을
+따른다. 그래도 필드를 여는 이유는 APJ 가 지원하는 기능이고, 이관 후 "휴일이면
+건너뛴다" 같은 요구가 나오면 바로 쓸 수 있어서다.
 
-> **확인 필요:** AS-IS BDC 가 `EXECUTE_BEFORE` 말고 나머지 3개에 해당하는
-> 필드도 채우는지. 라디오 그룹이면 4개가 다 있어야 한다.
+### 어느 필드가 어느 구조로 가나
 
-### 남은 것 하나 — 월말(`EOFMONTH`)
+두 구조의 역할이 겹치지 않는다.
 
-`MONTH_INFO-DAY` 는 일자 하나만 받는다. "말일" 은 달마다 28/29/30/31 이라
-일자로 표현할 수 없다.
+| | 답하는 질문 |
+|---|---|
+| `EXCEPTION` | 실행일이 **비근무일이면 어떻게 할지** |
+| `MONTH_INFO` | 실행일을 **어떻게 고를지** (며칠째를, 어느 쪽에서부터) |
 
-어댑터는 **`day = 31` + `shift_direction = 이전`** 으로 넣는다. 31일이 없는 달이면
-앞당겨져서 2월이면 28/29일이 된다는 계산이다.
+```abap
+IF is_start-month_day > 0.
+  rs_sched-month_info-day                  = is_start-month_day.
+  rs_sched-month_info-use_working_days_ind = is_start-use_working_days.
+  rs_sched-month_info-shift_direction      =
+    COND #( WHEN is_start-count_from_end = abap_true
+            THEN gc_restriction-before      " 월말에서 역순
+            ELSE gc_restriction-after ).    " 월초에서 순서
+ENDIF.
+```
 
-> **이게 성립하려면 `SHIFT_DIRECTION` 이 "존재하지 않는 날짜" 에도 적용돼야 한다.**
-> "근무일이 아닌 날" 에만 적용된다면 2월에 잡이 아예 안 돈다.
-> **2월로 스케줄해서 SM37 에서 확인할 것** — 지금 미확인 항목 중 가장 급하다.
-
-안 되면 우회책은 실행 클래스가 **매일 돌면서 오늘이 말일인지 판정**하고 아니면
-즉시 종료하는 것이다. 판정은 몇 줄이지만 대가는 잡 로그다 — 월 1회 돌던 잡이
-월 30회 로그를 남긴다. SM37 에서 "안 돌았다" 와 "돌았는데 아무것도 안 했다" 는
-다르게 보이므로 운영 쪽 합의가 먼저다.
+> **확인 필요:** `SHIFT_DIRECTION` 이 정말 **세는 방향**인가.
+> 비근무일 회피 방향이라면 `EXCEPTION` 과 역할이 겹치므로 그럴 이유가 없지만,
+> 확인은 필요하다. 월말 기준으로 걸고 SM37 에서 실행 예정일을 보면 판정된다.
 
 ### 나머지 확인 필요
 
-- **`SHIFT_DIRECTION` 의 값 도메인** — `START_RESTRICTION_CODE` 와 같은 `D/B/A/N`
-  으로 보고 그대로 넘기고 있다. 방향뿐이라 `B`/`A` 만 받는다면 `D`/`N` 이 들어갔을
-  때 어떻게 되는지 확인이 필요하다
+- **`SHIFT_DIRECTION` 의 의미와 값 도메인** — 세는 방향으로 보고 `B`(월말 역순) /
+  `A`(월초 순서)를 넣고 있다. 어댑터 한 줄이다
 - `PERIODIC_GRANULARITY` 의 값 도메인 (상수 클래스가 있는지)
 - `END_INFO` 가 `TY_SCHEDULING_INFO` 의 컴포넌트인지 별도 파라미터인지,
   `TYPE` 의 실제 값 (`NONE` / `AFTER` / `BY`)
@@ -495,9 +526,7 @@ SM36 제한조건 팝업의 라디오 버튼 4개와 그대로 대응한다. 그
 | **`pgtype` ≠ PROG** | **모델에서 제외.** 실행 클래스만 지원 | `PROG` 외 값이 쓰이나? |
 | 다중 스텝 | **모델에서 제외.** 잡 1개 = 프로그램 1개 | 2스텝 잡을 어떻게 나눌지 |
 | `jobname` 지정 | 논리명은 `jobtext`, SM37 이름은 `jobname` 으로 나란히 보관 | — |
-| ~~팩토리 캘린더~~ (`CALENDARID`) | **해결.** `EXCEPTION-CALENDAR_ID` 로 이관 | ○ |
-| ~~월초 실행~~ (`BOFMONTH`) | **해결.** `MONTH_INFO-DAY = 1` | ○ |
-| **월말 실행** (`EOFMONTH`) | **우회.** `DAY = 31` + 앞당김. 2월 동작 검증 필요 | `SHIFT_DIRECTION` 이 없는 날짜에도 듣나? |
+| ~~팩토리 캘린더~~ (공장달력 3종) | **해결.** `EXCEPTION` + `MONTH_INFO` 로 전부 이관 | ○ |
 | **합산 주기** (`PRDMONTHS` + `PRDDAYS` 동시) | **불가.** APJ 는 단위 1개 + 값 1개뿐. 어댑터가 실패시킨다 | 동시에 채운 잡이 실제로 있나? |
 | **close 시각** (`laststrt`) | 위와 동일 | 실제로 쓰나? |
 | 기존 배치 리포트 | **클래스로 이관 필요.** 배치마다 실행 클래스 + 카탈로그 + 템플릿 | 대상 리포트가 몇 개인가? |

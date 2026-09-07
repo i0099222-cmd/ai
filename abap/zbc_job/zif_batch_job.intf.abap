@@ -54,14 +54,15 @@ INTERFACE zif_batch_job
       "! 공장달력 ID. 어느 날이 근무일인지의 기준.
       "! 비어 있으면 근무일 판정을 하지 않는다.
       calendar_id       TYPE c LENGTH 2,
-      "! 월중 실행 일자. 1 이면 월초. CALENDAR_ID 와 USE_WORKING_DAYS 가
-      "! 같이 오면 "n 번째 작업일" 이 된다 (AS-IS 공장근무일수).
+      "! 월중 몇 번째 날에 실행할지 (AS-IS 공장근무일수 = WDAYNO).
       month_day         TYPE i,
-      "! 매월 말일 실행 (AS-IS EOFMONTH). 말일은 달마다 날짜가 달라
-      "! 일자로 표현할 수 없어 별도 플래그로 받는다.
-      eof_month         TYPE abap_bool,
       "! MONTH_DAY 를 달력일이 아니라 작업일로 센다.
+      "! AS-IS 는 공장달력을 쓰므로 항상 작업일 기준이다.
       use_working_days  TYPE abap_bool,
+      "! MONTH_DAY 를 월말부터 거꾸로 센다 (AS-IS EOFMONTH).
+      "! 비어 있으면 월초부터 센다 (AS-IS BOFMONTH).
+      "! 3 + 이 플래그 = "말일에서 3번째 작업일".
+      count_from_end    TYPE abap_bool,
       "! 실행일이 비근무일일 때의 처리. GC_RESTRICTION 참조.
       "! AS-IS 는 SM36 제한조건 팝업의 4지선다를 그대로 쓴다.
       start_restriction TYPE c LENGTH 1,

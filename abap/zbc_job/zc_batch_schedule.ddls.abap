@@ -27,8 +27,8 @@ define root view entity ZC_BATCH_SCHEDULE
 
       CalendarId,
       MonthDay,
-      EndOfMonth,
       UseWorkingDays,
+      CountFromMonthEnd,
       StartRestriction,
 
       @EndUserText.label: 'Job Name (SM37)'

@@ -74,8 +74,8 @@ with additional save
     EndDateTime        = end_datetime;
     CalendarId         = calendar_id;
     MonthDay           = month_day;
-    EndOfMonth         = eof_month;
     UseWorkingDays     = use_working_days;
+    CountFromMonthEnd  = count_from_end;
     StartRestriction   = start_restriction;
     JobName            = jobname;
     JobCount           = jobcount;

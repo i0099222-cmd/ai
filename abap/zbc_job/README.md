@@ -331,7 +331,7 @@ GET {base}/BatchSchedule?$orderby=CreatedAt desc
 | **close 시각** (`laststrt`) | 위와 동일 | 실제로 쓰나? |
 | 기존 배치 리포트 | **클래스로 이관 필요.** 배치마다 실행 클래스 + 카탈로그 + 템플릿 | 대상 리포트가 몇 개인가? |
 | `laststrt` (close 시각) | 런처가 실행 시 판정해 skip | — |
-| **타임존** | **APJ 가 기본 제공** — AS-IS 는 직접 변환했음 | — (개선) |
+| **타임존** | `TY_START_INFO` 가 UTC `timestamp` 만 받아 **직접 변환해야 한다** | AS-IS 와 동일 |
 
 ---
 

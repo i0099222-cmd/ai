@@ -60,13 +60,11 @@ CLASS zcl_batch_apj_adapter DEFINITION
 
     "! 반복 주기를 APJ 의 주기 구조로 변환한다.
     "!
-    "! TY_START_INFO 에는 반복 관련 필드가 없고 TY_PERIOD_INFO 가 따로 있으므로,
-    "! SCHEDULE_JOB 의 별도 파라미터로 넘긴다고 보고 구성했다.
+    "! TY_START_INFO 에는 START_IMMEDIATELY / TIMESTAMP 만 있고 반복 관련
+    "! 필드가 없다. TY_PERIOD_INFO 를 SCHEDULE_JOB 의 별도 파라미터로 넘긴다.
     "!
-    "! TODO: 시그니처 확인
-    "!   CL_APJ_RT_API=>TY_PERIOD_INFO 의 구성 필드를 ADT 에서 확인하고
-    "!   아래 매핑의 필드명을 맞출 것. 클래식 JOB_CLOSE 의
-    "!   PRDMINS/PRDHOURS/PRDDAYS/PRDWEEKS/PRDMONTHS 에 대응한다고 가정했다.
+    "! TODO: 시그니처 확인 - TY_PERIOD_INFO 의 필드명
+    "!   (prdmins / prdhours / prddays / prdweeks / prdmonths 로 가정)
     METHODS build_period_info
       IMPORTING
         is_start         TYPE zif_batch_job=>ty_start_option
@@ -82,19 +80,48 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
     TRY.
 
+*----------------------------------------------------------------------*
+* 시작 조건
+*   TY_START_INFO 에는 START_IMMEDIATELY 와 TIMESTAMP 만 있다.
+*   날짜/시각을 따로 넘길 수 없으므로 하나의 타임스탬프로 합친다.
+*
+*   ** 타임존은 APJ 가 처리해주지 않는다. **
+*   요청 타임존 기준 시각을 우리가 UTC 타임스탬프로 변환해서 넣어야 한다.
+*   AS-IS 가 하던 변환을 그대로 해야 하는 것이다.
+*----------------------------------------------------------------------*
         DATA ls_start_info TYPE cl_apj_rt_api=>ty_start_info.
 
         IF is_start-start_immediately = abap_true.
+
           ls_start_info-start_immediately = abap_true.
+
+        ELSEIF is_start-start_date IS NOT INITIAL.
+
+          " 타임존 지정이 없으면 사용자 타임존으로 해석한다.
+          DATA(lv_zone) = COND timezone(
+            WHEN is_start-timezone IS NOT INITIAL
+            THEN CONV #( is_start-timezone )
+            ELSE cl_abap_context_info=>get_user_time_zone( ) ).
+
+          DATA lv_timestamp TYPE timestamp.
+
+          CONVERT DATE is_start-start_date TIME is_start-start_time
+                  INTO TIME STAMP lv_timestamp TIME ZONE lv_zone.
+
+          ls_start_info-timestamp = lv_timestamp.
+
         ELSE.
-          ls_start_info-earliest_start_date = is_start-start_date.
-          ls_start_info-earliest_start_time = is_start-start_time.
-          " 타임존은 APJ 가 처리한다. AS-IS 는 직접 변환했다. (COMPARISON A4)
-          ls_start_info-timezone            = is_start-timezone.
+
+          " 시작일도 즉시실행도 없으면 지금 건다.
+          ls_start_info-start_immediately = abap_true.
+
         ENDIF.
 
         " 반복 주기. TY_START_INFO 에는 없고 TY_PERIOD_INFO 로 따로 넘긴다.
         DATA(ls_period_info) = build_period_info( is_start ).
+
+        " TODO: 시그니처 확인 - SCHEDULE_JOB 에서 TY_PERIOD_INFO 를 받는
+        "       파라미터의 정확한 이름. 아래 호출부의 IS_PERIOD_INFO 를 맞출 것.
 
 *----------------------------------------------------------------------*
 * 잡 파라미터
@@ -195,19 +222,19 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 *      필요하면 실행 클래스가 EXECUTE 안에서 직접 판정해야 한다.
 *----------------------------------------------------------------------*
     IF is_start-prd_mins > 0.
-      rs_period-min = is_start-prd_mins.
+      rs_period-prdmins = is_start-prd_mins.
 
     ELSEIF is_start-prd_hours > 0.
-      rs_period-hour = is_start-prd_hours.
+      rs_period-prdhours = is_start-prd_hours.
 
     ELSEIF is_start-prd_days > 0.
-      rs_period-day = is_start-prd_days.
+      rs_period-prddays = is_start-prd_days.
 
     ELSEIF is_start-prd_weeks > 0.
-      rs_period-week = is_start-prd_weeks.
+      rs_period-prdweeks = is_start-prd_weeks.
 
     ELSEIF is_start-prd_months > 0.
-      rs_period-month = is_start-prd_months.
+      rs_period-prdmonths = is_start-prd_months.
 
     ENDIF.
 

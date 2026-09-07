@@ -207,7 +207,10 @@ APJ 잡을 없애는 것은 `cancelJob` 이다.
 
 액션의 정규화 이름은 `$metadata` 에서 확인한다 — 네임스페이스는 바인딩마다 다르다.
 
-### 잡 생성
+### 1단계 — 파라미터 없이
+
+가장 먼저 이걸로 경로가 뚫리는지 확인한다. `Parameters` 를 빼면
+잡 템플릿에 저장된 기본값으로 돈다.
 
 ```http
 POST {base}/BatchSchedule/com.sap.gateway.srvd.zui_batch_schedule.v0001.createJob
@@ -216,11 +219,43 @@ X-CSRF-Token: {token}
 
 {
   "JobTemplateName":  "ZJT_BATCH_SAMPLE",
-  "JobText":          "월마감 배치",
-  "Parameters":       "[{\\"name\\":\\"P_BUKRS\\",\\"t_value\\":[{\\"sign\\":\\"I\\",\\"option\\":\\"EQ\\",\\"low\\":\\"1000\\"}]}]",
+  "JobText":          "테스트 잡",
   "StartImmediately": true
 }
 ```
+
+### 2단계 — 파라미터 넣기
+
+`Parameters` 가 string 필드라 **JSON 안의 따옴표를 이스케이프해야 한다.**
+아래를 그대로 복사해서 값만 바꿔 쓰면 된다.
+
+**단일 EQ 두 개**
+
+```json
+  "Parameters": "[{\"name\":\"P_BUKRS\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"1000\"}]},{\"name\":\"P_TEST\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"X\"}]}]",
+```
+
+**select-option (다중 값 / BT range)**
+
+```json
+  "Parameters": "[{\"name\":\"P_MODU\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"SD\"},{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"FI\"}]},{\"name\":\"P_DATS\",\"t_value\":[{\"sign\":\"I\",\"option\":\"BT\",\"low\":\"20260101\",\"high\":\"20261231\"}]}]",
+```
+
+이스케이프 전 원본은 이렇다:
+
+```json
+[
+  { "name": "P_MODU",
+    "t_value": [ { "sign": "I", "option": "EQ", "low": "SD" },
+                 { "sign": "I", "option": "EQ", "low": "FI" } ] },
+  { "name": "P_DATS",
+    "t_value": [ { "sign": "I", "option": "BT",
+                   "low": "20260101", "high": "20261231" } ] }
+]
+```
+
+> 직접 만들 때는 JSON 이스케이프 도구를 쓰거나, Insomnia 의 environment 변수에
+> 한 번 넣어두고 재사용하는 것이 편하다.
 
 ### 예약 + 반복
 
@@ -228,7 +263,7 @@ X-CSRF-Token: {token}
 {
   "JobTemplateName":  "ZJT_BATCH_SAMPLE",
   "JobText":          "월마감 배치",
-  "Parameters":       "[{\\"name\\":\\"P_BUKRS\\",\\"t_value\\":[{\\"sign\\":\\"I\\",\\"option\\":\\"EQ\\",\\"low\\":\\"1000\\"}]}]",
+  "Parameters":       "[{\"name\":\"P_BUKRS\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"1000\"}]},{\"name\":\"P_TEST\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"X\"}]}]",
   "StartImmediately": false,
   "StartDate":        "2026-10-01",
   "StartTime":        "02:00:00",
@@ -258,7 +293,20 @@ POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.cancelJob
 
 `changeJob` 은 `ZD_BATCH_START_OPTION` 파라미터(새 시작 조건)를 받는다.
 
----
+### 이스케이프가 계속 불편하면
+
+`ZD_BATCH_CREATE` 에 파라미터를 **자식 엔티티(composition)** 로 두면
+deep action parameter 가 되어 중첩 JSON 을 이스케이프 없이 보낼 수 있다.
+
+```json
+"_Parameter": [ { "Name": "P_MODU", "Sign": "I", "Option": "EQ", "Low": "SD" } ]
+```
+
+다만 액션 파라미터의 composition 지원 여부와 OData 노출 형태를 시스템에서
+확인해야 하고, 어댑터에서 다시 `IT_JOB_PARAMETER_VALUE` 로 조립하는 코드가
+생긴다. 지금 없앤 변환 로직이 되살아나는 셈이라, 테스트 빈도가 높을 때만
+가치가 있다.
+
 
 ## 5. APJ 로 못 넘어가는 것
 

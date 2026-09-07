@@ -61,7 +61,8 @@ CLASS zcl_batch_apj_adapter DEFINITION
     "! 반복 주기를 APJ 의 주기 구조로 변환한다.
     "!
     "! TY_START_INFO 에는 START_IMMEDIATELY / TIMESTAMP 만 있고 반복 관련
-    "! 필드가 없다. TY_PERIOD_INFO 를 SCHEDULE_JOB 의 별도 파라미터로 넘긴다.
+    "! 필드가 없다. 반복 주기는 TY_PERIOD_INFO 에 담아 TY_SCHEDULING_INFO 로
+    "! 함께 넘긴다.
     "!
     "! TODO: 시그니처 확인 - TY_PERIOD_INFO 의 필드명
     "!   (prdmins / prdhours / prddays / prdweeks / prdmonths 로 가정)
@@ -117,11 +118,21 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
         ENDIF.
 
-        " 반복 주기. TY_START_INFO 에는 없고 TY_PERIOD_INFO 로 따로 넘긴다.
+        " 반복 주기
         DATA(ls_period_info) = build_period_info( is_start ).
 
-        " TODO: 시그니처 확인 - SCHEDULE_JOB 에서 TY_PERIOD_INFO 를 받는
-        "       파라미터의 정확한 이름. 아래 호출부의 IS_PERIOD_INFO 를 맞출 것.
+*----------------------------------------------------------------------*
+* 스케줄 정보
+*   TY_SCHEDULING_INFO 가 시작 조건(TY_START_INFO)과
+*   반복 주기(TY_PERIOD_INFO)를 감싼다. SCHEDULE_JOB 은 이것 하나를 받는다.
+*
+* TODO: 시그니처 확인 - 컴포넌트명이 START / PERIOD 가 맞는지.
+*       다르면 이 두 줄만 고치면 된다.
+*----------------------------------------------------------------------*
+        DATA ls_scheduling_info TYPE cl_apj_rt_api=>ty_scheduling_info.
+
+        ls_scheduling_info-start  = ls_start_info.
+        ls_scheduling_info-period = ls_period_info.
 
 *----------------------------------------------------------------------*
 * 잡 파라미터
@@ -143,19 +154,15 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
         cl_apj_rt_api=>schedule_job(
           EXPORTING
-            iv_job_template_name = CONV #( iv_template )
+            iv_job_template_name   = CONV #( iv_template )
             " 사용자가 지은 논리 잡 이름을 잡 텍스트로 넘긴다.
             " APJ 는 잡 이름을 자동 생성하므로 이게 최선이다. (COMPARISON #16)
-            iv_job_text          = CONV #( iv_jobtext )
-            is_start_info        = ls_start_info
-            " TODO: 시그니처 확인 - 파라미터명이 IS_PERIOD_INFO 가 맞는지.
-            "       TY_START_INFO 안에 중첩된 필드라면 이 줄을 지우고
-            "       ls_start_info-<필드> = ls_period_info 로 바꿀 것.
-            is_period_info       = ls_period_info
+            iv_job_text            = CONV #( iv_jobtext )
+            is_scheduling_info     = ls_scheduling_info
             it_job_parameter_value = lt_param
           IMPORTING
-            ev_jobname           = lv_job_name
-            ev_jobcount          = lv_job_count ).
+            ev_jobname             = lv_job_name
+            ev_jobcount            = lv_job_count ).
 
         rs_result = VALUE #( job_name  = lv_job_name
                              job_count = lv_job_count

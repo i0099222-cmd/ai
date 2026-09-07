@@ -60,13 +60,7 @@ APJ 잡의 키는 **`jobname + jobcount`** 다.
 실행 클래스가 `GET_PARAMETERS` 로 정의한 파라미터의 **값**들이다.
 **리포트 배리언트를 대신하는 자리**다.
 
-APJ 의 `tt_templ_val` 은 `selname` + `sign`/`option`/`low`/`high` 구조라
-파라미터 하나에 **여러 행(range)** 이 올 수 있다 — select-option 지원.
-그래서 `param` 도 `name` + `t_value`(range 테이블) 형태로 담는다.
-
-`ZCL_BATCH_PARAM` 이 두 가지 입력 형식을 받아 변환한다. 첫 글자로 구분한다.
-
-**1) JSON 배열 — 전체 표현 가능**
+호출자가 `/UI2/CL_JSON` 으로 직렬화해서 보낸다.
 
 ```json
 [
@@ -78,39 +72,16 @@ APJ 의 `tt_templ_val` 은 `selname` + `sign`/`option`/`low`/`high` 구조라
 ]
 ```
 
-**2) 구분자 형식 — 단일 `EQ` 축약형. API 테스트용**
+APJ 의 `tt_templ_val` 이 `selname` + `sign`/`option`/`low`/`high` 구조라
+파라미터 하나에 **여러 행(range)** 이 올 수 있다 — select-option 지원.
+`ZCL_BATCH_PARAM=>to_apj` 가 역직렬화 후 `t_value` 를 그대로 펼친다.
 
-```
-P_MODU=SD;P_ZUID=X
-```
+`name` 은 실행 클래스의 `SELNAME` 과 일치해야 하고, 값 검증은 그 클래스의
+`CHECK_PARAMETERS` 가 한다.
 
-`Parameters` 가 string 필드라서 JSON 을 넣으면 OData 페이로드 안에서 따옴표를
-전부 이스케이프해야 한다. 구분자 형식은 그럴 필요가 없다.
-값에 `;` 나 `=` 가 들어가거나 **range 가 필요하면 JSON** 을 쓴다.
-
-`name` 은 실행 클래스의 `SELNAME` 과 일치해야 한다 (구분자 형식은 자동 대문자 변환).
-값 검증은 그 클래스의 `CHECK_PARAMETERS` 가 한다.
-
-### `kind` (파라미터 / select-option)
-
-`kind` 를 비워두면 `t_value` 모양으로 추정한다.
-
-| `t_value` | 추정 `kind` |
-|-----------|------------|
-| 1행 + `EQ` | `P` (parameter) |
-| 그 밖 | `S` (select-option) |
-
-실행 클래스의 `GET_PARAMETERS` 가 선언한 `kind` 와 맞아야 하므로,
-추정이 다르면 JSON 에 `"kind":"S"` 처럼 명시한다.
-
-### 직렬화
-
-`/UI2/CL_JSON` 을 쓴다. 기존 배치 인터페이스 코드와 같은 방식이라
-호출자(Spring)가 이미 이 형식을 만들고 있다.
-
-`pretty_name` 은 지정하지 않는다(기본값). 그래야 JSON 필드명이 ABAP 필드명
-그대로 `name` / `t_value` / `sign` / `option` / `low` / `high` 로 나온다.
-camelCase 가 필요하면 `pretty_name = /ui2/cl_json=>pretty_mode-camel_case`.
+> API 로 직접 테스트할 때는 `Parameters` 가 string 필드라 JSON 안의 따옴표를
+> 이스케이프해야 한다:
+> `"Parameters": "[{\"name\":\"P_MODU\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"SD\"}]}]"`
 
 ---
 
@@ -169,7 +140,7 @@ AS-IS 가 리포트 이름(`pgmid`)을 파라미터로 받아 아무거나 스�
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
 | `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 구현 (상태 컬럼 없이 `jobname` 유무로 제어) |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
-| `zcl_batch_param.clas.abap` | ABAP Cloud | `param` (JSON / 구분자) ↔ APJ 파라미터 테이블 변환 |
+| `zcl_batch_param.clas.abap` | ABAP Cloud | `param` JSON → APJ 파라미터 테이블 변환 |
 | `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 클래스가 쓰는 예외 |
 | `example_zcl_apj_batch_sample.clas.abap` | ABAP Cloud | **APJ 실행 클래스 작성 예시** (참고용) |
 | `zif_batch_job.intf.abap` | ABAP Cloud | 상수/타입 (`ty_param`, `ty_start_option`) |
@@ -239,7 +210,7 @@ X-CSRF-Token: {token}
 {
   "JobTemplateName":  "ZJT_BATCH_SAMPLE",
   "JobText":          "월마감 배치",
-  "Parameters":       "P_BUKRS=1000;P_TEST=X",
+  "Parameters":       "[{\\"name\\":\\"P_BUKRS\\",\\"t_value\\":[{\\"sign\\":\\"I\\",\\"option\\":\\"EQ\\",\\"low\\":\\"1000\\"}]}]",
   "StartImmediately": true
 }
 ```
@@ -250,7 +221,7 @@ X-CSRF-Token: {token}
 {
   "JobTemplateName":  "ZJT_BATCH_SAMPLE",
   "JobText":          "월마감 배치",
-  "Parameters":       "P_BUKRS=1000;P_BUDAT=20261001",
+  "Parameters":       "[{\\"name\\":\\"P_BUKRS\\",\\"t_value\\":[{\\"sign\\":\\"I\\",\\"option\\":\\"EQ\\",\\"low\\":\\"1000\\"}]}]",
   "StartImmediately": false,
   "StartDate":        "2026-10-01",
   "StartTime":        "02:00:00",

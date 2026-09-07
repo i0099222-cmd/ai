@@ -19,7 +19,7 @@ INTERFACE zif_batch_job
   "!   [{"name":"P_MODU","t_value":[{"sign":"I","option":"EQ","low":"SD"}]}]
   "!
   "! name 은 실행 클래스가 GET_PARAMETERS 에서 정의한 SELNAME 과 일치해야 한다.
-  "! kind 는 비워두면 t_value 로 추정한다 (아래 gc_kind 참고).
+  "! kind 는 호출자가 채운다 (아래 gc_kind).
   TYPES:
     BEGIN OF ty_param,
       name    TYPE c LENGTH 8,
@@ -28,7 +28,7 @@ INTERFACE zif_batch_job
     END OF ty_param,
     tt_param TYPE STANDARD TABLE OF ty_param WITH EMPTY KEY.
 
-  "! APJ 파라미터 종류. GET_PARAMETERS 가 정의한 KIND 와 맞아야 한다.
+  "! APJ 파라미터 종류. 실행 클래스의 GET_PARAMETERS 가 정의한 KIND 와 맞아야 한다.
   "! TODO: 시그니처 확인 - IF_APJ_DT_EXEC_OBJECT 의 상수명/값
   CONSTANTS:
     BEGIN OF gc_kind,

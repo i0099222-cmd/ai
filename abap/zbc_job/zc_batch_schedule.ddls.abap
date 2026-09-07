@@ -24,6 +24,10 @@ define root view entity ZC_BATCH_SCHEDULE
       PeriodWeeks,
       PeriodMonths,
 
+      EndDate,
+      EndTime,
+      MaxIterations,
+
       @EndUserText.label: 'Job Name (SM37)'
       JobName,
       @EndUserText.label: 'Job Count (SM37)'

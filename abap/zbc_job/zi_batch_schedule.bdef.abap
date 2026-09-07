@@ -72,6 +72,9 @@ with additional save
     PeriodDays         = prd_days;
     PeriodWeeks        = prd_weeks;
     PeriodMonths       = prd_months;
+    EndDate            = end_date;
+    EndTime            = end_time;
+    MaxIterations      = max_iterations;
     JobName            = jobname;
     JobCount           = jobcount;
     CancelRequested    = cancel_requested;

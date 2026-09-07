@@ -20,11 +20,20 @@ INTERFACE zif_batch_job
       start_date        TYPE d,
       start_time        TYPE t,
       timezone          TYPE c LENGTH 6,
+      " 반복 주기. 하나만 채운다. granularity + value 로 변환된다.
       prd_mins          TYPE i,
       prd_hours         TYPE i,
       prd_days          TYPE i,
       prd_weeks         TYPE i,
       prd_months        TYPE i,
+
+      " 종료 조건 (APJ END_INFO)
+      "   end_date/time  -> type = BY    (AS-IS 배치잡 close시간)
+      "   max_iterations -> type = AFTER
+      "   둘 다 없으면   -> type = NONE  (무한 반복)
+      end_date          TYPE d,
+      end_time          TYPE t,
+      max_iterations    TYPE i,
     END OF ty_start_option.
 
 ENDINTERFACE.

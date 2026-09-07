@@ -119,7 +119,10 @@ CLASS lhc_schedule IMPLEMENTATION.
                       periodhours       = ls_p-periodhours
                       perioddays        = ls_p-perioddays
                       periodweeks       = ls_p-periodweeks
-                      periodmonths      = ls_p-periodmonths )
+                      periodmonths      = ls_p-periodmonths
+                      enddate           = ls_p-enddate
+                      endtime           = ls_p-endtime
+                      maxiterations     = ls_p-maxiterations )
              TO lt_create.
     ENDLOOP.
 
@@ -129,7 +132,8 @@ CLASS lhc_schedule IMPLEMENTATION.
       ENTITY batchschedule
         CREATE FIELDS ( jobtemplatename jobtext parameters
                         startimmediately startdate starttime timezone
-                        periodminutes periodhours perioddays periodweeks periodmonths )
+                        periodminutes periodhours perioddays periodweeks periodmonths
+                        enddate endtime maxiterations )
         WITH lt_create
       MAPPED   DATA(ls_mapped)
       FAILED   DATA(ls_failed)
@@ -164,14 +168,18 @@ CLASS lhc_schedule IMPLEMENTATION.
                       periodhours      = ls_p-periodhours
                       perioddays       = ls_p-perioddays
                       periodweeks      = ls_p-periodweeks
-                      periodmonths     = ls_p-periodmonths )
+                      periodmonths     = ls_p-periodmonths
+                      enddate          = ls_p-enddate
+                      endtime          = ls_p-endtime
+                      maxiterations    = ls_p-maxiterations )
              TO lt_update.
     ENDLOOP.
 
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
         UPDATE FIELDS ( startimmediately startdate starttime timezone
-                        periodminutes periodhours perioddays periodweeks periodmonths )
+                        periodminutes periodhours perioddays periodweeks periodmonths
+                        enddate endtime maxiterations )
         WITH lt_update
       FAILED   failed
       REPORTED reported.
@@ -357,7 +365,10 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
                              prd_hours         = is_row-periodhours
                              prd_days          = is_row-perioddays
                              prd_weeks         = is_row-periodweeks
-                             prd_months        = is_row-periodmonths ) ).
+                             prd_months        = is_row-periodmonths
+                             end_date          = is_row-enddate
+                             end_time          = is_row-endtime
+                             max_iterations    = is_row-maxiterations ) ).
 
     " 실패하면 jobname 이 빈 채로 남는다. 사유는 message 에 적힌다.
     " save 단계라 reported 로 메시지를 돌려줄 수 없기 때문이다.

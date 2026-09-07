@@ -22,6 +22,10 @@ define root view entity ZI_BATCH_SCHEDULE
       prd_weeks             as PeriodWeeks,
       prd_months            as PeriodMonths,
 
+      end_date              as EndDate,
+      end_time              as EndTime,
+      max_iterations        as MaxIterations,
+
       jobname               as JobName,
       jobcount              as JobCount,
 

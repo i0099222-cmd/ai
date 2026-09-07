@@ -318,6 +318,52 @@ POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
 GET {base}/BatchSchedule?$orderby=CreatedAt desc
 ```
 
+## 4-2. APJ 스케줄 구조
+
+`SCHEDULE_JOB` 은 시작과 반복을 두 구조로 나눠 받는다.
+
+### `TY_START_INFO` — 언제 처음 도나
+
+| 필드 | 내용 |
+|------|------|
+| `start_immediately` | 즉시 시작 |
+| `timestamp` | 최초 시작 시각 (UTC). 날짜/시각을 합쳐서 넣는다 |
+
+### `TY_SCHEDULING_INFO` — 어떻게 반복하나
+
+| 필드 | 내용 | AS-IS |
+|------|------|-------|
+| `periodic_granularity` | 주기 **단위** (MINUTE/HOUR/DAY/WEEK/MONTH) | 반복주기 / 일반복주기 |
+| `periodic_value` | 주기 **값** (N) | 〃 |
+| `timezone` | 반복 계산 기준 타임존 | 시스템 zone시간 |
+| `end_info` | 종료 조건 | **배치잡 close시간** |
+| `weekday_info` | 요일 지정 | — (SM36 보다 풍부) |
+| `month_info` | 월 지정 | — |
+| `exception` | 비작업일 처리 | **공장근무일이 여기로 갈 수 있는지 확인 필요** |
+| `test_mode` | 테스트 모드 | — |
+
+### `END_INFO` — 언제 멈추나
+
+| `type` | 부가 필드 | 의미 | AS-IS |
+|--------|----------|------|-------|
+| `NONE` | — | 무한 반복 | |
+| `AFTER` | `max_iterations` | N 회 실행 후 종료 | — |
+| `BY` | `timestamp` | 이 시각까지만 | **배치잡 close시간** |
+
+> AS-IS 의 `laststrt`(close시간)가 APJ 에 대응이 있다. 초기 판정에서
+> "대응 없음" 으로 적었던 것을 정정한다.
+
+### 확인 필요
+
+- `PERIODIC_GRANULARITY` 의 값 도메인 (상수 클래스가 있는지)
+- `END_INFO` 가 `TY_SCHEDULING_INFO` 의 컴포넌트인지 별도 파라미터인지
+- `END_INFO-TYPE` 의 실제 값 (`NONE` / `AFTER` / `BY`)
+- **`EXCEPTION` 의 구조** — 공장근무일(팩토리 캘린더)을 여기로 옮길 수 있으면
+  "APJ 못 함" 목록에서 하나가 더 빠진다
+- `WEEKDAY_INFO` / `MONTH_INFO` 의 구조
+
+---
+
 ## 5. APJ 로 못 넘어가는 것
 
 | AS-IS | 처리 | 확인 필요 |
@@ -330,8 +376,7 @@ GET {base}/BatchSchedule?$orderby=CreatedAt desc
 | **팩토리 캘린더** | APJ 반복 패턴에 대응 없음. 필요하면 실행 클래스가 `EXECUTE` 안에서 직접 판정 | 실제로 쓰는 잡이 있나? |
 | **close 시각** (`laststrt`) | 위와 동일 | 실제로 쓰나? |
 | 기존 배치 리포트 | **클래스로 이관 필요.** 배치마다 실행 클래스 + 카탈로그 + 템플릿 | 대상 리포트가 몇 개인가? |
-| `laststrt` (close 시각) | 런처가 실행 시 판정해 skip | — |
-| **타임존** | `TY_START_INFO` 가 UTC `timestamp` 만 받아 **직접 변환해야 한다** | AS-IS 와 동일 |
+| **타임존** | `TY_SCHEDULING_INFO-TIMEZONE` 으로 넘긴다 | ○ |
 
 ---
 

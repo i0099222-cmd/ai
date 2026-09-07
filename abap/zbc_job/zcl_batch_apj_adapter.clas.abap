@@ -60,17 +60,27 @@ CLASS zcl_batch_apj_adapter DEFINITION
 
     "! 반복 주기를 APJ 의 주기 구조로 변환한다.
     "!
-    "! TY_START_INFO 에는 START_IMMEDIATELY / TIMESTAMP 만 있고 반복 관련
-    "! 필드가 없다. 반복 주기는 TY_PERIOD_INFO 에 담아 TY_SCHEDULING_INFO 로
-    "! 함께 넘긴다.
+    "! 반복/종료 조건을 APJ 의 스케줄 구조로 변환한다.
     "!
-    "! TODO: 시그니처 확인 - TY_PERIOD_INFO 의 필드명
-    "!   (prdmins / prdhours / prddays / prdweeks / prdmonths 로 가정)
-    METHODS build_period_info
+    "! TY_START_INFO 에는 START_IMMEDIATELY / TIMESTAMP 만 있고,
+    "! 반복은 TY_SCHEDULING_INFO 가 담당한다.
+    "!
+    "!   periodic_granularity + periodic_value  주기 단위 + 값
+    "!   timezone                               반복 계산 기준 타임존
+    "!   end_info                               종료 조건 (NONE / AFTER / BY)
+    "!   weekday_info / month_info              요일 / 월 지정
+    "!   exception                              비작업일 처리
+    "!
+    "! TODO: 시그니처 확인
+    "!   - PERIODIC_GRANULARITY 의 값 도메인 (상수인지 문자값인지)
+    "!   - END_INFO 가 TY_SCHEDULING_INFO 의 컴포넌트인지, 별도 파라미터인지
+    "!   - END_INFO-TYPE 의 값 (NONE / AFTER / BY)
+    "!   - WEEKDAY_INFO / MONTH_INFO / EXCEPTION 의 구조
+    METHODS build_scheduling_info
       IMPORTING
-        is_start         TYPE zif_batch_job=>ty_start_option
+        is_start        TYPE zif_batch_job=>ty_start_option
       RETURNING
-        VALUE(rs_period) TYPE cl_apj_rt_api=>ty_period_info.
+        VALUE(rs_sched) TYPE cl_apj_rt_api=>ty_scheduling_info.
 
 ENDCLASS.
 
@@ -118,21 +128,8 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
         ENDIF.
 
-        " 반복 주기
-        DATA(ls_period_info) = build_period_info( is_start ).
-
-*----------------------------------------------------------------------*
-* 스케줄 정보
-*   TY_SCHEDULING_INFO 가 시작 조건(TY_START_INFO)과
-*   반복 주기(TY_PERIOD_INFO)를 감싼다. SCHEDULE_JOB 은 이것 하나를 받는다.
-*
-* TODO: 시그니처 확인 - 컴포넌트명이 START / PERIOD 가 맞는지.
-*       다르면 이 두 줄만 고치면 된다.
-*----------------------------------------------------------------------*
-        DATA ls_scheduling_info TYPE cl_apj_rt_api=>ty_scheduling_info.
-
-        ls_scheduling_info-start  = ls_start_info.
-        ls_scheduling_info-period = ls_period_info.
+        " 반복 / 종료 조건
+        DATA(ls_scheduling_info) = build_scheduling_info( is_start ).
 
 *----------------------------------------------------------------------*
 * 잡 파라미터
@@ -158,6 +155,7 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
             " 사용자가 지은 논리 잡 이름을 잡 텍스트로 넘긴다.
             " APJ 는 잡 이름을 자동 생성하므로 이게 최선이다. (COMPARISON #16)
             iv_job_text            = CONV #( iv_jobtext )
+            is_start_info          = ls_start_info
             is_scheduling_info     = ls_scheduling_info
             it_job_parameter_value = lt_param
           IMPORTING
@@ -211,39 +209,84 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD build_period_info.
+  METHOD build_scheduling_info.
 
 *----------------------------------------------------------------------*
-* AS-IS 대응
-*   반복주기   -> prd_mins / prd_hours / prd_weeks / prd_months
-*   일반복주기 -> prd_days
+* 반복 주기 - AS-IS 반복주기 / 일반복주기
+*   APJ 는 "단위 + 값" 으로 표현한다. 하나만 채운다.
 *
-* TODO: 시그니처 확인
-*   CL_APJ_RT_API=>TY_PERIOD_INFO 의 실제 필드명으로 맞출 것.
-*   min / hour / day / week / month 로 가정했다.
-*
-* 주기는 한 단위만 채운다. 여러 개를 채우면 APJ 가 거부할 수 있어
-* ELSEIF 로 배타 처리했다.
-*
-* NOTE 팩토리 캘린더(공장근무일)는 APJ 주기 패턴에 대응이 없다.
-*      필요하면 실행 클래스가 EXECUTE 안에서 직접 판정해야 한다.
+* TODO: 시그니처 확인 - PERIODIC_GRANULARITY 의 값 도메인.
+*       상수 클래스가 있으면 문자 리터럴 대신 그것을 쓸 것.
 *----------------------------------------------------------------------*
     IF is_start-prd_mins > 0.
-      rs_period-prdmins = is_start-prd_mins.
+      rs_sched-periodic_granularity = 'MINUTE'.
+      rs_sched-periodic_value       = is_start-prd_mins.
 
     ELSEIF is_start-prd_hours > 0.
-      rs_period-prdhours = is_start-prd_hours.
+      rs_sched-periodic_granularity = 'HOUR'.
+      rs_sched-periodic_value       = is_start-prd_hours.
 
     ELSEIF is_start-prd_days > 0.
-      rs_period-prddays = is_start-prd_days.
+      rs_sched-periodic_granularity = 'DAY'.
+      rs_sched-periodic_value       = is_start-prd_days.
 
     ELSEIF is_start-prd_weeks > 0.
-      rs_period-prdweeks = is_start-prd_weeks.
+      rs_sched-periodic_granularity = 'WEEK'.
+      rs_sched-periodic_value       = is_start-prd_weeks.
 
     ELSEIF is_start-prd_months > 0.
-      rs_period-prdmonths = is_start-prd_months.
+      rs_sched-periodic_granularity = 'MONTH'.
+      rs_sched-periodic_value       = is_start-prd_months.
 
     ENDIF.
+
+*----------------------------------------------------------------------*
+* 타임존 - AS-IS 시스템 zone시간
+*   반복 계산의 기준 타임존이다. 지정이 없으면 사용자 타임존을 쓴다.
+*----------------------------------------------------------------------*
+    rs_sched-timezone = COND #(
+      WHEN is_start-timezone IS NOT INITIAL
+      THEN is_start-timezone
+      ELSE cl_abap_context_info=>get_user_time_zone( ) ).
+
+*----------------------------------------------------------------------*
+* 종료 조건 - AS-IS 배치잡 close시간
+*   BY    : 이 시각까지만 반복
+*   AFTER : N 회 실행 후 종료
+*   NONE  : 무한 반복
+*
+* TODO: 시그니처 확인 - END_INFO 가 여기 컴포넌트인지 별도 파라미터인지,
+*       그리고 TYPE 의 값(NONE / AFTER / BY).
+*----------------------------------------------------------------------*
+    IF is_start-end_date IS NOT INITIAL.
+
+      DATA lv_end_ts TYPE timestamp.
+
+      CONVERT DATE is_start-end_date TIME is_start-end_time
+              INTO TIME STAMP lv_end_ts TIME ZONE rs_sched-timezone.
+
+      rs_sched-end_info-type      = 'BY'.
+      rs_sched-end_info-timestamp = lv_end_ts.
+
+    ELSEIF is_start-max_iterations > 0.
+
+      rs_sched-end_info-type           = 'AFTER'.
+      rs_sched-end_info-max_iterations = is_start-max_iterations.
+
+    ELSE.
+
+      rs_sched-end_info-type = 'NONE'.
+
+    ENDIF.
+
+*----------------------------------------------------------------------*
+* 미사용
+*   WEEKDAY_INFO / MONTH_INFO : 요일·월 지정. AS-IS 에 대응 항목이 없다.
+*   EXCEPTION                 : 비작업일 처리. AS-IS 의 공장근무일
+*                               (공장시간/공장근무일수/공장근무시간)을
+*                               여기로 옮길 수 있는지 확인이 필요하다.
+*   TEST_MODE                 : 테스트 모드
+*----------------------------------------------------------------------*
 
   ENDMETHOD.
 

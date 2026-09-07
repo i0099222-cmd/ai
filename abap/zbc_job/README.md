@@ -14,9 +14,10 @@ ZTBATCH_SCHED
   run_uuid    RAP 키
   template    APJ 잡 템플릿
   jobtext     잡 텍스트 (논리 잡명)
-  param       런처 전달 파라미터 (JSON)
+  param       잡 파라미터 값 (JSON)
   jobname     APJ 가 만든 잡 이름 (SM37)
   jobcount    APJ 잡 카운트 (SM37)
+  message     APJ 응답 메시지
   created_by  누가 걸었나
   created_at  언제 걸었나
   local_last_changed_at   etag
@@ -137,6 +138,57 @@ AS-IS 가 리포트 이름(`pgmid`)을 파라미터로 받아 아무거나 스�
 
 ---
 
+## 2-2. LUW 분리 — APJ 호출은 saver 에서
+
+`CL_APJ_RT_API` 의 `SCHEDULE_JOB` / `CANCEL_JOB` 은 **RAP 인터랙션 단계에서
+호출할 수 없다.** RAP 이 LUW 를 소유하는데 이 API 들이 트랜잭션을 건드려서
+덤프가 난다.
+
+그래서 behavior 에 `with additional save` 를 걸고 이렇게 나눴다.
+
+| 단계 | 하는 일 |
+|------|---------|
+| **인터랙션** (액션 핸들러) | 등록부 행 생성/조회 + "무엇을 할지" 를 `LCL_APJ_BUFFER` 에 담기 |
+| **save** (`LSC_ZI_BATCH_SCHEDULE~SAVE_MODIFIED`) | 버퍼를 읽어 **APJ 호출**, 결과를 `ZTBATCH_SCHED` 에 직접 UPDATE |
+
+```
+createJob  ──▶ MODIFY CREATE (행 생성, UUID 확보)
+               버퍼에 mode=S 담기
+                      │
+                   [save 시퀀스]
+                      ▼
+           save_modified ──▶ CL_APJ_RT_API=>SCHEDULE_JOB
+                             UPDATE ztbatch_sched SET jobname/jobcount/message
+```
+
+`changeJob` 은 `mode=R` (취소 후 재스케줄), `cancelJob` 은 `mode=C` 로 담긴다.
+
+### 대가 — 에러를 액션 응답으로 못 준다
+
+save 단계에서는 `reported` 로 메시지를 돌려줄 수 없다. 그래서:
+
+- APJ 응답은 **`ZTBATCH_SCHED-MESSAGE`** 에 기록한다
+- 스케줄 실패 시 **`jobname` 이 빈 채로 남는다** (`IsScheduled = ''`)
+
+호출자는 응답의 `IsScheduled` / `Message` 로 성공 여부를 판단한다.
+
+### `refreshStatus` 는 예외
+
+`GET_JOB_STATUS` 는 읽기만 하므로 인터랙션 단계에 남겨뒀다.
+`reported` 로 상태를 바로 돌려줄 수 있다.
+
+### 이걸로도 덤프가 나면
+
+`SCHEDULE_JOB` 이 **내부에서 `COMMIT WORK` 를 한다면** save 단계에서도 막힌다.
+RAP 트랜잭션 안에서는 어디서도 커밋할 수 없기 때문이다. 그 경우 선택지:
+
+| 안 | 내용 |
+|----|------|
+| bgPF | RAP 커밋이 끝난 뒤 별도 LUW 에서 실행 (SAP 이 이 상황을 위해 만든 프레임워크) |
+| BO 밖으로 분리 | 스케줄 호출을 RAP 이 아닌 별도 진입점으로. 확실하지만 OData 액션 형태를 잃는다 |
+
+---
+
 ## 3. 파일
 
 | 파일 | 언어버전 | 내용 |
@@ -146,7 +198,7 @@ AS-IS 가 리포트 이름(`pgmid`)을 파라미터로 받아 아무거나 스�
 | `zd_batch_start_option.ddls.abap` | — | `changeJob` 파라미터 (새 시작 조건) |
 | `zd_batch_create.ddls.abap` | — | `createJob` 파라미터 |
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
-| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 구현 (상태 컬럼 없이 `jobname` 유무로 제어) |
+| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 구현 + **버퍼 + saver** (LUW 분리) |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
 | `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 클래스가 쓰는 예외 |
 | `example_zcl_apj_batch_sample.clas.abap` | ABAP Cloud | **APJ 실행 클래스 작성 예시** (참고용) |

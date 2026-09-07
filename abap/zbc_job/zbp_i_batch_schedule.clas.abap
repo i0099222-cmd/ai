@@ -6,11 +6,19 @@
 "!   ZBC_BATCH_JOB_DELETE -> cancelJob
 "!   ZBC_BATCH_JOB_STATUS -> refreshStatus (APJ 에서 읽어 메시지로 반환)
 "!
-"! 액션은 전부 ZCL_BATCH_APJ_ADAPTER 를 거쳐 CL_APJ_RT_API 를 호출한다. BDC 없음.
+"! ** LUW 분리 **
+"!   CL_APJ_RT_API 의 SCHEDULE_JOB / CANCEL_JOB 은 RAP 인터랙션 단계에서
+"!   호출할 수 없다. RAP 이 LUW 를 소유하는데 이 API 들이 트랜잭션을 건드려서
+"!   덤프가 난다.
 "!
-"! 이 BO 는 상태 컬럼을 갖지 않는다. 스케줄 여부는 JobName 유무로 판단하고,
-"! 실제 실행 상태는 refreshStatus 가 APJ 에서 읽어 메시지로만 돌려준다.
-"! 실행 이력은 별도 로그 기능이 담당한다.
+"!   그래서 액션은 "무엇을 할지" 만 LCL_APJ_BUFFER 에 담고,
+"!   실제 APJ 호출은 saver(LSC_ZI_BATCH_SCHEDULE~SAVE_MODIFIED)에서 한다.
+"!
+"!   대가: save 단계에서는 reported 로 메시지를 돌려줄 수 없다.
+"!         APJ 응답은 ZTBATCH_SCHED-MESSAGE 에 기록하고,
+"!         실패하면 JOBNAME 이 빈 채로 남는다 (IsScheduled = '').
+"!
+"!   refreshStatus 는 GET_JOB_STATUS 로 읽기만 하므로 인터랙션 단계에 남겨둔다.
 CLASS zbp_i_batch_schedule DEFINITION
   PUBLIC
   ABSTRACT
@@ -22,6 +30,67 @@ CLASS zbp_i_batch_schedule IMPLEMENTATION.
 ENDCLASS.
 
 
+*&---------------------------------------------------------------------*
+*& 인터랙션 단계 -> save 단계로 넘기는 버퍼
+*&---------------------------------------------------------------------*
+CLASS lcl_apj_buffer DEFINITION CREATE PRIVATE.
+
+  PUBLIC SECTION.
+
+    CONSTANTS:
+      BEGIN OF gc_mode,
+        schedule   TYPE c LENGTH 1 VALUE 'S',   "! 신규 스케줄
+        reschedule TYPE c LENGTH 1 VALUE 'R',   "! 취소 후 재스케줄
+        cancel     TYPE c LENGTH 1 VALUE 'C',   "! 취소
+      END OF gc_mode.
+
+    TYPES:
+      BEGIN OF ty_request,
+        run_uuid TYPE ztbatch_sched-run_uuid,
+        mode     TYPE c LENGTH 1,
+        template TYPE ztbatch_sched-template,
+        jobtext  TYPE ztbatch_sched-jobtext,
+        param    TYPE string,
+        jobname  TYPE ztbatch_sched-jobname,    "! 취소 대상
+        jobcount TYPE ztbatch_sched-jobcount,   "! 취소 대상
+        start    TYPE zif_batch_job=>ty_start_option,
+      END OF ty_request,
+      tt_request TYPE STANDARD TABLE OF ty_request WITH EMPTY KEY.
+
+    CLASS-METHODS add
+      IMPORTING is_request TYPE ty_request.
+
+    CLASS-METHODS get
+      RETURNING VALUE(rt_request) TYPE tt_request.
+
+    CLASS-METHODS reset.
+
+  PRIVATE SECTION.
+    CLASS-DATA mt_request TYPE tt_request.
+
+ENDCLASS.
+
+
+CLASS lcl_apj_buffer IMPLEMENTATION.
+
+  METHOD add.
+    APPEND is_request TO mt_request.
+  ENDMETHOD.
+
+  METHOD get.
+    rt_request = mt_request.
+  ENDMETHOD.
+
+  METHOD reset.
+    CLEAR mt_request.
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+*&---------------------------------------------------------------------*
+*& 인터랙션 단계 핸들러
+*&---------------------------------------------------------------------*
 CLASS lhc_schedule DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
@@ -93,14 +162,12 @@ CLASS lhc_schedule IMPLEMENTATION.
 
 
 *----------------------------------------------------------------------*
-* 등록 + 스케줄 - AS-IS ZBC_BATCH_JOB_CREATE 1:1 대응
+* 잡 생성 - AS-IS ZBC_BATCH_JOB_CREATE
 *   SAP 에서 잡 생성 = 스케줄 등록이다. 한 번의 호출로
 *   등록부 행 1건 + APJ 잡 1건이 만들어진다.
 *
-*   NOTE: UUID 키는 managed numbering 이 early numbering 이라
-*         MODIFY 직후 mapped 에서 바로 읽을 수 있다. 그 값을 APJ 에 넘긴다.
-*   NOTE: APJ 호출이 인터랙션 단계에서 일어나므로, 이후 트랜잭션이 롤백되면
-*         잡만 남는다. 운영성 코드로 승격할 때는 saver 로 옮길 것.
+*   여기서는 행만 만들고 스케줄 요청은 버퍼에 담는다.
+*   실제 SCHEDULE_JOB 은 saver 에서 호출한다.
 *----------------------------------------------------------------------*
   METHOD createjob.
 
@@ -118,7 +185,8 @@ CLASS lhc_schedule IMPLEMENTATION.
 
     CHECK lt_create IS NOT INITIAL.
 
-    " 1) 행 생성 - UUID 를 여기서 얻는다
+    " UUID 키는 managed numbering 이 early numbering 이라
+    " MODIFY 직후 mapped 에서 바로 읽을 수 있다.
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
         CREATE FIELDS ( jobtemplatename jobtext parameters )
@@ -133,10 +201,6 @@ CLASS lhc_schedule IMPLEMENTATION.
     reported-batchschedule = VALUE #( BASE reported-batchschedule
                                       ( LINES OF CORRESPONDING #( ls_reported-batchschedule ) ) ).
 
-    " 2) 생성된 행을 APJ 에 스케줄
-    DATA lt_update TYPE TABLE FOR UPDATE zi_batch_schedule.
-    DATA(lo_adapter) = NEW zcl_batch_apj_adapter( ).
-
     LOOP AT ls_mapped-batchschedule INTO DATA(ls_new).
 
       DATA(ls_ck) = VALUE #( keys[ %cid = ls_new-%cid ] OPTIONAL ).
@@ -144,51 +208,31 @@ CLASS lhc_schedule IMPLEMENTATION.
 
       DATA(ls_cp) = ls_ck-%param.
 
-      DATA(ls_sched) = lo_adapter->schedule(
-        iv_template = ls_cp-jobtemplatename
-        iv_jobtext  = ls_cp-jobtext
-        iv_param    = ls_cp-parameters
-        is_start    = VALUE #( start_immediately = ls_cp-startimmediately
-                               start_date        = ls_cp-startdate
-                               start_time        = ls_cp-starttime
-                               timezone          = ls_cp-timezone
-                               prd_mins          = ls_cp-periodminutes
-                               prd_hours         = ls_cp-periodhours
-                               prd_days          = ls_cp-perioddays
-                               prd_weeks         = ls_cp-periodweeks
-                               prd_months        = ls_cp-periodmonths ) ).
-
-      APPEND VALUE #( %tky = VALUE #( runuuid = ls_new-runuuid )
-                      %msg = new_message_with_text(
-                               severity = COND #( WHEN ls_sched-success = abap_true
-                                                  THEN if_abap_behv_message=>severity-success
-                                                  ELSE if_abap_behv_message=>severity-error )
-                               text     = ls_sched-message ) )
-             TO reported-batchschedule.
-
-      CHECK ls_sched-success = abap_true.
-
-      APPEND VALUE #( %tky     = VALUE #( runuuid = ls_new-runuuid )
-                      jobname  = ls_sched-job_name
-                      jobcount = ls_sched-job_count )
-             TO lt_update.
+      lcl_apj_buffer=>add( VALUE #(
+        run_uuid = ls_new-runuuid
+        mode     = lcl_apj_buffer=>gc_mode-schedule
+        template = ls_cp-jobtemplatename
+        jobtext  = ls_cp-jobtext
+        param    = ls_cp-parameters
+        start    = VALUE #( start_immediately = ls_cp-startimmediately
+                            start_date        = ls_cp-startdate
+                            start_time        = ls_cp-starttime
+                            timezone          = ls_cp-timezone
+                            prd_mins          = ls_cp-periodminutes
+                            prd_hours         = ls_cp-periodhours
+                            prd_days          = ls_cp-perioddays
+                            prd_weeks         = ls_cp-periodweeks
+                            prd_months        = ls_cp-periodmonths ) ) ).
 
     ENDLOOP.
-
-    " 3) APJ 포인터 기록
-    MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
-      ENTITY batchschedule
-        UPDATE FIELDS ( jobname jobcount )
-        WITH lt_update.
 
   ENDMETHOD.
 
 
 *----------------------------------------------------------------------*
-* 재스케줄 - AS-IS ZBC_BATCH_JOB_CHANGE 의 스케줄 변경 부분
-*   기존 잡을 취소하고 새 조건으로 다시 건다.
-*   NOTE: APJ 에 잡 수정 API 가 없어서 취소 + 재생성이다.
-*         그래서 SM37 의 jobname/jobcount 가 바뀐다.
+* 스케줄 변경 - AS-IS ZBC_BATCH_JOB_CHANGE
+*   APJ 에 잡 수정 API 가 없어 취소 + 재생성이다.
+*   그 결과 SM37 의 jobname/jobcount 가 바뀐다.
 *----------------------------------------------------------------------*
   METHOD changejob.
 
@@ -199,66 +243,29 @@ CLASS lhc_schedule IMPLEMENTATION.
       RESULT DATA(lt_run)
       FAILED failed.
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_batch_schedule.
-    DATA(lo_adapter) = NEW zcl_batch_apj_adapter( ).
-
     LOOP AT lt_run INTO DATA(ls_run).
 
-      " 1) 기존 잡 취소
-      IF ls_run-jobname IS NOT INITIAL.
-        DATA(lv_cancel_msg) = lo_adapter->cancel( iv_job_name  = ls_run-jobname
-                                                  iv_job_count = ls_run-jobcount ).
-
-        APPEND VALUE #( %tky = ls_run-%tky
-                        %msg = new_message_with_text(
-                                 severity = if_abap_behv_message=>severity-information
-                                 text     = lv_cancel_msg ) )
-               TO reported-batchschedule.
-      ENDIF.
-
-      " 2) 새 조건으로 다시 스케줄
       DATA(ls_p) = keys[ %tky = ls_run-%tky ]-%param.
 
-      DATA(ls_sched) = lo_adapter->schedule(
-        iv_template = ls_run-jobtemplatename
-        iv_jobtext  = ls_run-jobtext
-        iv_param    = ls_run-parameters
-        is_start    = VALUE #( start_immediately = ls_p-startimmediately
-                               start_date        = ls_p-startdate
-                               start_time        = ls_p-starttime
-                               timezone          = ls_p-timezone
-                               prd_mins          = ls_p-periodminutes
-                               prd_hours         = ls_p-periodhours
-                               prd_days          = ls_p-perioddays
-                               prd_weeks         = ls_p-periodweeks
-                               prd_months        = ls_p-periodmonths ) ).
-
-      APPEND VALUE #( %tky = ls_run-%tky
-                      %msg = new_message_with_text(
-                               severity = COND #( WHEN ls_sched-success = abap_true
-                                                  THEN if_abap_behv_message=>severity-success
-                                                  ELSE if_abap_behv_message=>severity-error )
-                               text     = ls_sched-message ) )
-             TO reported-batchschedule.
-
-      IF ls_sched-success = abap_false.
-        APPEND VALUE #( %tky = ls_run-%tky ) TO failed-batchschedule.
-        " 취소는 됐고 재스케줄만 실패 -> 포인터를 비워 다시 걸 수 있게 한다
-        APPEND VALUE #( %tky = ls_run-%tky jobname = space jobcount = space ) TO lt_update.
-        CONTINUE.
-      ENDIF.
-
-      APPEND VALUE #( %tky     = ls_run-%tky
-                      jobname  = ls_sched-job_name
-                      jobcount = ls_sched-job_count )
-             TO lt_update.
+      lcl_apj_buffer=>add( VALUE #(
+        run_uuid = ls_run-runuuid
+        mode     = lcl_apj_buffer=>gc_mode-reschedule
+        template = ls_run-jobtemplatename
+        jobtext  = ls_run-jobtext
+        param    = ls_run-parameters
+        jobname  = ls_run-jobname
+        jobcount = ls_run-jobcount
+        start    = VALUE #( start_immediately = ls_p-startimmediately
+                            start_date        = ls_p-startdate
+                            start_time        = ls_p-starttime
+                            timezone          = ls_p-timezone
+                            prd_mins          = ls_p-periodminutes
+                            prd_hours         = ls_p-periodhours
+                            prd_days          = ls_p-perioddays
+                            prd_weeks         = ls_p-periodweeks
+                            prd_months        = ls_p-periodmonths ) ) ).
 
     ENDLOOP.
-
-    MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
-      ENTITY batchschedule
-        UPDATE FIELDS ( jobname jobcount )
-        WITH lt_update.
 
     result = read_self( keys ).
 
@@ -266,7 +273,8 @@ CLASS lhc_schedule IMPLEMENTATION.
 
 
 *----------------------------------------------------------------------*
-* 취소 - AS-IS ZBC_BATCH_JOB_DELETE
+* 잡 취소 - AS-IS ZBC_BATCH_JOB_DELETE
+*   등록부 행은 남고 APJ 포인터만 비워진다 (다시 걸 수 있음).
 *----------------------------------------------------------------------*
   METHOD canceljob.
 
@@ -277,32 +285,17 @@ CLASS lhc_schedule IMPLEMENTATION.
       RESULT DATA(lt_run)
       FAILED failed.
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_batch_schedule.
-    DATA(lo_adapter) = NEW zcl_batch_apj_adapter( ).
-
     LOOP AT lt_run INTO DATA(ls_run).
 
-      DATA(lv_message) = lo_adapter->cancel( iv_job_name  = ls_run-jobname
-                                             iv_job_count = ls_run-jobcount ).
+      CHECK ls_run-jobname IS NOT INITIAL.
 
-      " 취소했으면 APJ 포인터를 비운다. 같은 행을 다시 스케줄할 수 있게 된다.
-      APPEND VALUE #( %tky     = ls_run-%tky
-                      jobname  = space
-                      jobcount = space )
-             TO lt_update.
-
-      APPEND VALUE #( %tky = ls_run-%tky
-                      %msg = new_message_with_text(
-                               severity = if_abap_behv_message=>severity-success
-                               text     = lv_message ) )
-             TO reported-batchschedule.
+      lcl_apj_buffer=>add( VALUE #(
+        run_uuid = ls_run-runuuid
+        mode     = lcl_apj_buffer=>gc_mode-cancel
+        jobname  = ls_run-jobname
+        jobcount = ls_run-jobcount ) ).
 
     ENDLOOP.
-
-    MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
-      ENTITY batchschedule
-        UPDATE FIELDS ( jobname jobcount )
-        WITH lt_update.
 
     result = read_self( keys ).
 
@@ -311,7 +304,8 @@ CLASS lhc_schedule IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
 * 상태 조회 - AS-IS ZBC_BATCH_JOB_STATUS
-*   진실의 원천은 APJ 다. 여기서 읽어 DB 캐시를 갱신한다.
+*   GET_JOB_STATUS 는 읽기만 하므로 인터랙션 단계에 남겨둔다.
+*   진실의 원천은 APJ 이고 DB 에 쓰지 않는다.
 *----------------------------------------------------------------------*
   METHOD refreshstatus.
 
@@ -331,7 +325,6 @@ CLASS lhc_schedule IMPLEMENTATION.
       DATA(ls_status) = lo_adapter->get_status( iv_job_name  = ls_run-jobname
                                                 iv_job_count = ls_run-jobcount ).
 
-      " DB 에 쓰지 않는다. 진실의 원천은 APJ 이고, 이력은 로그 기능이 갖는다.
       APPEND VALUE #( %tky = ls_run-%tky
                       %msg = new_message_with_text(
                                severity = if_abap_behv_message=>severity-information
@@ -356,6 +349,97 @@ CLASS lhc_schedule IMPLEMENTATION.
     result = VALUE #( FOR ls_res IN lt_result
                       ( %tky = ls_res-%tky %param = ls_res ) ).
 
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+*&---------------------------------------------------------------------*
+*& Saver - 여기서만 APJ 를 호출한다
+*&---------------------------------------------------------------------*
+CLASS lsc_zi_batch_schedule DEFINITION INHERITING FROM cl_abap_behavior_saver.
+
+  PROTECTED SECTION.
+    METHODS save_modified    REDEFINITION.
+    METHODS cleanup          REDEFINITION.
+    METHODS cleanup_finalize REDEFINITION.
+
+ENDCLASS.
+
+
+CLASS lsc_zi_batch_schedule IMPLEMENTATION.
+
+  METHOD save_modified.
+
+    DATA(lt_request) = lcl_apj_buffer=>get( ).
+    CHECK lt_request IS NOT INITIAL.
+
+    DATA(lo_adapter) = NEW zcl_batch_apj_adapter( ).
+
+    DATA lv_empty_name  TYPE ztbatch_sched-jobname.
+    DATA lv_empty_count TYPE ztbatch_sched-jobcount.
+
+    LOOP AT lt_request INTO DATA(ls_req).
+
+      " --- 취소가 필요한 경우 먼저 끊는다 (cancel / reschedule) ---
+      DATA(lv_cancel_msg) = VALUE string( ).
+
+      IF ls_req-mode = lcl_apj_buffer=>gc_mode-cancel
+         OR ls_req-mode = lcl_apj_buffer=>gc_mode-reschedule.
+
+        IF ls_req-jobname IS NOT INITIAL.
+          lv_cancel_msg = lo_adapter->cancel( iv_job_name  = ls_req-jobname
+                                              iv_job_count = ls_req-jobcount ).
+        ENDIF.
+
+      ENDIF.
+
+      " --- 취소만 하고 끝 ---
+      IF ls_req-mode = lcl_apj_buffer=>gc_mode-cancel.
+
+        UPDATE ztbatch_sched
+          SET jobname  = @lv_empty_name,
+              jobcount = @lv_empty_count,
+              message  = @( CONV ztbatch_sched-message( lv_cancel_msg ) )
+          WHERE run_uuid = @ls_req-run_uuid.
+
+        CONTINUE.
+      ENDIF.
+
+      " --- 스케줄 ---
+      DATA(ls_sched) = lo_adapter->schedule(
+        iv_template = ls_req-template
+        iv_jobtext  = ls_req-jobtext
+        iv_param    = ls_req-param
+        is_start    = ls_req-start ).
+
+      DATA(lv_message) = COND string(
+        WHEN lv_cancel_msg IS NOT INITIAL
+        THEN |{ lv_cancel_msg } / { ls_sched-message }|
+        ELSE ls_sched-message ).
+
+      " 실패하면 jobname 이 빈 채로 남는다. 사유는 message 에 적힌다.
+      " save 단계라 reported 로 메시지를 돌려줄 수 없기 때문이다.
+      UPDATE ztbatch_sched
+        SET jobname  = @ls_sched-job_name,
+            jobcount = @ls_sched-job_count,
+            message  = @( CONV ztbatch_sched-message( lv_message ) )
+        WHERE run_uuid = @ls_req-run_uuid.
+
+    ENDLOOP.
+
+    lcl_apj_buffer=>reset( ).
+
+  ENDMETHOD.
+
+
+  METHOD cleanup.
+    lcl_apj_buffer=>reset( ).
+  ENDMETHOD.
+
+
+  METHOD cleanup_finalize.
+    lcl_apj_buffer=>reset( ).
   ENDMETHOD.
 
 ENDCLASS.

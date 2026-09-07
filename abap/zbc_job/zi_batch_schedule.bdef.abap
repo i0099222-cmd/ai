@@ -22,6 +22,9 @@ persistent table ztbatch_sched
 lock master
 authorization master ( global )
 etag master LocalLastChangedAt
+// APJ 호출(SCHEDULE_JOB/CANCEL_JOB)은 인터랙션 단계에서 금지된다.
+// 액션은 요청만 버퍼에 담고, 실제 호출은 saver 의 save_modified 에서 한다.
+with additional save
 {
   field ( numbering : managed, readonly ) RunUuid;
 
@@ -29,6 +32,7 @@ etag master LocalLastChangedAt
   field ( readonly ) JobName,
                      JobCount,
                      IsScheduled,
+                     Message,
                      CreatedBy,
                      CreatedAt,
                      LocalLastChangedAt;
@@ -61,6 +65,7 @@ etag master LocalLastChangedAt
     Parameters         = param;
     JobName            = jobname;
     JobCount           = jobcount;
+    Message            = message;
     CreatedBy          = created_by;
     CreatedAt          = created_at;
     LocalLastChangedAt = local_last_changed_at;

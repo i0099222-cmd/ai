@@ -20,6 +20,7 @@ define root view entity ZC_BATCH_SCHEDULE
 
       @EndUserText.label: 'Scheduled'
       IsScheduled,
+      Message,
 
       CreatedBy,
       CreatedAt,

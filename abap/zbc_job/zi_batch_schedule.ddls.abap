@@ -18,6 +18,8 @@ define root view entity ZI_BATCH_SCHEDULE
       // 실제 실행 상태는 별도 로그 기능 / refreshStatus 액션이 APJ 에서 읽는다.
       case when jobname <> '' then 'X' else '' end as IsScheduled,
 
+      message               as Message,
+
       @Semantics.user.createdBy: true
       created_by            as CreatedBy,
       @Semantics.systemDateTime.createdAt: true

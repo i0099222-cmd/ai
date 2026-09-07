@@ -1,9 +1,19 @@
 "! <p class="shorttext synchronized">잡 파라미터 값 변환</p>
 "!
-"! ZTBATCH_SCHED-PARAM (JSON) <-> APJ 파라미터 테이블(tt_templ_val).
+"! ZTBATCH_SCHED-PARAM <-> APJ 파라미터 테이블(tt_templ_val).
 "!
-"! JSON 형태:
-"!   [{"name":"P_BUKRS","value":"1000"},{"name":"P_TEST","value":"X"}]
+"! 두 가지 형식을 모두 받는다. 첫 글자로 구분한다.
+"!
+"!   1) 구분자 형식 (권장 - API 테스트용)
+"!        P_BUKRS=1000;P_TEST=X
+"!      OData 페이로드에서 이스케이프가 필요 없다.
+"!
+"!   2) JSON 배열 (구조화된 호출자용)
+"!        [{"name":"P_BUKRS","value":"1000"},{"name":"P_TEST","value":"X"}]
+"!      Parameters 가 string 필드라 OData 페이로드에서는 따옴표를
+"!      이스케이프해야 한다: "[{\"name\":...}]"
+"!
+"! 값에 ';' 나 '=' 가 들어가야 하면 JSON 형식을 쓸 것.
 "!
 "! name 은 실행 클래스의 IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS 가 정의한
 "! SELNAME 과 일치해야 한다. 값 검증은 실행 클래스의 CHECK_PARAMETERS 가 한다.
@@ -17,19 +27,20 @@ CLASS zcl_batch_param DEFINITION
 
   PUBLIC SECTION.
 
-    "! JSON -> APJ 파라미터 테이블
+    "! PARAM 문자열 -> APJ 파라미터 테이블.
+    "! 구분자 형식과 JSON 배열을 모두 받는다.
     CLASS-METHODS to_apj
       IMPORTING
-        iv_json        TYPE string
+        iv_param       TYPE string
       RETURNING
         VALUE(rt_vals) TYPE if_apj_rt_exec_object=>tt_templ_val.
 
-    "! APJ 파라미터 테이블 -> JSON
+    "! APJ 파라미터 테이블 -> 구분자 형식 문자열
     CLASS-METHODS from_apj
       IMPORTING
-        it_vals        TYPE if_apj_rt_exec_object=>tt_templ_val
+        it_vals         TYPE if_apj_rt_exec_object=>tt_templ_val
       RETURNING
-        VALUE(rv_json) TYPE string.
+        VALUE(rv_param) TYPE string.
 
 ENDCLASS.
 
@@ -38,15 +49,42 @@ CLASS zcl_batch_param IMPLEMENTATION.
 
   METHOD to_apj.
 
-    CHECK iv_json IS NOT INITIAL.
+    DATA(lv_param) = condense( iv_param ).
+
+    CHECK lv_param IS NOT INITIAL.
 
     DATA lt_kv TYPE zif_batch_job=>tt_param_value.
 
-    TRY.
-        xco_cp_json=>data->from_string( iv_json )->write_to( REF #( lt_kv ) ).
-      CATCH cx_root.
-        RETURN.
-    ENDTRY.
+    IF lv_param(1) = '[' OR lv_param(1) = '{'.
+
+      " --- JSON 배열 ---
+      TRY.
+          xco_cp_json=>data->from_string( lv_param )->write_to( REF #( lt_kv ) ).
+        CATCH cx_root.
+          RETURN.
+      ENDTRY.
+
+    ELSE.
+
+      " --- 구분자 형식: P_A=1;P_B=2 ---
+      SPLIT lv_param AT ';' INTO TABLE DATA(lt_pair).
+
+      LOOP AT lt_pair INTO DATA(lv_pair).
+
+        DATA(lv_entry) = condense( lv_pair ).
+        CHECK lv_entry IS NOT INITIAL.
+
+        SPLIT lv_entry AT '=' INTO DATA(lv_name) DATA(lv_value).
+
+        DATA(lv_sel) = condense( lv_name ).
+        CHECK lv_sel IS NOT INITIAL.
+
+        APPEND VALUE #( name  = to_upper( lv_sel )
+                        value = condense( lv_value ) ) TO lt_kv.
+
+      ENDLOOP.
+
+    ENDIF.
 
     rt_vals = VALUE #(
       kind   = if_apj_dt_exec_object=>parameter
@@ -61,16 +99,11 @@ CLASS zcl_batch_param IMPLEMENTATION.
 
   METHOD from_apj.
 
-    DATA(lt_kv) = VALUE zif_batch_job=>tt_param_value(
-      FOR ls_val IN it_vals
-      ( name  = ls_val-selname
-        value = CONV #( ls_val-low ) ) ).
-
-    TRY.
-        rv_json = xco_cp_json=>data->from_abap( lt_kv )->to_string( ).
-      CATCH cx_root.
-        CLEAR rv_json.
-    ENDTRY.
+    LOOP AT it_vals INTO DATA(ls_val).
+      rv_param = COND #( WHEN rv_param IS INITIAL
+                         THEN |{ ls_val-selname }={ ls_val-low }|
+                         ELSE |{ rv_param };{ ls_val-selname }={ ls_val-low }| ).
+    ENDLOOP.
 
   ENDMETHOD.
 

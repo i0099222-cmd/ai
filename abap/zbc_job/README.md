@@ -58,14 +58,36 @@ APJ 잡의 키는 **`jobname + jobcount`** 다.
 ### `param` 에 들어가는 것
 
 실행 클래스가 `GET_PARAMETERS` 로 정의한 파라미터의 **값**들이다.
+**리포트 배리언트를 대신하는 자리**다.
+
+`ZCL_BATCH_PARAM` 이 두 가지 형식을 모두 받아 APJ 파라미터 테이블(`tt_templ_val`)로
+변환한다. 첫 글자로 구분한다.
+
+**1) 구분자 형식 — API 테스트에 권장**
+
+```
+P_BUKRS=1000;P_TEST=X
+```
+
+`Parameters` 가 string 필드라서, JSON 을 넣으면 OData 페이로드 안에서
+따옴표를 전부 이스케이프해야 한다. 구분자 형식은 그럴 필요가 없다.
+
+**2) JSON 배열 — 구조화된 호출자용**
 
 ```json
 [{"name":"P_BUKRS","value":"1000"},{"name":"P_TEST","value":"X"}]
 ```
 
-`ZCL_BATCH_PARAM` 이 이걸 APJ 파라미터 테이블(`tt_templ_val`)로 변환해서 넘긴다.
-`name` 은 실행 클래스의 `SELNAME` 과 일치해야 하고, 값 검증은 그 클래스의
-`CHECK_PARAMETERS` 가 한다. **리포트 배리언트를 대신하는 자리**다.
+OData 페이로드에서는 이렇게 들어간다:
+
+```json
+"Parameters": "[{\"name\":\"P_BUKRS\",\"value\":\"1000\"}]"
+```
+
+값에 `;` 나 `=` 가 들어가야 하면 JSON 형식을 쓴다.
+
+`name` 은 실행 클래스의 `SELNAME` 과 일치해야 하고 (구분자 형식은 자동 대문자 변환),
+값 검증은 그 클래스의 `CHECK_PARAMETERS` 가 한다.
 
 ---
 
@@ -171,6 +193,69 @@ APJ 잡을 없애는 것은 `cancelJob` 이다.
 **APJ 에 잡 수정 API 가 없다.** 그래서 기존 잡을 취소하고 새 조건으로 다시 건다.
 그 결과 **SM37 의 `jobname`/`jobcount` 가 바뀐다.** SM36 은 제자리 변경이 되므로,
 화면 쪽에서 잡 ID 를 들고 있다면 영향이 있다 — 확인 필요.
+
+---
+
+## 4-1. API 테스트
+
+서비스 바인딩(OData V4 - UI) Publish 후 엔드포인트는 대략 이렇다.
+
+```
+/sap/opu/odata4/sap/zui_batch_schedule/srvd/sap/zui_batch_schedule/0001/
+```
+
+액션의 정규화 이름은 `$metadata` 에서 확인한다 — 네임스페이스는 바인딩마다 다르다.
+
+### 잡 생성
+
+```http
+POST {base}/BatchSchedule/com.sap.gateway.srvd.zui_batch_schedule.v0001.createJob
+Content-Type: application/json
+X-CSRF-Token: {token}
+
+{
+  "JobTemplateName":  "ZJT_BATCH_SAMPLE",
+  "JobText":          "월마감 배치",
+  "Parameters":       "P_BUKRS=1000;P_TEST=X",
+  "StartImmediately": true
+}
+```
+
+### 예약 + 반복
+
+```json
+{
+  "JobTemplateName":  "ZJT_BATCH_SAMPLE",
+  "JobText":          "월마감 배치",
+  "Parameters":       "P_BUKRS=1000;P_BUDAT=20261001",
+  "StartImmediately": false,
+  "StartDate":        "2026-10-01",
+  "StartTime":        "02:00:00",
+  "TimeZone":         "CET",
+  "PeriodMonths":     1
+}
+```
+
+`PeriodMinutes` / `PeriodHours` / `PeriodDays` / `PeriodWeeks` / `PeriodMonths` 중
+**하나만** 채운다.
+
+### 목록 조회
+
+```http
+GET {base}/BatchSchedule?$orderby=CreatedAt desc
+```
+
+`JobName` / `JobCount` 를 확인해서 **SM37 에 같은 잡이 보이는지** 대조한다.
+
+### 상태 / 변경 / 취소
+
+```http
+POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
+POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.changeJob
+POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.cancelJob
+```
+
+`changeJob` 은 `ZD_BATCH_START_OPTION` 파라미터(새 시작 조건)를 받는다.
 
 ---
 

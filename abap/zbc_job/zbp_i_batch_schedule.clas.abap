@@ -282,9 +282,22 @@ CLASS lsc_zi_batch_schedule DEFINITION INHERITING FROM cl_abap_behavior_saver.
       IMPORTING iv_run_uuid       TYPE ztbatch_sched-run_uuid
       RETURNING VALUE(rv_message) TYPE string.
 
+    "! 요청 행에서 시작 조건만 추려낸다.
+    METHODS start_option
+      IMPORTING is_row           TYPE STRUCTURE FOR CREATE zi_batch_schedule
+      RETURNING VALUE(rs_option) TYPE zif_batch_job=>ty_start_option.
+
     "! 스케줄하고 결과를 이력 행에 기록한다.
+    "!
+    "! 무엇을 돌릴지(템플릿/텍스트/파라미터)는 호출자가 준다. create 는
+    "! 요청에 실려 있고, update 는 요청에 없어 저장된 행에서 읽어야 하기
+    "! 때문이다.
     METHODS schedule_and_store
-      IMPORTING is_row TYPE STRUCTURE FOR CREATE zi_batch_schedule.
+      IMPORTING iv_run_uuid TYPE ztbatch_sched-run_uuid
+                iv_template TYPE clike
+                iv_jobtext  TYPE clike
+                iv_param    TYPE string
+                is_start    TYPE zif_batch_job=>ty_start_option.
 
 ENDCLASS.
 
@@ -305,7 +318,11 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
 * 생성 - scheduleJob
 *----------------------------------------------------------------------*
     LOOP AT create INTO DATA(ls_new).
-      schedule_and_store( ls_new ).
+      schedule_and_store( iv_run_uuid = ls_new-runuuid
+                          iv_template = ls_new-jobtemplatename
+                          iv_jobtext  = ls_new-jobtext
+                          iv_param    = ls_new-parameters
+                          is_start    = start_option( ls_new ) ).
     ENDLOOP.
 
 *----------------------------------------------------------------------*
@@ -333,8 +350,18 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 재스케줄. 변경된 시작 조건은 ls_upd 에 실려 있다.
-      schedule_and_store( CORRESPONDING #( ls_upd ) ).
+      " 재스케줄. update 요청에는 바뀐 필드만 실려 오므로 시작 조건만
+      " 여기서 오고, 무엇을 돌릴지는 저장된 행에서 읽는다.
+      SELECT SINGLE template, jobtext, param
+        FROM ztbatch_sched
+        WHERE run_uuid = @ls_upd-runuuid
+        INTO @DATA(ls_job).
+
+      schedule_and_store( iv_run_uuid = ls_upd-runuuid
+                          iv_template = ls_job-template
+                          iv_jobtext  = ls_job-jobtext
+                          iv_param    = ls_job-param
+                          is_start    = start_option( CORRESPONDING #( ls_upd ) ) ).
 
     ENDLOOP.
 
@@ -357,26 +384,33 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD start_option.
+
+    rs_option = VALUE #( start_immediately = is_row-startimmediately
+                         start_datetime    = is_row-startdatetime
+                         timezone          = is_row-timezone
+                         prd_mins          = is_row-periodminutes
+                         prd_hours         = is_row-periodhours
+                         prd_days          = is_row-perioddays
+                         prd_weeks         = is_row-periodweeks
+                         prd_months        = is_row-periodmonths
+                         end_datetime      = is_row-enddatetime
+                         calendar_id       = is_row-calendarid
+                         month_day         = is_row-monthday
+                         count_from_end    = is_row-countfrommonthend
+                         use_working_days  = is_row-useworkingdays
+                         start_restriction = is_row-startrestriction ).
+
+  ENDMETHOD.
+
+
   METHOD schedule_and_store.
 
     DATA(ls_sched) = NEW zcl_batch_apj_adapter( )->schedule(
-      iv_template = is_row-jobtemplatename
-      iv_jobtext  = is_row-jobtext
-      iv_param    = is_row-parameters
-      is_start    = VALUE #( start_immediately = is_row-startimmediately
-                             start_datetime    = is_row-startdatetime
-                             timezone          = is_row-timezone
-                             prd_mins          = is_row-periodminutes
-                             prd_hours         = is_row-periodhours
-                             prd_days          = is_row-perioddays
-                             prd_weeks         = is_row-periodweeks
-                             prd_months        = is_row-periodmonths
-                             end_datetime      = is_row-enddatetime
-                             calendar_id       = is_row-calendarid
-                             month_day         = is_row-monthday
-                             count_from_end    = is_row-countfrommonthend
-                             use_working_days  = is_row-useworkingdays
-                             start_restriction = is_row-startrestriction ) ).
+      iv_template = iv_template
+      iv_jobtext  = iv_jobtext
+      iv_param    = iv_param
+      is_start    = is_start ).
 
     " 실패하면 jobname 이 빈 채로 남는다. 사유는 message 에 적힌다.
     " save 단계라 reported 로 메시지를 돌려줄 수 없기 때문이다.
@@ -384,7 +418,18 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
       SET jobname  = @ls_sched-job_name,
           jobcount = @ls_sched-job_count,
           message  = @( CONV ztbatch_sched-message( ls_sched-message ) )
-      WHERE run_uuid = @is_row-runuuid.
+      WHERE run_uuid = @iv_run_uuid.
+
+    CHECK sy-subrc <> 0.
+
+*   행이 없다는 뜻이다. create 인 경우 managed 런타임이 아직 INSERT 를
+*   하지 않았다는 것이고, 그러면 이 UPDATE 는 영원히 헛돈다.
+*   APJ 잡은 이미 만들어졌으므로 그대로 두면 SM37 에 주인 없는 잡이 남는다.
+*   되돌려서 상태를 맞춘다 - 재시도는 호출자가 한다.
+    IF ls_sched-job_name IS NOT INITIAL.
+      NEW zcl_batch_apj_adapter( )->cancel( iv_job_name  = ls_sched-job_name
+                                            iv_job_count = ls_sched-job_count ).
+    ENDIF.
 
   ENDMETHOD.
 

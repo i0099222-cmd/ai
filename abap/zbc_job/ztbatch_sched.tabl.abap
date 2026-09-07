@@ -42,6 +42,7 @@ define table ztbatch_sched {
   @EndUserText.label : '일반복주기'
   prd_days          : abap.int4;
   prd_weeks         : abap.int4;
+  @EndUserText.label : '반복주기'
   prd_months        : abap.int4;
 
   // 종료 일시 - AS-IS 배치잡 close시간. 같은 CHAR(15) 형식.

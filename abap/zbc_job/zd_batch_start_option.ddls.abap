@@ -16,6 +16,7 @@ define abstract entity ZD_BATCH_START_OPTION
       @EndUserText.label: '일반복주기'
       PeriodDays        : abap.int4;
       PeriodWeeks       : abap.int4;
+      @EndUserText.label: '반복주기'
       PeriodMonths      : abap.int4;
 
       // 종료 일시 - AS-IS 배치잡 close시간. 같은 CHAR(15) 형식.

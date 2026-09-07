@@ -369,7 +369,7 @@ AS-IS `ZBCS0011` 의 형식이라 호출자가 값을 그대로 던질 수 있�
 
 | 필드 | 내용 | AS-IS |
 |------|------|-------|
-| `periodic_granularity` | 주기 **단위** (MINUTE/HOUR/DAY/WEEK/MONTH) | 반복주기 / 일반복주기 |
+| `periodic_granularity` | 주기 **단위** (MINUTE/HOUR/DAY/WEEK/MONTH) | 반복주기(월) / 일반복주기(일) — **둘 중 하나만** |
 | `periodic_value` | 주기 **값** (N) | 〃 |
 | `timezone` | 반복 계산 기준 타임존 | 시스템 zone시간 |
 | `end_info` | 종료 조건 | **배치잡 close시간** |
@@ -468,12 +468,33 @@ AS-IS `ZBCS0011` 의 형식이라 호출자가 값을 그대로 던질 수 있�
 
 AS-IS 매핑:
 
-| AS-IS | `ty_start_option` | `TY_PERIOD_INFO` (가정) |
-|-------|-------------------|------------------------|
-| 반복주기 (분/시/주/월) | `prd_mins` / `prd_hours` / `prd_weeks` / `prd_months` | `min` / `hour` / `week` / `month` |
-| 일반복주기 | `prd_days` | `day` |
+| AS-IS | BDC 필드 | `ty_start_option` | APJ `periodic_granularity` |
+|-------|---------|-------------------|---------------------------|
+| **반복주기** | `PRDMONTHS` (확인됨) | `prd_months` | `MONTH` |
+| **일반복주기** | `PRDDAYS` (추정) | `prd_days` | `DAY` |
+| — | `PRDMINS` / `PRDHOURS` / `PRDWEEKS` | `prd_mins` / `prd_hours` / `prd_weeks` | `MINUTE` / `HOUR` / `WEEK` |
 
-주기는 **한 단위만** 채운다 (`ELSEIF` 로 배타 처리). 여러 개를 채우면 APJ 가 거부할 수 있다.
+AS-IS 는 **월과 일 두 단위만** 쓴다. 나머지 세 컬럼은 APJ 가 지원해서 열어둔 것이고
+AS-IS 호출자는 채우지 않는다.
+
+### 합산 주기는 표현할 수 없다 — **APJ 못 함 항목**
+
+SM36 은 `PRDMONTHS`/`PRDDAYS`/… 를 **동시에 채우면 그 합을 주기로 삼는다.**
+1개월 + 15일 = 45일 주기다.
+
+APJ 의 `TY_SCHEDULING_INFO` 는 `periodic_granularity` + `periodic_value`
+**한 쌍뿐**이라 단위를 하나만 고를 수 있다. 합산을 표현할 방법이 없다.
+
+그래서 어댑터는 **둘 이상 채워지면 스케줄하지 않고 실패시킨다.** 조용히 하나를
+고르면 요청과 다른 주기로 잡이 걸린다.
+
+```
+반복 주기는 한 단위만 지정할 수 있다.
+APJ 는 합산 주기를 표현하지 못한다: DAY 15 + MONTH 1
+```
+
+> AS-IS 운영 데이터에 **반복주기와 일반복주기가 동시에 채워진 잡이 있는지**
+> 확인이 필요하다. 있으면 그 잡들은 이관 시 주기를 하나로 정리해야 한다.
 
 ---
 

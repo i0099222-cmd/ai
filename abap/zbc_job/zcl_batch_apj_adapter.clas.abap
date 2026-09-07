@@ -58,6 +58,14 @@ CLASS zcl_batch_apj_adapter DEFINITION
 
   PRIVATE SECTION.
 
+    "! 주기 값 하나와 그 APJ 단위. 어느 값이 채워졌는지 세기 위해 테이블로 다룬다.
+    TYPES:
+      BEGIN OF ty_unit,
+        value       TYPE i,
+        granularity TYPE string,
+      END OF ty_unit,
+      tt_unit TYPE STANDARD TABLE OF ty_unit WITH EMPTY KEY.
+
     "! 반복 주기를 APJ 의 주기 구조로 변환한다.
     "!
     "! 반복/종료 조건을 APJ 의 스케줄 구조로 변환한다.
@@ -80,7 +88,9 @@ CLASS zcl_batch_apj_adapter DEFINITION
       IMPORTING
         is_start        TYPE zif_batch_job=>ty_start_option
       RETURNING
-        VALUE(rs_sched) TYPE cl_apj_rt_api=>ty_scheduling_info.
+        VALUE(rs_sched) TYPE cl_apj_rt_api=>ty_scheduling_info
+      RAISING
+        zcx_batch_job.
 
     "! AS-IS 인터페이스의 CHAR(15) 일시를 UTC 타임스탬프로 바꾼다.
     "!
@@ -224,32 +234,40 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
   METHOD build_scheduling_info.
 
 *----------------------------------------------------------------------*
-* 반복 주기 - AS-IS 반복주기 / 일반복주기
-*   APJ 는 "단위 + 값" 으로 표현한다. 하나만 채운다.
+* 반복 주기 - AS-IS 반복주기(PRDMONTHS) / 일반복주기(PRDDAYS)
+*
+*   SM36 은 PRDMONTHS/PRDWEEKS/PRDDAYS/PRDHOURS/PRDMINS 를 동시에 채우면
+*   그 합을 주기로 삼는다 (1개월 + 15일 = 45일 주기).
+*   APJ 는 단위 하나 + 값 하나뿐이라 합산을 표현할 수 없다.
+*
+*   그래서 둘 이상 채워지면 조용히 하나를 고르지 않고 실패시킨다.
+*   잘못된 주기로 잡이 걸리는 것보다 안 걸리는 편이 낫다.
 *
 * TODO: 시그니처 확인 - PERIODIC_GRANULARITY 의 값 도메인.
 *       상수 클래스가 있으면 문자 리터럴 대신 그것을 쓸 것.
 *----------------------------------------------------------------------*
-    IF is_start-prd_mins > 0.
-      rs_sched-periodic_granularity = 'MINUTE'.
-      rs_sched-periodic_value       = is_start-prd_mins.
+    DATA(lt_unit) = VALUE tt_unit(
+      ( value = is_start-prd_mins   granularity = 'MINUTE' )
+      ( value = is_start-prd_hours  granularity = 'HOUR'   )
+      ( value = is_start-prd_days   granularity = 'DAY'    )
+      ( value = is_start-prd_weeks  granularity = 'WEEK'   )
+      ( value = is_start-prd_months granularity = 'MONTH'  ) ).
 
-    ELSEIF is_start-prd_hours > 0.
-      rs_sched-periodic_granularity = 'HOUR'.
-      rs_sched-periodic_value       = is_start-prd_hours.
+    DELETE lt_unit WHERE value <= 0.
 
-    ELSEIF is_start-prd_days > 0.
-      rs_sched-periodic_granularity = 'DAY'.
-      rs_sched-periodic_value       = is_start-prd_days.
+    IF lines( lt_unit ) > 1.
+      RAISE EXCEPTION TYPE zcx_batch_job
+        EXPORTING
+          message = |반복 주기는 한 단위만 지정할 수 있다. |
+                 && |APJ 는 합산 주기를 표현하지 못한다: |
+                 && concat_lines_of( table = VALUE string_table(
+                        FOR u IN lt_unit ( |{ u-granularity } { u-value }| ) )
+                      sep = ` + ` ).
+    ENDIF.
 
-    ELSEIF is_start-prd_weeks > 0.
-      rs_sched-periodic_granularity = 'WEEK'.
-      rs_sched-periodic_value       = is_start-prd_weeks.
-
-    ELSEIF is_start-prd_months > 0.
-      rs_sched-periodic_granularity = 'MONTH'.
-      rs_sched-periodic_value       = is_start-prd_months.
-
+    IF lt_unit IS NOT INITIAL.
+      rs_sched-periodic_granularity = lt_unit[ 1 ]-granularity.
+      rs_sched-periodic_value       = lt_unit[ 1 ]-value.
     ENDIF.
 
 *----------------------------------------------------------------------*

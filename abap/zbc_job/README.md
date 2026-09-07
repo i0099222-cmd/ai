@@ -60,34 +60,54 @@ APJ 잡의 키는 **`jobname + jobcount`** 다.
 실행 클래스가 `GET_PARAMETERS` 로 정의한 파라미터의 **값**들이다.
 **리포트 배리언트를 대신하는 자리**다.
 
-`ZCL_BATCH_PARAM` 이 두 가지 형식을 모두 받아 APJ 파라미터 테이블(`tt_templ_val`)로
-변환한다. 첫 글자로 구분한다.
+APJ 의 `tt_templ_val` 은 `selname` + `sign`/`option`/`low`/`high` 구조라
+파라미터 하나에 **여러 행(range)** 이 올 수 있다 — select-option 지원.
+그래서 `param` 도 `name` + `t_value`(range 테이블) 형태로 담는다.
 
-**1) 구분자 형식 — API 테스트에 권장**
+`ZCL_BATCH_PARAM` 이 두 가지 입력 형식을 받아 변환한다. 첫 글자로 구분한다.
 
-```
-P_BUKRS=1000;P_TEST=X
-```
-
-`Parameters` 가 string 필드라서, JSON 을 넣으면 OData 페이로드 안에서
-따옴표를 전부 이스케이프해야 한다. 구분자 형식은 그럴 필요가 없다.
-
-**2) JSON 배열 — 구조화된 호출자용**
+**1) JSON 배열 — 전체 표현 가능**
 
 ```json
-[{"name":"P_BUKRS","value":"1000"},{"name":"P_TEST","value":"X"}]
+[
+  { "name": "P_MODU",
+    "t_value": [ { "sign": "I", "option": "EQ", "low": "SD" } ] },
+  { "name": "P_DATS",
+    "t_value": [ { "sign": "I", "option": "BT",
+                   "low": "20260101", "high": "20261231" } ] }
+]
 ```
 
-OData 페이로드에서는 이렇게 들어간다:
+**2) 구분자 형식 — 단일 `EQ` 축약형. API 테스트용**
 
-```json
-"Parameters": "[{\"name\":\"P_BUKRS\",\"value\":\"1000\"}]"
+```
+P_MODU=SD;P_ZUID=X
 ```
 
-값에 `;` 나 `=` 가 들어가야 하면 JSON 형식을 쓴다.
+`Parameters` 가 string 필드라서 JSON 을 넣으면 OData 페이로드 안에서 따옴표를
+전부 이스케이프해야 한다. 구분자 형식은 그럴 필요가 없다.
+값에 `;` 나 `=` 가 들어가거나 **range 가 필요하면 JSON** 을 쓴다.
 
-`name` 은 실행 클래스의 `SELNAME` 과 일치해야 하고 (구분자 형식은 자동 대문자 변환),
+`name` 은 실행 클래스의 `SELNAME` 과 일치해야 한다 (구분자 형식은 자동 대문자 변환).
 값 검증은 그 클래스의 `CHECK_PARAMETERS` 가 한다.
+
+### `kind` (파라미터 / select-option)
+
+`kind` 를 비워두면 `t_value` 모양으로 추정한다.
+
+| `t_value` | 추정 `kind` |
+|-----------|------------|
+| 1행 + `EQ` | `P` (parameter) |
+| 그 밖 | `S` (select-option) |
+
+실행 클래스의 `GET_PARAMETERS` 가 선언한 `kind` 와 맞아야 하므로,
+추정이 다르면 JSON 에 `"kind":"S"` 처럼 명시한다.
+
+### 직렬화는 XCO 로
+
+**`/UI2/CL_JSON` 은 ABAP Cloud 에서 사용할 수 없다.** `XCO_CP_JSON` 을 쓴다.
+JSON 필드명 대소문자 규칙이 다를 수 있으므로, 실제 직렬화 결과를 한 번
+찍어보고 호출자와 맞출 것.
 
 ---
 
@@ -146,7 +166,7 @@ AS-IS 가 리포트 이름(`pgmid`)을 파라미터로 받아 아무거나 스�
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
 | `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 구현 (상태 컬럼 없이 `jobname` 유무로 제어) |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
-| `zcl_batch_param.clas.abap` | ABAP Cloud | `param` JSON ↔ APJ 파라미터 테이블 변환 |
+| `zcl_batch_param.clas.abap` | ABAP Cloud | `param` (JSON / 구분자) ↔ APJ 파라미터 테이블 변환 |
 | `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 클래스가 쓰는 예외 |
 | `example_zcl_apj_batch_sample.clas.abap` | ABAP Cloud | **APJ 실행 클래스 작성 예시** (참고용) |
 | `zif_batch_job.intf.abap` | ABAP Cloud | 상수/타입 (`ty_param`, `ty_start_option`) |

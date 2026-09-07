@@ -29,7 +29,7 @@ define root view entity ZC_BATCH_SCHEDULE
       MonthDay,
       EndOfMonth,
       UseWorkingDays,
-      ExecuteBefore,
+      StartRestriction,
 
       @EndUserText.label: 'Job Name (SM37)'
       JobName,

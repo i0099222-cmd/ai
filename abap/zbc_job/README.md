@@ -430,13 +430,32 @@ MONTH_INFO { day, use_working_days_ind, shift_direction, week_number }
 | AS-IS | APJ | 판정 |
 |-------|-----|------|
 | `CALENDARID` 공장달력 | `exception-calendar_id` | **○ 이관** |
-| `EXECUTE_BEFORE` 앞당김 | `start_restriction_code` / `shift_direction` | **○ 이관** (값 도메인 확인 필요) |
+| `EXECUTE_BEFORE` 앞당김 | `exception-start_restriction_code` | **○ 이관** |
 | `BOFMONTH` 월초 | `month_info-day = 1` | **○ 이관** |
 | 공장근무일수 (n번째 작업일) | `month_info-day` + `use_working_days_ind` | **○ 이관** |
 | `EOFMONTH` 월말 | **직접 대응 없음** | **△ 우회 — 검증 필요** |
 | — | `month_info-week_number` | AS-IS 에 대응 없음, 안 씀 |
 
 **공장달력은 "APJ 못 함" 목록에서 빠진다.**
+
+### `START_RESTRICTION_CODE` — 값 도메인 확인됨
+
+| 값 | 의미 |
+|----|------|
+| `D` | 실행하지 않고 건너뛴다 (do not process) |
+| `B` | 이전 근무일로 당긴다 (before) |
+| `A` | 다음 근무일로 미룬다 (after holiday) |
+| `N` | 제한 없이 그날 실행한다 (no) |
+
+**4지선다지 플래그가 아니다.** 처음에 `ExecuteBefore` 를 `abap_boolean` 으로
+받았는데 그러면 `D`(건너뜀)와 `N`(제한없음)을 표현할 수 없어 `StartRestriction`
+`CHAR(1)` 로 바꿨다. 상수는 `ZIF_BATCH_JOB=>GC_RESTRICTION`.
+
+SM36 제한조건 팝업의 라디오 버튼 4개와 그대로 대응한다. 그래서 AS-IS 값을
+변환 없이 넘긴다.
+
+> **확인 필요:** AS-IS BDC 가 `EXECUTE_BEFORE` 말고 나머지 3개에 해당하는
+> 필드도 채우는지. 라디오 그룹이면 4개가 다 있어야 한다.
 
 ### 남은 것 하나 — 월말(`EOFMONTH`)
 
@@ -457,8 +476,9 @@ MONTH_INFO { day, use_working_days_ind, shift_direction, week_number }
 
 ### 나머지 확인 필요
 
-- **`START_RESTRICTION_CODE` / `SHIFT_DIRECTION` 의 값 도메인** — 지금 `'B'`/`'A'`
-  로 넣고 있다. 어댑터의 `shift_code( )` 한 곳만 고치면 된다
+- **`SHIFT_DIRECTION` 의 값 도메인** — `START_RESTRICTION_CODE` 와 같은 `D/B/A/N`
+  으로 보고 그대로 넘기고 있다. 방향뿐이라 `B`/`A` 만 받는다면 `D`/`N` 이 들어갔을
+  때 어떻게 되는지 확인이 필요하다
 - `PERIODIC_GRANULARITY` 의 값 도메인 (상수 클래스가 있는지)
 - `END_INFO` 가 `TY_SCHEDULING_INFO` 의 컴포넌트인지 별도 파라미터인지,
   `TYPE` 의 실제 값 (`NONE` / `AFTER` / `BY`)

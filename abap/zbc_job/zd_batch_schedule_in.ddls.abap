@@ -41,6 +41,7 @@ define abstract entity ZD_BATCH_SCHEDULE_IN
       EndOfMonth        : abap_boolean;
       @EndUserText.label: '작업일 기준'
       UseWorkingDays    : abap_boolean;
-      @EndUserText.label: '비근무일이면 앞당김'
-      ExecuteBefore     : abap_boolean;
+      // D=건너뜀 B=앞당김 A=미룸 N=제한없음
+      @EndUserText.label: '비근무일 처리'
+      StartRestriction  : abap.char(1);
 }

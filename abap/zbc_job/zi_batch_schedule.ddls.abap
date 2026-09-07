@@ -27,7 +27,7 @@ define root view entity ZI_BATCH_SCHEDULE
       month_day             as MonthDay,
       eof_month             as EndOfMonth,
       use_working_days      as UseWorkingDays,
-      execute_before        as ExecuteBefore,
+      start_restriction     as StartRestriction,
 
       jobname               as JobName,
       jobcount              as JobCount,

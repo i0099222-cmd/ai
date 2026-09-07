@@ -60,8 +60,9 @@ define table ztbatch_sched {
   eof_month         : abap_boolean;
   @EndUserText.label : '작업일 기준'
   use_working_days  : abap_boolean;
-  @EndUserText.label : '비근무일이면 앞당김'
-  execute_before    : abap_boolean;
+  // 비근무일 처리. D=건너뜀 B=앞당김 A=미룸 N=제한없음 (ZIF_BATCH_JOB=>GC_RESTRICTION)
+  @EndUserText.label : '비근무일 처리'
+  start_restriction : abap.char(1);
 
   // --- APJ 포인터 --------------------------------------------------------
   // 비어 있으면 아직 스케줄 안 한 상태. 차 있으면 스케줄된 상태.

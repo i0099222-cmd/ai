@@ -13,6 +13,20 @@ INTERFACE zif_batch_job
       unknown   TYPE c LENGTH 1 VALUE '?',
     END OF gc_status.
 
+  "! 실행일이 비근무일일 때 어떻게 할지.
+  "! APJ EXCEPTION-START_RESTRICTION_CODE 의 값 도메인 그대로다.
+  CONSTANTS:
+    BEGIN OF gc_restriction,
+      "! 실행하지 않고 건너뛴다
+      do_not_process TYPE c LENGTH 1 VALUE 'D',
+      "! 이전 근무일로 당긴다
+      before         TYPE c LENGTH 1 VALUE 'B',
+      "! 다음 근무일로 미룬다
+      after          TYPE c LENGTH 1 VALUE 'A',
+      "! 제한 없이 그날 실행한다
+      none           TYPE c LENGTH 1 VALUE 'N',
+    END OF gc_restriction.
+
   "! 스케줄 옵션. 액션 파라미터로만 존재하고 DB 에 저장하지 않는다.
   TYPES:
     BEGIN OF ty_start_option,
@@ -48,9 +62,9 @@ INTERFACE zif_batch_job
       eof_month         TYPE abap_bool,
       "! MONTH_DAY 를 달력일이 아니라 작업일로 센다.
       use_working_days  TYPE abap_bool,
-      "! 실행일이 근무일이 아니면 이전 근무일로 당긴다 (AS-IS EXECUTE_BEFORE).
-      "! 비어 있으면 다음 근무일로 미룬다.
-      execute_before    TYPE abap_bool,
+      "! 실행일이 비근무일일 때의 처리. GC_RESTRICTION 참조.
+      "! AS-IS 는 SM36 제한조건 팝업의 4지선다를 그대로 쓴다.
+      start_restriction TYPE c LENGTH 1,
     END OF ty_start_option.
 
 ENDINTERFACE.

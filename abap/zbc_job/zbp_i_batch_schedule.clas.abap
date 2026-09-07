@@ -124,7 +124,7 @@ CLASS lhc_schedule IMPLEMENTATION.
                       monthday          = ls_p-monthday
                       endofmonth        = ls_p-endofmonth
                       useworkingdays    = ls_p-useworkingdays
-                      executebefore     = ls_p-executebefore )
+                      startrestriction  = ls_p-startrestriction )
              TO lt_create.
     ENDLOOP.
 
@@ -136,7 +136,7 @@ CLASS lhc_schedule IMPLEMENTATION.
                         startimmediately startdatetime timezone
                         periodminutes periodhours perioddays periodweeks periodmonths
                         enddatetime
-                        calendarid monthday endofmonth useworkingdays executebefore )
+                        calendarid monthday endofmonth useworkingdays startrestriction )
         WITH lt_create
       MAPPED   DATA(ls_mapped)
       FAILED   DATA(ls_failed)
@@ -176,7 +176,7 @@ CLASS lhc_schedule IMPLEMENTATION.
                       monthday         = ls_p-monthday
                       endofmonth       = ls_p-endofmonth
                       useworkingdays   = ls_p-useworkingdays
-                      executebefore    = ls_p-executebefore )
+                      startrestriction = ls_p-startrestriction )
              TO lt_update.
     ENDLOOP.
 
@@ -185,7 +185,7 @@ CLASS lhc_schedule IMPLEMENTATION.
         UPDATE FIELDS ( startimmediately startdatetime timezone
                         periodminutes periodhours perioddays periodweeks periodmonths
                         enddatetime
-                        calendarid monthday endofmonth useworkingdays executebefore )
+                        calendarid monthday endofmonth useworkingdays startrestriction )
         WITH lt_update
       FAILED   failed
       REPORTED reported.
@@ -376,7 +376,7 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
                              month_day         = is_row-monthday
                              eof_month         = is_row-endofmonth
                              use_working_days  = is_row-useworkingdays
-                             execute_before    = is_row-executebefore ) ).
+                             start_restriction = is_row-startrestriction ) ).
 
     " 실패하면 jobname 이 빈 채로 남는다. 사유는 message 에 적힌다.
     " save 단계라 reported 로 메시지를 돌려줄 수 없기 때문이다.

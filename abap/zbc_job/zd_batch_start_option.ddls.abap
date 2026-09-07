@@ -4,10 +4,9 @@ define abstract entity ZD_BATCH_START_OPTION
 {
       @EndUserText.label: '즉시 시작'
       StartImmediately  : abap_boolean;
-      @EndUserText.label: '시작일'
-      StartDate         : abap.dats;
-      @EndUserText.label: '시작시각'
-      StartTime         : abap.tims;
+      // AS-IS 인터페이스 형식 그대로 CHAR(15)(날짜+시각). 예: '20261001020000'
+      @EndUserText.label: '시작 일시'
+      StartDateTime     : abap.char(15);
       @EndUserText.label: '타임존'
       TimeZone          : abap.char(6);
 
@@ -19,9 +18,7 @@ define abstract entity ZD_BATCH_START_OPTION
       PeriodWeeks       : abap.int4;
       PeriodMonths      : abap.int4;
 
-      // 종료 조건 - AS-IS 배치잡 close시간
-      @EndUserText.label: '종료일 (close)'
-      EndDate           : abap.dats;
-      @EndUserText.label: '종료시각 (close)'
-      EndTime           : abap.tims;
+      // 종료 일시 - AS-IS 배치잡 close시간. 같은 CHAR(15) 형식.
+      @EndUserText.label: '종료 일시 (close)'
+      EndDateTime       : abap.char(15);
 }

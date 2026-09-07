@@ -29,10 +29,10 @@ define table ztbatch_sched {
   // APJ 에 넘기므로 별도 버퍼가 필요 없다.
   @EndUserText.label : '즉시 시작'
   start_immediately : abap_boolean;
-  @EndUserText.label : '시작일'
-  start_date        : abap.dats;
-  @EndUserText.label : '시작시각'
-  start_time        : abap.tims;
+  // AS-IS 인터페이스 형식 그대로 CHAR(15)(날짜+시각)로 받는다.
+  // 어댑터가 숫자만 뽑아 파싱하므로 구분자 유무와 무관하게 동작한다.
+  @EndUserText.label : '시작 일시'
+  start_datetime    : abap.char(15);
   @EndUserText.label : '타임존'
   timezone          : abap.char(6);
 
@@ -44,12 +44,10 @@ define table ztbatch_sched {
   prd_weeks         : abap.int4;
   prd_months        : abap.int4;
 
-  // 종료 조건 - AS-IS 배치잡 close시간.
+  // 종료 일시 - AS-IS 배치잡 close시간. 같은 CHAR(15) 형식.
   // 값이 있으면 APJ END_INFO type = BY, 없으면 NONE(무한 반복)
-  @EndUserText.label : '종료일 (close)'
-  end_date          : abap.dats;
-  @EndUserText.label : '종료시각 (close)'
-  end_time          : abap.tims;
+  @EndUserText.label : '종료 일시 (close)'
+  end_datetime      : abap.char(15);
 
   // --- APJ 포인터 --------------------------------------------------------
   // 비어 있으면 아직 스케줄 안 한 상태. 차 있으면 스케줄된 상태.

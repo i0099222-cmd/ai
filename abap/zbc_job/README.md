@@ -14,7 +14,11 @@ ZTBATCH_SCHED
   run_uuid    RAP 키
   template    APJ 잡 템플릿
   jobtext     잡 텍스트 (논리 잡명)
-  param       잡 파라미터 값 (JSON)
+  param           잡 파라미터 값 (JSON)
+  start_datetime  시작 일시   CHAR(15)  (AS-IS 형식 그대로)
+  end_datetime    종료 일시   CHAR(15)  (AS-IS 배치잡 close시간)
+  timezone        타임존
+  prd_*           반복 주기
   jobname     APJ 가 만든 잡 이름 (SM37)
   jobcount    APJ 잡 카운트 (SM37)
   message     APJ 응답 메시지
@@ -292,8 +296,8 @@ X-CSRF-Token: {token}
   "JobTemplateName":  "ZJT_BATCH_SAMPLE",
   "JobText":          "월마감 배치",
   "StartImmediately": false,
-  "StartDate":        "2026-10-01",
-  "StartTime":        "02:00:00",
+  "StartDateTime":    "20261001020000",
+  "EndDateTime":      "20271001020000",
   "TimeZone":         "CET",
   "PeriodMonths":     1
 }
@@ -318,6 +322,30 @@ POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
 GET {base}/BatchSchedule?$orderby=CreatedAt desc
 ```
 
+## 4-3. 일시는 AS-IS 형식(CHAR 15) 그대로 받는다
+
+`StartDateTime` / `EndDateTime` 을 **`CHAR(15)`** 로 받는다.
+AS-IS `ZBCS0011` 의 형식이라 호출자가 값을 그대로 던질 수 있다.
+
+```json
+"StartDateTime": "20261001020000",
+"EndDateTime":   "20261231235959"
+```
+
+어댑터의 `to_timestamp` 가 **숫자만 뽑아 앞 8자리를 날짜, 다음 6자리를 시각**으로
+읽으므로 구분자가 있든 없든 동작한다.
+
+| 입력 | 해석 |
+|------|------|
+| `20261001020000` | 2026-10-01 02:00:00 |
+| `20261001 020000` | 〃 |
+| `2026-10-01 02:00:00` | 〃 |
+| `20261001` | 2026-10-01 00:00:00 |
+
+타임존은 `TimeZone` 필드로 따로 받고, 없으면 사용자 타임존으로 해석한다.
+
+---
+
 ## 4-2. APJ 스케줄 구조
 
 `SCHEDULE_JOB` 은 시작과 반복을 두 구조로 나눠 받는다.
@@ -327,7 +355,7 @@ GET {base}/BatchSchedule?$orderby=CreatedAt desc
 | 필드 | 내용 |
 |------|------|
 | `start_immediately` | 즉시 시작 |
-| `timestamp` | 최초 시작 시각 (UTC). 날짜/시각을 합쳐서 넣는다 |
+| `timestamp` | 최초 시작 시각 (UTC). CHAR(15) 를 파싱해서 넣는다 |
 
 ### `TY_SCHEDULING_INFO` — 어떻게 반복하나
 

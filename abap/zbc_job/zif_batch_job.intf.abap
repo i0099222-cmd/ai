@@ -17,8 +17,9 @@ INTERFACE zif_batch_job
   TYPES:
     BEGIN OF ty_start_option,
       start_immediately TYPE abap_bool,
-      start_date        TYPE d,
-      start_time        TYPE t,
+      "! 시작 일시. AS-IS 인터페이스 형식 그대로 CHAR(15) 로 받는다.
+      "! 어댑터가 숫자만 뽑아 YYYYMMDD + HHMMSS 로 파싱한다.
+      start_datetime    TYPE c LENGTH 15,
       timezone          TYPE c LENGTH 6,
       " 반복 주기. 하나만 채운다. granularity + value 로 변환된다.
       prd_mins          TYPE i,
@@ -27,10 +28,9 @@ INTERFACE zif_batch_job
       prd_weeks         TYPE i,
       prd_months        TYPE i,
 
-      " 종료 조건 - AS-IS 배치잡 close시간
-      "   값이 있으면 APJ END_INFO type = BY, 없으면 NONE(무한 반복)
-      end_date          TYPE d,
-      end_time          TYPE t,
+      "! 종료 일시 - AS-IS 배치잡 close시간. 같은 CHAR(15) 형식.
+      "! 값이 있으면 APJ END_INFO type = BY, 없으면 NONE(무한 반복)
+      end_datetime      TYPE c LENGTH 15,
     END OF ty_start_option.
 
 ENDINTERFACE.

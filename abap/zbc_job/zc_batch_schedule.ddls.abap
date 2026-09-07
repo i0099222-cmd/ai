@@ -14,8 +14,7 @@ define root view entity ZC_BATCH_SCHEDULE
       Parameters,
 
       StartImmediately,
-      StartDate,
-      StartTime,
+      StartDateTime,
       TimeZone,
 
       PeriodMinutes,
@@ -24,8 +23,7 @@ define root view entity ZC_BATCH_SCHEDULE
       PeriodWeeks,
       PeriodMonths,
 
-      EndDate,
-      EndTime,
+      EndDateTime,
 
       @EndUserText.label: 'Job Name (SM37)'
       JobName,

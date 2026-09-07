@@ -112,16 +112,14 @@ CLASS lhc_schedule IMPLEMENTATION.
                       jobtext           = ls_p-jobtext
                       parameters        = ls_p-parameters
                       startimmediately  = ls_p-startimmediately
-                      startdate         = ls_p-startdate
-                      starttime         = ls_p-starttime
+                      startdatetime     = ls_p-startdatetime
                       timezone          = ls_p-timezone
                       periodminutes     = ls_p-periodminutes
                       periodhours       = ls_p-periodhours
                       perioddays        = ls_p-perioddays
                       periodweeks       = ls_p-periodweeks
                       periodmonths      = ls_p-periodmonths
-                      enddate           = ls_p-enddate
-                      endtime           = ls_p-endtime )
+                      enddatetime       = ls_p-enddatetime )
              TO lt_create.
     ENDLOOP.
 
@@ -130,9 +128,9 @@ CLASS lhc_schedule IMPLEMENTATION.
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
         CREATE FIELDS ( jobtemplatename jobtext parameters
-                        startimmediately startdate starttime timezone
+                        startimmediately startdatetime timezone
                         periodminutes periodhours perioddays periodweeks periodmonths
-                        enddate endtime )
+                        enddatetime )
         WITH lt_create
       MAPPED   DATA(ls_mapped)
       FAILED   DATA(ls_failed)
@@ -160,24 +158,22 @@ CLASS lhc_schedule IMPLEMENTATION.
 
       APPEND VALUE #( %tky             = ls_key-%tky
                       startimmediately = ls_p-startimmediately
-                      startdate        = ls_p-startdate
-                      starttime        = ls_p-starttime
+                      startdatetime    = ls_p-startdatetime
                       timezone         = ls_p-timezone
                       periodminutes    = ls_p-periodminutes
                       periodhours      = ls_p-periodhours
                       perioddays       = ls_p-perioddays
                       periodweeks      = ls_p-periodweeks
                       periodmonths     = ls_p-periodmonths
-                      enddate          = ls_p-enddate
-                      endtime          = ls_p-endtime )
+                      enddatetime      = ls_p-enddatetime )
              TO lt_update.
     ENDLOOP.
 
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        UPDATE FIELDS ( startimmediately startdate starttime timezone
+        UPDATE FIELDS ( startimmediately startdatetime timezone
                         periodminutes periodhours perioddays periodweeks periodmonths
-                        enddate endtime )
+                        enddatetime )
         WITH lt_update
       FAILED   failed
       REPORTED reported.
@@ -356,16 +352,14 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
       iv_jobtext  = is_row-jobtext
       iv_param    = is_row-parameters
       is_start    = VALUE #( start_immediately = is_row-startimmediately
-                             start_date        = is_row-startdate
-                             start_time        = is_row-starttime
+                             start_datetime    = is_row-startdatetime
                              timezone          = is_row-timezone
                              prd_mins          = is_row-periodminutes
                              prd_hours         = is_row-periodhours
                              prd_days          = is_row-perioddays
                              prd_weeks         = is_row-periodweeks
                              prd_months        = is_row-periodmonths
-                             end_date          = is_row-enddate
-                             end_time          = is_row-endtime ) ).
+                             end_datetime      = is_row-enddatetime ) ).
 
     " 실패하면 jobname 이 빈 채로 남는다. 사유는 message 에 적힌다.
     " save 단계라 reported 로 메시지를 돌려줄 수 없기 때문이다.

@@ -12,8 +12,7 @@ define root view entity ZI_BATCH_SCHEDULE
       param                 as Parameters,
 
       start_immediately     as StartImmediately,
-      start_date            as StartDate,
-      start_time            as StartTime,
+      start_datetime        as StartDateTime,
       timezone              as TimeZone,
 
       prd_mins              as PeriodMinutes,
@@ -22,8 +21,7 @@ define root view entity ZI_BATCH_SCHEDULE
       prd_weeks             as PeriodWeeks,
       prd_months            as PeriodMonths,
 
-      end_date              as EndDate,
-      end_time              as EndTime,
+      end_datetime          as EndDateTime,
 
       jobname               as JobName,
       jobcount              as JobCount,

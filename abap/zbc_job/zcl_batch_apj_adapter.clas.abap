@@ -82,6 +82,25 @@ CLASS zcl_batch_apj_adapter DEFINITION
       RETURNING
         VALUE(rs_sched) TYPE cl_apj_rt_api=>ty_scheduling_info.
 
+    "! AS-IS 인터페이스의 CHAR(15) 일시를 UTC 타임스탬프로 바꾼다.
+    "!
+    "! 숫자만 뽑아 앞 8자리를 날짜, 다음 6자리를 시각으로 읽으므로
+    "! '20261001020000' / '20261001 020000' / '2026-10-01 02:00:00' 이
+    "! 모두 동작한다. 시각이 없으면 00:00:00 으로 본다.
+    METHODS to_timestamp
+      IMPORTING
+        iv_datetime         TYPE clike
+        iv_timezone         TYPE timezone
+      RETURNING
+        VALUE(rv_timestamp) TYPE timestamp.
+
+    "! 타임존 지정이 없으면 사용자 타임존을 쓴다.
+    METHODS resolve_zone
+      IMPORTING
+        iv_timezone    TYPE clike
+      RETURNING
+        VALUE(rv_zone) TYPE timezone.
+
 ENDCLASS.
 
 
@@ -106,20 +125,11 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
           ls_start_info-start_immediately = abap_true.
 
-        ELSEIF is_start-start_date IS NOT INITIAL.
+        ELSEIF is_start-start_datetime IS NOT INITIAL.
 
-          " 타임존 지정이 없으면 사용자 타임존으로 해석한다.
-          DATA(lv_zone) = COND timezone(
-            WHEN is_start-timezone IS NOT INITIAL
-            THEN CONV #( is_start-timezone )
-            ELSE cl_abap_context_info=>get_user_time_zone( ) ).
-
-          DATA lv_timestamp TYPE timestamp.
-
-          CONVERT DATE is_start-start_date TIME is_start-start_time
-                  INTO TIME STAMP lv_timestamp TIME ZONE lv_zone.
-
-          ls_start_info-timestamp = lv_timestamp.
+          ls_start_info-timestamp = to_timestamp(
+            iv_datetime = is_start-start_datetime
+            iv_timezone = resolve_zone( is_start-timezone ) ).
 
         ELSE.
 
@@ -244,10 +254,7 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 * 타임존 - AS-IS 시스템 zone시간
 *   반복 계산의 기준 타임존이다. 지정이 없으면 사용자 타임존을 쓴다.
 *----------------------------------------------------------------------*
-    rs_sched-timezone = COND #(
-      WHEN is_start-timezone IS NOT INITIAL
-      THEN is_start-timezone
-      ELSE cl_abap_context_info=>get_user_time_zone( ) ).
+    rs_sched-timezone = resolve_zone( is_start-timezone ).
 
 *----------------------------------------------------------------------*
 * 종료 조건 - AS-IS 배치잡 close시간
@@ -260,15 +267,12 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 * TODO: 시그니처 확인 - END_INFO 가 여기 컴포넌트인지 별도 파라미터인지,
 *       그리고 TYPE 의 값(NONE / BY).
 *----------------------------------------------------------------------*
-    IF is_start-end_date IS NOT INITIAL.
-
-      DATA lv_end_ts TYPE timestamp.
-
-      CONVERT DATE is_start-end_date TIME is_start-end_time
-              INTO TIME STAMP lv_end_ts TIME ZONE rs_sched-timezone.
+    IF is_start-end_datetime IS NOT INITIAL.
 
       rs_sched-end_info-type      = 'BY'.
-      rs_sched-end_info-timestamp = lv_end_ts.
+      rs_sched-end_info-timestamp = to_timestamp(
+        iv_datetime = is_start-end_datetime
+        iv_timezone = rs_sched-timezone ).
 
     ELSE.
 
@@ -284,6 +288,33 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 *                               여기로 옮길 수 있는지 확인이 필요하다.
 *   TEST_MODE                 : 테스트 모드
 *----------------------------------------------------------------------*
+
+  ENDMETHOD.
+
+
+  METHOD to_timestamp.
+
+    DATA(lv_digits) = CONV string( iv_datetime ).
+    REPLACE ALL OCCURRENCES OF PCRE '\D' IN lv_digits WITH ``.
+
+    CHECK strlen( lv_digits ) >= 8.
+
+    DATA(lv_date) = CONV d( lv_digits+0(8) ).
+    DATA(lv_time) = COND t( WHEN strlen( lv_digits ) >= 14
+                            THEN CONV t( lv_digits+8(6) )
+                            ELSE '000000' ).
+
+    CONVERT DATE lv_date TIME lv_time
+            INTO TIME STAMP rv_timestamp TIME ZONE iv_timezone.
+
+  ENDMETHOD.
+
+
+  METHOD resolve_zone.
+
+    rv_zone = COND #( WHEN iv_timezone IS NOT INITIAL
+                      THEN iv_timezone
+                      ELSE cl_abap_context_info=>get_user_time_zone( ) ).
 
   ENDMETHOD.
 

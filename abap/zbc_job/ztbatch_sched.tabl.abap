@@ -24,6 +24,26 @@ define table ztbatch_sched {
   @EndUserText.label : '잡 파라미터 값 (JSON)'
   param            : abap.string(0);
 
+  // --- 시작 조건 ---------------------------------------------------------
+  // 엔티티 필드로 둔다. save_modified 가 create/update 에서 그대로 읽어
+  // APJ 에 넘기므로 별도 버퍼가 필요 없다.
+  @EndUserText.label : '즉시 시작'
+  start_immediately : abap_boolean;
+  @EndUserText.label : '시작일'
+  start_date        : abap.dats;
+  @EndUserText.label : '시작시각'
+  start_time        : abap.tims;
+  @EndUserText.label : '타임존'
+  timezone          : abap.char(6);
+
+  // 반복 주기. 하나만 채운다.
+  prd_mins          : abap.int4;
+  prd_hours         : abap.int4;
+  @EndUserText.label : '일반복주기'
+  prd_days          : abap.int4;
+  prd_weeks         : abap.int4;
+  prd_months        : abap.int4;
+
   // --- APJ 포인터 --------------------------------------------------------
   // 비어 있으면 아직 스케줄 안 한 상태. 차 있으면 스케줄된 상태.
   // 상태 컬럼 없이 이 두 필드만으로 액션 활성/비활성을 판단한다.

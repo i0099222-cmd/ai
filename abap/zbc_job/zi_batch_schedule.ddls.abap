@@ -11,6 +11,17 @@ define root view entity ZI_BATCH_SCHEDULE
       jobtext               as JobText,
       param                 as Parameters,
 
+      start_immediately     as StartImmediately,
+      start_date            as StartDate,
+      start_time            as StartTime,
+      timezone              as TimeZone,
+
+      prd_mins              as PeriodMinutes,
+      prd_hours             as PeriodHours,
+      prd_days              as PeriodDays,
+      prd_weeks             as PeriodWeeks,
+      prd_months            as PeriodMonths,
+
       jobname               as JobName,
       jobcount              as JobCount,
 

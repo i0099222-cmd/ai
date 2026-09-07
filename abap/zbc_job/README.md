@@ -140,52 +140,60 @@ AS-IS 가 리포트 이름(`pgmid`)을 파라미터로 받아 아무거나 스�
 
 ## 2-2. LUW 분리 — APJ 호출은 saver 에서
 
-`CL_APJ_RT_API` 의 `SCHEDULE_JOB` / `CANCEL_JOB` 은 **RAP 인터랙션 단계에서
-호출할 수 없다.** RAP 이 LUW 를 소유하는데 이 API 들이 트랜잭션을 건드려서
-덤프가 난다.
+`CL_APJ_RT_API` 는 **RAP 인터랙션 단계에서 호출할 수 없다.**
+RAP 이 LUW 를 소유하는데 이 API 가 트랜잭션을 건드려서 덤프가 난다.
 
-그래서 behavior 에 `with additional save` 를 걸고 이렇게 나눴다.
+그래서 behavior 에 `with additional save` 를 걸고, APJ 호출은
+`LSC_ZI_BATCH_SCHEDULE~SAVE_MODIFIED` 에서만 한다.
 
-| 단계 | 하는 일 |
-|------|---------|
-| **인터랙션** (액션 핸들러) | 등록부 행 생성/조회 + "무엇을 할지" 를 `LCL_APJ_BUFFER` 에 담기 |
-| **save** (`LSC_ZI_BATCH_SCHEDULE~SAVE_MODIFIED`) | 버퍼를 읽어 **APJ 호출**, 결과를 `ZTBATCH_SCHED` 에 직접 UPDATE |
+**시작 조건이 전부 엔티티 필드라 `create` / `update` 를 그대로 읽으면 되고,
+인터랙션 → save 로 값을 넘기는 버퍼가 필요 없다.**
 
+```abap
+METHOD save_modified.
+
+  LOOP AT delete INTO DATA(ls_del).       " 삭제 -> 잡 취소
+    cancel_current( ls_del-runuuid ).
+  ENDLOOP.
+
+  lt_target = create.                     " 생성
+  LOOP AT update INTO DATA(ls_upd).       " 변경 -> 취소 후 재스케줄
+    cancel_current( ls_upd-runuuid ).
+    APPEND CORRESPONDING #( ls_upd ) TO lt_target.
+  ENDLOOP.
+
+  LOOP AT lt_target INTO DATA(ls_row).
+    ls_sched = lo_adapter->schedule( ... ls_row ... ).
+    UPDATE ztbatch_sched SET jobname/jobcount/message WHERE run_uuid = ...
+  ENDLOOP.
+
+ENDMETHOD.
 ```
-createJob  ──▶ MODIFY CREATE (행 생성, UUID 확보)
-               버퍼에 mode=S 담기
-                      │
-                   [save 시퀀스]
-                      ▼
-           save_modified ──▶ CL_APJ_RT_API=>SCHEDULE_JOB
-                             UPDATE ztbatch_sched SET jobname/jobcount/message
-```
 
-`changeJob` 은 `mode=R` (취소 후 재스케줄), `cancelJob` 은 `mode=C` 로 담긴다.
-
-### 대가 — 에러를 액션 응답으로 못 준다
+### 대가 — 에러를 응답으로 못 준다
 
 save 단계에서는 `reported` 로 메시지를 돌려줄 수 없다. 그래서:
 
 - APJ 응답은 **`ZTBATCH_SCHED-MESSAGE`** 에 기록한다
 - 스케줄 실패 시 **`jobname` 이 빈 채로 남는다** (`IsScheduled = ''`)
 
-호출자는 응답의 `IsScheduled` / `Message` 로 성공 여부를 판단한다.
+호출자는 `IsScheduled` / `Message` 로 성공 여부를 판단한다.
 
 ### `refreshStatus` 는 예외
 
 `GET_JOB_STATUS` 는 읽기만 하므로 인터랙션 단계에 남겨뒀다.
 `reported` 로 상태를 바로 돌려줄 수 있다.
 
-### 이걸로도 덤프가 나면
+### 확인 필요
 
-`SCHEDULE_JOB` 이 **내부에서 `COMMIT WORK` 를 한다면** save 단계에서도 막힌다.
-RAP 트랜잭션 안에서는 어디서도 커밋할 수 없기 때문이다. 그 경우 선택지:
-
-| 안 | 내용 |
-|----|------|
-| bgPF | RAP 커밋이 끝난 뒤 별도 LUW 에서 실행 (SAP 이 이 상황을 위해 만든 프레임워크) |
-| BO 밖으로 분리 | 스케줄 호출을 RAP 이 아닌 별도 진입점으로. 확실하지만 OData 액션 형태를 잃는다 |
+- `update` / `delete` 시 기존 `jobname` 을 `SELECT` 로 읽는다.
+  managed 프레임워크의 저장 순서에 따라 `delete` 시점에 행이 이미
+  지워졌을 수 있다 — 실제로 취소가 걸리는지 확인할 것.
+- `PATCH` 로 재스케줄할 때는 **스케줄 관련 필드를 모두 보내야 한다.**
+  `update` 테이블에는 요청에 담긴 필드만 온다.
+- `SCHEDULE_JOB` 이 내부에서 `COMMIT WORK` 를 하면 save 단계에서도 막힌다.
+  그 경우 bgPF 로 RAP 커밋 이후 별도 LUW 에서 실행하거나, 스케줄 호출을
+  BO 밖으로 빼야 한다.
 
 ---
 
@@ -195,10 +203,8 @@ RAP 트랜잭션 안에서는 어디서도 커밋할 수 없기 때문이다. �
 |------|---------|------|
 | `ztbatch_sched.tabl.abap` | — | 테이블 (유일, 10 컬럼) |
 | `zi_batch_schedule.ddls.abap` / `zc_batch_schedule.ddls.abap` | — | interface / projection view |
-| `zd_batch_start_option.ddls.abap` | — | `changeJob` 파라미터 (새 시작 조건) |
-| `zd_batch_create.ddls.abap` | — | `createJob` 파라미터 |
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
-| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 구현 + **버퍼 + saver** (LUW 분리) |
+| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | refreshStatus + **saver** (APJ 호출) |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
 | `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 클래스가 쓰는 예외 |
 | `example_zcl_apj_batch_sample.clas.abap` | ABAP Cloud | **APJ 실행 클래스 작성 예시** (참고용) |
@@ -212,12 +218,16 @@ Local API release 도 필요 없다.
 
 ## 4. AS-IS 인터페이스 대응
 
-| AS-IS RFC | 액션 | OData |
-|-----------|------|-------|
-| `ZBC_BATCH_JOB_CREATE` | **`createJob`** (static factory) | `POST /BatchSchedule/...createJob` |
-| `ZBC_BATCH_JOB_CHANGE` | **`changeJob`** | `POST /BatchSchedule(...)/...changeJob` |
-| `ZBC_BATCH_JOB_DELETE` | **`cancelJob`** | `POST .../cancelJob` |
-| `ZBC_BATCH_JOB_STATUS` | **`refreshStatus`** | `POST .../refreshStatus` |
+| AS-IS RFC | OData |
+|-----------|-------|
+| `ZBC_BATCH_JOB_CREATE` | **`POST /BatchSchedule`** → `SCHEDULE_JOB` |
+| `ZBC_BATCH_JOB_CHANGE` | **`PATCH /BatchSchedule(...)`** → `CANCEL_JOB` + `SCHEDULE_JOB` |
+| `ZBC_BATCH_JOB_DELETE` | **`DELETE /BatchSchedule(...)`** → `CANCEL_JOB` |
+| `ZBC_BATCH_JOB_STATUS` | `POST .../refreshStatus` |
+
+**표준 CRUD 가 곧 AS-IS 인터페이스다.** 별도 액션을 만들지 않았다 —
+스케줄에 필요한 값이 전부 엔티티 필드라서 `create`/`update`/`delete` 만으로
+`save_modified` 가 할 일을 알 수 있다.
 
 ### 잡 생성 = 스케줄 등록
 
@@ -257,15 +267,10 @@ APJ 잡을 없애는 것은 `cancelJob` 이다.
 /sap/opu/odata4/sap/zui_batch_schedule/srvd/sap/zui_batch_schedule/0001/
 ```
 
-액션의 정규화 이름은 `$metadata` 에서 확인한다 — 네임스페이스는 바인딩마다 다르다.
-
-### 1단계 — 파라미터 없이
-
-가장 먼저 이걸로 경로가 뚫리는지 확인한다. `Parameters` 를 빼면
-잡 템플릿에 저장된 기본값으로 돈다.
+### 잡 생성 = `POST`
 
 ```http
-POST {base}/BatchSchedule/com.sap.gateway.srvd.zui_batch_schedule.v0001.createJob
+POST {base}/BatchSchedule
 Content-Type: application/json
 X-CSRF-Token: {token}
 
@@ -276,38 +281,16 @@ X-CSRF-Token: {token}
 }
 ```
 
-### 2단계 — 파라미터 넣기
+응답의 **`IsScheduled`** 와 **`Message`** 로 성공 여부를 본다.
+`JobName` / `JobCount` 가 채워졌으면 SM37 에서 대조한다.
 
-`Parameters` 가 string 필드라 **JSON 안의 따옴표를 이스케이프해야 한다.**
-아래를 그대로 복사해서 값만 바꿔 쓰면 된다.
+### 파라미터 넣기
 
-**단일 EQ 두 개**
-
-```json
-  "Parameters": "[{\"name\":\"P_BUKRS\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"1000\"}]},{\"name\":\"P_TEST\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"X\"}]}]",
-```
-
-**select-option (다중 값 / BT range)**
+`Parameters` 가 string 필드라 JSON 안의 따옴표를 이스케이프해야 한다.
 
 ```json
-  "Parameters": "[{\"name\":\"P_MODU\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"SD\"},{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"FI\"}]},{\"name\":\"P_DATS\",\"t_value\":[{\"sign\":\"I\",\"option\":\"BT\",\"low\":\"20260101\",\"high\":\"20261231\"}]}]",
+  "Parameters": "[{\"name\":\"P_BUKRS\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"1000\"}]}]",
 ```
-
-이스케이프 전 원본은 이렇다:
-
-```json
-[
-  { "name": "P_MODU",
-    "t_value": [ { "sign": "I", "option": "EQ", "low": "SD" },
-                 { "sign": "I", "option": "EQ", "low": "FI" } ] },
-  { "name": "P_DATS",
-    "t_value": [ { "sign": "I", "option": "BT",
-                   "low": "20260101", "high": "20261231" } ] }
-]
-```
-
-> 직접 만들 때는 JSON 이스케이프 도구를 쓰거나, Insomnia 의 environment 변수에
-> 한 번 넣어두고 재사용하는 것이 편하다.
 
 ### 예약 + 반복
 
@@ -315,7 +298,6 @@ X-CSRF-Token: {token}
 {
   "JobTemplateName":  "ZJT_BATCH_SAMPLE",
   "JobText":          "월마감 배치",
-  "Parameters":       "[{\"name\":\"P_BUKRS\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"1000\"}]},{\"name\":\"P_TEST\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"X\"}]}]",
   "StartImmediately": false,
   "StartDate":        "2026-10-01",
   "StartTime":        "02:00:00",
@@ -327,38 +309,22 @@ X-CSRF-Token: {token}
 `PeriodMinutes` / `PeriodHours` / `PeriodDays` / `PeriodWeeks` / `PeriodMonths` 중
 **하나만** 채운다.
 
+### 변경 / 삭제 / 상태
+
+```http
+PATCH  {base}/BatchSchedule(RunUuid={uuid})    → 취소 + 재스케줄
+DELETE {base}/BatchSchedule(RunUuid={uuid})    → 잡 취소 + 행 삭제
+POST   {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
+```
+
+`PATCH` 로 재스케줄할 때는 **스케줄 관련 필드를 모두 보내야 한다** —
+`update` 테이블에는 요청에 담긴 필드만 오기 때문이다.
+
 ### 목록 조회
 
 ```http
 GET {base}/BatchSchedule?$orderby=CreatedAt desc
 ```
-
-`JobName` / `JobCount` 를 확인해서 **SM37 에 같은 잡이 보이는지** 대조한다.
-
-### 상태 / 변경 / 취소
-
-```http
-POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
-POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.changeJob
-POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.cancelJob
-```
-
-`changeJob` 은 `ZD_BATCH_START_OPTION` 파라미터(새 시작 조건)를 받는다.
-
-### 이스케이프가 계속 불편하면
-
-`ZD_BATCH_CREATE` 에 파라미터를 **자식 엔티티(composition)** 로 두면
-deep action parameter 가 되어 중첩 JSON 을 이스케이프 없이 보낼 수 있다.
-
-```json
-"_Parameter": [ { "Name": "P_MODU", "Sign": "I", "Option": "EQ", "Low": "SD" } ]
-```
-
-다만 액션 파라미터의 composition 지원 여부와 OData 노출 형태를 시스템에서
-확인해야 하고, 어댑터에서 다시 `IT_JOB_PARAMETER_VALUE` 로 조립하는 코드가
-생긴다. 지금 없앤 변환 로직이 되살아나는 셈이라, 테스트 빈도가 높을 때만
-가치가 있다.
-
 
 ## 5. APJ 로 못 넘어가는 것
 

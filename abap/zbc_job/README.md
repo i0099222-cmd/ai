@@ -347,7 +347,7 @@ GET {base}/BatchSchedule?$orderby=CreatedAt desc
 | `type` | 부가 필드 | 의미 | AS-IS |
 |--------|----------|------|-------|
 | `NONE` | — | 무한 반복 | |
-| `AFTER` | `max_iterations` | N 회 실행 후 종료 | — |
+| `AFTER` | `max_iterations` | N 회 실행 후 종료 | — **AS-IS 에 없어 쓰지 않는다** |
 | `BY` | `timestamp` | 이 시각까지만 | **배치잡 close시간** |
 
 > AS-IS 의 `laststrt`(close시간)가 APJ 에 대응이 있다. 초기 판정에서

@@ -24,7 +24,6 @@ define root view entity ZI_BATCH_SCHEDULE
 
       end_date              as EndDate,
       end_time              as EndTime,
-      max_iterations        as MaxIterations,
 
       jobname               as JobName,
       jobcount              as JobCount,

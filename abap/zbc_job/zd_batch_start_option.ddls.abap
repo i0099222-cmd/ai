@@ -19,11 +19,9 @@ define abstract entity ZD_BATCH_START_OPTION
       PeriodWeeks       : abap.int4;
       PeriodMonths      : abap.int4;
 
-      // 종료 조건 (APJ END_INFO)
+      // 종료 조건 - AS-IS 배치잡 close시간
       @EndUserText.label: '종료일 (close)'
       EndDate           : abap.dats;
       @EndUserText.label: '종료시각 (close)'
       EndTime           : abap.tims;
-      @EndUserText.label: '최대 실행 횟수'
-      MaxIterations     : abap.int4;
 }

@@ -26,7 +26,6 @@ define root view entity ZC_BATCH_SCHEDULE
 
       EndDate,
       EndTime,
-      MaxIterations,
 
       @EndUserText.label: 'Job Name (SM37)'
       JobName,

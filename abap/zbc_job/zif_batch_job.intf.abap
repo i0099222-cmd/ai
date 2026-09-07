@@ -27,13 +27,10 @@ INTERFACE zif_batch_job
       prd_weeks         TYPE i,
       prd_months        TYPE i,
 
-      " 종료 조건 (APJ END_INFO)
-      "   end_date/time  -> type = BY    (AS-IS 배치잡 close시간)
-      "   max_iterations -> type = AFTER
-      "   둘 다 없으면   -> type = NONE  (무한 반복)
+      " 종료 조건 - AS-IS 배치잡 close시간
+      "   값이 있으면 APJ END_INFO type = BY, 없으면 NONE(무한 반복)
       end_date          TYPE d,
       end_time          TYPE t,
-      max_iterations    TYPE i,
     END OF ty_start_option.
 
 ENDINTERFACE.

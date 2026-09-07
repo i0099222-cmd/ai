@@ -44,15 +44,12 @@ define table ztbatch_sched {
   prd_weeks         : abap.int4;
   prd_months        : abap.int4;
 
-  // 종료 조건. APJ END_INFO 로 변환된다.
-  //   end_date/time  -> type = BY    (AS-IS 배치잡 close시간)
-  //   max_iterations -> type = AFTER
+  // 종료 조건 - AS-IS 배치잡 close시간.
+  // 값이 있으면 APJ END_INFO type = BY, 없으면 NONE(무한 반복)
   @EndUserText.label : '종료일 (close)'
   end_date          : abap.dats;
   @EndUserText.label : '종료시각 (close)'
   end_time          : abap.tims;
-  @EndUserText.label : '최대 실행 횟수'
-  max_iterations    : abap.int4;
 
   // --- APJ 포인터 --------------------------------------------------------
   // 비어 있으면 아직 스케줄 안 한 상태. 차 있으면 스케줄된 상태.

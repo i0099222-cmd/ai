@@ -74,7 +74,7 @@ CLASS zcl_batch_apj_adapter DEFINITION
     "! TODO: 시그니처 확인
     "!   - PERIODIC_GRANULARITY 의 값 도메인 (상수인지 문자값인지)
     "!   - END_INFO 가 TY_SCHEDULING_INFO 의 컴포넌트인지, 별도 파라미터인지
-    "!   - END_INFO-TYPE 의 값 (NONE / AFTER / BY)
+    "!   - END_INFO-TYPE 의 값 (NONE / BY)
     "!   - WEEKDAY_INFO / MONTH_INFO / EXCEPTION 의 구조
     METHODS build_scheduling_info
       IMPORTING
@@ -251,12 +251,14 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
 * 종료 조건 - AS-IS 배치잡 close시간
-*   BY    : 이 시각까지만 반복
-*   AFTER : N 회 실행 후 종료
-*   NONE  : 무한 반복
+*   BY   : 이 시각까지만 반복
+*   NONE : 무한 반복
+*
+*   APJ 는 AFTER(N회 실행 후 종료)도 지원하지만 AS-IS 에 대응 값이 없어
+*   쓰지 않는다.
 *
 * TODO: 시그니처 확인 - END_INFO 가 여기 컴포넌트인지 별도 파라미터인지,
-*       그리고 TYPE 의 값(NONE / AFTER / BY).
+*       그리고 TYPE 의 값(NONE / BY).
 *----------------------------------------------------------------------*
     IF is_start-end_date IS NOT INITIAL.
 
@@ -267,11 +269,6 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
       rs_sched-end_info-type      = 'BY'.
       rs_sched-end_info-timestamp = lv_end_ts.
-
-    ELSEIF is_start-max_iterations > 0.
-
-      rs_sched-end_info-type           = 'AFTER'.
-      rs_sched-end_info-max_iterations = is_start-max_iterations.
 
     ELSE.
 

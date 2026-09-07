@@ -60,7 +60,8 @@ APJ 잡의 키는 **`jobname + jobcount`** 다.
 실행 클래스가 `GET_PARAMETERS` 로 정의한 파라미터의 **값**들이다.
 **리포트 배리언트를 대신하는 자리**다.
 
-호출자가 `/UI2/CL_JSON` 으로 직렬화해서 보낸다.
+**`SCHEDULE_JOB` 의 `IT_JOB_PARAMETER_VALUE` 타입을 그대로 직렬화한 것**이다.
+그래서 스케줄할 때 역직렬화 한 줄이면 끝이고, 변환 로직이 없다.
 
 ```json
 [
@@ -72,9 +73,16 @@ APJ 잡의 키는 **`jobname + jobcount`** 다.
 ]
 ```
 
-APJ 의 `tt_templ_val` 이 `selname` + `sign`/`option`/`low`/`high` 구조라
-파라미터 하나에 **여러 행(range)** 이 올 수 있다 — select-option 지원.
-`ZCL_BATCH_PARAM=>to_apj` 가 역직렬화 후 `t_value` 를 그대로 펼친다.
+`t_value` 가 range 테이블이라 select-option 도 그대로 표현된다.
+
+```abap
+DATA lt_param TYPE cl_apj_rt_api=>tt_job_parameter_value.
+/ui2/cl_json=>deserialize( EXPORTING json = iv_param
+                           CHANGING  data = lt_param ).
+```
+
+호출자도 같은 타입을 `/UI2/CL_JSON` 으로 직렬화해서 보내면 된다 —
+기존 배치 인터페이스 코드가 이미 그렇게 하고 있다.
 
 `name` 은 실행 클래스의 `SELNAME` 과 일치해야 하고, 값 검증은 그 클래스의
 `CHECK_PARAMETERS` 가 한다.
@@ -140,7 +148,6 @@ AS-IS 가 리포트 이름(`pgmid`)을 파라미터로 받아 아무거나 스�
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
 | `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 구현 (상태 컬럼 없이 `jobname` 유무로 제어) |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
-| `zcl_batch_param.clas.abap` | ABAP Cloud | `param` JSON → APJ 파라미터 테이블 변환 |
 | `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 클래스가 쓰는 예외 |
 | `example_zcl_apj_batch_sample.clas.abap` | ABAP Cloud | **APJ 실행 클래스 작성 예시** (참고용) |
 | `zif_batch_job.intf.abap` | ABAP Cloud | 상수/타입 (`ty_param`, `ty_start_option`) |
@@ -273,7 +280,7 @@ POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.cancelJob
 ## 6. 생성 순서
 
 1. 패키지 1개 — `ZBC_JOB` (ABAP for Cloud Development)
-2. `ztbatch_sched` → `zif_batch_job` → `zcx_batch_job` → `zcl_batch_param`
+2. `ztbatch_sched` → `zif_batch_job` → `zcx_batch_job`
 3. **배치별로** 실행 클래스(`IF_APJ_DT/RT_EXEC_OBJECT` 구현) → 잡 카탈로그 엔트리 → 잡 템플릿
    — 기존 배치 리포트 이관분
 4. `zcl_batch_apj_adapter`
@@ -289,6 +296,7 @@ POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.cancelJob
 | 파일 | 확인할 것 |
 |------|----------|
 | `zcl_batch_apj_adapter` | **반복 주기** — `TY_PERIOD_INFO` 의 구성 필드명, `SCHEDULE_JOB` 의 파라미터명이 `IS_PERIOD_INFO` 인지 (아래) |
+| `zcl_batch_apj_adapter` | **`IT_JOB_PARAMETER_VALUE` 의 타입명** (`cl_apj_rt_api=>tt_job_parameter_value` 로 가정) |
 | `zcl_batch_apj_adapter` | `SCHEDULE_JOB`/`GET_JOB_STATUS`/`CANCEL_JOB` 시그니처, 상태값 도메인 |
 | `example_zcl_apj_batch_sample` | `IF_APJ_DT_EXEC_OBJECT~GET_PARAMETERS`/`CHECK_PARAMETERS`, `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 시그니처, `CX_APJ_DT_CONTENT` textid |
 | — | 팩토리 캘린더 판정이 필요하면 Cloud 에서 쓸 수 있는 released API 확인 |

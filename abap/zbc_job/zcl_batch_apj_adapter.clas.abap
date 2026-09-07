@@ -30,7 +30,8 @@ CLASS zcl_batch_apj_adapter DEFINITION
     "! @parameter iv_template | 실행 대상을 결정한다. 템플릿 -> 카탈로그 -> 실행 클래스.
     "! @parameter iv_jobtext  | 잡 텍스트. APJ 는 잡 이름을 자동 생성하므로
     "!                          사용자가 지은 이름은 여기로 넘긴다.
-    "! @parameter iv_param    | 잡 파라미터 값 (JSON). 실행 클래스가 정의한 SELNAME 기준.
+    "! @parameter iv_param    | 잡 파라미터 값 (JSON). IT_JOB_PARAMETER_VALUE 타입을
+    "!                          그대로 직렬화한 것이라 역직렬화만 하면 된다.
     "! @parameter is_start    | 시작 조건. DB 가 아니라 액션 파라미터에서 온다.
     METHODS schedule
       IMPORTING
@@ -95,8 +96,23 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
         " 반복 주기. TY_START_INFO 에는 없고 TY_PERIOD_INFO 로 따로 넘긴다.
         DATA(ls_period_info) = build_period_info( is_start ).
 
-        " 실행 클래스가 GET_PARAMETERS 로 정의한 파라미터의 값들
-        DATA(lt_param) = zcl_batch_param=>to_apj( iv_param ).
+*----------------------------------------------------------------------*
+* 잡 파라미터
+*   PARAM 에 저장된 JSON 은 IT_JOB_PARAMETER_VALUE 의 타입을 그대로
+*   직렬화한 것이다. 그래서 역직렬화 한 줄이면 끝이고 변환이 없다.
+*
+*   구조: [{ "name":"P_MODU",
+*            "t_value":[{ "sign":"I","option":"EQ","low":"SD" }] }]
+*
+* TODO: 시그니처 확인 - IT_JOB_PARAMETER_VALUE 의 실제 타입명.
+*       ADT 에서 CL_APJ_RT_API=>SCHEDULE_JOB 의 그 파라미터에 F2.
+*----------------------------------------------------------------------*
+        DATA lt_param TYPE cl_apj_rt_api=>tt_job_parameter_value.
+
+        IF iv_param IS NOT INITIAL.
+          /ui2/cl_json=>deserialize( EXPORTING json = iv_param
+                                     CHANGING  data = lt_param ).
+        ENDIF.
 
         DATA lv_job_name  TYPE c LENGTH 32.
         DATA lv_job_count TYPE c LENGTH 8.
@@ -112,7 +128,7 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
             "       TY_START_INFO 안에 중첩된 필드라면 이 줄을 지우고
             "       ls_start_info-<필드> = ls_period_info 로 바꿀 것.
             is_period_info       = ls_period_info
-            it_job_parameter_val = lt_param
+            it_job_parameter_value = lt_param
           IMPORTING
             ev_jobname           = lv_job_name
             ev_jobcount          = lv_job_count ).

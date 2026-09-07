@@ -17,9 +17,9 @@ define table ztbatch_sched {
   //   잡 템플릿 -> 잡 카탈로그 엔트리 -> 실행 클래스
   // 별도의 실행 클래스 컬럼을 두지 않는 이유다.
 
-  // 잡 템플릿이 정의한 파라미터의 값. JSON 배열로 담는다.
-  //   [{"name":"P_BUKRS","value":"1000"},{"name":"P_TEST","value":"X"}]
-  // ZCL_BATCH_PARAM 이 APJ 의 파라미터 테이블로 변환한다.
+  // 잡 파라미터 값. SCHEDULE_JOB 의 IT_JOB_PARAMETER_VALUE 타입을 그대로
+  // /UI2/CL_JSON 으로 직렬화한 것이라, 스케줄할 때 역직렬화만 하면 된다.
+  //   [{"name":"P_MODU","t_value":[{"sign":"I","option":"EQ","low":"SD"}]}]
   // 시작일시·반복주기·타임존은 여기 없다. APJ 가 갖고 있으므로 저장하지 않는다.
   @EndUserText.label : '잡 파라미터 값 (JSON)'
   param            : abap.string(0);

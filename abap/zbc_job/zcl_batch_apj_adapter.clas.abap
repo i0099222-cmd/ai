@@ -258,11 +258,15 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
 * 종료 조건 - AS-IS 배치잡 close시간
-*   BY   : 이 시각까지만 반복
-*   NONE : 무한 반복
+*   BY : 이 시각까지만 반복.
 *
-*   APJ 는 AFTER(N회 실행 후 종료)도 지원하지만 AS-IS 에 대응 값이 없어
-*   쓰지 않는다.
+*   close시간이 없으면 END_INFO 를 통째로 비워 둔다. TYPE = 'NONE' 을
+*   명시하지 않는 이유는 값 도메인을 아직 확인하지 못했기 때문이고,
+*   구조 전체가 초기값이면 "지정 안 함" 으로 읽히는 것이 일반적이다.
+*   API 가 TYPE 을 필수로 검증하면 여기서 바로 에러가 나므로 그때
+*   확인된 상수를 넣으면 된다.
+*
+*   AFTER(N회 실행 후 종료)는 AS-IS 에 대응 값이 없어 쓰지 않는다.
 *
 * TODO: 시그니처 확인 - END_INFO 가 여기 컴포넌트인지 별도 파라미터인지,
 *       그리고 TYPE 의 값(NONE / BY).
@@ -273,10 +277,6 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
       rs_sched-end_info-timestamp = to_timestamp(
         iv_datetime = is_start-end_datetime
         iv_timezone = rs_sched-timezone ).
-
-    ELSE.
-
-      rs_sched-end_info-type = 'NONE'.
 
     ENDIF.
 

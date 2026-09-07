@@ -138,37 +138,23 @@ AS-IS 가 리포트 이름(`pgmid`)을 파라미터로 받아 아무거나 스�
 
 ---
 
-## 2-2. LUW 분리 — APJ 호출은 saver 에서
+## 2-2. LUW 분리 — 액션은 쓰기만, APJ 는 saver 에서
 
 `CL_APJ_RT_API` 는 **RAP 인터랙션 단계에서 호출할 수 없다.**
 RAP 이 LUW 를 소유하는데 이 API 가 트랜잭션을 건드려서 덤프가 난다.
 
-그래서 behavior 에 `with additional save` 를 걸고, APJ 호출은
-`LSC_ZI_BATCH_SCHEDULE~SAVE_MODIFIED` 에서만 한다.
+**액션은 엔티티에 쓰기만 한다.** 그 결과가 `create`/`update` 테이블에 실려
+saver 로 넘어가므로, 인터랙션 → save 로 값을 나르는 별도 버퍼가 필요 없다.
 
-**시작 조건이 전부 엔티티 필드라 `create` / `update` 를 그대로 읽으면 되고,
-인터랙션 → save 로 값을 넘기는 버퍼가 필요 없다.**
-
-```abap
-METHOD save_modified.
-
-  LOOP AT delete INTO DATA(ls_del).       " 삭제 -> 잡 취소
-    cancel_current( ls_del-runuuid ).
-  ENDLOOP.
-
-  lt_target = create.                     " 생성
-  LOOP AT update INTO DATA(ls_upd).       " 변경 -> 취소 후 재스케줄
-    cancel_current( ls_upd-runuuid ).
-    APPEND CORRESPONDING #( ls_upd ) TO lt_target.
-  ENDLOOP.
-
-  LOOP AT lt_target INTO DATA(ls_row).
-    ls_sched = lo_adapter->schedule( ... ls_row ... ).
-    UPDATE ztbatch_sched SET jobname/jobcount/message WHERE run_uuid = ...
-  ENDLOOP.
-
-ENDMETHOD.
 ```
+scheduleJob ──▶ MODIFY CREATE ──▶ [create] ──▶ save_modified ──▶ SCHEDULE_JOB
+changeJob   ──▶ MODIFY UPDATE ──▶ [update] ──▶ save_modified ──▶ CANCEL + SCHEDULE
+cancelJob   ──▶ MODIFY UPDATE ──▶ [update] ──▶ save_modified ──▶ CANCEL_JOB
+                (CancelRequested = 'X')
+```
+
+`update` 에서 둘을 가르는 것이 **`CancelRequested`** 컬럼이다.
+`cancelJob` 이 `'X'` 로 세우고, saver 가 취소한 뒤 다시 비운다.
 
 ### 대가 — 에러를 응답으로 못 준다
 
@@ -181,16 +167,11 @@ save 단계에서는 `reported` 로 메시지를 돌려줄 수 없다. 그래서
 
 ### `refreshStatus` 는 예외
 
-`GET_JOB_STATUS` 는 읽기만 하므로 인터랙션 단계에 남겨뒀다.
-`reported` 로 상태를 바로 돌려줄 수 있다.
+`GET_JOB_STATUS` 는 읽기만 하므로 인터랙션 단계에서 호출한다.
+덕분에 `reported` 로 상태를 바로 돌려줄 수 있다.
 
 ### 확인 필요
 
-- `update` / `delete` 시 기존 `jobname` 을 `SELECT` 로 읽는다.
-  managed 프레임워크의 저장 순서에 따라 `delete` 시점에 행이 이미
-  지워졌을 수 있다 — 실제로 취소가 걸리는지 확인할 것.
-- `PATCH` 로 재스케줄할 때는 **스케줄 관련 필드를 모두 보내야 한다.**
-  `update` 테이블에는 요청에 담긴 필드만 온다.
 - `SCHEDULE_JOB` 이 내부에서 `COMMIT WORK` 를 하면 save 단계에서도 막힌다.
   그 경우 bgPF 로 RAP 커밋 이후 별도 LUW 에서 실행하거나, 스케줄 호출을
   BO 밖으로 빼야 한다.
@@ -204,7 +185,7 @@ save 단계에서는 `reported` 로 메시지를 돌려줄 수 없다. 그래서
 | `ztbatch_sched.tabl.abap` | — | 테이블 (유일, 10 컬럼) |
 | `zi_batch_schedule.ddls.abap` / `zc_batch_schedule.ddls.abap` | — | interface / projection view |
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
-| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | refreshStatus + **saver** (APJ 호출) |
+| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 4종 (쓰기만) + **saver** (APJ 호출) |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
 | `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 클래스가 쓰는 예외 |
 | `example_zcl_apj_batch_sample.clas.abap` | ABAP Cloud | **APJ 실행 클래스 작성 예시** (참고용) |
@@ -218,16 +199,26 @@ Local API release 도 필요 없다.
 
 ## 4. AS-IS 인터페이스 대응
 
-| AS-IS RFC | OData |
-|-----------|-------|
-| `ZBC_BATCH_JOB_CREATE` | **`POST /BatchSchedule`** → `SCHEDULE_JOB` |
-| `ZBC_BATCH_JOB_CHANGE` | **`PATCH /BatchSchedule(...)`** → `CANCEL_JOB` + `SCHEDULE_JOB` |
-| `ZBC_BATCH_JOB_DELETE` | **`DELETE /BatchSchedule(...)`** → `CANCEL_JOB` |
-| `ZBC_BATCH_JOB_STATUS` | `POST .../refreshStatus` |
+| AS-IS RFC | 액션 |
+|-----------|------|
+| `ZBC_BATCH_JOB_CREATE` | **`scheduleJob`** (static factory) |
+| `ZBC_BATCH_JOB_CHANGE` | **`changeJob`** |
+| `ZBC_BATCH_JOB_DELETE` | **`cancelJob`** — 잡만 끊고 이력은 남긴다 |
+| `ZBC_BATCH_JOB_STATUS` | **`refreshStatus`** |
 
-**표준 CRUD 가 곧 AS-IS 인터페이스다.** 별도 액션을 만들지 않았다 —
-스케줄에 필요한 값이 전부 엔티티 필드라서 `create`/`update`/`delete` 만으로
-`save_modified` 가 할 일을 알 수 있다.
+### 왜 CRUD 가 아니라 액션인가
+
+**엔티티는 스케줄 이력이고, CRUD 는 그 이력에 대한 조작이지 APJ 잡에 대한
+조작이 아니다.** 둘이 우연히 같이 일어날 뿐이라 하나로 묶으면 어긋난다.
+
+| CRUD 로 노출하면 | 문제 |
+|-----------------|------|
+| `DELETE` | 잡을 끊으려다 **이력이 사라진다** — 조회가 목적인데 모순 |
+| `PATCH` | `message` 한 필드만 고쳐도 **재스케줄된다** |
+| `POST` | URL 만 봐서는 "기록 추가" 인지 "잡 생성" 인지 알 수 없다 |
+
+그래서 projection 에서 표준 CRUD 를 노출하지 않는다.
+`create`/`update`/`delete` 는 액션 핸들러가 내부적으로만 쓴다.
 
 ### 잡 생성 = 스케줄 등록
 
@@ -267,10 +258,12 @@ APJ 잡을 없애는 것은 `cancelJob` 이다.
 /sap/opu/odata4/sap/zui_batch_schedule/srvd/sap/zui_batch_schedule/0001/
 ```
 
-### 잡 생성 = `POST`
+액션의 정규화 이름은 `$metadata` 에서 확인한다 — 네임스페이스는 바인딩마다 다르다.
+
+### 잡 생성
 
 ```http
-POST {base}/BatchSchedule
+POST {base}/BatchSchedule/com.sap.gateway.srvd.zui_batch_schedule.v0001.scheduleJob
 Content-Type: application/json
 X-CSRF-Token: {token}
 
@@ -309,16 +302,15 @@ X-CSRF-Token: {token}
 `PeriodMinutes` / `PeriodHours` / `PeriodDays` / `PeriodWeeks` / `PeriodMonths` 중
 **하나만** 채운다.
 
-### 변경 / 삭제 / 상태
+### 변경 / 취소 / 상태
 
 ```http
-PATCH  {base}/BatchSchedule(RunUuid={uuid})    → 취소 + 재스케줄
-DELETE {base}/BatchSchedule(RunUuid={uuid})    → 잡 취소 + 행 삭제
-POST   {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
+POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.changeJob      + 새 시작 조건
+POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.cancelJob
+POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
 ```
 
-`PATCH` 로 재스케줄할 때는 **스케줄 관련 필드를 모두 보내야 한다** —
-`update` 테이블에는 요청에 담긴 필드만 오기 때문이다.
+`cancelJob` 은 잡만 끊는다. **이력 행은 남는다.**
 
 ### 목록 조회
 

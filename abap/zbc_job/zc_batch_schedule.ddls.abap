@@ -31,6 +31,8 @@ define root view entity ZC_BATCH_SCHEDULE
 
       @EndUserText.label: 'Scheduled'
       IsScheduled,
+      @UI.hidden: true
+      CancelRequested,
       Message,
 
       CreatedBy,

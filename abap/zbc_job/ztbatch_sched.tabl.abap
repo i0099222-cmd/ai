@@ -54,6 +54,12 @@ define table ztbatch_sched {
   @EndUserText.label : '백그라운드 잡 카운트 (SM37)'
   jobcount         : abap.char(8);
 
+  // --- 취소 요청 ---------------------------------------------------------
+  // cancelJob 액션이 'X' 로 세팅한다. 그러면 update 테이블에 실려
+  // save_modified 가 취소해야 함을 알 수 있다. 취소 후 다시 비워진다.
+  @EndUserText.label : '취소 요청'
+  cancel_requested : abap_boolean;
+
   // --- APJ 호출 결과 -----------------------------------------------------
   // 스케줄/취소는 save 시퀀스(saver)에서 일어난다. 그 단계에서는 reported 로
   // 메시지를 돌려줄 수 없어서, APJ 응답을 여기 남긴다.

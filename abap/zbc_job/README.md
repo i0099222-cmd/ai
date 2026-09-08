@@ -374,20 +374,43 @@ AS-IS RFC 는 잡 정보를 동기로 돌려줬으므로 이 지점은 다르다
 
 ```http
 POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.changeJob      + 새 시작 조건
-POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.cancelJob
 POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
+```
+
+`cancelJob` 은 **정적 액션**이라 키 없이 부르고 잡 이름을 파라미터로 준다.
+
+```http
+POST {base}/BatchSchedule/com.sap.gateway.srvd.zui_batch_schedule.v0001.cancelJob
+
+{ "JobName": "ZJT_BATCH_SAMPLE_0001", "JobCount": "12345600" }
 ```
 
 `cancelJob` 은 잡만 끊는다. **이력 행은 남는다.**
 
-### 왜 `cancelJob` 이 잡 이름을 파라미터로 안 받나
+### `cancelJob` 만 정적 액션인 이유
 
-**인스턴스 액션이라 대상이 URL 의 키(`RunUuid`)에 있다.** `jobname`/`jobcount`
-는 그 행에 이미 저장돼 있어 호출자가 다시 줄 필요가 없다.
+**외부 호출자는 `RunUuid` 를 모른다.** AS-IS `ZBC_BATCH_JOB_DELETE` 가
+`jobid`/`jobcount` 를 받았고, 호출하는 쪽은 그 둘을 자기 DB 에 들고 있다.
+인스턴스 액션으로 두면 주소를 잡을 방법이 없다.
 
-AS-IS 는 `jobid`/`jobcount` 를 받았지만, 그 둘을 핸들로 쓰면 **`changeJob`
-이후 깨진다** — APJ 에 잡 수정 API 가 없어 재스케줄이 취소 + 재생성이고,
-그 과정에서 `jobname`/`jobcount` 가 바뀌기 때문이다. `RunUuid` 는 안 바뀐다.
+그래서 `jobname` + `jobcount` 를 파라미터로 받아 이력 행을 찾는다.
+취소된 행은 `jobname` 이 비어 있어 걸리지 않으므로, 이 둘이 유일하다.
+
+### `changeJob` / `refreshStatus` 는 아직 인스턴스 액션이다
+
+같은 문제가 있다. 다만 `changeJob` 에는 추가로 걸리는 게 있다 —
+**재스케줄이 취소 + 재생성이라 `jobname`/`jobcount` 가 바뀐다.**
+잡 이름으로 부르면 호출자가 들고 있던 값이 그 호출로 무효가 되는데,
+바뀐 값을 응답으로 알려줄 수 없다 (APJ 가 save 단계에서 돌기 때문).
+
+| 핸들 | `changeJob` 이후 |
+|------|-----------------|
+| `jobname` / `jobcount` | **무효.** 새 값을 알 방법이 없다 |
+| `RunUuid` | 그대로 유효 |
+
+그래서 호출자가 `RunUuid` 를 보관하는 쪽이 안전하다. 잡 이름으로만 부르겠다면
+`changeJob` 호출 뒤 **행을 GET 해서 새 `JobName` 을 다시 저장**하는 절차가
+호출자 쪽에 필요하다.
 
 > AS-IS `reqtype`(작업구분)이 무엇을 가르는 값인지 확인 필요. 취소 범위
 > (잡만 / 이력까지)를 뜻한다면 `cancelJob` 과 `delete` 로 이미 나뉘어 있다.

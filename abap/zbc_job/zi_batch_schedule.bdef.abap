@@ -62,7 +62,11 @@ with unmanaged save
   action ( features : instance ) changeJob parameter ZD_BATCH_START_OPTION result [1] $self;
 
   // 잡만 끊는다. 이력 행은 남는다.
-  action ( features : instance ) cancelJob result [1] $self;
+  //
+  //   AS-IS ZBC_BATCH_JOB_DELETE 와 같은 모양으로 정적 액션이다.
+  //   호출자(외부 API)는 RunUuid 가 아니라 SM37 잡 이름을 들고 있어서,
+  //   인스턴스 액션이면 주소를 잡을 수 없다.
+  static action cancelJob parameter ZD_BATCH_CANCEL_IN [1] result [1] $self;
 
   // APJ 에서 현재 상태를 읽어 메시지로 돌려준다.
   // GET_JOB_STATUS 는 읽기만 하므로 인터랙션 단계에서 호출해도 된다.

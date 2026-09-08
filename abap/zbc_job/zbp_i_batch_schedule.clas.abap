@@ -18,6 +18,10 @@
 "!     cancelJob   ──▶ MODIFY UPDATE ──▶ [update] ──▶ save_modified ──▶ CANCEL_JOB
 "!       (CancelRequested = 'X' 로 구분한다)
 "!
+"!   cancelJob 만 정적 액션이다. 외부 호출자는 RunUuid 가 아니라 SM37
+"!   잡 이름을 들고 있어서(AS-IS ZBC_BATCH_JOB_DELETE 가 jobid/jobcount 를
+"!   받았다), 파라미터로 받아 이력 행을 찾는다.
+"!
 "!   대가: save 단계에서는 reported 로 메시지를 돌려줄 수 없다.
 "!         APJ 응답은 ZTBATCH_SCHED-MESSAGE 에 남고, 실패하면 JOBNAME 이
 "!         빈 채로 남는다 (IsScheduled = '').
@@ -91,9 +95,6 @@ CLASS lhc_schedule IMPLEMENTATION.
     result = VALUE #( FOR ls_run IN lt_run
       ( %tky = ls_run-%tky
         %action-changejob     = COND #( WHEN ls_run-jobname IS NOT INITIAL
-                                        THEN if_abap_behv=>fc-o-enabled
-                                        ELSE if_abap_behv=>fc-o-disabled )
-        %action-canceljob     = COND #( WHEN ls_run-jobname IS NOT INITIAL
                                         THEN if_abap_behv=>fc-o-enabled
                                         ELSE if_abap_behv=>fc-o-disabled )
         %action-refreshstatus = COND #( WHEN ls_run-jobname IS NOT INITIAL
@@ -221,15 +222,64 @@ CLASS lhc_schedule IMPLEMENTATION.
 *----------------------------------------------------------------------*
   METHOD canceljob.
 
+    DATA lt_update TYPE TABLE FOR UPDATE zi_batch_schedule.
+    DATA lt_key    TYPE TABLE FOR READ IMPORT zi_batch_schedule.
+
+    " 정적 액션이라 결과를 %cid 로 대응시켜야 한다.
+    TYPES: BEGIN OF ty_hit,
+             cid      TYPE abp_behv_cid,
+             run_uuid TYPE ztbatch_sched-run_uuid,
+           END OF ty_hit.
+    DATA lt_hit TYPE STANDARD TABLE OF ty_hit WITH EMPTY KEY.
+
+    LOOP AT keys INTO DATA(ls_key).
+
+      " 잡 이름으로 이력 행을 찾는다. 걸려 있는 잡은 행마다 하나뿐이라
+      " jobname + jobcount 가 유일하다. 취소된 행은 jobname 이 비어 있어
+      " 걸리지 않는다.
+      SELECT SINGLE run_uuid
+        FROM ztbatch_sched
+        WHERE jobname  = @ls_key-%param-jobname
+          AND jobcount = @ls_key-%param-jobcount
+        INTO @DATA(lv_run_uuid).
+
+      IF sy-subrc <> 0.
+        APPEND VALUE #( %cid = ls_key-%cid %fail-cause = if_abap_behv=>cause-not_found )
+               TO failed-batchschedule.
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #( cid = ls_key-%cid run_uuid = lv_run_uuid ) TO lt_hit.
+      APPEND VALUE #( runuuid = lv_run_uuid ) TO lt_key.
+      APPEND VALUE #( runuuid         = lv_run_uuid
+                      cancelrequested = abap_true ) TO lt_update.
+
+    ENDLOOP.
+
+    CHECK lt_update IS NOT INITIAL.
+
+    " 실제 CANCEL_JOB 은 saver 가 cancelrequested 를 보고 호출한다.
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
         UPDATE FIELDS ( cancelrequested )
-        WITH VALUE #( FOR ls_key IN keys
-                      ( %tky = ls_key-%tky cancelrequested = abap_true ) )
-      FAILED   failed
-      REPORTED reported.
+        WITH lt_update
+      FAILED   DATA(ls_failed)
+      REPORTED DATA(ls_reported).
 
-    result = read_self( keys ).
+    failed-batchschedule   = VALUE #( BASE failed-batchschedule
+                                      ( LINES OF CORRESPONDING #( ls_failed-batchschedule ) ) ).
+    reported-batchschedule = VALUE #( BASE reported-batchschedule
+                                      ( LINES OF CORRESPONDING #( ls_reported-batchschedule ) ) ).
+
+    READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
+      ENTITY batchschedule
+        ALL FIELDS WITH CORRESPONDING #( lt_key )
+      RESULT DATA(lt_row).
+
+    result = VALUE #( FOR ls_hit IN lt_hit
+                      ( %cid   = ls_hit-cid
+                        %tky-runuuid = ls_hit-run_uuid
+                        %param = VALUE #( lt_row[ runuuid = ls_hit-run_uuid ] OPTIONAL ) ) ).
 
   ENDMETHOD.
 

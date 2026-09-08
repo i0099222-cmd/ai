@@ -213,15 +213,27 @@ APJ 응답을 처음부터 행에 담아 `INSERT` 한다. 경쟁이 성립하지
 한정**되어 있어서, 직접 쓴다고 코드가 늘지 않는다.
 
 `TY_START_OPTION` 의 컴포넌트명을 `ZTBATCH_SCHED` 의 컬럼명과 맞춰 놓은 덕에
-행 ↔ 조건 변환이 `CORRESPONDING` 한 줄이다.
+행을 어댑터에 넘길 때 `CORRESPONDING` 한 줄이면 된다.
 
 ```abap
-" create - 조건을 행에 싣고, 스케줄하고, 결과까지 담아 INSERT
-DATA(ls_row) = VALUE ztbatch_sched( BASE CORRESPONDING #( start_option( ls_new ) )
-                                    run_uuid = ls_new-runuuid ... ).
-schedule_row( CHANGING cs_row = ls_row ).
+" create - 행을 만들고, 스케줄하고, 응답까지 담아 INSERT
+ls_row = VALUE ztbatch_sched( run_uuid = ls_new-runuuid
+                              template = ls_new-jobtemplatename ... ).
+
+DATA(ls_sched) = lo_adapter->schedule( iv_template = ls_row-template
+                                       is_start    = CORRESPONDING #( ls_row ) ... ).
+ls_row-jobname  = ls_sched-job_name.
+ls_row-jobcount = ls_sched-job_count.
+ls_row-message  = ls_sched-message.
+
 INSERT ztbatch_sched FROM @ls_row.
 ```
+
+### 헬퍼 메서드를 두지 않는다
+
+액션 핸들러와 saver 는 **자기 안에서 끝난다.** 조회·매핑·호출을 별도 메서드로
+빼면 한 액션이 무슨 일을 하는지 보려고 파일을 오르내려야 한다. 액션마다 조회
+`SELECT` 가 반복되지만, 그 편이 읽기 쉽다.
 
 ### 확인 필요
 
@@ -399,7 +411,7 @@ POST {base}/BatchSchedule/com...v0001.changeJob
 로 잡을 지목하고, 호출하는 쪽은 그 둘을 자기 DB 에 들고 있다. 인스턴스 액션은
 키가 URL 에 있어야 하므로 주소를 잡을 방법이 없다.
 
-`RESOLVE_JOB( )` 이 `jobname` + `jobcount` 로 이력 행을 찾는다. 취소된 행은
+각 액션이 `jobname` + `jobcount` 로 이력 행을 찾는다. 취소된 행은
 `jobname` 이 비어 있어 걸리지 않으므로 이 둘이 유일하다. 못 찾으면 그 `%cid`
 만 `not_found` 로 실패시키고 나머지 요청은 계속 처리한다.
 

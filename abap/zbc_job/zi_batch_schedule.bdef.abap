@@ -12,6 +12,11 @@ strict ( 2 );
 // 열어두면 이력 한 줄 고쳤다고 잡이 재스케줄되거나, 잡을 끊으려다
 // 이력이 사라진다. 액션 핸들러가 내부적으로만 쓴다.
 //
+// ** 액션 4개가 전부 정적 액션인 이유 **
+//   외부 호출자는 RunUuid 를 모른다. AS-IS 인터페이스가 jobid/jobcount 로
+//   잡을 지목하고, 호출하는 쪽은 그 둘을 자기 DB 에 들고 있기 때문이다.
+//   그래서 잡 이름을 파라미터로 받아 이력 행을 찾는다.
+//
 // CL_APJ_RT_API 는 RAP 인터랙션 단계에서 호출할 수 없다(LUW 충돌).
 // 액션은 엔티티에 쓰기만 하고, 그 결과가 create/update 테이블에 실려
 // saver 의 save_modified 로 넘어간다. 별도 버퍼가 필요 없는 이유다.
@@ -52,14 +57,13 @@ with unmanaged save
 
   // --- APJ 제어 ------------------------------------------------------------
   // 잡 생성 = 스케줄 등록. 이력 행 1건 + APJ 잡 1건이 만들어진다.
-  //   result 로 만들어진 행을 돌려준다. 호출자는 여기서 RunUuid 를 받아
-  //   이후 changeJob / cancelJob / refreshStatus 의 키로 쓴다.
-  //   JobName 은 save 단계에 가서야 정해지므로 이 응답에는 아직 비어 있다.
+  //   result 로 만들어진 행을 돌려준다. JobName 은 save 단계에 가서야
+  //   정해지므로 이 응답에는 아직 비어 있다 - 행을 GET 해서 읽는다.
   static factory action scheduleJob parameter ZD_BATCH_SCHEDULE_IN [1] result [1] $self;
 
   // 스케줄 변경. APJ 에 잡 수정 API 가 없어 취소 + 재생성이며,
   // 그 결과 SM37 의 jobname/jobcount 가 바뀐다.
-  action ( features : instance ) changeJob parameter ZD_BATCH_START_OPTION result [1] $self;
+  static action changeJob parameter ZD_BATCH_CHANGE_IN [1] result [1] $self;
 
   // 잡만 끊는다. 이력 행은 남는다.
   //
@@ -70,7 +74,7 @@ with unmanaged save
 
   // APJ 에서 현재 상태를 읽어 메시지로 돌려준다.
   // GET_JOB_STATUS 는 읽기만 하므로 인터랙션 단계에서 호출해도 된다.
-  action ( features : instance ) refreshStatus result [1] $self;
+  static action refreshStatus parameter ZD_BATCH_STATUS_IN [1] result [1] $self;
 
   mapping for ztbatch_sched
   {

@@ -1,7 +1,16 @@
-@EndUserText.label: 'changeJob 액션 파라미터 (새 시작 조건)'
+@EndUserText.label: 'changeJob 액션 파라미터'
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-define abstract entity ZD_BATCH_START_OPTION
+define abstract entity ZD_BATCH_CHANGE_IN
 {
+      // --- 어느 잡을 --------------------------------------------------------
+      // AS-IS ZBC_BATCH_JOB_CHANGE 는 jobid 로 잡을 지목한다.
+      // 호출자는 RunUuid 가 아니라 SM37 잡 이름을 들고 있다.
+      @EndUserText.label: '백그라운드 잡 이름 (SM37)'
+      JobName           : abap.char(32);
+      @EndUserText.label: '백그라운드 잡 카운트 (SM37)'
+      JobCount          : abap.char(8);
+
+      // --- 새 시작 조건 -----------------------------------------------------
       @EndUserText.label: '즉시 시작'
       StartImmediately  : abap_boolean;
       // AS-IS 인터페이스 형식 그대로 CHAR(15)(날짜+시각). 예: '20261001020000'

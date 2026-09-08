@@ -237,11 +237,12 @@ INSERT ztbatch_sched FROM @ls_row.
 | `ztbatch_sched.tabl.abap` | — | 테이블 (유일, 10 컬럼) |
 | `zi_batch_schedule.ddls.abap` / `zc_batch_schedule.ddls.abap` | — | interface / projection view |
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
-| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | 액션 4종 (쓰기만) + **saver** (APJ 호출) |
+| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | **정적 액션 4종** (쓰기만) + **saver** (APJ 호출 + 저장) |
+| `zd_batch_schedule_in` / `_change_in` / `_cancel_in` / `_status_in` | — | 액션 파라미터 4종 |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
 | `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 클래스가 쓰는 예외 |
 | `example_zcl_apj_batch_sample.clas.abap` | ABAP Cloud | **APJ 실행 클래스 작성 예시** (참고용) |
-| `zif_batch_job.intf.abap` | ABAP Cloud | 상수/타입 (`ty_param`, `ty_start_option`) |
+| `zif_batch_job.intf.abap` | ABAP Cloud | 상수/타입 (`gc_status`, `gc_restriction`, `ty_start_option`) |
 | `zui_batch_schedule.srvd.abap` | — | service definition |
 
 **전부 ABAP for Cloud Development 다.** Standard ABAP 오브젝트가 하나도 없고,
@@ -372,48 +373,78 @@ AS-IS RFC 는 잡 정보를 동기로 돌려줬으므로 이 지점은 다르다
 
 ### 변경 / 취소 / 상태
 
-```http
-POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.changeJob      + 새 시작 조건
-POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
-```
-
-`cancelJob` 은 **정적 액션**이라 키 없이 부르고 잡 이름을 파라미터로 준다.
+**네 액션이 전부 정적 액션이다.** 키 없이 엔티티셋에 POST 하고, 어느 잡인지는
+`JobName` + `JobCount` 파라미터로 준다.
 
 ```http
-POST {base}/BatchSchedule/com.sap.gateway.srvd.zui_batch_schedule.v0001.cancelJob
+POST {base}/BatchSchedule/com...v0001.cancelJob
+{ "JobName": "ZJT_SAMPLE_0001", "JobCount": "12345600" }
 
-{ "JobName": "ZJT_BATCH_SAMPLE_0001", "JobCount": "12345600" }
+POST {base}/BatchSchedule/com...v0001.refreshStatus
+{ "JobName": "ZJT_SAMPLE_0001", "JobCount": "12345600" }
+
+POST {base}/BatchSchedule/com...v0001.changeJob
+{ "JobName": "ZJT_SAMPLE_0001", "JobCount": "12345600",
+  "StartDateTime": "20261101030000", "PeriodMonths": 1 }
 ```
+
+`refreshStatus` 는 상태를 `messages` 로 돌려준다. `GET_JOB_STATUS` 가 읽기만
+해서 인터랙션 단계에서 부를 수 있기 때문이다.
 
 `cancelJob` 은 잡만 끊는다. **이력 행은 남는다.**
 
-### `cancelJob` 만 정적 액션인 이유
+### 왜 전부 정적 액션인가
 
-**외부 호출자는 `RunUuid` 를 모른다.** AS-IS `ZBC_BATCH_JOB_DELETE` 가
-`jobid`/`jobcount` 를 받았고, 호출하는 쪽은 그 둘을 자기 DB 에 들고 있다.
-인스턴스 액션으로 두면 주소를 잡을 방법이 없다.
+**외부 호출자는 `RunUuid` 를 모른다.** AS-IS 인터페이스가 `jobid`/`jobcount`
+로 잡을 지목하고, 호출하는 쪽은 그 둘을 자기 DB 에 들고 있다. 인스턴스 액션은
+키가 URL 에 있어야 하므로 주소를 잡을 방법이 없다.
 
-그래서 `jobname` + `jobcount` 를 파라미터로 받아 이력 행을 찾는다.
-취소된 행은 `jobname` 이 비어 있어 걸리지 않으므로, 이 둘이 유일하다.
+`RESOLVE_JOB( )` 이 `jobname` + `jobcount` 로 이력 행을 찾는다. 취소된 행은
+`jobname` 이 비어 있어 걸리지 않으므로 이 둘이 유일하다. 못 찾으면 그 `%cid`
+만 `not_found` 로 실패시키고 나머지 요청은 계속 처리한다.
 
-### `changeJob` / `refreshStatus` 는 아직 인스턴스 액션이다
+인스턴스 피처 컨트롤은 없앴다. "잡이 걸려 있을 때만 가능" 이라는 제약이
+**행을 못 찾는 것으로 자동 성립**하기 때문이다.
 
-같은 문제가 있다. 다만 `changeJob` 에는 추가로 걸리는 게 있다 —
+### ⚠ `changeJob` 후에는 호출자가 잡 이름을 갱신해야 한다
+
 **재스케줄이 취소 + 재생성이라 `jobname`/`jobcount` 가 바뀐다.**
-잡 이름으로 부르면 호출자가 들고 있던 값이 그 호출로 무효가 되는데,
-바뀐 값을 응답으로 알려줄 수 없다 (APJ 가 save 단계에서 돌기 때문).
+그런데 바뀐 값을 액션 응답으로 줄 수 없다 — APJ 가 save 단계에서 돌기 때문이다.
 
 | 핸들 | `changeJob` 이후 |
 |------|-----------------|
-| `jobname` / `jobcount` | **무효.** 새 값을 알 방법이 없다 |
-| `RunUuid` | 그대로 유효 |
+| `jobname` / `jobcount` | **무효.** 응답으로는 새 값을 알 수 없다 |
+| `RunUuid` | 그대로 유효 (응답에 실려 온다) |
 
-그래서 호출자가 `RunUuid` 를 보관하는 쪽이 안전하다. 잡 이름으로만 부르겠다면
-`changeJob` 호출 뒤 **행을 GET 해서 새 `JobName` 을 다시 저장**하는 절차가
-호출자 쪽에 필요하다.
+그래서 호출자는 `changeJob` 뒤에 **행을 GET 해서 새 `JobName` 을 다시 저장**해야
+한다. 응답의 `RunUuid` 로 읽으면 된다.
 
-> AS-IS `reqtype`(작업구분)이 무엇을 가르는 값인지 확인 필요. 취소 범위
-> (잡만 / 이력까지)를 뜻한다면 `cancelJob` 과 `delete` 로 이미 나뉘어 있다.
+```http
+GET {base}/BatchSchedule(RunUuid={응답의 RunUuid})?$select=JobName,JobCount,Message
+```
+
+호출자가 `RunUuid` 를 보관할 수 있다면 이 절차가 필요 없다.
+
+### AS-IS 파라미터 중 안 받는 것
+
+| AS-IS | 어디로 | |
+|-------|-------|---|
+| `reqid`(요청자사번) / `reqname` / `reqdatetime` | **안 받는다** | 확인 필요 — 아래 |
+| `reqtype`(작업구분, delete) | **안 받는다** | 확인 필요 — 값 도메인 |
+| `sinfo` CHAR(10) (status) | **안 받는다** | 확인 필요 — 용도 |
+| `sdate`/`stime`/`edate`/`etime` (status) | **안 받는다** | 아래 |
+
+**요청자 3종.** `CREATED_BY`/`CREATED_AT` 이 대신한다고 적어뒀는데, 그건
+**OData 를 호출한 SAP 사용자**다. 외부 시스템이 서비스 사용자로 붙으면 실제
+요청자(사번)가 기록되지 않는다. AS-IS 가 굳이 사번을 넘기는 이유가 이것일
+가능성이 높다. 필요하면 컬럼 2개(`req_id`/`req_name`)를 되살려야 한다.
+
+**status 의 기간 파라미터.** AS-IS 상태 조회는 잡 이름 + 기간으로 **검색**하는
+인터페이스로 보인다 (SM37 선택화면과 같은 모양). 반면 APJ `GET_JOB_STATUS` 는
+`jobname` + `jobcount` 로 **한 건**을 읽는다. 기간 검색이 필요하면 이력
+테이블을 기간으로 조회한 뒤 건별로 상태를 읽는 방식이라 별도 설계가 필요하다.
+`sinfo` CHAR(10) 도 SM37 의 상태 필터(Scheduled/Released/Active/Finished/
+Cancelled)일 가능성이 있는데 확인 전에는 매핑하지 않는다.
 
 ### 목록 조회
 

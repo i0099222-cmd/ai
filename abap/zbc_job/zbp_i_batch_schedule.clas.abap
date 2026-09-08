@@ -18,9 +18,10 @@
 "!     cancelJob   ──▶ MODIFY UPDATE ──▶ [update] ──▶ save_modified ──▶ CANCEL_JOB
 "!       (CancelRequested = 'X' 로 구분한다)
 "!
-"!   cancelJob 만 정적 액션이다. 외부 호출자는 RunUuid 가 아니라 SM37
-"!   잡 이름을 들고 있어서(AS-IS ZBC_BATCH_JOB_DELETE 가 jobid/jobcount 를
-"!   받았다), 파라미터로 받아 이력 행을 찾는다.
+"! ** 액션 4개가 전부 정적 액션이다 **
+"!   외부 호출자는 RunUuid 를 모른다. AS-IS 인터페이스가 jobid/jobcount 로
+"!   잡을 지목하고 호출하는 쪽이 그 둘을 자기 DB 에 들고 있기 때문이다.
+"!   그래서 잡 이름을 파라미터로 받아 이력 행을 찾는다 - RESOLVE_JOB.
 "!
 "!   대가: save 단계에서는 reported 로 메시지를 돌려줄 수 없다.
 "!         APJ 응답은 ZTBATCH_SCHED-MESSAGE 에 남고, 실패하면 JOBNAME 이
@@ -53,9 +54,6 @@ CLASS lhc_schedule DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
       IMPORTING REQUEST requested_authorizations FOR batchschedule RESULT result.
 
-    METHODS get_instance_features FOR INSTANCE FEATURES
-      IMPORTING keys REQUEST requested_features FOR batchschedule RESULT result.
-
     METHODS schedulejob FOR MODIFY
       IMPORTING keys FOR ACTION batchschedule~schedulejob RESULT result.
 
@@ -68,8 +66,25 @@ CLASS lhc_schedule DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS refreshstatus FOR MODIFY
       IMPORTING keys FOR ACTION batchschedule~refreshstatus RESULT result.
 
-    METHODS read_self
-      IMPORTING keys          TYPE ANY TABLE
+    "! 정적 액션이 %cid 별로 찾아낸 이력 행. 응답을 대응시키는 데 쓴다.
+    TYPES: BEGIN OF ty_hit,
+             cid      TYPE abp_behv_cid,
+             run_uuid TYPE ztbatch_sched-run_uuid,
+           END OF ty_hit,
+           tt_hit TYPE STANDARD TABLE OF ty_hit WITH EMPTY KEY.
+
+    "! SM37 잡 이름으로 이력 행을 찾는다.
+    "!
+    "! 외부 호출자는 RunUuid 를 모르고 잡 이름을 들고 있다. 취소된 행은
+    "! JOBNAME 이 비어 있으므로 JOBNAME + JOBCOUNT 는 유일하다.
+    METHODS resolve_job
+      IMPORTING iv_jobname         TYPE ztbatch_sched-jobname
+                iv_jobcount        TYPE ztbatch_sched-jobcount
+      RETURNING VALUE(rv_run_uuid) TYPE ztbatch_sched-run_uuid.
+
+    "! 찾아낸 행들을 읽어 액션 결과로 만든다.
+    METHODS hits_as_result
+      IMPORTING it_hit        TYPE tt_hit
       RETURNING VALUE(result) TYPE TABLE FOR ACTION RESULT zi_batch_schedule~changejob.
 
 ENDCLASS.
@@ -79,28 +94,6 @@ CLASS lhc_schedule IMPLEMENTATION.
 
   METHOD get_global_authorizations.
     " 테스트 단계 - 전부 허용. 운영에서는 업무 권한객체로 제한할 것.
-  ENDMETHOD.
-
-
-  METHOD get_instance_features.
-
-    READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
-      ENTITY batchschedule
-        FIELDS ( jobname )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_run)
-      FAILED failed.
-
-    " 잡이 걸려 있을 때만 변경/취소/조회가 의미 있다.
-    result = VALUE #( FOR ls_run IN lt_run
-      ( %tky = ls_run-%tky
-        %action-changejob     = COND #( WHEN ls_run-jobname IS NOT INITIAL
-                                        THEN if_abap_behv=>fc-o-enabled
-                                        ELSE if_abap_behv=>fc-o-disabled )
-        %action-refreshstatus = COND #( WHEN ls_run-jobname IS NOT INITIAL
-                                        THEN if_abap_behv=>fc-o-enabled
-                                        ELSE if_abap_behv=>fc-o-disabled ) ) ).
-
   ENDMETHOD.
 
 
@@ -178,28 +171,42 @@ CLASS lhc_schedule IMPLEMENTATION.
   METHOD changejob.
 
     DATA lt_update TYPE TABLE FOR UPDATE zi_batch_schedule.
+    DATA lt_hit    TYPE tt_hit.
 
     LOOP AT keys INTO DATA(ls_key).
       DATA(ls_p) = ls_key-%param.
 
-      APPEND VALUE #( %tky             = ls_key-%tky
-                      startimmediately = ls_p-startimmediately
-                      startdatetime    = ls_p-startdatetime
-                      timezone         = ls_p-timezone
-                      periodminutes    = ls_p-periodminutes
-                      periodhours      = ls_p-periodhours
-                      perioddays       = ls_p-perioddays
-                      periodweeks      = ls_p-periodweeks
-                      periodmonths     = ls_p-periodmonths
-                      enddatetime      = ls_p-enddatetime
-                      calendarid       = ls_p-calendarid
-                      monthday         = ls_p-monthday
+      DATA(lv_run_uuid) = resolve_job( iv_jobname  = ls_p-jobname
+                                       iv_jobcount = ls_p-jobcount ).
+      IF lv_run_uuid IS INITIAL.
+        APPEND VALUE #( %cid = ls_key-%cid %fail-cause = if_abap_behv=>cause-not_found )
+               TO failed-batchschedule.
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #( cid = ls_key-%cid run_uuid = lv_run_uuid ) TO lt_hit.
+
+      APPEND VALUE #( runuuid           = lv_run_uuid
+                      startimmediately  = ls_p-startimmediately
+                      startdatetime     = ls_p-startdatetime
+                      timezone          = ls_p-timezone
+                      periodminutes     = ls_p-periodminutes
+                      periodhours       = ls_p-periodhours
+                      perioddays        = ls_p-perioddays
+                      periodweeks       = ls_p-periodweeks
+                      periodmonths      = ls_p-periodmonths
+                      enddatetime       = ls_p-enddatetime
+                      calendarid        = ls_p-calendarid
+                      monthday          = ls_p-monthday
                       countfrommonthend = ls_p-countfrommonthend
-                      useworkingdays   = ls_p-useworkingdays
-                      startrestriction = ls_p-startrestriction )
+                      useworkingdays    = ls_p-useworkingdays
+                      startrestriction  = ls_p-startrestriction )
              TO lt_update.
     ENDLOOP.
 
+    CHECK lt_update IS NOT INITIAL.
+
+    " 실제 재스케줄(취소 + 재생성)은 saver 가 update 를 보고 한다.
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
         UPDATE FIELDS ( startimmediately startdatetime timezone
@@ -207,10 +214,15 @@ CLASS lhc_schedule IMPLEMENTATION.
                         enddatetime
                         calendarid monthday useworkingdays countfrommonthend startrestriction )
         WITH lt_update
-      FAILED   failed
-      REPORTED reported.
+      FAILED   DATA(ls_failed)
+      REPORTED DATA(ls_reported).
 
-    result = read_self( keys ).
+    failed-batchschedule   = VALUE #( BASE failed-batchschedule
+                                      ( LINES OF CORRESPONDING #( ls_failed-batchschedule ) ) ).
+    reported-batchschedule = VALUE #( BASE reported-batchschedule
+                                      ( LINES OF CORRESPONDING #( ls_reported-batchschedule ) ) ).
+
+    result = hits_as_result( lt_hit ).
 
   ENDMETHOD.
 
@@ -223,34 +235,19 @@ CLASS lhc_schedule IMPLEMENTATION.
   METHOD canceljob.
 
     DATA lt_update TYPE TABLE FOR UPDATE zi_batch_schedule.
-    DATA lt_key    TYPE TABLE FOR READ IMPORT zi_batch_schedule.
-
-    " 정적 액션이라 결과를 %cid 로 대응시켜야 한다.
-    TYPES: BEGIN OF ty_hit,
-             cid      TYPE abp_behv_cid,
-             run_uuid TYPE ztbatch_sched-run_uuid,
-           END OF ty_hit.
-    DATA lt_hit TYPE STANDARD TABLE OF ty_hit WITH EMPTY KEY.
+    DATA lt_hit    TYPE tt_hit.
 
     LOOP AT keys INTO DATA(ls_key).
 
-      " 잡 이름으로 이력 행을 찾는다. 걸려 있는 잡은 행마다 하나뿐이라
-      " jobname + jobcount 가 유일하다. 취소된 행은 jobname 이 비어 있어
-      " 걸리지 않는다.
-      SELECT SINGLE run_uuid
-        FROM ztbatch_sched
-        WHERE jobname  = @ls_key-%param-jobname
-          AND jobcount = @ls_key-%param-jobcount
-        INTO @DATA(lv_run_uuid).
-
-      IF sy-subrc <> 0.
+      DATA(lv_run_uuid) = resolve_job( iv_jobname  = ls_key-%param-jobname
+                                       iv_jobcount = ls_key-%param-jobcount ).
+      IF lv_run_uuid IS INITIAL.
         APPEND VALUE #( %cid = ls_key-%cid %fail-cause = if_abap_behv=>cause-not_found )
                TO failed-batchschedule.
         CONTINUE.
       ENDIF.
 
       APPEND VALUE #( cid = ls_key-%cid run_uuid = lv_run_uuid ) TO lt_hit.
-      APPEND VALUE #( runuuid = lv_run_uuid ) TO lt_key.
       APPEND VALUE #( runuuid         = lv_run_uuid
                       cancelrequested = abap_true ) TO lt_update.
 
@@ -271,15 +268,7 @@ CLASS lhc_schedule IMPLEMENTATION.
     reported-batchschedule = VALUE #( BASE reported-batchschedule
                                       ( LINES OF CORRESPONDING #( ls_reported-batchschedule ) ) ).
 
-    READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
-      ENTITY batchschedule
-        ALL FIELDS WITH CORRESPONDING #( lt_key )
-      RESULT DATA(lt_row).
-
-    result = VALUE #( FOR ls_hit IN lt_hit
-                      ( %cid   = ls_hit-cid
-                        %tky-runuuid = ls_hit-run_uuid
-                        %param = VALUE #( lt_row[ runuuid = ls_hit-run_uuid ] OPTIONAL ) ) ).
+    result = hits_as_result( lt_hit ).
 
   ENDMETHOD.
 
@@ -291,45 +280,65 @@ CLASS lhc_schedule IMPLEMENTATION.
 *----------------------------------------------------------------------*
   METHOD refreshstatus.
 
-    READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
-      ENTITY batchschedule
-        FIELDS ( jobname jobcount )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_run)
-      FAILED failed.
+    DATA lt_hit TYPE tt_hit.
 
     DATA(lo_adapter) = NEW zcl_batch_apj_adapter( ).
 
-    LOOP AT lt_run INTO DATA(ls_run).
+    LOOP AT keys INTO DATA(ls_key).
 
-      CHECK ls_run-jobname IS NOT INITIAL.
+      DATA(lv_run_uuid) = resolve_job( iv_jobname  = ls_key-%param-jobname
+                                       iv_jobcount = ls_key-%param-jobcount ).
+      IF lv_run_uuid IS INITIAL.
+        APPEND VALUE #( %cid = ls_key-%cid %fail-cause = if_abap_behv=>cause-not_found )
+               TO failed-batchschedule.
+        CONTINUE.
+      ENDIF.
 
-      DATA(ls_status) = lo_adapter->get_status( iv_job_name  = ls_run-jobname
-                                                iv_job_count = ls_run-jobcount ).
+      APPEND VALUE #( cid = ls_key-%cid run_uuid = lv_run_uuid ) TO lt_hit.
 
-      APPEND VALUE #( %tky = ls_run-%tky
+      " GET_JOB_STATUS 는 읽기만 하므로 인터랙션 단계에서 불러도 된다.
+      " 덕분에 상태만은 reported 로 바로 돌려줄 수 있다.
+      DATA(ls_status) = lo_adapter->get_status( iv_job_name  = ls_key-%param-jobname
+                                                iv_job_count = ls_key-%param-jobcount ).
+
+      APPEND VALUE #( %tky-runuuid = lv_run_uuid
                       %msg = new_message_with_text(
                                severity = if_abap_behv_message=>severity-information
-                               text     = |{ ls_run-jobname }/{ ls_run-jobcount }: | &&
-                                          |{ ls_status-message }| ) )
+                               text     = |{ ls_key-%param-jobname }/| &&
+                                          |{ ls_key-%param-jobcount }: { ls_status-message }| ) )
              TO reported-batchschedule.
 
     ENDLOOP.
 
-    result = read_self( keys ).
+    result = hits_as_result( lt_hit ).
 
   ENDMETHOD.
 
 
-  METHOD read_self.
+  METHOD resolve_job.
+
+    SELECT SINGLE run_uuid
+      FROM ztbatch_sched
+      WHERE jobname  = @iv_jobname
+        AND jobcount = @iv_jobcount
+      INTO @rv_run_uuid.
+
+  ENDMETHOD.
+
+
+  METHOD hits_as_result.
+
+    CHECK it_hit IS NOT INITIAL.
 
     READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_result).
+        ALL FIELDS WITH VALUE #( FOR ls_hit IN it_hit ( runuuid = ls_hit-run_uuid ) )
+      RESULT DATA(lt_row).
 
-    result = VALUE #( FOR ls_res IN lt_result
-                      ( %tky = ls_res-%tky %param = ls_res ) ).
+    result = VALUE #( FOR ls_hit IN it_hit
+                      ( %cid         = ls_hit-cid
+                        %tky-runuuid = ls_hit-run_uuid
+                        %param       = VALUE #( lt_row[ runuuid = ls_hit-run_uuid ] OPTIONAL ) ) ).
 
   ENDMETHOD.
 

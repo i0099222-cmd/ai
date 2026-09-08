@@ -8,7 +8,7 @@
 "!   ZBC_BATCH_JOB_DELETE -> cancelJob      (잡만 끊고 이력은 남긴다)
 "!
 "! ** APJ 잡 1개 = 이 테이블의 행 1개 **
-"!   잡이 끝나면 행을 고치지 않고 ENDED_AT 만 찍는다. JOBNAME 을 지우면
+"!   잡이 끝나면 행을 고치지 않고 IS_CANCELED 만 세운다. JOBNAME 을 지우면
 "!   그 잡이 남긴 SM37 로그를 다시 찾을 수 없기 때문이다.
 "!   changeJob 은 재스케줄이 취소 + 재생성이라 잡이 바뀌므로, 옛 행을 닫고
 "!   새 행을 만든다. 응답은 새 행이다 - 새 JOBNAME 이 거기 있다.
@@ -204,7 +204,7 @@ CLASS lhc_schedule IMPLEMENTATION.
         FROM ztbatch_sched
         WHERE jobname  = @ls_p-jobname
           AND jobcount = @ls_p-jobcount
-          AND ended_at IS INITIAL
+          AND is_canceled = @abap_false
         INTO @DATA(ls_old).
 
       IF sy-subrc <> 0.
@@ -261,9 +261,9 @@ CLASS lhc_schedule IMPLEMENTATION.
 
       " 옛 행은 고치지 않고 닫는다. JOBNAME 이 남아 있어야 그 잡의
       " SM37 로그를 나중에 찾을 수 있다.
-      APPEND VALUE #( runuuid = lo_task->run_uuid
-                      endedat = utclong_current( )
-                      message = |Replaced by { lo_task->job_name }/{ lo_task->job_count }| )
+      APPEND VALUE #( runuuid    = lo_task->run_uuid
+                      iscanceled = abap_true
+                      message    = |Replaced by { lo_task->job_name }/{ lo_task->job_count }| )
              TO lt_close.
 
       " 새 잡은 새 행이다. 무엇을 돌릴지는 옛 행에서 그대로 가져온다.
@@ -293,7 +293,7 @@ CLASS lhc_schedule IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        UPDATE FIELDS ( endedat message ) WITH lt_close
+        UPDATE FIELDS ( iscanceled message ) WITH lt_close
       ENTITY batchschedule
         CREATE FIELDS ( jobtemplatename jobtext parameters
                         startimmediately startdatetime timezone
@@ -340,7 +340,7 @@ CLASS lhc_schedule IMPLEMENTATION.
         FROM ztbatch_sched
         WHERE jobname  = @ls_key-%param-jobname
           AND jobcount = @ls_key-%param-jobcount
-          AND ended_at IS INITIAL
+          AND is_canceled = @abap_false
         INTO @DATA(ls_old).
 
       IF sy-subrc <> 0.
@@ -371,15 +371,15 @@ CLASS lhc_schedule IMPLEMENTATION.
 
       " 종료 시각만 찍는다. JOBNAME 은 지우지 않는다 - 그게 없으면
       " 이 잡이 남긴 SM37 로그를 다시 찾을 수 없다.
-      APPEND VALUE #( runuuid = lo_task->run_uuid
-                      endedat = utclong_current( )
-                      message = CONV #( lo_task->message ) )
+      APPEND VALUE #( runuuid    = lo_task->run_uuid
+                      iscanceled = abap_true
+                      message    = CONV #( lo_task->message ) )
              TO lt_close.
     ENDLOOP.
 
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        UPDATE FIELDS ( endedat message )
+        UPDATE FIELDS ( iscanceled message )
         WITH lt_close
       FAILED   DATA(ls_failed)
       REPORTED DATA(ls_reported).
@@ -403,7 +403,7 @@ CLASS lhc_schedule IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
 * 상태 조회 - AS-IS ZBC_BATCH_JOB_STATUS
-*   여기만 ENDED_AT 을 안 본다. 이미 끝난 잡의 상태도 조회할 수 있어야 한다.
+*   여기만 IS_CANCELED 를 안 본다. 이미 끝난 잡의 상태도 조회할 수 있어야 한다.
 *   GET_JOB_STATUS 는 읽기만 하고 커밋하지 않으므로 여기서 직접 부른다.
 *   자식 세션이 필요 없다.
 *----------------------------------------------------------------------*

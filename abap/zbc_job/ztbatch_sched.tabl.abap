@@ -76,11 +76,12 @@ define table ztbatch_sched {
 
   // --- 잡의 끝 ---------------------------------------------------------
   // APJ 잡 하나 = 이 테이블의 행 하나다. 잡이 끝나면(취소되거나 changeJob
-  // 으로 교체되면) 행을 고치지 않고 이 시각만 찍는다. JOBNAME 이 남아
+  // 으로 교체되면) 행을 고치지 않고 이 플래그만 세운다. JOBNAME 이 남아
   // 있어야 지나간 잡의 SM37 로그를 찾을 수 있기 때문이다.
-  // 비어 있으면 살아 있는 잡이다 -> IsScheduled.
-  @EndUserText.label : '잡 종료 시각'
-  ended_at         : abap.utclong;
+  // changeJob 도 APJ 상으로는 취소이므로 여기 걸린다.
+  // 끝난 시각은 LOCAL_LAST_CHANGED_AT 이 갖는다 - 닫는 것이 마지막 갱신이다.
+  @EndUserText.label : '취소됨'
+  is_canceled      : abap_boolean;
 
   // --- APJ 호출 결과 -----------------------------------------------------
   // 스케줄/취소는 save 시퀀스(saver)에서 일어난다. 그 단계에서는 reported 로

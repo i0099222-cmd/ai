@@ -21,7 +21,7 @@ ZTBATCH_SCHED
   prd_*           반복 주기
   jobname     APJ 가 만든 잡 이름 (SM37)   - 끝나도 지우지 않는다
   jobcount    APJ 잡 카운트 (SM37)         - 로그를 찾는 열쇠라서
-  ended_at    잡 종료 시각. 비어 있으면 살아 있는 잡
+  is_canceled 취소됨. 비어 있으면 살아 있는 잡
   message     APJ 응답 메시지
   created_by  누가 걸었나
   created_at  언제 걸었나
@@ -39,14 +39,26 @@ ZTBATCH_SCHED
 
 ### APJ 잡 1개 = 행 1개
 
-이게 이 테이블의 규칙이다. **잡이 끝나도 행을 고치지 않고 `ended_at` 만 찍는다.**
+이게 이 테이블의 규칙이다. **잡이 끝나도 행을 고치지 않고 `is_canceled` 만 세운다.**
+`changeJob` 으로 교체된 잡도 APJ 상으로는 취소이므로 여기 걸린다.
 
-| `ended_at` | 의미 | 가능한 액션 |
-|-----------|------|------------|
-| 비어 있음 | 살아 있는 잡 | `changeJob`, `cancelJob`, `refreshStatus` |
-| 차 있음 | 끝난 잡 | `refreshStatus` (지나간 잡도 조회 가능) |
+상태를 두 필드로 나눠 본다. 서로 다른 질문이라서다.
 
-`IsScheduled` 는 `ended_at` 이 비었는지로 계산한다. 상태 컬럼은 없다.
+| | 묻는 것 | 판정 |
+|---|---|---|
+| `IsScheduled` | 스케줄이 **성공했나** | `jobname <> ''` |
+| `IsCanceled` | 그 잡이 **아직 살아 있나** | 플래그 |
+
+| `IsScheduled` | `IsCanceled` | 뜻 |
+|---|---|---|
+| `X` | | 살아 있는 잡 |
+| `X` | `X` | 끝난 잡 (로그는 계속 조회 가능) |
+| | | **스케줄 실패** — 사유는 `message` |
+
+하나로는 세 번째 줄을 표현할 수 없다. 스케줄에 실패한 행은 취소된 것도 아니다.
+
+끝난 **시각**은 `local_last_changed_at` 이 갖는다 — 행을 닫는 것이 그 행의
+마지막 갱신이므로 별도 컬럼이 필요 없다.
 
 ### 왜 `jobname` 을 지우지 않나
 
@@ -54,7 +66,7 @@ ZTBATCH_SCHED
 `jobcount` 로 붙는데, 그게 이 행 말고는 어디에도 없다. 취소했다고 비워 버리면
 "그 잡이 돌았던 기록" 이 통째로 사라진다 — 조회가 목적인 테이블에서 모순이다.
 
-그래서 취소는 `ended_at` 을 찍을 뿐, 포인터는 그대로 둔다.
+그래서 취소는 `is_canceled` 를 세울 뿐, 포인터는 그대로 둔다.
 
 ### `changeJob` 은 행을 하나 더 만든다
 
@@ -66,7 +78,7 @@ APJ 에 잡 수정 API 가 없어 재스케줄이 **취소 + 재생성**이다. 
 
 ```
 changeJob
-  ├─ 옛 행:  ended_at = now,  message = "Replaced by ZJT_X_0002/1234"
+  ├─ 옛 행:  is_canceled = 'X',  message = "Replaced by ZJT_X_0002/1234"
   └─ 새 행:  jobname  = ZJT_X_0002,  jobcount = 1234   ← 응답은 이 행
 ```
 
@@ -446,7 +458,7 @@ POST {base}/BatchSchedule/com...v0001.changeJob
 `refreshStatus` 는 상태를 `messages` 로 돌려준다. `GET_JOB_STATUS` 가 읽기만
 해서 인터랙션 단계에서 부를 수 있기 때문이다.
 
-`cancelJob` 은 잡만 끊는다. **이력 행은 `ended_at` 이 찍힌 채 남는다** —
+`cancelJob` 은 잡만 끊는다. **이력 행은 `IsCanceled = 'X'` 로 남는다** —
 `JobName` 도 그대로라 그 잡의 SM37 로그를 계속 찾을 수 있다.
 
 ### `scheduleJob` 에 `factory` 를 붙이지 않는 이유
@@ -468,7 +480,7 @@ POST {base}/BatchSchedule/com...v0001.changeJob
 주므로 이 둘이 유일하다. 못 찾으면 그 `%cid` 만 `not_found` 로 실패시키고
 나머지 요청은 계속 처리한다.
 
-`changeJob` / `cancelJob` 은 **`ended_at IS INITIAL`** 을 같이 건다. 이미 끝난
+`changeJob` / `cancelJob` 은 **`is_canceled = abap_false`** 를 같이 건다. 이미 끝난
 잡은 못 찾는 것이 맞고, 그래서 인스턴스 피처 컨트롤이 필요 없다 — "잡이 걸려
 있을 때만 가능" 이라는 제약이 조회 조건으로 성립한다.
 
@@ -479,7 +491,7 @@ POST {base}/BatchSchedule/com...v0001.changeJob
 재스케줄이 취소 + 재생성이라 `jobname`/`jobcount` 가 바뀐다. 응답이 **새 행**
 이므로 호출자는 거기서 새 `JobName` 을 받아 자기 쪽 값을 갱신하면 된다.
 
-옛 잡의 행은 `ended_at` 이 찍힌 채 남아 있고, 그 `message` 에
+옛 잡의 행은 `IsCanceled = 'X'` 로 남아 있고, 그 `message` 에
 `Replaced by <새 잡>` 이 적힌다.
 
 ### AS-IS 파라미터 중 안 받는 것

@@ -40,7 +40,7 @@ etag master LocalLastChangedAt
   // APJ 가 만들어주는 값은 사용자가 못 바꾼다
   field ( readonly ) JobName,
                      JobCount,
-                     EndedAt,
+                     IsCanceled,
                      IsScheduled,
                      Message,
                      CreatedBy,
@@ -99,7 +99,7 @@ etag master LocalLastChangedAt
     UseWorkingDays     = use_working_days;
     CountFromMonthEnd  = count_from_end;
     StartRestriction   = start_restriction;
-    EndedAt            = ended_at;
+    IsCanceled         = is_canceled;
     JobName            = jobname;
     JobCount           = jobcount;
     Message            = message;

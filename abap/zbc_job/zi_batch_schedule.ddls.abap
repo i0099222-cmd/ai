@@ -32,12 +32,14 @@ define root view entity ZI_BATCH_SCHEDULE
       jobname               as JobName,
       jobcount              as JobCount,
 
-      ended_at              as EndedAt,
+      is_canceled           as IsCanceled,
 
-      // 잡 1개 = 행 1개다. 살아 있는 잡은 종료 시각이 비어 있다.
-      // 상태 컬럼을 따로 두지 않는다. 실제 실행 상태는 refreshStatus 가
-      // APJ 에서 읽고, 로그는 별도 로그 기능이 담당한다.
-      case when ended_at is initial then 'X' else '' end as IsScheduled,
+      // 두 가지가 다른 질문이라 필드도 둘이다.
+      //   IsScheduled : 스케줄이 성공했나  (실패하면 jobname 이 빈다)
+      //   IsCanceled  : 그 잡이 아직 살아 있나
+      // 실제 실행 상태(Running/Finished)는 refreshStatus 가 APJ 에서 읽고,
+      // 로그는 별도 로그 기능이 담당한다.
+      case when jobname <> '' then 'X' else '' end as IsScheduled,
 
       message               as Message,
 

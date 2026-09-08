@@ -368,8 +368,6 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
 
   METHOD save_modified.
 
-    DATA ls_row TYPE ztbatch_sched.
-
     DATA(lo_adapter) = NEW zcl_batch_apj_adapter( ).
 
 *----------------------------------------------------------------------*
@@ -398,7 +396,7 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
 *----------------------------------------------------------------------*
     LOOP AT create INTO DATA(ls_new).
 
-      ls_row = VALUE ztbatch_sched(
+      DATA(ls_row) = VALUE ztbatch_sched(
         run_uuid              = ls_new-runuuid
         template              = ls_new-jobtemplatename
         jobtext               = ls_new-jobtext
@@ -442,51 +440,81 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
 *----------------------------------------------------------------------*
     LOOP AT update INTO DATA(ls_upd).
 
-      " update 요청에는 바뀐 필드만 실려 온다. 나머지는 저장된 행이 갖고 있다.
-      SELECT SINGLE * FROM ztbatch_sched
+      " update 요청에는 바뀐 필드만 실려 온다.
+      " 무엇을 돌릴지(템플릿/텍스트/파라미터)와 걸려 있는 잡은 행이 갖고 있다.
+      SELECT SINGLE template, jobtext, param, jobname, jobcount
+        FROM ztbatch_sched
         WHERE run_uuid = @ls_upd-runuuid
-        INTO @ls_row.
+        INTO @DATA(ls_old).
       CHECK sy-subrc = 0.
 
-      IF ls_row-jobname IS NOT INITIAL.
-        ls_row-message = lo_adapter->cancel( iv_job_name  = ls_row-jobname
-                                             iv_job_count = ls_row-jobcount ).
+      DATA lv_message TYPE string.
+      CLEAR lv_message.
+
+      IF ls_old-jobname IS NOT INITIAL.
+        lv_message = lo_adapter->cancel( iv_job_name  = ls_old-jobname
+                                         iv_job_count = ls_old-jobcount ).
       ENDIF.
 
-      CLEAR: ls_row-jobname, ls_row-jobcount.
-      ls_row-cancel_requested = abap_false.
+*     cancelJob - 잡만 끊는다. 포인터를 비우고 요청 플래그를 내린다.
+*     바꾸는 컬럼만 SET 한다. 전체 행을 쓰면 읽기가 한 번 어긋날 때
+*     이력이 통째로 공백이 된다.
+      IF ls_upd-cancelrequested = abap_true.
 
-      " cancelJob 은 여기서 끝. changeJob 은 새 조건으로 다시 건다.
-      IF ls_upd-cancelrequested = abap_false.
+        UPDATE ztbatch_sched
+          SET jobname               = @( VALUE ztbatch_sched-jobname( ) ),
+              jobcount              = @( VALUE ztbatch_sched-jobcount( ) ),
+              cancel_requested      = @abap_false,
+              message               = @( CONV ztbatch_sched-message( lv_message ) ),
+              local_last_changed_at = @( utclong_current( ) )
+          WHERE run_uuid = @ls_upd-runuuid.
 
-        ls_row-start_immediately = ls_upd-startimmediately.
-        ls_row-start_datetime    = ls_upd-startdatetime.
-        ls_row-timezone          = ls_upd-timezone.
-        ls_row-prd_mins          = ls_upd-periodminutes.
-        ls_row-prd_hours         = ls_upd-periodhours.
-        ls_row-prd_days          = ls_upd-perioddays.
-        ls_row-prd_weeks         = ls_upd-periodweeks.
-        ls_row-prd_months        = ls_upd-periodmonths.
-        ls_row-end_datetime      = ls_upd-enddatetime.
-        ls_row-calendar_id       = ls_upd-calendarid.
-        ls_row-month_day         = ls_upd-monthday.
-        ls_row-use_working_days  = ls_upd-useworkingdays.
-        ls_row-count_from_end    = ls_upd-countfrommonthend.
-        ls_row-start_restriction = ls_upd-startrestriction.
-
-        ls_sched = lo_adapter->schedule( iv_template = ls_row-template
-                                         iv_jobtext  = ls_row-jobtext
-                                         iv_param    = ls_row-param
-                                         is_start    = CORRESPONDING #( ls_row ) ).
-        ls_row-jobname  = ls_sched-job_name.
-        ls_row-jobcount = ls_sched-job_count.
-        ls_row-message  = ls_sched-message.
-
+        CONTINUE.
       ENDIF.
 
-      ls_row-local_last_changed_at = utclong_current( ).
+*     changeJob - 새 조건으로 다시 건다.
+*     APJ 에 잡 수정 API 가 없어 취소 + 재생성이며, 그 결과
+*     SM37 의 jobname/jobcount 가 바뀐다.
+      ls_sched = lo_adapter->schedule(
+        iv_template = ls_old-template
+        iv_jobtext  = ls_old-jobtext
+        iv_param    = ls_old-param
+        is_start    = VALUE #( start_immediately = ls_upd-startimmediately
+                               start_datetime    = ls_upd-startdatetime
+                               timezone          = ls_upd-timezone
+                               prd_mins          = ls_upd-periodminutes
+                               prd_hours         = ls_upd-periodhours
+                               prd_days          = ls_upd-perioddays
+                               prd_weeks         = ls_upd-periodweeks
+                               prd_months        = ls_upd-periodmonths
+                               end_datetime      = ls_upd-enddatetime
+                               calendar_id       = ls_upd-calendarid
+                               month_day         = ls_upd-monthday
+                               use_working_days  = ls_upd-useworkingdays
+                               count_from_end    = ls_upd-countfrommonthend
+                               start_restriction = ls_upd-startrestriction ) ).
 
-      UPDATE ztbatch_sched FROM @ls_row.
+      UPDATE ztbatch_sched
+        SET start_immediately     = @ls_upd-startimmediately,
+            start_datetime        = @ls_upd-startdatetime,
+            timezone              = @ls_upd-timezone,
+            prd_mins              = @ls_upd-periodminutes,
+            prd_hours             = @ls_upd-periodhours,
+            prd_days              = @ls_upd-perioddays,
+            prd_weeks             = @ls_upd-periodweeks,
+            prd_months            = @ls_upd-periodmonths,
+            end_datetime          = @ls_upd-enddatetime,
+            calendar_id           = @ls_upd-calendarid,
+            month_day             = @ls_upd-monthday,
+            use_working_days      = @ls_upd-useworkingdays,
+            count_from_end        = @ls_upd-countfrommonthend,
+            start_restriction     = @ls_upd-startrestriction,
+            jobname               = @ls_sched-job_name,
+            jobcount              = @ls_sched-job_count,
+            message               = @( CONV ztbatch_sched-message( ls_sched-message ) ),
+            cancel_requested      = @abap_false,
+            local_last_changed_at = @( utclong_current( ) )
+        WHERE run_uuid = @ls_upd-runuuid.
 
     ENDLOOP.
 

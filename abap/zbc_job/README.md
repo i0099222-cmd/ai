@@ -229,6 +229,18 @@ ls_row-message  = ls_sched-message.
 INSERT ztbatch_sched FROM @ls_row.
 ```
 
+### `UPDATE ... FROM` 을 쓰지 않는다
+
+`UPDATE ztbatch_sched FROM @ls_row` 는 **구조체의 모든 컬럼을 쓴다.** 앞의
+`SELECT` 가 한 컬럼이라도 제대로 안 실리면 그 필드가 공백으로 덮인다.
+읽기 한 번 어긋나면 이력 전체가 날아가는 구조라, 실제로 그렇게 초기화됐다.
+
+그래서 update 경로는 **바꾸는 컬럼만 `SET`** 한다. `cancelJob` 은 포인터
+3개 + etag, `changeJob` 은 시작 조건 14개 + APJ 응답. 나머지 컬럼은 문장에
+없으므로 어떤 경우에도 건드려지지 않는다.
+
+`INSERT ... FROM` 은 그대로 둔다. 새 행이라 보존할 값이 없다.
+
 ### 헬퍼 메서드를 두지 않는다
 
 액션 핸들러와 saver 는 **자기 안에서 끝난다.** 조회·매핑·호출을 별도 메서드로

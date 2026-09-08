@@ -382,8 +382,12 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
         INTO @DATA(ls_old).
 
       IF ls_old-jobname IS NOT INITIAL.
-        lo_adapter->cancel( iv_job_name  = ls_old-jobname
-                            iv_job_count = ls_old-jobcount ).
+        DATA(lo_del_cancel) = cl_bgmc_process_factory=>get_default( )->create( ).
+        lo_del_cancel->set_operation_tx_uncontrolled(
+          NEW zcl_batch_cancel_op( iv_run_uuid  = ls_del-runuuid
+                                   iv_job_name  = ls_old-jobname
+                                   iv_job_count = ls_old-jobcount ) ).
+        lo_del_cancel->save_for_execution( ).
       ENDIF.
 
       DELETE FROM ztbatch_sched WHERE run_uuid = @ls_del-runuuid.
@@ -448,12 +452,16 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
         INTO @DATA(ls_old).
       CHECK sy-subrc = 0.
 
-      DATA lv_message TYPE string.
-      CLEAR lv_message.
-
+*     취소는 RAP 트랜잭션이 닫힌 뒤에 돌려야 한다.
+*     CANCEL_JOB 이 COMMIT CONNECTION 을 하는데 BO 활성 중에는 금지다.
+*     여기서는 큐에 넣기만 한다 - SAVE_FOR_EXECUTION 은 커밋하지 않는다.
       IF ls_old-jobname IS NOT INITIAL.
-        lv_message = lo_adapter->cancel( iv_job_name  = ls_old-jobname
-                                         iv_job_count = ls_old-jobcount ).
+        DATA(lo_upd_cancel) = cl_bgmc_process_factory=>get_default( )->create( ).
+        lo_upd_cancel->set_operation_tx_uncontrolled(
+          NEW zcl_batch_cancel_op( iv_run_uuid  = ls_upd-runuuid
+                                   iv_job_name  = ls_old-jobname
+                                   iv_job_count = ls_old-jobcount ) ).
+        lo_upd_cancel->save_for_execution( ).
       ENDIF.
 
 *     cancelJob - 잡만 끊는다. 포인터를 비우고 요청 플래그를 내린다.
@@ -465,7 +473,7 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
           SET jobname               = @( VALUE ztbatch_sched-jobname( ) ),
               jobcount              = @( VALUE ztbatch_sched-jobcount( ) ),
               cancel_requested      = @abap_false,
-              message               = @( CONV ztbatch_sched-message( lv_message ) ),
+              message               = @( CONV ztbatch_sched-message( |Cancel requested| ) ),
               local_last_changed_at = @( utclong_current( ) )
           WHERE run_uuid = @ls_upd-runuuid.
 

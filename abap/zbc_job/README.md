@@ -247,10 +247,52 @@ INSERT ztbatch_sched FROM @ls_row.
 빼면 한 액션이 무슨 일을 하는지 보려고 파일을 오르내려야 한다. 액션마다 조회
 `SELECT` 가 반복되지만, 그 편이 읽기 쉽다.
 
+### 취소만 bgPF 로 뺐다 — `CANCEL_JOB` 이 커밋한다
+
+`CL_APJ_RT_API=>CANCEL_JOB` 은 내부에서 **`COMMIT CONNECTION`** 을 한다.
+RAP 은 BO 가 활성인 동안 커밋을 금지하므로 덤프가 난다.
+
+```
+Execution took place in a transactional context: a BO implementation is
+active ZCM_R_BATCH_SCHEDULE. Statement COMMIT CONNECTION is therefore
+forbidden.
+```
+
+**인터랙션 단계로 옮기는 건 답이 아니다.** "BO 활성" 은 save 단계만이 아니라
+액션 핸들러가 도는 동안에도 참이라, 거기서 불러도 똑같이 덤프난다.
+
+그래서 취소만 RAP 트랜잭션 밖으로 뺀다. saver 는 **큐에 넣기만** 하고
+(`SAVE_FOR_EXECUTION` 은 커밋하지 않는다), RAP 이 커밋한 뒤 `ZCL_BATCH_CANCEL_OP`
+이 별도 LUW 에서 실제로 취소한다.
+
+```abap
+DATA(lo_cancel) = cl_bgmc_process_factory=>get_default( )->create( ).
+lo_cancel->set_operation_tx_uncontrolled( NEW zcl_batch_cancel_op( ... ) ).
+lo_cancel->save_for_execution( ).
+```
+
+`SCHEDULE_JOB` 은 커밋을 하지 않아 saver 에서 그대로 호출한다. 스케줄은
+동기, 취소만 비동기다.
+
+| | 실행 위치 | 응답 |
+|---|---|---|
+| `SCHEDULE_JOB` | saver (RAP LUW 안) | 동기 |
+| `GET_JOB_STATUS` | 액션 핸들러 (읽기만) | 동기 |
+| **`CANCEL_JOB`** | **bgPF (RAP LUW 밖)** | **비동기** |
+
+### 취소가 비동기라서 생기는 것
+
+DB 의 `jobname`/`jobcount` 는 saver 가 **즉시** 비운다. 실제 APJ 취소는 몇
+초 뒤다. 그 사이에는 "DB 상 끊겼는데 SM37 에는 아직 살아 있는" 창이 있다.
+
+취소가 실패하면 `ZCL_BATCH_CANCEL_OP` 이 사유를 `MESSAGE` 에 덧쓴다.
+DB 는 끊긴 것으로 보이는데 잡이 살아 있는 상태이므로, 이 메시지를 확인해야 한다.
+
 ### 확인 필요
 
-- `SCHEDULE_JOB` 이 내부에서 `COMMIT WORK` 를 하면 save 단계에서도 막힌다.
-  그 경우 남는 길은 **bgPF** 뿐이고, 액션 응답이 비동기가 된다.
+- **bgPF API 이름** — `IF_BGMC_OP_SINGLE_TX_UNCONTROLLED` /
+  `SET_OPERATION_TX_UNCONTROLLED( )`. 릴리스에 따라 다를 수 있다.
+  `ZCL_BATCH_CANCEL_OP` 과 saver 두 곳만 고치면 된다.
 
 ---
 

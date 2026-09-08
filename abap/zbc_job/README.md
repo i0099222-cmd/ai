@@ -183,27 +183,50 @@ save 단계에서는 `reported` 로 메시지를 돌려줄 수 없다. 그래서
 `create` 는 요청에 전부 실려 있으므로 그대로 쓴다. 둘의 출처가 달라
 `schedule_and_store( )` 는 그 셋을 파라미터로 받는다.
 
-### 자기 테이블에 직접 SQL 로 쓰는 것의 한계
+### 그래서 `unmanaged save` 다
 
-`save_modified` 에서 `UPDATE ztbatch_sched` 로 결과를 기록하는데,
-이건 **managed 런타임이 같은 테이블에 쓰는 것과 경쟁한다.**
+여기에 하나 갇힌 구조가 있다.
 
-| 순서 | create 결과 |
-|------|------------|
-| managed INSERT → 우리 UPDATE | 정상 |
-| 우리 UPDATE → managed INSERT | **행이 없어 UPDATE 가 헛돈다** |
+- APJ 는 **save 단계에서만** 호출할 수 있다 (인터랙션에서 부르면 덤프)
+- save 단계에서는 **BO 버퍼를 못 건드린다** (`MODIFY ENTITIES` 불가)
 
-`sy-subrc <> 0` 이면 두 번째 경우다. APJ 잡은 이미 만들어졌으므로 그대로 두면
-SM37 에 주인 없는 잡이 남는다. 그래서 **만든 잡을 다시 취소해서** 상태를 맞춘다.
+즉 `jobname`/`jobcount` 는 managed 런타임이 INSERT 를 만들 때 **아직 존재하지
+않는다.** `additional save` 로 두면 넣을 자리가 없다.
 
-`additional save` 는 원래 **다른 테이블**에 부가 데이터를 쓰라고 있는 자리다.
-자기 BO 의 테이블에 쓰는 것은 보장된 사용법이 아니다.
+처음에는 `save_modified` 에서 `UPDATE ztbatch_sched` 로 뒤늦게 채우려 했는데,
+**`save_modified` 가 managed 런타임의 INSERT 보다 먼저 돈다.** 아직 없는 행에
+UPDATE 를 날리니 `sy-subrc = 4` 로 조용히 헛돌았다. APJ 잡은 만들어지고 DB 만
+비는 증상이 이것이다.
+
+**`with unmanaged save` 로 저장을 통째로 가져왔다.** saver 가 유일한 writer 라
+APJ 응답을 처음부터 행에 담아 `INSERT` 한다. 경쟁이 성립하지 않는다.
+
+| | additional save | unmanaged save |
+|---|---|---|
+| 행을 쓰는 주체 | managed 런타임 | **saver** |
+| APJ 응답 기록 | 불가 (순서가 반대) | **INSERT 에 같이 실린다** |
+| 관리 필드 | 런타임이 채움 | **직접 채움** |
+| 응답 시점 | — | **동기 유지** |
+
+대가는 관리 필드 3개(`CREATED_BY`/`CREATED_AT`/`LOCAL_LAST_CHANGED_AT`)를
+직접 채워야 하는 것뿐이다. 표준 CRUD 를 노출하지 않아 **쓰기 경로가 액션 2개로
+한정**되어 있어서, 직접 쓴다고 코드가 늘지 않는다.
+
+`TY_START_OPTION` 의 컴포넌트명을 `ZTBATCH_SCHED` 의 컬럼명과 맞춰 놓은 덕에
+행 ↔ 조건 변환이 `CORRESPONDING` 한 줄이다.
+
+```abap
+" create - 조건을 행에 싣고, 스케줄하고, 결과까지 담아 INSERT
+DATA(ls_row) = VALUE ztbatch_sched( BASE CORRESPONDING #( start_option( ls_new ) )
+                                    run_uuid = ls_new-runuuid ... ).
+schedule_row( CHANGING cs_row = ls_row ).
+INSERT ztbatch_sched FROM @ls_row.
+```
 
 ### 확인 필요
 
 - `SCHEDULE_JOB` 이 내부에서 `COMMIT WORK` 를 하면 save 단계에서도 막힌다.
-- 위 순서가 두 번째로 판명되면 **bgPF** 로 옮긴다. RAP 커밋 이후 별도 LUW 에서
-  APJ 를 호출하고, 결과는 정상 EML 로 쓴다. 경쟁이 사라진다.
+  그 경우 남는 길은 **bgPF** 뿐이고, 액션 응답이 비동기가 된다.
 
 ---
 

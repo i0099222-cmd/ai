@@ -15,12 +15,20 @@ strict ( 2 );
 // CL_APJ_RT_API 는 RAP 인터랙션 단계에서 호출할 수 없다(LUW 충돌).
 // 액션은 엔티티에 쓰기만 하고, 그 결과가 create/update 테이블에 실려
 // saver 의 save_modified 로 넘어간다. 별도 버퍼가 필요 없는 이유다.
+//
+// ** unmanaged save 인 이유 **
+//   APJ 응답(jobname/jobcount)은 save 단계에 가서야 나오는데, 그 단계에서는
+//   BO 버퍼를 못 건드린다. additional save 로 두면 managed 런타임이 자기
+//   버퍼로 INSERT 하고 우리는 그 값을 넣을 자리가 없다 - 실제로 아직 없는
+//   행에 UPDATE 를 날려 조용히 헛돌았다.
+//   그래서 저장을 통째로 가져온다. saver 가 유일한 writer 라 APJ 응답을
+//   처음부터 행에 담아 INSERT 한다.
 define behavior for ZI_BATCH_SCHEDULE alias BatchSchedule
 persistent table ztbatch_sched
 lock master
 authorization master ( global )
 etag master LocalLastChangedAt
-with additional save
+with unmanaged save
 {
   field ( numbering : managed, readonly ) RunUuid;
 

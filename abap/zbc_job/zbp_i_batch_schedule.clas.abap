@@ -21,6 +21,13 @@
 "!   대가: save 단계에서는 reported 로 메시지를 돌려줄 수 없다.
 "!         APJ 응답은 ZTBATCH_SCHED-MESSAGE 에 남고, 실패하면 JOBNAME 이
 "!         빈 채로 남는다 (IsScheduled = '').
+"!
+"! ** unmanaged save **
+"!   APJ 응답은 save 단계에 가서야 나오는데 그 단계에서는 BO 버퍼를 못
+"!   건드린다. additional save 로 두면 managed 런타임이 자기 버퍼로 INSERT
+"!   하므로 응답을 넣을 자리가 없다 - 아직 없는 행에 UPDATE 를 날려 조용히
+"!   헛돌았다. 그래서 저장을 통째로 가져왔고, saver 가 유일한 writer 다.
+"!   대신 관리 필드(CREATED_BY/AT, LOCAL_LAST_CHANGED_AT)도 직접 채운다.
 CLASS zbp_i_batch_schedule DEFINITION
   PUBLIC
   ABSTRACT
@@ -277,27 +284,22 @@ CLASS lsc_zi_batch_schedule DEFINITION INHERITING FROM cl_abap_behavior_saver.
 
   PRIVATE SECTION.
 
-    "! 걸려 있던 잡을 취소한다. 없으면 아무것도 하지 않는다.
-    METHODS cancel_current
-      IMPORTING iv_run_uuid       TYPE ztbatch_sched-run_uuid
-      RETURNING VALUE(rv_message) TYPE string.
-
     "! 요청 행에서 시작 조건만 추려낸다.
+    "! TY_START_OPTION 의 컴포넌트명은 ZTBATCH_SCHED 의 컬럼명과 같아서
+    "! 이후 CORRESPONDING 한 번으로 행에 실린다.
     METHODS start_option
       IMPORTING is_row           TYPE STRUCTURE FOR CREATE zi_batch_schedule
       RETURNING VALUE(rs_option) TYPE zif_batch_job=>ty_start_option.
 
-    "! 스케줄하고 결과를 이력 행에 기록한다.
-    "!
-    "! 무엇을 돌릴지(템플릿/텍스트/파라미터)는 호출자가 준다. create 는
-    "! 요청에 실려 있고, update 는 요청에 없어 저장된 행에서 읽어야 하기
-    "! 때문이다.
-    METHODS schedule_and_store
-      IMPORTING iv_run_uuid TYPE ztbatch_sched-run_uuid
-                iv_template TYPE clike
-                iv_jobtext  TYPE clike
-                iv_param    TYPE string
-                is_start    TYPE zif_batch_job=>ty_start_option.
+    "! 행의 조건대로 스케줄하고 APJ 응답을 같은 행에 적는다.
+    "! 실패하면 JOBNAME 이 빈 채로 남고 사유가 MESSAGE 에 적힌다.
+    METHODS schedule_row
+      CHANGING cs_row TYPE ztbatch_sched.
+
+    "! 걸려 있던 잡을 취소한다. 없으면 아무것도 하지 않는다.
+    METHODS cancel_row
+      IMPORTING is_row            TYPE ztbatch_sched
+      RETURNING VALUE(rv_message) TYPE string.
 
 ENDCLASS.
 
@@ -307,22 +309,41 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
   METHOD save_modified.
 
 *----------------------------------------------------------------------*
-* 삭제 - 걸려 있던 잡을 취소한다
+* 삭제 - 잡을 끊고 행을 지운다
 *   (projection 에서 delete 를 노출하지 않으므로 보통은 비어 있다)
 *----------------------------------------------------------------------*
     LOOP AT delete INTO DATA(ls_del).
-      cancel_current( ls_del-runuuid ).
+
+      SELECT SINGLE * FROM ztbatch_sched
+        WHERE run_uuid = @ls_del-runuuid
+        INTO @DATA(ls_dead).
+
+      cancel_row( ls_dead ).
+      DELETE FROM ztbatch_sched WHERE run_uuid = @ls_del-runuuid.
+
     ENDLOOP.
 
 *----------------------------------------------------------------------*
 * 생성 - scheduleJob
+*   스케줄한 뒤 APJ 응답까지 담아 한 번에 INSERT 한다.
+*   저장을 우리가 하므로 응답을 넣을 자리가 있다.
 *----------------------------------------------------------------------*
     LOOP AT create INTO DATA(ls_new).
-      schedule_and_store( iv_run_uuid = ls_new-runuuid
-                          iv_template = ls_new-jobtemplatename
-                          iv_jobtext  = ls_new-jobtext
-                          iv_param    = ls_new-parameters
-                          is_start    = start_option( ls_new ) ).
+
+      DATA(ls_row) = VALUE ztbatch_sched(
+        BASE CORRESPONDING #( start_option( ls_new ) )
+        run_uuid              = ls_new-runuuid
+        template              = ls_new-jobtemplatename
+        jobtext               = ls_new-jobtext
+        param                 = ls_new-parameters
+        created_by            = cl_abap_context_info=>get_user_technical_name( )
+        created_at            = utclong_current( )
+        local_last_changed_at = utclong_current( ) ).
+
+      schedule_row( CHANGING cs_row = ls_row ).
+
+      INSERT ztbatch_sched FROM @ls_row.
+
     ENDLOOP.
 
 *----------------------------------------------------------------------*
@@ -332,54 +353,28 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
 *----------------------------------------------------------------------*
     LOOP AT update INTO DATA(ls_upd).
 
-      DATA(lv_cancel_msg) = cancel_current( ls_upd-runuuid ).
+      " update 요청에는 바뀐 필드만 실려 온다. 나머지는 저장된 행이 갖고 있다.
+      SELECT SINGLE * FROM ztbatch_sched
+        WHERE run_uuid = @ls_upd-runuuid
+        INTO @ls_row.
+      CHECK sy-subrc = 0.
 
-      IF ls_upd-cancelrequested = abap_true.
+      ls_row-message          = cancel_row( ls_row ).
+      ls_row-cancel_requested = abap_false.
+      CLEAR: ls_row-jobname, ls_row-jobcount.
 
-        " 취소만. 포인터를 비우고 요청 플래그도 내린다.
-        DATA lv_empty_name  TYPE ztbatch_sched-jobname.
-        DATA lv_empty_count TYPE ztbatch_sched-jobcount.
-
-        UPDATE ztbatch_sched
-          SET jobname          = @lv_empty_name,
-              jobcount         = @lv_empty_count,
-              cancel_requested = @abap_false,
-              message          = @( CONV ztbatch_sched-message( lv_cancel_msg ) )
-          WHERE run_uuid = @ls_upd-runuuid.
-
-        CONTINUE.
+      " cancelJob 은 여기서 끝. changeJob 은 새 조건으로 다시 건다.
+      IF ls_upd-cancelrequested = abap_false.
+        ls_row = CORRESPONDING #( BASE ( ls_row )
+                                  start_option( CORRESPONDING #( ls_upd ) ) ).
+        schedule_row( CHANGING cs_row = ls_row ).
       ENDIF.
 
-      " 재스케줄. update 요청에는 바뀐 필드만 실려 오므로 시작 조건만
-      " 여기서 오고, 무엇을 돌릴지는 저장된 행에서 읽는다.
-      SELECT SINGLE template, jobtext, param
-        FROM ztbatch_sched
-        WHERE run_uuid = @ls_upd-runuuid
-        INTO @DATA(ls_job).
+      ls_row-local_last_changed_at = utclong_current( ).
 
-      schedule_and_store( iv_run_uuid = ls_upd-runuuid
-                          iv_template = ls_job-template
-                          iv_jobtext  = ls_job-jobtext
-                          iv_param    = ls_job-param
-                          is_start    = start_option( CORRESPONDING #( ls_upd ) ) ).
+      UPDATE ztbatch_sched FROM @ls_row.
 
     ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD cancel_current.
-
-    SELECT SINGLE jobname, jobcount
-      FROM ztbatch_sched
-      WHERE run_uuid = @iv_run_uuid
-      INTO @DATA(ls_old).
-
-    CHECK sy-subrc = 0 AND ls_old-jobname IS NOT INITIAL.
-
-    rv_message = NEW zcl_batch_apj_adapter( )->cancel(
-                   iv_job_name  = ls_old-jobname
-                   iv_job_count = ls_old-jobcount ).
 
   ENDMETHOD.
 
@@ -404,32 +399,28 @@ CLASS lsc_zi_batch_schedule IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD schedule_and_store.
+  METHOD schedule_row.
 
     DATA(ls_sched) = NEW zcl_batch_apj_adapter( )->schedule(
-      iv_template = iv_template
-      iv_jobtext  = iv_jobtext
-      iv_param    = iv_param
-      is_start    = is_start ).
+      iv_template = cs_row-template
+      iv_jobtext  = cs_row-jobtext
+      iv_param    = cs_row-param
+      is_start    = CORRESPONDING #( cs_row ) ).
 
-    " 실패하면 jobname 이 빈 채로 남는다. 사유는 message 에 적힌다.
-    " save 단계라 reported 로 메시지를 돌려줄 수 없기 때문이다.
-    UPDATE ztbatch_sched
-      SET jobname  = @ls_sched-job_name,
-          jobcount = @ls_sched-job_count,
-          message  = @( CONV ztbatch_sched-message( ls_sched-message ) )
-      WHERE run_uuid = @iv_run_uuid.
+    cs_row-jobname  = ls_sched-job_name.
+    cs_row-jobcount = ls_sched-job_count.
+    cs_row-message  = ls_sched-message.
 
-    CHECK sy-subrc <> 0.
+  ENDMETHOD.
 
-*   행이 없다는 뜻이다. create 인 경우 managed 런타임이 아직 INSERT 를
-*   하지 않았다는 것이고, 그러면 이 UPDATE 는 영원히 헛돈다.
-*   APJ 잡은 이미 만들어졌으므로 그대로 두면 SM37 에 주인 없는 잡이 남는다.
-*   되돌려서 상태를 맞춘다 - 재시도는 호출자가 한다.
-    IF ls_sched-job_name IS NOT INITIAL.
-      NEW zcl_batch_apj_adapter( )->cancel( iv_job_name  = ls_sched-job_name
-                                            iv_job_count = ls_sched-job_count ).
-    ENDIF.
+
+  METHOD cancel_row.
+
+    CHECK is_row-jobname IS NOT INITIAL.
+
+    rv_message = NEW zcl_batch_apj_adapter( )->cancel(
+                   iv_job_name  = is_row-jobname
+                   iv_job_count = is_row-jobcount ).
 
   ENDMETHOD.
 

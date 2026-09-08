@@ -55,9 +55,13 @@ etag master LocalLastChangedAt
 
   // --- APJ 제어 ------------------------------------------------------------
   // 잡 생성 = 스케줄 등록. 이력 행 1건 + APJ 잡 1건이 만들어진다.
-  //   result 로 만들어진 행을 돌려준다. JobName 은 save 단계에 가서야
-  //   정해지므로 이 응답에는 아직 비어 있다 - 행을 GET 해서 읽는다.
-  static factory action scheduleJob parameter ZD_BATCH_SCHEDULE_IN [1] result [1] $self;
+  //   result 로 만들어진 행을 돌려준다. JobName 까지 실려 나간다.
+  //
+  //   factory 를 붙이지 않는다. factory 액션은 생성된 인스턴스를 mapped 로
+  //   내보내는 것이 계약이라 result 를 같이 선언할 수 없다. 행 생성은
+  //   핸들러의 MODIFY CREATE 가 하므로 factory 없이도 그대로 만들어지고,
+  //   네 액션의 모양이 같아진다.
+  static action scheduleJob parameter ZD_BATCH_SCHEDULE_IN [1] result [1] $self;
 
   // 스케줄 변경. APJ 에 잡 수정 API 가 없어 취소 + 재생성이며,
   // 그 결과 SM37 의 jobname/jobcount 가 바뀐다.

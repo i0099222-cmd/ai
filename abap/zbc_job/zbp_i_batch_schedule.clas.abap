@@ -164,7 +164,6 @@ CLASS lhc_schedule IMPLEMENTATION.
                                       ( LINES OF CORRESPONDING #( ls_failed-batchschedule ) ) ).
     reported-batchschedule = VALUE #( BASE reported-batchschedule
                                       ( LINES OF CORRESPONDING #( ls_reported-batchschedule ) ) ).
-    mapped-batchschedule   = CORRESPONDING #( ls_mapped-batchschedule ).
 
     READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule

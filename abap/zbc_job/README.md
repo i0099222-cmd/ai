@@ -285,7 +285,7 @@ Local API release 도 필요 없다.
 
 | AS-IS RFC | 액션 |
 |-----------|------|
-| `ZBC_BATCH_JOB_CREATE` | **`scheduleJob`** (static factory) |
+| `ZBC_BATCH_JOB_CREATE` | **`scheduleJob`** |
 | `ZBC_BATCH_JOB_CHANGE` | **`changeJob`** |
 | `ZBC_BATCH_JOB_DELETE` | **`cancelJob`** — 잡만 끊고 이력은 남긴다 |
 | `ZBC_BATCH_JOB_STATUS` | **`refreshStatus`** |
@@ -423,6 +423,15 @@ POST {base}/BatchSchedule/com...v0001.changeJob
 해서 인터랙션 단계에서 부를 수 있기 때문이다.
 
 `cancelJob` 은 잡만 끊는다. **이력 행은 남는다.**
+
+### `scheduleJob` 에 `factory` 를 붙이지 않는 이유
+
+`factory` 액션은 **생성된 인스턴스를 `mapped` 로 내보내는 것이 계약**이라
+`result` 를 같이 선언할 수 없다 — 활성화가 안 된다.
+
+행 생성은 핸들러의 `MODIFY ... CREATE` 가 하므로 `factory` 없이도 그대로
+만들어진다. 그래서 `result [1] $self` 를 택했고, 덕분에 응답을 우리가 직접
+구성해 **`RunUuid` 와 `JobName` 을 같이 실어 보낸다.** 네 액션의 모양도 같아진다.
 
 ### 왜 전부 정적 액션인가
 

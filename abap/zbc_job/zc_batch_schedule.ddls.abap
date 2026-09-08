@@ -36,6 +36,8 @@ define root view entity ZC_BATCH_SCHEDULE
       @EndUserText.label: 'Job Count (SM37)'
       JobCount,
 
+      @EndUserText.label: '잡 종료 시각'
+      EndedAt,
       @EndUserText.label: 'Scheduled'
       IsScheduled,
       Message,

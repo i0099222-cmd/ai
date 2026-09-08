@@ -6,6 +6,12 @@
 "!   ZBC_BATCH_JOB_CREATE -> scheduleJob
 "!   ZBC_BATCH_JOB_CHANGE -> changeJob
 "!   ZBC_BATCH_JOB_DELETE -> cancelJob      (잡만 끊고 이력은 남긴다)
+"!
+"! ** APJ 잡 1개 = 이 테이블의 행 1개 **
+"!   잡이 끝나면 행을 고치지 않고 ENDED_AT 만 찍는다. JOBNAME 을 지우면
+"!   그 잡이 남긴 SM37 로그를 다시 찾을 수 없기 때문이다.
+"!   changeJob 은 재스케줄이 취소 + 재생성이라 잡이 바뀌므로, 옛 행을 닫고
+"!   새 행을 만든다. 응답은 새 행이다 - 새 JOBNAME 이 거기 있다.
 "!   ZBC_BATCH_JOB_STATUS -> refreshStatus
 "!
 "! ** APJ 호출은 자식 세션에서 한다 **
@@ -192,12 +198,13 @@ CLASS lhc_schedule IMPLEMENTATION.
       DATA(ls_p) = ls_key-%param.
 
       " 외부 호출자는 RunUuid 를 모르고 SM37 잡 이름을 들고 있다.
-      " 취소된 행은 jobname 이 비어 있어 jobname + jobcount 가 유일하다.
+      " ENDED_AT 이 빈 행만 살아 있는 잡이다.
       " 무엇을 돌릴지(템플릿/텍스트/파라미터)는 요청에 없고 행이 갖고 있다.
       SELECT SINGLE run_uuid, template, jobtext, param, jobname, jobcount
         FROM ztbatch_sched
         WHERE jobname  = @ls_p-jobname
           AND jobcount = @ls_p-jobcount
+          AND ended_at IS INITIAL
         INTO @DATA(ls_old).
 
       IF sy-subrc <> 0.
@@ -237,7 +244,8 @@ CLASS lhc_schedule IMPLEMENTATION.
     NEW cl_abap_parallel( )->run_inst( EXPORTING p_in_tab  = lt_task
                                        IMPORTING p_out_tab = DATA(lt_done) ).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_batch_schedule.
+    DATA lt_close TYPE TABLE FOR UPDATE zi_batch_schedule.
+    DATA lt_new   TYPE TABLE FOR CREATE zi_batch_schedule.
 
     LOOP AT keys INTO ls_key.
       ls_p = ls_key-%param.
@@ -251,7 +259,18 @@ CLASS lhc_schedule IMPLEMENTATION.
       ENDLOOP.
       CHECK lo_task IS BOUND.
 
-      APPEND VALUE #( runuuid           = lo_task->run_uuid
+      " 옛 행은 고치지 않고 닫는다. JOBNAME 이 남아 있어야 그 잡의
+      " SM37 로그를 나중에 찾을 수 있다.
+      APPEND VALUE #( runuuid = lo_task->run_uuid
+                      endedat = utclong_current( )
+                      message = |Replaced by { lo_task->job_name }/{ lo_task->job_count }| )
+             TO lt_close.
+
+      " 새 잡은 새 행이다. 무엇을 돌릴지는 옛 행에서 그대로 가져온다.
+      APPEND VALUE #( %cid              = ls_key-%cid
+                      jobtemplatename   = lo_task->template
+                      jobtext           = lo_task->jobtext
+                      parameters        = lo_task->param
                       startimmediately  = ls_p-startimmediately
                       startdatetime     = ls_p-startdatetime
                       timezone          = ls_p-timezone
@@ -269,17 +288,21 @@ CLASS lhc_schedule IMPLEMENTATION.
                       jobname           = lo_task->job_name
                       jobcount          = lo_task->job_count
                       message           = CONV #( lo_task->message ) )
-             TO lt_update.
+             TO lt_new.
     ENDLOOP.
 
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        UPDATE FIELDS ( startimmediately startdatetime timezone
+        UPDATE FIELDS ( endedat message ) WITH lt_close
+      ENTITY batchschedule
+        CREATE FIELDS ( jobtemplatename jobtext parameters
+                        startimmediately startdatetime timezone
                         periodminutes periodhours perioddays periodweeks periodmonths
                         enddatetime
                         calendarid monthday useworkingdays countfrommonthend startrestriction
                         jobname jobcount message )
-        WITH lt_update
+        WITH lt_new
+      MAPPED   DATA(ls_mapped)
       FAILED   DATA(ls_failed)
       REPORTED DATA(ls_reported).
 
@@ -288,14 +311,17 @@ CLASS lhc_schedule IMPLEMENTATION.
     reported-batchschedule = VALUE #( BASE reported-batchschedule
                                       ( LINES OF CORRESPONDING #( ls_reported-batchschedule ) ) ).
 
+    " 응답은 새 행이다. 호출자는 여기서 새 JobName 을 받는다 -
+    " 재스케줄로 SM37 이름이 바뀌기 때문이다.
     READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        ALL FIELDS WITH CORRESPONDING #( lt_update )
+        ALL FIELDS WITH CORRESPONDING #( ls_mapped-batchschedule )
       RESULT DATA(lt_row).
 
-    result = VALUE #( FOR ls_upd IN lt_update
-                      ( %tky-runuuid = ls_upd-runuuid
-                        %param       = VALUE #( lt_row[ runuuid = ls_upd-runuuid ] OPTIONAL ) ) ).
+    result = VALUE #( FOR ls_map IN ls_mapped-batchschedule
+                      ( %cid         = ls_map-%cid
+                        %tky-runuuid = ls_map-runuuid
+                        %param       = VALUE #( lt_row[ runuuid = ls_map-runuuid ] OPTIONAL ) ) ).
 
   ENDMETHOD.
 
@@ -314,6 +340,7 @@ CLASS lhc_schedule IMPLEMENTATION.
         FROM ztbatch_sched
         WHERE jobname  = @ls_key-%param-jobname
           AND jobcount = @ls_key-%param-jobcount
+          AND ended_at IS INITIAL
         INTO @DATA(ls_old).
 
       IF sy-subrc <> 0.
@@ -337,23 +364,23 @@ CLASS lhc_schedule IMPLEMENTATION.
     NEW cl_abap_parallel( )->run_inst( EXPORTING p_in_tab  = lt_task
                                        IMPORTING p_out_tab = DATA(lt_done) ).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_batch_schedule.
+    DATA lt_close TYPE TABLE FOR UPDATE zi_batch_schedule.
 
     LOOP AT lt_done INTO DATA(ls_done).
       DATA(lo_task) = CAST zcl_batch_apj_task( ls_done-inst ).
 
-      " 포인터를 비운다. 같은 행을 나중에 다시 스케줄할 수 있다.
-      APPEND VALUE #( runuuid  = lo_task->run_uuid
-                      jobname  = VALUE #( )
-                      jobcount = VALUE #( )
-                      message  = CONV #( lo_task->message ) )
-             TO lt_update.
+      " 종료 시각만 찍는다. JOBNAME 은 지우지 않는다 - 그게 없으면
+      " 이 잡이 남긴 SM37 로그를 다시 찾을 수 없다.
+      APPEND VALUE #( runuuid = lo_task->run_uuid
+                      endedat = utclong_current( )
+                      message = CONV #( lo_task->message ) )
+             TO lt_close.
     ENDLOOP.
 
     MODIFY ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        UPDATE FIELDS ( jobname jobcount message )
-        WITH lt_update
+        UPDATE FIELDS ( endedat message )
+        WITH lt_close
       FAILED   DATA(ls_failed)
       REPORTED DATA(ls_reported).
 
@@ -364,18 +391,19 @@ CLASS lhc_schedule IMPLEMENTATION.
 
     READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
       ENTITY batchschedule
-        ALL FIELDS WITH CORRESPONDING #( lt_update )
+        ALL FIELDS WITH CORRESPONDING #( lt_close )
       RESULT DATA(lt_row).
 
-    result = VALUE #( FOR ls_upd IN lt_update
-                      ( %tky-runuuid = ls_upd-runuuid
-                        %param       = VALUE #( lt_row[ runuuid = ls_upd-runuuid ] OPTIONAL ) ) ).
+    result = VALUE #( FOR ls_close IN lt_close
+                      ( %tky-runuuid = ls_close-runuuid
+                        %param       = VALUE #( lt_row[ runuuid = ls_close-runuuid ] OPTIONAL ) ) ).
 
   ENDMETHOD.
 
 
 *----------------------------------------------------------------------*
 * 상태 조회 - AS-IS ZBC_BATCH_JOB_STATUS
+*   여기만 ENDED_AT 을 안 본다. 이미 끝난 잡의 상태도 조회할 수 있어야 한다.
 *   GET_JOB_STATUS 는 읽기만 하고 커밋하지 않으므로 여기서 직접 부른다.
 *   자식 세션이 필요 없다.
 *----------------------------------------------------------------------*

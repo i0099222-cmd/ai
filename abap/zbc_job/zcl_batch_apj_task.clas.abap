@@ -37,6 +37,15 @@ CLASS zcl_batch_apj_task DEFINITION
     DATA run_uuid TYPE ztbatch_sched-run_uuid READ-ONLY.
     DATA cid      TYPE abp_behv_cid           READ-ONLY.
 
+    " --- 무엇을 돌리는 잡인가 (changeJob 이 새 행을 만들 때 그대로 쓴다) ---
+    DATA template TYPE ztbatch_sched-template READ-ONLY.
+    DATA jobtext  TYPE ztbatch_sched-jobtext  READ-ONLY.
+    DATA param    TYPE string                 READ-ONLY.
+
+    " --- 취소한 잡 (changeJob 이 옛 행을 닫을 때 쓴다) -------------------
+    DATA old_name  TYPE ztbatch_sched-jobname  READ-ONLY.
+    DATA old_count TYPE ztbatch_sched-jobcount READ-ONLY.
+
     " --- 결과 ---------------------------------------------------------
     DATA job_name  TYPE ztbatch_sched-jobname  READ-ONLY.
     DATA job_count TYPE ztbatch_sched-jobcount READ-ONLY.
@@ -58,13 +67,8 @@ CLASS zcl_batch_apj_task DEFINITION
 
   PRIVATE SECTION.
 
-    DATA mv_mode      TYPE c LENGTH 1.
-    DATA mv_old_name  TYPE ztbatch_sched-jobname.
-    DATA mv_old_count TYPE ztbatch_sched-jobcount.
-    DATA mv_template  TYPE ztbatch_sched-template.
-    DATA mv_jobtext   TYPE ztbatch_sched-jobtext.
-    DATA mv_param     TYPE string.
-    DATA ms_start     TYPE zif_batch_job=>ty_start_option.
+    DATA mv_mode  TYPE c LENGTH 1.
+    DATA ms_start TYPE zif_batch_job=>ty_start_option.
 
 ENDCLASS.
 
@@ -72,15 +76,15 @@ ENDCLASS.
 CLASS zcl_batch_apj_task IMPLEMENTATION.
 
   METHOD constructor.
-    mv_mode      = iv_mode.
-    run_uuid     = iv_run_uuid.
-    cid          = iv_cid.
-    mv_old_name  = iv_old_name.
-    mv_old_count = iv_old_count.
-    mv_template  = iv_template.
-    mv_jobtext   = iv_jobtext.
-    mv_param     = iv_param.
-    ms_start     = is_start.
+    mv_mode   = iv_mode.
+    run_uuid  = iv_run_uuid.
+    cid       = iv_cid.
+    old_name  = iv_old_name.
+    old_count = iv_old_count.
+    template  = iv_template.
+    jobtext   = iv_jobtext.
+    param     = iv_param.
+    ms_start  = is_start.
   ENDMETHOD.
 
 
@@ -90,16 +94,16 @@ CLASS zcl_batch_apj_task IMPLEMENTATION.
     DATA(lo_adapter) = NEW zcl_batch_apj_adapter( ).
 
 *   취소 - CANCEL / CHANGE 공통. 걸린 잡이 없으면 건너뛴다.
-    IF mv_mode <> gc_mode-schedule AND mv_old_name IS NOT INITIAL.
-      message = lo_adapter->cancel( iv_job_name  = mv_old_name
-                                    iv_job_count = mv_old_count ).
+    IF mv_mode <> gc_mode-schedule AND old_name IS NOT INITIAL.
+      message = lo_adapter->cancel( iv_job_name  = old_name
+                                    iv_job_count = old_count ).
     ENDIF.
 
 *   스케줄 - SCHEDULE / CHANGE 공통.
     IF mv_mode <> gc_mode-cancel.
-      DATA(ls_sched) = lo_adapter->schedule( iv_template = mv_template
-                                             iv_jobtext  = mv_jobtext
-                                             iv_param    = mv_param
+      DATA(ls_sched) = lo_adapter->schedule( iv_template = template
+                                             iv_jobtext  = jobtext
+                                             iv_param    = param
                                              is_start    = ms_start ).
       job_name  = ls_sched-job_name.
       job_count = ls_sched-job_count.

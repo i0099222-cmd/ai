@@ -19,8 +19,9 @@ ZTBATCH_SCHED
   end_datetime    종료 일시   CHAR(15)  (AS-IS 배치잡 close시간)
   timezone        타임존
   prd_*           반복 주기
-  jobname     APJ 가 만든 잡 이름 (SM37)
-  jobcount    APJ 잡 카운트 (SM37)
+  jobname     APJ 가 만든 잡 이름 (SM37)   - 끝나도 지우지 않는다
+  jobcount    APJ 잡 카운트 (SM37)         - 로그를 찾는 열쇠라서
+  ended_at    잡 종료 시각. 비어 있으면 살아 있는 잡
   message     APJ 응답 메시지
   created_by  누가 걸었나
   created_at  언제 걸었나
@@ -36,18 +37,41 @@ ZTBATCH_SCHED
 | 실행 상태 / 이력 | 상태, 실행 메시지 | **저장 안 함.** 별도 로그 기능 |
 | 포인터 | template, jobname, jobcount | DB 컬럼 |
 
-### 상태 컬럼이 없어도 되는 이유
+### APJ 잡 1개 = 행 1개
 
-**`jobname` 유무가 곧 스케줄 여부다.**
+이게 이 테이블의 규칙이다. **잡이 끝나도 행을 고치지 않고 `ended_at` 만 찍는다.**
 
-| `jobname` | 의미 | 활성 액션 |
-|-----------|------|----------|
-| 차 있음 | 스케줄됨 | `changeJob`, `cancelJob`, `refreshStatus` |
-| 비어 있음 | 취소된 행 | 없음 — 다시 걸려면 `createJob` 으로 새로 만든다 |
+| `ended_at` | 의미 | 가능한 액션 |
+|-----------|------|------------|
+| 비어 있음 | 살아 있는 잡 | `changeJob`, `cancelJob`, `refreshStatus` |
+| 차 있음 | 끝난 잡 | `refreshStatus` (지나간 잡도 조회 가능) |
 
-`cancelJob` 은 취소 후 `jobname`/`jobcount` 를 비운다 → 같은 행을 다시 스케줄할 수 있다.
-실제 실행 상태(Running / Finished / Aborted)는 `refreshStatus` 가 APJ 에서 읽어
-**메시지로만** 돌려준다. DB 에 쓰지 않는다.
+`IsScheduled` 는 `ended_at` 이 비었는지로 계산한다. 상태 컬럼은 없다.
+
+### 왜 `jobname` 을 지우지 않나
+
+**지우면 그 잡이 남긴 SM37 로그를 다시 찾을 수 없다.** 로그는 `jobname` +
+`jobcount` 로 붙는데, 그게 이 행 말고는 어디에도 없다. 취소했다고 비워 버리면
+"그 잡이 돌았던 기록" 이 통째로 사라진다 — 조회가 목적인 테이블에서 모순이다.
+
+그래서 취소는 `ended_at` 을 찍을 뿐, 포인터는 그대로 둔다.
+
+### `changeJob` 은 행을 하나 더 만든다
+
+APJ 에 잡 수정 API 가 없어 재스케줄이 **취소 + 재생성**이다. 그 결과 SM37 의
+`jobname`/`jobcount` 가 **바뀐다** — 옛 잡과 새 잡은 서로 다른 잡이다.
+
+같은 행을 제자리 갱신하면 옛 `jobname` 이 덮여서 옛 잡의 로그를 잃는다.
+그래서 잡이 둘이면 행도 둘이다.
+
+```
+changeJob
+  ├─ 옛 행:  ended_at = now,  message = "Replaced by ZJT_X_0002/1234"
+  └─ 새 행:  jobname  = ZJT_X_0002,  jobcount = 1234   ← 응답은 이 행
+```
+
+호출자는 응답에서 **새 `JobName`** 을 받아 자기 쪽 값을 갱신하면 된다.
+한 잡의 이력을 따라가려면 `message` 의 `Replaced by` 를 타고 내려가면 된다.
 
 ### 런처는 DB 에 아무것도 안 쓴다
 
@@ -422,7 +446,8 @@ POST {base}/BatchSchedule/com...v0001.changeJob
 `refreshStatus` 는 상태를 `messages` 로 돌려준다. `GET_JOB_STATUS` 가 읽기만
 해서 인터랙션 단계에서 부를 수 있기 때문이다.
 
-`cancelJob` 은 잡만 끊는다. **이력 행은 남는다.**
+`cancelJob` 은 잡만 끊는다. **이력 행은 `ended_at` 이 찍힌 채 남는다** —
+`JobName` 도 그대로라 그 잡의 SM37 로그를 계속 찾을 수 있다.
 
 ### `scheduleJob` 에 `factory` 를 붙이지 않는 이유
 
@@ -439,31 +464,23 @@ POST {base}/BatchSchedule/com...v0001.changeJob
 로 잡을 지목하고, 호출하는 쪽은 그 둘을 자기 DB 에 들고 있다. 인스턴스 액션은
 키가 URL 에 있어야 하므로 주소를 잡을 방법이 없다.
 
-각 액션이 `jobname` + `jobcount` 로 이력 행을 찾는다. 취소된 행은
-`jobname` 이 비어 있어 걸리지 않으므로 이 둘이 유일하다. 못 찾으면 그 `%cid`
-만 `not_found` 로 실패시키고 나머지 요청은 계속 처리한다.
+각 액션이 `jobname` + `jobcount` 로 행을 찾는다. APJ 가 잡마다 다른 이름을
+주므로 이 둘이 유일하다. 못 찾으면 그 `%cid` 만 `not_found` 로 실패시키고
+나머지 요청은 계속 처리한다.
 
-인스턴스 피처 컨트롤은 없앴다. "잡이 걸려 있을 때만 가능" 이라는 제약이
-**행을 못 찾는 것으로 자동 성립**하기 때문이다.
+`changeJob` / `cancelJob` 은 **`ended_at IS INITIAL`** 을 같이 건다. 이미 끝난
+잡은 못 찾는 것이 맞고, 그래서 인스턴스 피처 컨트롤이 필요 없다 — "잡이 걸려
+있을 때만 가능" 이라는 제약이 조회 조건으로 성립한다.
 
-### ⚠ `changeJob` 후에는 호출자가 잡 이름을 갱신해야 한다
+`refreshStatus` 만 그 조건을 빼서, **지나간 잡의 상태도 조회**할 수 있게 뒀다.
 
-**재스케줄이 취소 + 재생성이라 `jobname`/`jobcount` 가 바뀐다.**
-그런데 바뀐 값을 액션 응답으로 줄 수 없다 — APJ 가 save 단계에서 돌기 때문이다.
+### `changeJob` 은 새 행의 잡 이름을 응답으로 준다
 
-| 핸들 | `changeJob` 이후 |
-|------|-----------------|
-| `jobname` / `jobcount` | **무효.** 응답으로는 새 값을 알 수 없다 |
-| `RunUuid` | 그대로 유효 (응답에 실려 온다) |
+재스케줄이 취소 + 재생성이라 `jobname`/`jobcount` 가 바뀐다. 응답이 **새 행**
+이므로 호출자는 거기서 새 `JobName` 을 받아 자기 쪽 값을 갱신하면 된다.
 
-그래서 호출자는 `changeJob` 뒤에 **행을 GET 해서 새 `JobName` 을 다시 저장**해야
-한다. 응답의 `RunUuid` 로 읽으면 된다.
-
-```http
-GET {base}/BatchSchedule(RunUuid={응답의 RunUuid})?$select=JobName,JobCount,Message
-```
-
-호출자가 `RunUuid` 를 보관할 수 있다면 이 절차가 필요 없다.
+옛 잡의 행은 `ended_at` 이 찍힌 채 남아 있고, 그 `message` 에
+`Replaced by <새 잡>` 이 적힌다.
 
 ### AS-IS 파라미터 중 안 받는 것
 

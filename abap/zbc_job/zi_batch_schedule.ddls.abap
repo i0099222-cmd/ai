@@ -32,9 +32,12 @@ define root view entity ZI_BATCH_SCHEDULE
       jobname               as JobName,
       jobcount              as JobCount,
 
-      // 스케줄 여부는 잡 이름 유무로 판단한다. 상태 컬럼을 두지 않는다.
-      // 실제 실행 상태는 별도 로그 기능 / refreshStatus 액션이 APJ 에서 읽는다.
-      case when jobname <> '' then 'X' else '' end as IsScheduled,
+      ended_at              as EndedAt,
+
+      // 잡 1개 = 행 1개다. 살아 있는 잡은 종료 시각이 비어 있다.
+      // 상태 컬럼을 따로 두지 않는다. 실제 실행 상태는 refreshStatus 가
+      // APJ 에서 읽고, 로그는 별도 로그 기능이 담당한다.
+      case when ended_at is initial then 'X' else '' end as IsScheduled,
 
       message               as Message,
 

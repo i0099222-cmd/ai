@@ -74,6 +74,14 @@ define table ztbatch_sched {
   @EndUserText.label : '백그라운드 잡 카운트 (SM37)'
   jobcount         : abap.char(8);
 
+  // --- 잡의 끝 ---------------------------------------------------------
+  // APJ 잡 하나 = 이 테이블의 행 하나다. 잡이 끝나면(취소되거나 changeJob
+  // 으로 교체되면) 행을 고치지 않고 이 시각만 찍는다. JOBNAME 이 남아
+  // 있어야 지나간 잡의 SM37 로그를 찾을 수 있기 때문이다.
+  // 비어 있으면 살아 있는 잡이다 -> IsScheduled.
+  @EndUserText.label : '잡 종료 시각'
+  ended_at         : abap.utclong;
+
   // --- APJ 호출 결과 -----------------------------------------------------
   // 스케줄/취소는 save 시퀀스(saver)에서 일어난다. 그 단계에서는 reported 로
   // 메시지를 돌려줄 수 없어서, APJ 응답을 여기 남긴다.

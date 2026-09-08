@@ -53,7 +53,7 @@ CLASS lhc_schedule DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING keys REQUEST requested_features FOR batchschedule RESULT result.
 
     METHODS schedulejob FOR MODIFY
-      IMPORTING keys FOR ACTION batchschedule~schedulejob.
+      IMPORTING keys FOR ACTION batchschedule~schedulejob RESULT result.
 
     METHODS changejob FOR MODIFY
       IMPORTING keys FOR ACTION batchschedule~changejob RESULT result.
@@ -150,10 +150,22 @@ CLASS lhc_schedule IMPLEMENTATION.
       REPORTED DATA(ls_reported).
 
     mapped-batchschedule   = CORRESPONDING #( ls_mapped-batchschedule ).
+
     failed-batchschedule   = VALUE #( BASE failed-batchschedule
                                       ( LINES OF CORRESPONDING #( ls_failed-batchschedule ) ) ).
     reported-batchschedule = VALUE #( BASE reported-batchschedule
                                       ( LINES OF CORRESPONDING #( ls_reported-batchschedule ) ) ).
+
+    " 호출자에게 RunUuid 를 돌려준다. 이게 이후 액션의 키다.
+    READ ENTITIES OF zi_batch_schedule IN LOCAL MODE
+      ENTITY batchschedule
+        ALL FIELDS WITH CORRESPONDING #( ls_mapped-batchschedule )
+      RESULT DATA(lt_new).
+
+    result = VALUE #( FOR ls_map IN ls_mapped-batchschedule
+                      ( %cid   = ls_map-%cid
+                        %tky   = ls_map-%tky
+                        %param = VALUE #( lt_new[ runuuid = ls_map-runuuid ] OPTIONAL ) ) ).
 
   ENDMETHOD.
 

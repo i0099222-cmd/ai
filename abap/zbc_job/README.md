@@ -326,8 +326,24 @@ X-CSRF-Token: {token}
 }
 ```
 
-응답의 **`IsScheduled`** 와 **`Message`** 로 성공 여부를 본다.
-`JobName` / `JobCount` 가 채워졌으면 SM37 에서 대조한다.
+응답으로 만들어진 행이 돌아온다. **여기서 `RunUuid` 를 받아 두는 것이
+호출자가 해야 할 일**이다 — 이후 `changeJob` / `cancelJob` / `refreshStatus`
+가 전부 이 키로 주소를 잡는다.
+
+```json
+{ "RunUuid": "5F3A...C2", "JobName": "", "JobCount": "", "Message": "" }
+```
+
+**`JobName` 은 이 응답에서 아직 비어 있다.** APJ 호출이 save 단계에서
+일어나는데 액션 응답은 그 전에 만들어지기 때문이다. 스케줄 성공 여부와
+SM37 잡 이름은 **행을 한 번 GET** 해서 확인한다.
+
+```http
+GET {base}/BatchSchedule(RunUuid={uuid})?$select=IsScheduled,JobName,JobCount,Message
+```
+
+AS-IS RFC 는 잡 정보를 동기로 돌려줬으므로 이 지점은 다르다. 다만 호출자가
+후속 호출에 쓰던 핸들은 `RunUuid` 로 대체되므로, 기능이 빠지는 것은 아니다.
 
 ### 파라미터 넣기
 
@@ -363,6 +379,18 @@ POST {base}/BatchSchedule(RunUuid={uuid})/com...v0001.refreshStatus
 ```
 
 `cancelJob` 은 잡만 끊는다. **이력 행은 남는다.**
+
+### 왜 `cancelJob` 이 잡 이름을 파라미터로 안 받나
+
+**인스턴스 액션이라 대상이 URL 의 키(`RunUuid`)에 있다.** `jobname`/`jobcount`
+는 그 행에 이미 저장돼 있어 호출자가 다시 줄 필요가 없다.
+
+AS-IS 는 `jobid`/`jobcount` 를 받았지만, 그 둘을 핸들로 쓰면 **`changeJob`
+이후 깨진다** — APJ 에 잡 수정 API 가 없어 재스케줄이 취소 + 재생성이고,
+그 과정에서 `jobname`/`jobcount` 가 바뀌기 때문이다. `RunUuid` 는 안 바뀐다.
+
+> AS-IS `reqtype`(작업구분)이 무엇을 가르는 값인지 확인 필요. 취소 범위
+> (잡만 / 이력까지)를 뜻한다면 `cancelJob` 과 `delete` 로 이미 나뉘어 있다.
 
 ### 목록 조회
 

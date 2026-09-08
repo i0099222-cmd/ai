@@ -142,112 +142,7 @@ AS-IS 가 리포트 이름(`pgmid`)을 파라미터로 받아 아무거나 스�
 
 ---
 
-## 2-2. LUW 분리 — 액션은 쓰기만, APJ 는 saver 에서
-
-`CL_APJ_RT_API` 는 **RAP 인터랙션 단계에서 호출할 수 없다.**
-RAP 이 LUW 를 소유하는데 이 API 가 트랜잭션을 건드려서 덤프가 난다.
-
-**액션은 엔티티에 쓰기만 한다.** 그 결과가 `create`/`update` 테이블에 실려
-saver 로 넘어가므로, 인터랙션 → save 로 값을 나르는 별도 버퍼가 필요 없다.
-
-```
-scheduleJob ──▶ MODIFY CREATE ──▶ [create] ──▶ save_modified ──▶ SCHEDULE_JOB
-changeJob   ──▶ MODIFY UPDATE ──▶ [update] ──▶ save_modified ──▶ CANCEL + SCHEDULE
-cancelJob   ──▶ MODIFY UPDATE ──▶ [update] ──▶ save_modified ──▶ CANCEL_JOB
-                (CancelRequested = 'X')
-```
-
-`update` 에서 둘을 가르는 것이 **`CancelRequested`** 컬럼이다.
-`cancelJob` 이 `'X'` 로 세우고, saver 가 취소한 뒤 다시 비운다.
-
-### 대가 — 에러를 응답으로 못 준다
-
-save 단계에서는 `reported` 로 메시지를 돌려줄 수 없다. 그래서:
-
-- APJ 응답은 **`ZTBATCH_SCHED-MESSAGE`** 에 기록한다
-- 스케줄 실패 시 **`jobname` 이 빈 채로 남는다** (`IsScheduled = ''`)
-
-호출자는 `IsScheduled` / `Message` 로 성공 여부를 판단한다.
-
-### `refreshStatus` 는 예외
-
-`GET_JOB_STATUS` 는 읽기만 하므로 인터랙션 단계에서 호출한다.
-덕분에 `reported` 로 상태를 바로 돌려줄 수 있다.
-
-### update 요청에는 바뀐 필드만 실려 온다
-
-`save_modified` 의 `update` 테이블은 **변경된 필드만** 담는다.
-`changeJob` 은 시작 조건만 바꾸므로 템플릿/텍스트/파라미터가 비어 있다.
-그래서 그 셋은 **저장된 행에서 다시 읽는다.**
-
-`create` 는 요청에 전부 실려 있으므로 그대로 쓴다. 둘의 출처가 달라
-`schedule_and_store( )` 는 그 셋을 파라미터로 받는다.
-
-### 그래서 `unmanaged save` 다
-
-여기에 하나 갇힌 구조가 있다.
-
-- APJ 는 **save 단계에서만** 호출할 수 있다 (인터랙션에서 부르면 덤프)
-- save 단계에서는 **BO 버퍼를 못 건드린다** (`MODIFY ENTITIES` 불가)
-
-즉 `jobname`/`jobcount` 는 managed 런타임이 INSERT 를 만들 때 **아직 존재하지
-않는다.** `additional save` 로 두면 넣을 자리가 없다.
-
-처음에는 `save_modified` 에서 `UPDATE ztbatch_sched` 로 뒤늦게 채우려 했는데,
-**`save_modified` 가 managed 런타임의 INSERT 보다 먼저 돈다.** 아직 없는 행에
-UPDATE 를 날리니 `sy-subrc = 4` 로 조용히 헛돌았다. APJ 잡은 만들어지고 DB 만
-비는 증상이 이것이다.
-
-**`with unmanaged save` 로 저장을 통째로 가져왔다.** saver 가 유일한 writer 라
-APJ 응답을 처음부터 행에 담아 `INSERT` 한다. 경쟁이 성립하지 않는다.
-
-| | additional save | unmanaged save |
-|---|---|---|
-| 행을 쓰는 주체 | managed 런타임 | **saver** |
-| APJ 응답 기록 | 불가 (순서가 반대) | **INSERT 에 같이 실린다** |
-| 관리 필드 | 런타임이 채움 | **직접 채움** |
-| 응답 시점 | — | **동기 유지** |
-
-대가는 관리 필드 3개(`CREATED_BY`/`CREATED_AT`/`LOCAL_LAST_CHANGED_AT`)를
-직접 채워야 하는 것뿐이다. 표준 CRUD 를 노출하지 않아 **쓰기 경로가 액션 2개로
-한정**되어 있어서, 직접 쓴다고 코드가 늘지 않는다.
-
-`TY_START_OPTION` 의 컴포넌트명을 `ZTBATCH_SCHED` 의 컬럼명과 맞춰 놓은 덕에
-행을 어댑터에 넘길 때 `CORRESPONDING` 한 줄이면 된다.
-
-```abap
-" create - 행을 만들고, 스케줄하고, 응답까지 담아 INSERT
-ls_row = VALUE ztbatch_sched( run_uuid = ls_new-runuuid
-                              template = ls_new-jobtemplatename ... ).
-
-DATA(ls_sched) = lo_adapter->schedule( iv_template = ls_row-template
-                                       is_start    = CORRESPONDING #( ls_row ) ... ).
-ls_row-jobname  = ls_sched-job_name.
-ls_row-jobcount = ls_sched-job_count.
-ls_row-message  = ls_sched-message.
-
-INSERT ztbatch_sched FROM @ls_row.
-```
-
-### `UPDATE ... FROM` 을 쓰지 않는다
-
-`UPDATE ztbatch_sched FROM @ls_row` 는 **구조체의 모든 컬럼을 쓴다.** 앞의
-`SELECT` 가 한 컬럼이라도 제대로 안 실리면 그 필드가 공백으로 덮인다.
-읽기 한 번 어긋나면 이력 전체가 날아가는 구조라, 실제로 그렇게 초기화됐다.
-
-그래서 update 경로는 **바꾸는 컬럼만 `SET`** 한다. `cancelJob` 은 포인터
-3개 + etag, `changeJob` 은 시작 조건 14개 + APJ 응답. 나머지 컬럼은 문장에
-없으므로 어떤 경우에도 건드려지지 않는다.
-
-`INSERT ... FROM` 은 그대로 둔다. 새 행이라 보존할 값이 없다.
-
-### 헬퍼 메서드를 두지 않는다
-
-액션 핸들러와 saver 는 **자기 안에서 끝난다.** 조회·매핑·호출을 별도 메서드로
-빼면 한 액션이 무슨 일을 하는지 보려고 파일을 오르내려야 한다. 액션마다 조회
-`SELECT` 가 반복되지만, 그 편이 읽기 쉽다.
-
-### 취소만 bgPF 로 뺐다 — `CANCEL_JOB` 이 커밋한다
+## 2-2. APJ 호출은 자식 세션에서 한다
 
 `CL_APJ_RT_API=>CANCEL_JOB` 은 내부에서 **`COMMIT CONNECTION`** 을 한다.
 RAP 은 BO 가 활성인 동안 커밋을 금지하므로 덤프가 난다.
@@ -258,41 +153,60 @@ active ZCM_R_BATCH_SCHEDULE. Statement COMMIT CONNECTION is therefore
 forbidden.
 ```
 
-**인터랙션 단계로 옮기는 건 답이 아니다.** "BO 활성" 은 save 단계만이 아니라
-액션 핸들러가 도는 동안에도 참이라, 거기서 불러도 똑같이 덤프난다.
+**"BO 활성" 은 save 단계만의 얘기가 아니다.** 액션 핸들러가 도는 동안에도
+참이라, 인터랙션 단계로 옮겨도 똑같이 덤프난다. 호출은 BO 밖으로 나가야 한다.
 
-그래서 취소만 RAP 트랜잭션 밖으로 뺀다. saver 는 **큐에 넣기만** 하고
-(`SAVE_FOR_EXECUTION` 은 커밋하지 않는다), RAP 이 커밋한 뒤 `ZCL_BATCH_CANCEL_OP`
-이 별도 LUW 에서 실제로 취소한다.
+그래서 APJ 호출만 `ZCL_BATCH_APJ_TASK` 에 담아 **`CL_ABAP_PARALLEL` 로 자식
+세션**에 넘기고 결과를 기다린다. 자식은 자기 LUW 라 커밋이 합법이다.
 
 ```abap
-DATA(lo_cancel) = cl_bgmc_process_factory=>get_default( )->create( ).
-lo_cancel->set_operation_tx_uncontrolled( NEW zcl_batch_cancel_op( ... ) ).
-lo_cancel->save_for_execution( ).
+DATA lt_task TYPE cl_abap_parallel=>t_in_inst.
+APPEND NEW zcl_batch_apj_task( iv_mode = ... ) TO lt_task.
+
+NEW cl_abap_parallel( )->run_inst( EXPORTING p_in_tab  = lt_task
+                                   IMPORTING p_out_tab = DATA(lt_done) ).
 ```
 
-`SCHEDULE_JOB` 은 커밋을 하지 않아 saver 에서 그대로 호출한다. 스케줄은
-동기, 취소만 비동기다.
+입력과 출력이 **같은 인스턴스**에 실린다. `RUN_INST` 가 인스턴스를 직렬화해
+자식으로 보내고 `DO( )` 가 채운 것을 돌려주기 때문이다. `%cid` 를 같이 실어
+두고 그걸로 짝지어서, 결과 순서에 기대지 않는다.
 
-| | 실행 위치 | 응답 |
+### 덕분에 저장이 평범한 managed 다
+
+결과가 **인터랙션 단계에서** 손에 들어오므로, 액션이 `jobname` 을 엔티티에
+써 두면 managed 런타임이 그대로 저장한다.
+
+| | 이전 (unmanaged save) | 지금 |
 |---|---|---|
-| `SCHEDULE_JOB` | saver (RAP LUW 안) | 동기 |
-| `GET_JOB_STATUS` | 액션 핸들러 (읽기만) | 동기 |
-| **`CANCEL_JOB`** | **bgPF (RAP LUW 밖)** | **비동기** |
+| APJ 호출 위치 | saver (RAP LUW 안) | **자식 세션** |
+| 저장 | saver 가 직접 INSERT/UPDATE | **managed 런타임** |
+| `CANCEL_JOB` | 덤프 | 정상 |
+| 액션 응답의 `JobName` | 없음 | **있다** |
+| `cancel_requested` 컬럼 | 필요 | **불필요 — 삭제** |
 
-### 취소가 비동기라서 생기는 것
+`cancel_requested` 는 인터랙션 단계에서 save 단계로 "취소해야 함" 을 나르려고
+있던 플래그다. 취소가 액션 안에서 끝나므로 사라졌다. saver 클래스도 없다.
 
-DB 의 `jobname`/`jobcount` 는 saver 가 **즉시** 비운다. 실제 APJ 취소는 몇
-초 뒤다. 그 사이에는 "DB 상 끊겼는데 SM37 에는 아직 살아 있는" 창이 있다.
+**액션 응답에 `JobName` 이 실린다** — AS-IS RFC 가 잡 정보를 동기로 돌려주던
+것과 같은 모양이 됐다. 호출자가 한 번 더 GET 할 필요가 없다.
 
-취소가 실패하면 `ZCL_BATCH_CANCEL_OP` 이 사유를 `MESSAGE` 에 덧쓴다.
-DB 는 끊긴 것으로 보이는데 잡이 살아 있는 상태이므로, 이 메시지를 확인해야 한다.
+### `changeJob` 은 왕복이 한 번이다
+
+APJ 에 잡 수정 API 가 없어 취소 + 재생성인데, 두 호출을 **한 작업 인스턴스**
+(`gc_mode-change`)에 담아 자식 세션에서 이어서 돌린다. 세션 포크가 한 번이다.
+
+### 자식 세션을 안 쓰는 것
+
+`GET_JOB_STATUS` 는 읽기만 하고 커밋하지 않으므로 `refreshStatus` 는 액션에서
+직접 부른다. 포크 비용을 낼 이유가 없다.
 
 ### 확인 필요
 
-- **bgPF API 이름** — `IF_BGMC_OP_SINGLE_TX_UNCONTROLLED` /
-  `SET_OPERATION_TX_UNCONTROLLED( )`. 릴리스에 따라 다를 수 있다.
-  `ZCL_BATCH_CANCEL_OP` 과 saver 두 곳만 고치면 된다.
+- **`CL_ABAP_PARALLEL` 이 이 시스템에서 릴리스돼 있는지**
+- `IF_ABAP_PARALLEL~DO` 의 파라미터, `RUN_INST` 의 파라미터명,
+  `T_OUT_INST` 의 컴포넌트명(`inst`) — `ZCL_BATCH_APJ_TASK` 와 액션 4곳
+- 자식 세션이 커밋한 뒤 RAP 트랜잭션이 롤백되면 APJ 잡만 남는다.
+  스케줄이 save 단계에 있던 때도 마찬가지였으므로 새로 생긴 문제는 아니다.
 
 ---
 
@@ -300,10 +214,11 @@ DB 는 끊긴 것으로 보이는데 잡이 살아 있는 상태이므로, 이 �
 
 | 파일 | 언어버전 | 내용 |
 |------|---------|------|
-| `ztbatch_sched.tabl.abap` | — | 테이블 (유일, 10 컬럼) |
+| `ztbatch_sched.tabl.abap` | — | 테이블 (유일) |
 | `zi_batch_schedule.ddls.abap` / `zc_batch_schedule.ddls.abap` | — | interface / projection view |
-| `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 액션 3종 + 저장 검증** |
-| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | **정적 액션 4종** (쓰기만) + **saver** (APJ 호출 + 저장) |
+| `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 정적 액션 4종** |
+| `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | **정적 액션 4종.** saver 없음 |
+| `zcl_batch_apj_task.clas.abap` | ABAP Cloud | 자식 세션에서 도는 APJ 호출 작업 |
 | `zd_batch_schedule_in` / `_change_in` / `_cancel_in` / `_status_in` | — | 액션 파라미터 4종 |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
 | `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 클래스가 쓰는 예외 |

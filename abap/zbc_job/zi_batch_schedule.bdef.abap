@@ -21,19 +21,19 @@ strict ( 2 );
 // 액션은 엔티티에 쓰기만 하고, 그 결과가 create/update 테이블에 실려
 // saver 의 save_modified 로 넘어간다. 별도 버퍼가 필요 없는 이유다.
 //
-// ** unmanaged save 인 이유 **
-//   APJ 응답(jobname/jobcount)은 save 단계에 가서야 나오는데, 그 단계에서는
-//   BO 버퍼를 못 건드린다. additional save 로 두면 managed 런타임이 자기
-//   버퍼로 INSERT 하고 우리는 그 값을 넣을 자리가 없다 - 실제로 아직 없는
-//   행에 UPDATE 를 날려 조용히 헛돌았다.
-//   그래서 저장을 통째로 가져온다. saver 가 유일한 writer 라 APJ 응답을
-//   처음부터 행에 담아 INSERT 한다.
+// ** APJ 호출은 자식 세션에서 한다 **
+//   CANCEL_JOB 이 내부에서 COMMIT CONNECTION 을 하는데, RAP 은 BO 가
+//   활성인 동안 커밋을 금지한다 - 액션 핸들러도 save 단계도 마찬가지다.
+//   그래서 APJ 호출만 CL_ABAP_PARALLEL 로 자식 세션에 넘기고 결과를
+//   기다린다. 자식은 자기 LUW 라 커밋이 합법이다.
+//
+//   덕분에 저장은 평범한 managed 다. 액션이 인터랙션 단계에서 이미
+//   jobname 을 알고 있으므로 그냥 엔티티에 써 두면 런타임이 저장한다.
 define behavior for ZI_BATCH_SCHEDULE alias BatchSchedule
 persistent table ztbatch_sched
 lock master
 authorization master ( global )
 etag master LocalLastChangedAt
-with unmanaged save
 {
   field ( numbering : managed, readonly ) RunUuid;
 
@@ -52,8 +52,6 @@ with unmanaged save
   create;
   update;
   delete;
-
-  field ( readonly ) CancelRequested;
 
   // --- APJ 제어 ------------------------------------------------------------
   // 잡 생성 = 스케줄 등록. 이력 행 1건 + APJ 잡 1건이 만들어진다.
@@ -98,7 +96,6 @@ with unmanaged save
     StartRestriction   = start_restriction;
     JobName            = jobname;
     JobCount           = jobcount;
-    CancelRequested    = cancel_requested;
     Message            = message;
     CreatedBy          = created_by;
     CreatedAt          = created_at;

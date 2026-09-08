@@ -727,7 +727,8 @@ ENDIF.
 | `jobname` 지정 | 논리명은 `jobtext`, SM37 이름은 `jobname` 으로 나란히 보관 | — |
 | ~~팩토리 캘린더~~ (공장달력 3종) | **해결.** `EXCEPTION` + `MONTH_INFO` 로 전부 이관 | ○ |
 | **합산 주기** (`PRDMONTHS` + `PRDDAYS` 동시) | **불가.** APJ 는 단위 1개 + 값 1개뿐. 어댑터가 실패시킨다 | 동시에 채운 잡이 실제로 있나? |
-| **close 시각** (`laststrt`) | 위와 동일 | 실제로 쓰나? |
+| ~~close 시각~~ (`laststrt`) | **해결.** `END_INFO` type `BY` 로 이관 | ○ |
+| **요청자** (`reqid`/`reqname`) | **안 받는다.** `created_by` 는 OData 를 부른 서비스 사용자라 실제 요청자 사번이 안 남는다 | 요청자 추적을 쓰나? |
 | 기존 배치 리포트 | **클래스로 이관 필요.** 배치마다 실행 클래스 + 카탈로그 + 템플릿 | 대상 리포트가 몇 개인가? |
 | **타임존** | `TY_SCHEDULING_INFO-TIMEZONE` 으로 넘긴다 | ○ |
 

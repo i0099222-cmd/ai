@@ -218,6 +218,15 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
           ls_sched-exception-start_restriction_code = is_start-start_restriction.
         ENDIF.
 
+*       작업일로 세려면 달력이 있어야 한다. AS-IS 는 공장시간(달력) 하나가
+*       블록 전체의 게이트라 이 조합이 아예 안 나오지만, 우리 API 는 두 값을
+*       따로 받으므로 여기서 막는다. 기준 없이 "작업일" 을 세면 APJ 가
+*       기본 달력으로 조용히 돌아 요청과 다른 날에 걸린다.
+        IF is_start-use_working_days = abap_true AND is_start-calendar_id IS INITIAL.
+          rs_result-message = |작업일 기준으로 세려면 공장달력(CalendarId)이 필요하다.|.
+          RETURN.
+        ENDIF.
+
         IF is_start-month_day > 0.
           ls_sched-month_info-day                  = is_start-month_day.
           ls_sched-month_info-use_working_days_ind = is_start-use_working_days.

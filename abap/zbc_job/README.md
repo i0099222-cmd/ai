@@ -455,6 +455,53 @@ AS-IS RFC 는 잡 정보를 동기로 돌려줬으므로 이 지점은 다르다
 `PeriodMinutes` / `PeriodHours` / `PeriodDays` / `PeriodWeeks` / `PeriodMonths` 중
 **하나만** 채운다.
 
+### 월 주기에서 "그 달의 며칠에"
+
+`PeriodMonths` 와 짝으로 쓰는 파라미터가 다섯 개다. 안 쓰면 전부 비우면 되고,
+그러면 **시작일시의 일자가 매월 반복**된다 (10/01 시작 → 매월 1일).
+
+두 갈래가 답하는 질문이 다르다.
+
+| | 묻는 것 |
+|---|---|
+| `MonthDay` · `UseWorkingDays` · `CountFromMonthEnd` | **어느 날**에 돌릴까 |
+| `CalendarId` · `StartRestriction` | 그날이 **휴일이면** 어쩔까 |
+
+`MonthDay = 3` 하나가 나머지 둘에 따라 뜻이 바뀐다.
+
+| `UseWorkingDays` | `CountFromMonthEnd` | 실행일 |
+|---|---|---|
+| | | 매월 **3일** |
+| `X` | | 매월 **3번째 작업일** |
+| | `X` | 매월 **말일에서 3번째 날** |
+| `X` | `X` | 매월 **말일에서 3번째 작업일** |
+
+```json
+// 매월 말일에서 3번째 작업일, 새벽 2시
+{ "JobTemplateName": "ZJT_BATCH_SAMPLE", "JobText": "월마감",
+  "StartDateTime": "20261001020000", "PeriodMonths": 1,
+  "CalendarId": "01", "MonthDay": 3,
+  "UseWorkingDays": true, "CountFromMonthEnd": true }
+
+// 매월 15일, 휴일이면 이전 근무일로 당김
+{ "JobTemplateName": "ZJT_BATCH_SAMPLE", "JobText": "정산",
+  "StartDateTime": "20261015090000", "PeriodMonths": 1,
+  "CalendarId": "01", "MonthDay": 15, "StartRestriction": "B" }
+```
+
+**주의할 것 셋**
+
+- `CalendarId` 없이 `UseWorkingDays` 를 켜면 **거부된다.** 근무일을 셀 기준이
+  없어서다. `StartRestriction` 도 달력이 없으면 판정할 수 없어 무의미하다
+- `UseWorkingDays = 'X'` 면 고르는 단계에서 이미 작업일만 세므로
+  `StartRestriction` 을 쓸 일이 없다. 둘은 앞단 필터와 사후 보정의 차이다
+- **말일 자체**를 지정하려면 `MonthDay = 1` + `CountFromMonthEnd = 'X'` 다.
+  말일은 달마다 28/29/30/31 로 달라 일자로는 표현할 수 없다
+
+`StartRestriction` 값: `D` 건너뜀 / `B` 이전 근무일로 당김 / `A` 다음 근무일로
+미룸 / `N` 제한 없이 그날 실행. **`D` 만 성격이 다르다 — 그 회차를 아예
+안 돌린다.** 비우면 APJ 기본 동작을 따른다 (AS-IS 도 채우지 않았다).
+
 ### 변경 / 취소 / 상태
 
 **네 액션이 전부 정적 액션이다.** 키 없이 엔티티셋에 POST 하고, 어느 잡인지는

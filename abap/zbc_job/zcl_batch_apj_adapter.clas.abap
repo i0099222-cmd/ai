@@ -207,9 +207,10 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 *   "월초부터 / 월말부터 N 번째 작업일" 을 지정한다.
 *   BOFMONTH/EOFMONTH 는 실행일 자체가 아니라 세는 방향이다.
 *
-* TODO: 시그니처 확인 - SHIFT_DIRECTION 이 세는 방향(월초/월말 기준)이
-*       맞는지. 비근무일 회피 방향이라면 그건 이미 EXCEPTION 이 하므로
-*       역할이 겹친다. 월말 기준으로 걸어 SM37 에서 실행일을 확인할 것.
+* TODO: 시그니처 확인 - SHIFT_DIRECTION 의 값 도메인 (NUMC 2).
+*       그리고 그것이 "세는 방향" 인지. 이름과 달리 "휴일이면 며칠 옮길지"
+*       라면 NUMC(2) 라는 폭이 설명되지만 EXCEPTION 과 역할이 겹친다.
+*       월말 기준으로 걸어 SM37 에서 실행일을 확인할 것.
 *----------------------------------------------------------------------*
         IF is_start-calendar_id IS NOT INITIAL.
           ls_sched-exception-calendar_id = is_start-calendar_id.
@@ -228,12 +229,17 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
         ENDIF.
 
         IF is_start-month_day > 0.
+
           ls_sched-month_info-day                  = is_start-month_day.
           ls_sched-month_info-use_working_days_ind = is_start-use_working_days.
-          ls_sched-month_info-shift_direction      =
-            COND #( WHEN is_start-count_from_end = abap_true
-                    THEN zif_batch_job=>gc_restriction-before   " 월말에서 역순
-                    ELSE zif_batch_job=>gc_restriction-after ). " 월초에서 순서
+
+*         SHIFT_DIRECTION 은 NUMC(2) 라 START_RESTRICTION_CODE(D/B/A/N)와
+*         도메인이 다르다. 월초부터 세는 것이 기본이므로 그때는 값을 넣지
+*         않고 초기값 '00' 으로 둔다 - 추측을 하나로 줄인다.
+          IF is_start-count_from_end = abap_true.
+            ls_sched-month_info-shift_direction = zif_batch_job=>gc_shift-from_month_end.
+          ENDIF.
+
         ENDIF.
 
 *       미사용: WEEKDAY_INFO(요일 지정), TEST_MODE. AS-IS 대응이 없다.

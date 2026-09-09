@@ -27,6 +27,20 @@ INTERFACE zif_batch_job
       none           TYPE c LENGTH 1 VALUE 'N',
     END OF gc_restriction.
 
+  "! MONTH_INFO-SHIFT_DIRECTION 은 NUMC(2) 다.
+  "! START_RESTRICTION_CODE(D/B/A/N)와 다른 도메인이므로 따로 둔다.
+  "!
+  "! 기본 방향(월초부터)은 값을 넣지 않고 초기값 '00' 으로 둔다.
+  "! 값 도메인이 미확인이라 추측을 하나로 줄인 것이다.
+  "!
+  "! TODO: 시그니처 확인 - 실제 값. ADT 에서 SHIFT_DIRECTION 컴포넌트에
+  "!       F2 -> 데이터 엘리먼트 -> 도메인 고정값을 볼 것.
+  CONSTANTS:
+    BEGIN OF gc_shift,
+      "! 월말부터 거꾸로 센다
+      from_month_end TYPE n LENGTH 2 VALUE '02',
+    END OF gc_shift.
+
   "! 스케줄 옵션. 액션 파라미터로만 존재하고 DB 에 저장하지 않는다.
   TYPES:
     BEGIN OF ty_start_option,

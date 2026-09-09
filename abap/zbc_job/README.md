@@ -779,14 +779,13 @@ PeriodMonths = 공장시간 있으면 workperiod, 없으면 반복주기
 
 ### 나머지 확인 필요
 
-- **`SHIFT_DIRECTION` 의 값 도메인** — 타입이 **NUMC(2)** 로 확인됐다.
-  `START_RESTRICTION_CODE`(D/B/A/N)와 **다른 도메인**이다.
-  월초부터 세는 기본은 초기값 `'00'` 으로 두고, 월말 기준일 때만 값을 넣어
-  추측을 하나로 줄였다 (`ZIF_BATCH_JOB=>GC_SHIFT-FROM_MONTH_END`).
-  ADT 에서 컴포넌트 F2 → 데이터 엘리먼트 → 도메인 고정값을 보면 끝난다.
-- **`SHIFT_DIRECTION` 이 정말 "세는 방향" 인가** — NUMC(2) 라는 폭은 방향
-  2개치고 넓다. "휴일이면 **며칠** 옮길지" 라면 그 폭이 설명되지만, 그러면
-  `EXCEPTION` 과 역할이 겹친다. 월말 기준으로 걸어 SM37 실행일을 보면 갈린다
+- **`SHIFT_DIRECTION` 의 값** — 의미는 확인됐다. 필드 설명이
+  *"count direction for on workday start date of a job"* 이므로 **작업일 기준
+  시작일을 어느 쪽에서 세는지**가 맞고, `EXCEPTION` 과 역할이 겹치지 않는다.
+  타입은 **NUMC(2)** 이고 `START_RESTRICTION_CODE`(D/B/A/N)와 다른 도메인이다.
+  **도메인 고정값이 없어 값은 확인할 곳이 없다** — `01`(월초부터) /
+  `02`(월말부터)는 NUMC 열거의 관례를 따른 추측이라, 월초 기준으로 걸어
+  SM37 실행일이 맞는지로 판정해야 한다 (`ZIF_BATCH_JOB=>GC_SHIFT`)
 - `PERIODIC_GRANULARITY` 의 값 도메인 (상수 클래스가 있는지)
 - `END_INFO` 가 `TY_SCHEDULING_INFO` 의 컴포넌트인지 별도 파라미터인지,
   `TYPE` 의 실제 값 (`NONE` / `AFTER` / `BY`)

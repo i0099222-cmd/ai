@@ -615,6 +615,18 @@ AS-IS `ZBCS0011` 의 형식이라 호출자가 값을 그대로 던질 수 있�
 
 타임존은 `TimeZone` 필드로 따로 받고, 없으면 사용자 타임존으로 해석한다.
 
+### 타임스탬프에 0 을 보내지 않는다
+
+`TY_START_INFO-TIMESTAMP` 는 `0` 을 유효한 값으로 받지 않는다 — APJ 가 거부한다.
+`StartDateTime` 이 비었거나 `StartImmediately` 인 경우에도 **현재 시각을 채워
+보낸다** (`GET TIME STAMP FIELD`). `START_IMMEDIATELY` 가 켜져 있으면 무시되는
+값이지만, 0 이 나가는 경로를 아예 없애는 편이 안전하다.
+
+`CONV #( )` 로 CHAR 를 타임스탬프에 바로 넣으면 빈 값이 그대로 0 이 되므로
+이 에러를 만난다. 그리고 값이 있어도 **타임존 변환이 일어나지 않아** 로컬
+시각이 UTC 로 저장된다 — 한국이면 9시간 늦게 돈다.
+반드시 `CONVERT DATE ... TIME ... INTO TIME STAMP ... TIME ZONE ...` 을 쓸 것.
+
 ---
 
 ## 4-2. APJ 스케줄 구조

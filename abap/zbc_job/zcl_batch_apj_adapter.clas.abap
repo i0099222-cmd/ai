@@ -104,6 +104,10 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
           " 시작일도 즉시실행도 없으면 지금 건다.
           ls_start_info-start_immediately = abap_true.
 
+          " 0 은 유효한 타임스탬프가 아니라 APJ 가 거부한다. START_IMMEDIATELY
+          " 가 켜져 있으면 무시되는 값이지만 그래도 현재 시각을 채워 보낸다.
+          GET TIME STAMP FIELD ls_start_info-timestamp.
+
         ELSE.
 
           lv_date = lv_digits+0(8).

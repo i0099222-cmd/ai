@@ -67,8 +67,8 @@ CLASS zcl_apj_batch_sample IMPLEMENTATION.
     ENDIF.
 
 *   잠금 테스트용 지연. 테스트할 때만 주석을 푼다 (TESTDATA.md 4-1).
-*   DO 50000000 TIMES.
-*   ENDDO.
+*   WAIT 의 암시적 커밋에도 잠금은 안 풀린다 - SCOPE 1 이라서.
+*   WAIT UP TO 180 SECONDS.
 
     DATA(lv_bukrs) = VALUE #( it_parameters[ selname = c_param-company_code ]-low OPTIONAL ).
     DATA(lv_test)  = VALUE #( it_parameters[ selname = c_param-test_run ]-low OPTIONAL ).

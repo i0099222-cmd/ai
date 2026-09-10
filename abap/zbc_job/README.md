@@ -322,6 +322,8 @@ APJ 잡도 같이 사라졌다.
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 정적 액션 4종** |
 | `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | **정적 액션 4종.** saver 없음 |
 | `zcl_batch_apj_task.clas.abap` | ABAP Cloud | 자식 세션에서 도는 APJ 호출 작업 |
+| `zcl_batch_base.clas.abap` | ABAP Cloud | 실행 클래스 베이스 - 중복 실행 방지 |
+| `ztbatch_lock.tabl.abap` | — | 잠금 오브젝트용 테이블 (데이터 없음) |
 | `zd_batch_schedule_in` / `_change_in` / `_cancel_in` / `_status_in` | — | 액션 파라미터 4종 |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
 | `zcx_batch_job.clas.abap` | ABAP Cloud | 실행 클래스가 쓰는 예외 |
@@ -849,6 +851,53 @@ PeriodMonths = 공장시간 있으면 workperiod, 없으면 반복주기
 - `END_INFO` 가 `TY_SCHEDULING_INFO` 의 컴포넌트인지 별도 파라미터인지,
   `TYPE` 의 실제 값 (`NONE` / `AFTER` / `BY`)
 - `WEEKDAY_INFO` 의 구조
+
+---
+
+## 4-4. 중복 실행 방지
+
+반복 주기가 짧은데 실행이 길어지면 앞 회차가 끝나기 전에 다음 회차가 시작된다.
+**APJ 는 이걸 막아주지 않는다.**
+
+`ZCL_BATCH_BASE` 를 상속하면 막힌다. 각 배치는 `EXECUTE( )` 하나만 구현하고
+잠금 코드는 쓰지 않는다.
+
+```abap
+METHOD if_apj_rt_exec_object~execute.
+  run( 'SETTLE' ).          " 잠금 단위. 같은 키끼리 겹치지 않는다
+ENDMETHOD.
+
+METHOD execute.
+  " 업무 로직만
+ENDMETHOD.
+```
+
+이미 돌고 있으면 `run( )` 이 잡 로그에 남기고 조용히 끝난다. 실패하면 잠금을
+먼저 풀고 예외를 다시 던져 잡을 오류 종료시킨다.
+
+### 왜 상태 컬럼이 아니라 잠금 오브젝트인가
+
+상태 컬럼(`RUNNING` 같은)으로 막으면 **잡이 죽었을 때 그 값이 남아 영원히
+스킵된다.** 그래서 "몇 초 지나면 죽은 걸로 본다" 는 타임아웃이 필요해지는데,
+그 값은 추측이고 양쪽으로 다 틀린다.
+
+| 타임아웃이 | 결과 |
+|---|---|
+| 짧으면 | 아직 도는 잡을 죽었다고 보고 **또 돌린다** — 막으려던 걸 만든다 |
+| 길면 | 진짜 죽은 잡이 그 시간 내내 막는다 |
+
+데이터가 늘어 수행시간이 길어지면 조용히 첫 번째가 된다.
+
+**잠금은 세션이 끝나면 자동으로 풀린다.** 잡이 죽든 서버가 내려가든 고아 잠금이
+안 남으므로 추측할 값이 없다. `DEQUEUE` 를 놓쳐도 마찬가지다.
+
+`SCOPE = 1` 인 이유는 업무 로직이 커밋을 해도 잠금이 유지되게 하기 위해서다.
+기본값 2 는 커밋 시점에 잠금을 넘기고 해제한다.
+
+### 전제
+
+잠금 오브젝트 **`EZBATCH_LOCK`** — 테이블 `ZTBATCH_LOCK`, 키 `LOCK_KEY`, 모드 E.
+잠금은 행 존재와 무관하므로 그 테이블에 데이터를 넣을 필요는 없다.
 
 ---
 

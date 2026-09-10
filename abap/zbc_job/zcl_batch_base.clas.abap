@@ -2,19 +2,19 @@
 "!
 "! 돌고 있는 배치를 다시 돌리지 못하게 한다. 그것만 한다.
 "!
-"! 각 배치는 이 클래스를 상속하고 EXECUTE( ) 하나만 구현한다.
+"! 각 배치는 이 클래스를 상속하고 PROCESS( ) 하나만 구현한다.
 "! 잠금 코드는 쓰지 않는다.
 "!
 "!   CLASS zcl_batch_settle DEFINITION
 "!     INHERITING FROM zcl_batch_base ...
 "!     INTERFACES if_apj_rt_exec_object.
-"!     METHODS execute REDEFINITION.
+"!     METHODS process REDEFINITION.
 "!
 "!   METHOD if_apj_rt_exec_object~execute.
 "!     run( 'SETTLE' ).
 "!   ENDMETHOD.
 "!
-"!   METHOD execute.
+"!   METHOD process.
 "!     " 업무 로직만
 "!   ENDMETHOD.
 "!
@@ -33,7 +33,7 @@ CLASS zcl_batch_base DEFINITION
 
   PUBLIC SECTION.
 
-    "! 잠금을 잡고 EXECUTE( ) 를 부른다. 이미 돌고 있으면 아무것도 하지 않는다.
+    "! 잠금을 잡고 PROCESS( ) 를 부른다. 이미 돌고 있으면 아무것도 하지 않는다.
     "!
     "! @parameter iv_lock_key | 잠금 단위. 같은 키끼리 겹치지 않는다.
     "!                          배치 종류로 막으려면 배치 이름, 건별로 막으려면
@@ -48,7 +48,7 @@ CLASS zcl_batch_base DEFINITION
     DATA mv_lock_key TYPE ztbatch_lock-lock_key.
 
     "! 각 배치의 업무 로직. 예외를 던지면 잡이 오류 종료된다.
-    METHODS execute ABSTRACT
+    METHODS process ABSTRACT
       RAISING cx_static_check.
 
 ENDCLASS.
@@ -83,7 +83,7 @@ CLASS zcl_batch_base IMPLEMENTATION.
     DATA lv_error TYPE string.
 
     TRY.
-        execute( ).
+        process( ).
         MESSAGE |배치 완료: { mv_lock_key }| TYPE 'I'.
 
       CATCH cx_root INTO DATA(lx_error).

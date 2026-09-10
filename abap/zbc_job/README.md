@@ -863,14 +863,28 @@ PeriodMonths = 공장시간 있으면 workperiod, 없으면 반복주기
 잠금 코드는 쓰지 않는다.
 
 ```abap
-METHOD if_apj_rt_exec_object~execute.
-  run( 'SETTLE' ).          " 잠금 단위. 같은 키끼리 겹치지 않는다
+METHOD if_apj_rt_exec_object~execute.   " APJ 진입점
+  mt_param = it_parameters.
+  run( 'BATCH_SAMPLE' ).                " 잠금 단위. 같은 키끼리 겹치지 않는다
 ENDMETHOD.
 
-METHOD execute.
-  " 업무 로직만
+METHOD process.                          " 업무 로직만. 잠금 코드 없음
+  ...
 ENDMETHOD.
 ```
+
+메서드가 셋인데 역할이 다르다.
+
+| | |
+|---|---|
+| `IF_APJ_RT_EXEC_OBJECT~EXECUTE` | APJ 진입점. 잠금 키만 넘긴다 |
+| `RUN( )` | 잠금 담당 (베이스) |
+| `PROCESS( )` | **업무 로직. 여기만 쓰면 된다** |
+
+겹침 방지가 필요 없는 배치는 상속을 빼고 `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 에
+업무 로직을 바로 써도 된다.
+
+전체 예시는 [`example_zcl_apj_batch_sample.clas.abap`](example_zcl_apj_batch_sample.clas.abap).
 
 이미 돌고 있으면 `run( )` 이 잡 로그에 남기고 조용히 끝난다. 실패하면 잠금을
 먼저 풀고 예외를 다시 던져 잡을 오류 종료시킨다.

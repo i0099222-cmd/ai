@@ -10,33 +10,25 @@
 "!   4) scheduleJob 액션에 JobTemplateName = 'ZJT_BATCH_SAMPLE' 로 호출
 "!
 "! 리포트 이관
-"!   START-OF-SELECTION  -> PROCESS( )
+"!   START-OF-SELECTION  -> IF_APJ_RT_EXEC_OBJECT~EXECUTE( )
 "!   셀렉션 스크린        -> GET_PARAMETERS( )
 "!   배리언트             -> 잡 템플릿의 파라미터 값
 "!   WRITE                -> MESSAGE (잡 로그)
 "!
-"! 메서드가 셋인데 역할이 다르다.
-"!   IF_APJ_RT_EXEC_OBJECT~EXECUTE  APJ 진입점. 잠금 키만 넘긴다
-"!   RUN( )                         잠금 담당 (ZCL_BATCH_BASE)
-"!   PROCESS( )                     업무 로직. 여기만 쓰면 된다
-"!
-"! 겹침 방지가 필요 없으면 ZCL_BATCH_BASE 상속을 빼고
-"! IF_APJ_RT_EXEC_OBJECT~EXECUTE 에 업무 로직을 바로 써도 된다.
+"! 반복 주기가 짧은데 실행이 길어지면 앞 회차가 끝나기 전에 다음 회차가
+"! 시작된다. APJ 는 이걸 막아주지 않으므로 ZCL_BATCH_LOCK 으로 막는다.
+"! 필요 없는 배치는 그 네 줄을 빼면 된다.
 "!
 "! 참고용 예시다. IF_APJ_* 시그니처는 릴리스마다 다르니
 "! "TODO: 시그니처 확인" 표시된 곳만 ADT 에서 맞출 것.
 CLASS zcl_apj_batch_sample DEFINITION
   PUBLIC
   FINAL
-  INHERITING FROM zcl_batch_base
   CREATE PUBLIC.
 
   PUBLIC SECTION.
     INTERFACES if_apj_dt_exec_object.
     INTERFACES if_apj_rt_exec_object.
-
-  PROTECTED SECTION.
-    METHODS process REDEFINITION.
 
   PRIVATE SECTION.
 
@@ -50,35 +42,28 @@ CLASS zcl_apj_batch_sample DEFINITION
         test_run     TYPE c LENGTH 8 VALUE 'P_TEST',
       END OF c_param.
 
-    " 이번 실행의 파라미터 값. EXECUTE 가 받아 PROCESS 가 쓴다.
-    DATA mt_param TYPE if_apj_rt_exec_object=>tt_templ_val.
-
 ENDCLASS.
 
 
 CLASS zcl_apj_batch_sample IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
-* APJ 진입점 - 잠금은 RUN( ) 이 처리한다
+* 실행 - 리포트의 START-OF-SELECTION 자리
 *----------------------------------------------------------------------*
   METHOD if_apj_rt_exec_object~execute.
     " TODO: 시그니처 확인
 
-    mt_param = it_parameters.
+*   이미 돌고 있으면 이번 회차는 거른다.
+*   푸는 코드는 없다 - 잡이 끝나면 잠금도 같이 풀린다.
+    DATA(lo_lock) = NEW zcl_batch_lock( c_lock_key ).
 
-    run( c_lock_key ).
+    IF lo_lock->acquire( ) = abap_false.
+      MESSAGE |이미 실행 중이라 건너뜁니다: { c_lock_key }| TYPE 'I'.
+      RETURN.
+    ENDIF.
 
-  ENDMETHOD.
-
-
-*----------------------------------------------------------------------*
-* 업무 로직 - 리포트의 START-OF-SELECTION 자리
-*   여기 올 때는 이미 잠금이 잡혀 있다. 잠금 코드를 쓰지 않는다.
-*----------------------------------------------------------------------*
-  METHOD process.
-
-    DATA(lv_bukrs) = VALUE #( mt_param[ selname = c_param-company_code ]-low OPTIONAL ).
-    DATA(lv_test)  = VALUE #( mt_param[ selname = c_param-test_run ]-low OPTIONAL ).
+    DATA(lv_bukrs) = VALUE #( it_parameters[ selname = c_param-company_code ]-low OPTIONAL ).
+    DATA(lv_test)  = VALUE #( it_parameters[ selname = c_param-test_run ]-low OPTIONAL ).
 
     " MESSAGE 로 남긴 내용이 잡 로그가 된다. WRITE 를 대신하는 자리다.
     MESSAGE |처리 시작 bukrs={ lv_bukrs } testrun={ lv_test }| TYPE 'I'.
@@ -88,7 +73,7 @@ CLASS zcl_apj_batch_sample IMPLEMENTATION.
 
     MESSAGE |처리 건수 { lv_count }| TYPE 'I'.
 
-    " 실패는 예외로 알린다. RUN( ) 이 잠금을 풀고 잡을 오류 종료시킨다.
+    " 실패는 예외로 알린다. 잡이 오류 종료되고 잠금도 풀린다.
     " RAISE EXCEPTION NEW zcx_batch_job( message = '...' ).
 
   ENDMETHOD.

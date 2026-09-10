@@ -322,7 +322,7 @@ APJ 잡도 같이 사라졌다.
 | `zi_batch_schedule.bdef.abap` / `zc_batch_schedule.bdef.abap` | — | **BDEF + 정적 액션 4종** |
 | `zbp_i_batch_schedule.clas.abap` | ABAP Cloud | **정적 액션 4종.** saver 없음 |
 | `zcl_batch_apj_task.clas.abap` | ABAP Cloud | 자식 세션에서 도는 APJ 호출 작업 |
-| `zcl_batch_base.clas.abap` | ABAP Cloud | 실행 클래스 베이스 - 중복 실행 방지 |
+| `zcl_batch_lock.clas.abap` | ABAP Cloud | 중복 실행 방지 잠금 |
 | `ztbatch_lock.tabl.abap` | — | 잠금 오브젝트용 테이블 (데이터 없음) |
 | `zd_batch_schedule_in` / `_change_in` / `_cancel_in` / `_status_in` | — | 액션 파라미터 4종 |
 | `zcl_batch_apj_adapter.clas.abap` | ABAP Cloud | `CL_APJ_RT_API` 래퍼 |
@@ -859,35 +859,32 @@ PeriodMonths = 공장시간 있으면 workperiod, 없으면 반복주기
 반복 주기가 짧은데 실행이 길어지면 앞 회차가 끝나기 전에 다음 회차가 시작된다.
 **APJ 는 이걸 막아주지 않는다.**
 
-`ZCL_BATCH_BASE` 를 상속하면 막힌다. 각 배치는 `EXECUTE( )` 하나만 구현하고
-잠금 코드는 쓰지 않는다.
+`ZCL_BATCH_LOCK` 을 실행 클래스 앞에 네 줄 두면 막힌다.
 
 ```abap
-METHOD if_apj_rt_exec_object~execute.   " APJ 진입점
-  mt_param = it_parameters.
-  run( 'BATCH_SAMPLE' ).                " 잠금 단위. 같은 키끼리 겹치지 않는다
-ENDMETHOD.
+METHOD if_apj_rt_exec_object~execute.
 
-METHOD process.                          " 업무 로직만. 잠금 코드 없음
-  ...
+  DATA(lo_lock) = NEW zcl_batch_lock( 'BATCH_SAMPLE' ).
+
+  IF lo_lock->acquire( ) = abap_false.
+    MESSAGE '이미 실행 중이라 건너뜁니다' TYPE 'I'.
+    RETURN.
+  ENDIF.
+
+  " ... 업무 로직 ...
+
 ENDMETHOD.
 ```
 
-메서드가 셋인데 역할이 다르다.
+**푸는 코드가 없는 것이 맞다.** 배치 잡은 세션 하나이고 잠금은 그 세션이 끝나면
+자동으로 풀린다. 잡이 죽어도 마찬가지다. 잡이 끝나기 전에 먼저 풀고 싶을 때만
+`RELEASE( )` 를 부른다.
 
-| | |
-|---|---|
-| `IF_APJ_RT_EXEC_OBJECT~EXECUTE` | APJ 진입점. 잠금 키만 넘긴다 |
-| `RUN( )` | 잠금 담당 (베이스) |
-| `PROCESS( )` | **업무 로직. 여기만 쓰면 된다** |
-
-겹침 방지가 필요 없는 배치는 상속을 빼고 `IF_APJ_RT_EXEC_OBJECT~EXECUTE` 에
-업무 로직을 바로 써도 된다.
+상속이 아니라 호출인 이유는, 상속하면 흐름이 `EXECUTE` → `RUN` → `PROCESS` 로
+세 조각 나고 APJ 가 준 파라미터를 인스턴스 필드에 담아 넘겨야 하기 때문이다.
+호출로 두면 실행 클래스가 메서드 하나 안에서 위에서 아래로 읽힌다.
 
 전체 예시는 [`example_zcl_apj_batch_sample.clas.abap`](example_zcl_apj_batch_sample.clas.abap).
-
-이미 돌고 있으면 `run( )` 이 잡 로그에 남기고 조용히 끝난다. 실패하면 잠금을
-먼저 풀고 예외를 다시 던져 잡을 오류 종료시킨다.
 
 ### 왜 상태 컬럼이 아니라 잠금 오브젝트인가
 

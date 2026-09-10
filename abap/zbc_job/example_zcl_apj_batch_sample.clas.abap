@@ -17,7 +17,7 @@
 "!
 "! 반복 주기가 짧은데 실행이 길어지면 앞 회차가 끝나기 전에 다음 회차가
 "! 시작된다. APJ 는 이걸 막아주지 않으므로 ZCL_BATCH_LOCK 으로 막는다.
-"! 필요 없는 배치는 그 네 줄을 빼면 된다.
+"! 필요 없는 배치는 그 부분을 빼면 된다.
 "!
 "! 참고용 예시다. IF_APJ_* 시그니처는 릴리스마다 다르니
 "! "TODO: 시그니처 확인" 표시된 곳만 ADT 에서 맞출 것.
@@ -56,11 +56,19 @@ CLASS zcl_apj_batch_sample IMPLEMENTATION.
 *   이미 돌고 있으면 이번 회차는 거른다.
 *   푸는 코드는 없다 - 잡이 끝나면 잠금도 같이 풀린다.
     DATA(lo_lock) = NEW zcl_batch_lock( c_lock_key ).
+    DATA(lv_ok)   = lo_lock->acquire( ).
 
-    IF lo_lock->acquire( ) = abap_false.
-      MESSAGE |이미 실행 중이라 건너뜁니다: { c_lock_key }| TYPE 'I'.
+    " 잡았는지를 로그에 남긴다. 나중에 스킵된 회차를 구분할 수 있다.
+    MESSAGE |잠금 { c_lock_key } 획득={ lv_ok }| TYPE 'I'.
+
+    IF lv_ok = abap_false.
+      MESSAGE '이미 실행 중이라 건너뜁니다' TYPE 'I'.
       RETURN.
     ENDIF.
+
+*   잠금 테스트용 지연. 테스트할 때만 주석을 푼다 (TESTDATA.md 4-1).
+*   DO 50000000 TIMES.
+*   ENDDO.
 
     DATA(lv_bukrs) = VALUE #( it_parameters[ selname = c_param-company_code ]-low OPTIONAL ).
     DATA(lv_test)  = VALUE #( it_parameters[ selname = c_param-test_run ]-low OPTIONAL ).

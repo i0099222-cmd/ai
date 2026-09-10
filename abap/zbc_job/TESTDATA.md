@@ -143,6 +143,79 @@ X-CSRF-Token: {token}
 
 ---
 
+## 4-1. 중복 실행 방지 (잠금)
+
+우리 API 로 **같은 시각에 2건**을 걸어 겹치게 만든다.
+
+### 준비 - 실행 클래스에 시간을 태운다
+
+배치가 순식간에 끝나면 몇 건을 걸어도 안 겹친다. 테스트하는 동안만 넣는다.
+
+```abap
+METHOD if_apj_rt_exec_object~execute.
+
+  DATA(lo_lock) = NEW zcl_batch_lock( c_lock_key ).
+  DATA(lv_ok)   = lo_lock->acquire( ).
+
+  " 진단용. 두 잡의 로그를 비교하면 원인이 바로 보인다.
+  MESSAGE |acquire={ lv_ok } key={ c_lock_key }| TYPE 'I'.
+
+  IF lv_ok = abap_false.
+    MESSAGE '이미 실행 중이라 건너뜁니다' TYPE 'I'.
+    RETURN.
+  ENDIF.
+
+  MESSAGE '처리 시작' TYPE 'I'.
+
+  DO 50000000 TIMES.      " 테스트용 지연. 3분 정도 되게 횟수를 맞춘다
+  ENDDO.
+
+  MESSAGE '처리 끝' TYPE 'I'.
+
+ENDMETHOD.
+```
+
+### 거는 방법 - 같은 예약 시각으로 2건
+
+즉시실행 2번보다 확실하다. 호출 사이 시간차가 없어 **둘이 같은 순간에 릴리스**된다.
+지금부터 5분쯤 뒤로 잡으면 SM12 를 열어놓고 기다릴 여유도 생긴다.
+
+```json
+{ "JobTemplateName": "ZJT_BATCH_SAMPLE", "JobText": "락1",
+  "StartDateTime": "20260910143000" }
+
+{ "JobTemplateName": "ZJT_BATCH_SAMPLE", "JobText": "락2",
+  "StartDateTime": "20260910143000" }
+```
+
+### 기대 결과
+
+**SM37 에 잡 2건, 둘 다 `Finished`.** 두 번째가 실패가 아니라 **건너뛴 것**이라서다.
+로그가 갈린다.
+
+| | 잡 로그 |
+|---|---|
+| 먼저 잡은 쪽 | `acquire=X` → `처리 시작` → `처리 끝` |
+| 나중 | `acquire=` → **`이미 실행 중이라 건너뜁니다`** |
+
+배치가 도는 동안 **SM12** 에 `EZBATCH_LOCK` 이 보여야 한다.
+
+### 안 되면 - 원인 가르기
+
+**먼저 두 잡의 실제 시작 시각을 본다.** 차이가 나면 잠금 문제가 아니다.
+
+| 관찰 | 원인 |
+|------|------|
+| 시작 시각이 **다름** | 안 겹쳤다. 지연을 늘리거나 배치 워크프로세스 여유 확인 |
+| 둘 다 `acquire=X` | 잠금이 안 걸린다. SM12 에 잠금이 보이는지 확인 |
+| 잡이 **오류 종료** | 잠금 오브젝트를 못 찾는다 — 이름/활성화 확인 |
+| 로그가 아예 없음 | 실행 클래스가 안 불렸다. 카탈로그·템플릿 연결 확인 |
+
+배치 워크프로세스가 1개뿐이면 잡이 직렬화되어 **잠금과 무관하게** 안 겹친다.
+그 경우 테스트가 아무것도 증명하지 못한다.
+
+---
+
 ## 5. 후속 액션
 
 `scheduleJob` 응답의 `JobName` / `JobCount` 로 부른다.

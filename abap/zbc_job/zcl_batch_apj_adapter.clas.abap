@@ -236,16 +236,14 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
           ls_sched-month_info-day                  = is_start-month_day.
           ls_sched-month_info-use_working_days_ind = is_start-use_working_days.
 
-*         SHIFT_DIRECTION 은 "작업일 기준 시작일을 어느 쪽에서 세는지" 다.
-*         작업일로 셀 때만 의미가 있으므로 그때만 채운다. 달력일로 셀 때
-*         방향을 넣으면 뜻이 없고, 반대로 작업일인데 비워 두면 방향 없이
-*         세라는 요청이 된다.
-          IF is_start-use_working_days = abap_true.
-            ls_sched-month_info-shift_direction =
-              COND #( WHEN is_start-count_from_end = abap_true
-                      THEN zif_batch_job=>gc_shift-from_month_end     " 월말에서 역순
-                      ELSE zif_batch_job=>gc_shift-from_month_start ). " 월초에서 순서
-          ENDIF.
+*         세는 방향. 달력을 쓰든 안 쓰든 채운다.
+*         MonthDay 1 + CountFromMonthEnd 가 "매월 말일" 이고, 말일은 달마다
+*         날짜가 달라 이 방향으로만 표현된다. 작업일일 때만 채우면 그 요청이
+*         1일에 걸린다.
+          ls_sched-month_info-shift_direction =
+            COND #( WHEN is_start-count_from_end = abap_true
+                    THEN zif_batch_job=>gc_shift-from_month_end     " 월말에서 역순
+                    ELSE zif_batch_job=>gc_shift-from_month_start ). " 월초에서 순서
 
         ENDIF.
 

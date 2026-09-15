@@ -89,6 +89,19 @@ X-CSRF-Token: {token}
 ```
 → **10/30(금).** 31일이 토요일이라 마지막 **작업일**은 30일이다.
 
+### T07-1 말일 (달력 안 씀)
+
+```json
+{ "JobTemplateName": "ZJT_BATCH_SAMPLE", "JobText": "T07-1 말일",
+  "StartDateTime": "20261001020000", "PeriodMonths": 1,
+  "MonthDay": 1, "CountFromMonthEnd": true }
+```
+→ **10/31(토).** 공장달력을 안 쓰므로 휴일이어도 그대로 돈다.
+
+> 말일은 달마다 날짜가 달라 `MonthDay 1 + CountFromMonthEnd` 로만 표현된다.
+> **1일에 걸리면 `SHIFT_DIRECTION` 이 안 넘어간 것이다** — 작업일 여부와 무관하게
+> 채워야 하는 값이다.
+
 > **T05/T06 이 `SHIFT_DIRECTION` 값(01/02)을 검증하는 케이스다.**
 > T05 가 10/28 로, T06 이 10/5 로 나오면 두 값이 반대다 —
 > `ZIF_BATCH_JOB=>GC_SHIFT` 의 두 줄을 바꾸면 된다.

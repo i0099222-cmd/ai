@@ -33,8 +33,8 @@ CLASS zcl_batch_apj_adapter DEFINITION
     "! @parameter iv_template | 실행 대상을 결정한다. 템플릿 -> 카탈로그 -> 실행 클래스.
     "! @parameter iv_jobtext  | 잡 텍스트. APJ 는 잡 이름을 자동 생성하므로
     "!                          사용자가 지은 이름은 여기로 넘긴다.
-    "! @parameter iv_param    | 잡 파라미터 값 (JSON). IT_JOB_PARAMETER_VALUE 타입을
-    "!                          그대로 직렬화한 것이라 역직렬화만 하면 된다.
+    "! @parameter iv_param    | 잡 파라미터 값 (JSON). STEP_NR / NAME / T_VALUE 배열.
+    "!                          STEP_NR 은 템플릿의 몇 번째 단계인지. 안 주면 1.
     "! @parameter is_start    | 시작 조건 + 반복 + 제한 조건.
     METHODS schedule
       IMPORTING
@@ -253,33 +253,39 @@ CLASS zcl_batch_apj_adapter IMPLEMENTATION.
 
 *----------------------------------------------------------------------*
 * 잡 파라미터
-*   PARAM 의 JSON 은 IT_JOB_PARAMETER_VALUE 타입을 그대로 직렬화한 것이라
-*   역직렬화 한 줄이면 끝이고 변환이 없다.
+*   템플릿에 단계가 여러 개면 STEP_NR 로 어느 단계 값인지 가른다.
 *
-*   [{ "name":"P_MODU", "t_value":[{ "sign":"I","option":"EQ","low":"SD" }] }]
+*   [{ "step_nr":1, "name":"P_MODU",
+*      "t_value":[{ "sign":"I","option":"EQ","low":"SD" }] }]
 *----------------------------------------------------------------------*
-        DATA lt_param TYPE cl_apj_rt_api=>tt_job_parameter_value.
+        " TODO: 시그니처 확인 - 타입명이 TT_JOB_PARAMETER_VALUE_SIMPLE 인지
+        DATA lt_param TYPE cl_apj_rt_api=>tt_job_parameter_value_simple.
 
         IF iv_param IS NOT INITIAL.
           /ui2/cl_json=>deserialize( EXPORTING json = iv_param
                                      CHANGING  data = lt_param ).
         ENDIF.
 
+*       단계를 안 준 값은 1단계 것으로 본다. AS-IS 에는 단계 개념이 없다.
+        LOOP AT lt_param ASSIGNING FIELD-SYMBOL(<param>) WHERE step_nr IS INITIAL.
+          <param>-step_nr = 1.
+        ENDLOOP.
+
         DATA lv_job_name  TYPE c LENGTH 32.
         DATA lv_job_count TYPE c LENGTH 8.
 
         cl_apj_rt_api=>schedule_job(
           EXPORTING
-            iv_job_template_name   = CONV #( iv_template )
+            iv_job_template_name          = CONV #( iv_template )
             " 사용자가 지은 논리 잡 이름을 잡 텍스트로 넘긴다.
             " APJ 는 잡 이름을 자동 생성하므로 이게 최선이다. (COMPARISON #16)
-            iv_job_text            = CONV #( iv_jobtext )
-            is_start_info          = ls_start_info
-            is_scheduling_info     = ls_sched
-            it_job_parameter_value = lt_param
+            iv_job_text                   = CONV #( iv_jobtext )
+            is_start_info                 = ls_start_info
+            is_scheduling_info            = ls_sched
+            it_job_parameter_value_simple = lt_param
           IMPORTING
-            ev_jobname             = lv_job_name
-            ev_jobcount            = lv_job_count ).
+            ev_jobname                    = lv_job_name
+            ev_jobcount                   = lv_job_count ).
 
         rs_result = VALUE #( job_name  = lv_job_name
                              job_count = lv_job_count

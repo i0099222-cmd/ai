@@ -101,14 +101,14 @@ APJ 잡의 키는 **`jobname + jobcount`** 다.
 실행 클래스가 `GET_PARAMETERS` 로 정의한 파라미터의 **값**들이다.
 **리포트 배리언트를 대신하는 자리**다.
 
-**`SCHEDULE_JOB` 의 `IT_JOB_PARAMETER_VALUE` 타입을 그대로 직렬화한 것**이다.
+**`SCHEDULE_JOB` 의 `IT_JOB_PARAMETER_VALUE_SIMPLE` 타입을 그대로 직렬화한 것**이다.
 그래서 스케줄할 때 역직렬화 한 줄이면 끝이고, 변환 로직이 없다.
 
 ```json
 [
-  { "name": "P_MODU",
+  { "step_nr": 1, "name": "P_MODU",
     "t_value": [ { "sign": "I", "option": "EQ", "low": "SD" } ] },
-  { "name": "P_DATS",
+  { "step_nr": 1, "name": "P_DATS",
     "t_value": [ { "sign": "I", "option": "BT",
                    "low": "20260101", "high": "20261231" } ] }
 ]
@@ -117,10 +117,28 @@ APJ 잡의 키는 **`jobname + jobcount`** 다.
 `t_value` 가 range 테이블이라 select-option 도 그대로 표현된다.
 
 ```abap
-DATA lt_param TYPE cl_apj_rt_api=>tt_job_parameter_value.
+DATA lt_param TYPE cl_apj_rt_api=>tt_job_parameter_value_simple.
 /ui2/cl_json=>deserialize( EXPORTING json = iv_param
                            CHANGING  data = lt_param ).
 ```
+
+### `step_nr` — 몇 번째 단계 값인가
+
+**잡 템플릿은 단계를 여러 개 가질 수 있다.** Fiori "Application Jobs" 앱의
+템플릿 생성 화면에서 단계를 넣는다 (ADT 템플릿 편집기에는 그 항목이 없다).
+그래서 `SCHEDULE_JOB` 이 템플릿 이름 하나만 받아도 다단계 잡이 걸린다 —
+단계는 템플릿이 이미 들고 있다.
+
+`step_nr` 은 그 중 **몇 번째 단계에 이 값을 줄지**를 가리킨다.
+2단계 템플릿이면 1단계 프로그램의 값과 2단계 프로그램의 값을 한 배열에
+섞어 보내고, `step_nr` 로 갈라진다.
+
+**안 주면 어댑터가 1 로 채운다.** AS-IS 에는 단계 개념이 없어서
+기존 호출자는 이 필드를 보내지 않는다.
+
+> `step_nr` 이 비면 값이 조용히 무시될 수 있다 — 잡은 성공하는데 배리언트
+> 값만 안 들어가는 형태라 로그로 찍어보지 않으면 못 잡는다. 그래서 기본값을
+> 호출자에게 맡기지 않고 어댑터가 채운다.
 
 호출자도 같은 타입을 `/UI2/CL_JSON` 으로 직렬화해서 보내면 된다 —
 기존 배치 인터페이스 코드가 이미 그렇게 하고 있다.
@@ -130,7 +148,7 @@ DATA lt_param TYPE cl_apj_rt_api=>tt_job_parameter_value.
 
 > API 로 직접 테스트할 때는 `Parameters` 가 string 필드라 JSON 안의 따옴표를
 > 이스케이프해야 한다:
-> `"Parameters": "[{\"name\":\"P_MODU\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"SD\"}]}]"`
+> `"Parameters": "[{\"step_nr\":1,\"name\":\"P_MODU\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"SD\"}]}]"`
 
 ---
 
@@ -437,7 +455,7 @@ AS-IS RFC 는 잡 정보를 동기로 돌려줬으므로 이 지점은 다르다
 `Parameters` 가 string 필드라 JSON 안의 따옴표를 이스케이프해야 한다.
 
 ```json
-  "Parameters": "[{\"name\":\"P_BUKRS\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"1000\"}]}]",
+  "Parameters": "[{\"step_nr\":1,\"name\":\"P_BUKRS\",\"t_value\":[{\"sign\":\"I\",\"option\":\"EQ\",\"low\":\"1000\"}]}]",
 ```
 
 ### 예약 + 반복

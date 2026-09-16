@@ -1,16 +1,18 @@
 managed implementation in class zbp_dq_r_table_to_bo_header unique;
 strict ( 2 );
+with draft;
 
 define behavior for ZDQ_R_TABLE_TO_BO_HEADER alias OrderHeader
 persistent table zdq_tordhdr
-lock master
+draft table zdq_tordhdr_d
+lock master total etag LastChangedAt
 authorization master ( global )
 etag master LocalLastChangedAt
 {
   create;
   update;
   delete;
-  association _Item { create; }
+  association _Item { create; with draft; }
 
   // 기술 키는 프레임워크가 자동 생성 (코드 불필요)
   field ( numbering : managed, readonly ) OrderUUID;
@@ -22,6 +24,13 @@ etag master LocalLastChangedAt
   action closeOrder result [1] $self;
 
   validation checkSupplier on save { create; field Supplier; }
+
+  // draft 액션은 프레임워크가 구현한다 (핸들러 코드 없음)
+  draft action Edit;
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Resume;
+  draft determine action Prepare { validation checkSupplier; }
 
   mapping for zdq_tordhdr
   {
@@ -43,13 +52,14 @@ etag master LocalLastChangedAt
 
 define behavior for ZDQ_R_TABLE_TO_BO_ITEM alias OrderItem
 persistent table zdq_torditm
+draft table zdq_torditm_d
 lock dependent by _Header
 authorization dependent by _Header
 etag master LocalLastChangedAt
 {
   update;
   delete;
-  association _Header;
+  association _Header { with draft; }
 
   // ItemUUID 는 프레임워크가, OrderUUID 는 부모 association 이 채운다
   field ( numbering : managed, readonly ) ItemUUID;
@@ -57,7 +67,7 @@ etag master LocalLastChangedAt
                      CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
   field ( mandatory ) ItemNo, Product, Quantity, QuantityUnit, Currency;
 
-  // 아이템 변경 시 헤더 총액 재계산
+  // 아이템 변경 시 헤더 총액 재계산 (draft 활성화 시점에 실행)
   determination calcTotalAmount on save { create; update; delete; }
 
   mapping for zdq_torditm

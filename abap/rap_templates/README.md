@@ -118,7 +118,7 @@ UUID 는 `field ( numbering : managed )` 만 적으면 프레임워크가 생성
 |---|--------|------|----------|----------|------|
 | 1 | Table to Service | `ZDQ_TORDHDR` | I → C | 없음 (조회) | – |
 | 2 | Table to Service with Action | `ZDQ_TORDHDR` | I → R → P | `managed` | `releaseOrder`, `changeStatus` |
-| 3 | Table to BO | `ZDQ_TORDHDR` + `ZDQ_TORDITM` | I → R → P (Header/Item) | `managed` + composition | `closeOrder` |
+| 3 | Table to BO | `ZDQ_TORDHDR` + `ZDQ_TORDITM` | I → R → P (Header/Item) | `managed` + composition + **draft** | `closeOrder` |
 | 4 | CDS to Service with Display | `I_Product` | I → C | 없음 (조회) | – |
 | 5 | CDS to Service with Action | `I_Product` + `ZDQ_TPRDREV` | I → R → P | `managed with unmanaged save` | `approveReview` |
 | 6 | Custom Entity with display | `ZDQ_TORDITM` + `ZDQ_TORDHDR` | Custom entity | 없음 (조회) | – |
@@ -133,10 +133,11 @@ UUID 는 `field ( numbering : managed )` 만 적으면 프레임워크가 생성
 
 1. `00_common` 의 테이블 3개 (`ZSCM00010` 이 먼저 존재해야 한다)
 2. `ZDQ_TORDHDR` 에 유일 인덱스 `(CLIENT, ORDERID)` 생성 (SE11)
-3. Case 7 을 만들 경우 잠금 오브젝트 `EZDQ_TPRDREV` (SE11)
-4. 케이스별로 `I → R → P/C → Abstract → BDEF → Behavior pool → Service definition → Service binding` 순서
-5. Service binding 은 ADT 에서 생성 (파일로 관리되지 않음) — 아래 7번 표 참고
-6. Service binding 에서 **Publish** 실행 → Fiori Elements Preview 로 확인
+3. Case 3 을 만들 경우 draft 테이블 `ZDQ_TORDHDR_D`, `ZDQ_TORDITM_D` (`03_table_to_bo/`)
+4. Case 7 을 만들 경우 잠금 오브젝트 `EZDQ_TPRDREV` (SE11)
+5. 케이스별로 `I → R → P/C → Abstract → BDEF → Behavior pool → Service definition → Service binding` 순서
+6. Service binding 은 ADT 에서 생성 (파일로 관리되지 않음) — 아래 7번 표 참고
+7. Service binding 에서 **Publish** 실행 → Fiori Elements Preview 로 확인
 
 ---
 
@@ -184,6 +185,8 @@ zdq_tordhdr ──▶ ZDQ_I_TABLE_TO_SRV_ACTION ──▶ ZDQ_R_TABLE_TO_SRV_ACT
   - `changeStatus` : `ZDQ_A_ORDER_STATUS` 파라미터를 받는 액션
 - 핸들러에서 `MODIFY ENTITIES ... IN LOCAL MODE` 를 쓰면 `readonly` 제약을 우회할 수 있다.
 - determination 없이 액션 핸들러만 있다. 상태 변경 로직은 전부 액션 안에 있다.
+- **non-draft 라서 Preview 에서 Create 버튼이 안 뜰 수 있다.** Case 3 과 같은 테이블을 쓰므로
+  데이터는 Case 3 에서 만들고, 여기서는 액션만 확인한다 (액션은 draft 없이도 동작한다).
 
 ### Case 3 — Table to BO (Header / Item)
 
@@ -200,6 +203,13 @@ ZDQ_P_TABLE_TO_BO_HEADER ──redirected──▶ ZDQ_P_TABLE_TO_BO_ITEM
   헤더가 함께 삭제된 경우를 대비해 헤더 존재 여부를 먼저 확인한다.
 - `validation checkSupplier` 로 필수값 검증 + 메시지 반환 패턴을 보여준다.
   메시지 클래스 없이 `new_message_with_text( )` 를 사용했다.
+- **draft 적용.** draft 테이블 `ZDQ_TORDHDR_D` / `ZDQ_TORDITM_D` 를 만들고
+  BDEF 에 `with draft;` + `draft table` + draft 액션을 선언한다.
+  Edit / Activate / Discard / Resume / Prepare 는 프레임워크가 구현하므로 **핸들러 코드가 없다.**
+- draft 를 쓰면 root 에 `lock master total etag LastChangedAt` 이 필요하고,
+  strict(2) 에서는 validation 을 `draft determine action Prepare` 에 등록해야 한다.
+- `calcTotalAmount` 는 `on save` 라 **활성화(Activate) 시점**에 돈다.
+  draft 편집 중 실시간 반영이 필요하면 `on modify` 트리거를 추가한다.
 
 ### Case 4 — CDS to Service with Display
 
@@ -279,11 +289,39 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
 
 ---
 
-## 9. 활성화 전 검증 체크리스트
+## 9. 테스트 데이터 만들기
+
+별도로 데이터를 넣을 필요 없이 **Case 3 Preview 에서 만들면 된다.** 그게 곧 첫 테스트다.
+
+| 케이스 | 데이터 준비 |
+|--------|-------------|
+| 4, 5, 7 | 불필요 — `I_Product` 는 이미 자재 마스터가 있다 |
+| 3 | Preview 에서 Create → 헤더 + 아이템 생성 |
+| 1, 2 | Case 3 에서 만든 주문이 그대로 보인다 (같은 `ZDQ_TORDHDR`) |
+| 6, 8 | Case 3 에서 아이템을 만들면 채워진다 |
+
+Case 5 / 7 의 `ZDQ_TPRDREV` 는 **액션이 upsert 로 직접 만든다.**
+검토 레코드가 없는 자재에 `approveReview` 를 눌렀을 때 신규 생성되는지가 핵심 확인 항목이므로
+미리 데이터를 넣으면 그 경로를 확인할 수 없다.
+
+### 주의
+
+- **SE16N 직접 입력은 비추천.** 키가 UUID(RAW16)라 손으로 GUID 를 쳐야 하고
+  헤더/아이템 UUID 를 맞춰 넣어야 해서 앱에서 만드는 편이 훨씬 빠르다.
+- `Supplier` / `Plant` / `Product` 는 **시스템에 실제로 있는 값**을 넣는다.
+  FK 체크가 없어 아무 값이나 저장되지만, 표준 CDS 텍스트가 붙지 않아
+  Case 1 / 6 / 8 의 텍스트 컬럼이 빈칸으로 보인다.
+- Case 2 는 non-draft 라 Preview 에서 Create 가 안 될 수 있다.
+  Fiori Elements(OData V4)는 non-draft 를 sticky session 으로 처리하는데
+  릴리즈·UI5 버전에 따라 Create 버튼이 나타나지 않는다. 액션 실행은 영향 없다.
+
+---
+
+## 10. 활성화 전 검증 체크리스트
 
 이 템플릿은 실제 시스템에서 활성화 검증을 거치지 않았다. 아래 항목은 **처음 생성할 때 반드시 확인**한다.
 
-### 9.1 필수 확인
+### 10.1 필수 확인
 
 - [ ] `ZSCM00010` 의 실제 필드명이 `CREATED_BY / CREATED_AT / LAST_CHANGED_BY / LAST_CHANGED_AT /
       LOCAL_LAST_CHANGED_AT` 인지. 다르면 `ZDQ_I_*` 뷰의 select list 와 BDEF 의 `mapping for` 두 곳을 수정
@@ -299,12 +337,14 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
       지원하지 않으면 `ZDQ_I_TABLE_FUNC_TO_SERVICE` 를 classic `define view` 로 작성한다
 - [ ] Case 7: 잠금 오브젝트 `EZDQ_TPRDREV` 생성 및 ENQUEUE 함수모듈 파라미터명 확인
 
-### 9.2 기능 확인
+### 10.2 기능 확인
 
 - [ ] Case 1/4/6/8 — 목록 조회, 필터, 정렬, 페이징, 건수
-- [ ] Case 2 — 생성 시 UUID 자동 생성 / 생성 직후 상태는 빈 값
+- [ ] Case 2 — Case 3 에서 만든 주문이 목록에 보이는지 (같은 테이블)
 - [ ] Case 2 — `releaseOrder` 후 `02` / `changeStatus` 파라미터 반영
 - [ ] Case 2/3 — 같은 주문번호로 두 건 생성 시 유일 인덱스가 막는지
+- [ ] Case 3 — Preview 에서 Create → 헤더 입력 → 아이템 추가 → Save(Activate) 까지 되는지
+- [ ] Case 3 — 편집 중 Discard 시 draft 만 사라지고 원본은 유지되는지
 - [ ] Case 3 — 아이템 추가·수정·삭제 후 헤더 총액 재계산 / 헤더 삭제 시 오류 없이 연쇄 삭제
 - [ ] Case 3 — 공급업체 미입력 시 저장 거부 및 메시지 표시
 - [ ] Case 5 — 검토 레코드가 **없는** 자재에 `approveReview` 실행 시 신규 생성되는지 (upsert 확인)
@@ -313,7 +353,7 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
 
 ---
 
-## 10. 템플릿에 포함하지 않은 것
+## 11. 템플릿에 포함하지 않은 것
 
 의도적으로 제외했다. 프로젝트 표준에 맞춰 별도로 결정한다.
 
@@ -321,19 +361,19 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
 |------|------|
 | DCL (접근 제어) | 모든 뷰가 `@AccessControl.authorizationCheck: #NOT_REQUIRED`. 권한 오브젝트 확정 후 DCL 추가 |
 | 권한 체크 | `get_global_authorizations` 는 전역 허용. 실제로는 `AUTHORITY-CHECK` 로 대체 |
-| Draft | Case 3 는 non-draft. 키가 UUID 이므로 BDEF 에 `with draft;` + draft 테이블만 추가하면 된다 |
+| Draft (Case 2) | Case 2 는 non-draft. 화면 생성이 필요하면 Case 3 처럼 draft 테이블 + `with draft;` 를 추가한다 |
 | 메시지 클래스 | `new_message_with_text( )` 사용. 다국어가 필요하면 T100 메시지 클래스로 교체 |
 | 값 도움말 | 상태 코드 값 도움말 뷰 미포함. 필요 시 `@Consumption.valueHelpDefinition` 추가 |
 
 ---
 
-## 11. 파일 확장자
+## 12. 파일 확장자
 
 ADT 에 복사해 넣기 좋도록 소스 형태로 관리한다 (abapGit 형식 준용).
 
 | 확장자 | 오브젝트 |
 |--------|----------|
-| `.tabl.ddl` | 데이터베이스 테이블 (ADT DDL 정의) |
+| `.tabl.ddl` | 데이터베이스 테이블 (ADT DDL 정의). `*_d` 는 draft 테이블 |
 | `.ddls.asddls` | CDS view entity / custom entity / abstract entity / table function |
 | `.bdef.asbdef` | Behavior definition |
 | `.srvd.srvdsrv` | Service definition |

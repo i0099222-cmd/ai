@@ -11,7 +11,7 @@ define table zdq_tordhdr {
   @EndUserText.label : '주문 UUID'
   key orderuuid    : sysuuid_x16 not null;
 
-  -- 업무 키 : 번호범위 오브젝트 ZDQ_ORDER 로 채번. SE11 에서 유일 인덱스 필요
+  -- 업무 키 : 사용자 입력. SE11 에서 유일 인덱스 생성 필요
   @EndUserText.label : '주문번호'
   orderid          : abap.char(10);
 

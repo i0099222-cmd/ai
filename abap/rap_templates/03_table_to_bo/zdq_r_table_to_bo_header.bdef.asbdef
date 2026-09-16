@@ -12,18 +12,16 @@ etag master LocalLastChangedAt
   delete;
   association _Item { create; }
 
-  // 기술 키는 프레임워크가 생성, 업무 키는 저장 시 채번
+  // 기술 키는 프레임워크가 자동 생성 (코드 불필요)
   field ( numbering : managed, readonly ) OrderUUID;
-  field ( mandatory : create ) OrderDate, Supplier, Plant, Currency;
+  field ( mandatory : create ) OrderId, OrderDate, Supplier, Plant, Currency;
   // 총액은 아이템 합계로 자동 계산, 상태는 액션으로만 변경
-  field ( readonly ) OrderId, OrderStatus, TotalAmount,
+  field ( readonly ) OrderStatus, TotalAmount,
                      CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
 
   action closeOrder result [1] $self;
 
   validation checkSupplier on save { create; field Supplier; }
-
-  determination setOrderNumber on save { create; }
 
   mapping for zdq_tordhdr
   {
@@ -55,12 +53,11 @@ etag master LocalLastChangedAt
 
   // ItemUUID 는 프레임워크가, OrderUUID 는 부모 association 이 채운다
   field ( numbering : managed, readonly ) ItemUUID;
-  field ( readonly ) OrderUUID, ItemNo,
+  field ( readonly ) OrderUUID,
                      CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
-  field ( mandatory ) Product, Quantity, QuantityUnit, Currency;
+  field ( mandatory ) ItemNo, Product, Quantity, QuantityUnit, Currency;
 
-  // 아이템 번호 자동 부여 + 헤더 총액 재계산
-  determination setItemNumber   on save { create; }
+  // 아이템 변경 시 헤더 총액 재계산
   determination calcTotalAmount on save { create; update; delete; }
 
   mapping for zdq_torditm

@@ -13,7 +13,7 @@ SAP S/4HANA Private Cloud Edition 환경에서 사용할 **RAP 표준 템플릿*
 | ABAP 언어 버전 | Standard ABAP (Case 8 은 `MAKT` 등 비릴리즈 오브젝트를 참조) |
 | 패키지 | 프로젝트 개발 패키지 1개 (예: `ZDQ_RAP_TEMPLATE`) |
 | 히스토리 구조 | `ZSCM00010` (RAP 표준형 5필드 — `00_common/zscm00010.reference.md` 참고) |
-| 번호범위 | `ZDQ_ORDER` (Case 2 / 3 — `00_common/zdq_order.nrob.md` 참고) |
+| 인덱스 | `ZDQ_TORDHDR` 유일 인덱스 (Case 2 / 3 — `00_common/indexes.md` 참고) |
 | 잠금 오브젝트 | `EZDQ_TPRDREV` (Case 7 — `00_common/ezdq_tprdrev.enqu.md` 참고) |
 
 ---
@@ -66,11 +66,12 @@ SAP S/4HANA Private Cloud Edition 환경에서 사용할 **RAP 표준 템플릿*
 | 표준 오브젝트에 종속된 CBO (Case 5·7 의 `ZDQ_TPRDREV`) | **업무 키** (`MATNR`) | 표준 CDS 와 조인해야 하므로 UUID 를 쓸 수 없다 |
 | 조회 전용 집계 (Case 8) | **업무 키 조합** | 영속 테이블이 아니므로 UUID 가 의미 없다 |
 
-UUID 를 쓰면 업무 번호(주문번호·아이템번호)는 별도로 채워야 한다.
+UUID 는 `field ( numbering : managed )` 만 적으면 프레임워크가 생성하므로 **추가 코드가 없다.**
 
-- 주문번호 `ORDERID` → 번호범위 `ZDQ_ORDER` + `determination setOrderNumber on save`
-- 아이템번호 `ITEMNO` → `determination setItemNumber on save` (헤더별 최대값 + 10)
+- 업무 번호(`ORDERID`, `ITEMNO`)는 사용자가 입력한다 (`field ( mandatory )`)
+- 주문번호 중복은 `(CLIENT, ORDERID)` 유일 인덱스로 막는다
 - 화면에는 `@ObjectModel.semanticKey` 로 업무 번호가 보이고 UUID 는 `@UI.hidden` 처리한다
+- 번호범위 자동 채번이 필요하면 `determination ... on save` 를 추가한다 (템플릿 범위 밖)
 
 ### 아이템 키에 부모 UUID 를 포함한 이유
 
@@ -91,7 +92,7 @@ UUID 를 쓰면 업무 번호(주문번호·아이템번호)는 별도로 채워
 
   ZDQ_TORDHDR (구매주문 헤더)                     I_Supplier
       key CLIENT + ORDERUUID     ── supplier ──▶
-      ORDERID (번호범위 채번)     ── plant    ──▶  I_Plant
+      ORDERID (유일 인덱스)       ── plant    ──▶  I_Plant
       │
       └─▶ ZDQ_TORDITM (구매주문 아이템)
              key CLIENT + ORDERUUID + ITEMUUID
@@ -132,11 +133,10 @@ UUID 를 쓰면 업무 번호(주문번호·아이템번호)는 별도로 채워
 
 1. `00_common` 의 테이블 3개 (`ZSCM00010` 이 먼저 존재해야 한다)
 2. `ZDQ_TORDHDR` 에 유일 인덱스 `(CLIENT, ORDERID)` 생성 (SE11)
-3. Case 2/3 을 만들 경우 번호범위 오브젝트 `ZDQ_ORDER` (SNRO) + 구간 `01` (SNUM)
-4. Case 7 을 만들 경우 잠금 오브젝트 `EZDQ_TPRDREV` (SE11)
-5. 케이스별로 `I → R → P/C → Abstract → BDEF → Behavior pool → Service definition → Service binding` 순서
-6. Service binding 은 ADT 에서 생성 (파일로 관리되지 않음) — 아래 7번 표 참고
-7. Service binding 에서 **Publish** 실행 → Fiori Elements Preview 로 확인
+3. Case 7 을 만들 경우 잠금 오브젝트 `EZDQ_TPRDREV` (SE11)
+4. 케이스별로 `I → R → P/C → Abstract → BDEF → Behavior pool → Service definition → Service binding` 순서
+5. Service binding 은 ADT 에서 생성 (파일로 관리되지 않음) — 아래 7번 표 참고
+6. Service binding 에서 **Publish** 실행 → Fiori Elements Preview 로 확인
 
 ---
 
@@ -178,8 +178,7 @@ zdq_tordhdr ──▶ ZDQ_I_TABLE_TO_SRV_ACTION ──▶ ZDQ_R_TABLE_TO_SRV_ACT
 ```
 
 - `managed` + `persistent table zdq_tordhdr`. CRUD 는 프레임워크가 처리한다.
-- `field ( numbering : managed, readonly ) OrderUUID;` 로 키는 프레임워크가 생성한다.
-- 주문번호는 `determination setOrderNumber on save` 에서 번호범위로 채운다.
+- `field ( numbering : managed, readonly ) OrderUUID;` 한 줄로 키는 프레임워크가 생성한다.
 - `OrderStatus` 는 `field ( readonly )` 로 막고 **액션으로만** 변경한다.
   - `releaseOrder` : 파라미터 없는 액션
   - `changeStatus` : `ZDQ_A_ORDER_STATUS` 파라미터를 받는 액션
@@ -196,7 +195,6 @@ ZDQ_P_TABLE_TO_BO_HEADER ──redirected──▶ ZDQ_P_TABLE_TO_BO_ITEM
   `authorization dependent by _Header` 로 헤더에 종속시킨다.
 - 아이템 키는 `OrderUUID + ItemUUID`. `OrderUUID` 는 부모 association 이, `ItemUUID` 는
   `numbering : managed` 로 프레임워크가 채운다.
-- `determination setItemNumber` (아이템 `on save`) 가 아이템 번호를 10 단위로 부여한다.
 - `determination calcTotalAmount` (아이템 `on save`) 가 헤더 총액을 재계산한다.
   헤더가 함께 삭제된 경우를 대비해 헤더 존재 여부를 먼저 확인한다.
 - `validation checkSupplier` 로 필수값 검증 + 메시지 반환 패턴을 보여준다.
@@ -290,7 +288,6 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
       LOCAL_LAST_CHANGED_AT` 인지. 다르면 `ZDQ_I_*` 뷰의 select list 와 BDEF 의 `mapping for` 두 곳을 수정
 - [ ] 타임스탬프 필드 타입이 `timestampl` (DEC 21,7) 인지. `utclong` 이면 Case 5 saver 의
       `GET TIME STAMP FIELD` 대상 변수 타입을 `utclong` 으로 바꾼다
-- [ ] 번호범위 `ZDQ_ORDER` 구간 `01` 생성 여부. 없으면 Case 2/3 저장 시 오류 메시지가 뜬다
 - [ ] `ZDQ_TORDHDR` 의 `(CLIENT, ORDERID)` 유일 인덱스 생성 여부
 - [ ] 사용한 표준 CDS 필드가 해당 릴리즈에 존재하는지
   - `I_Product` : `Product`, `ProductType`, `ProductGroup`, `Division`, `BaseUnit`, `CreationDate`, `CreatedByUser`
@@ -304,10 +301,9 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
 ### 9.2 기능 확인
 
 - [ ] Case 1/4/6/8 — 목록 조회, 필터, 정렬, 페이징, 건수
-- [ ] Case 2 — 생성 시 UUID 자동 생성 / 주문번호 채번 / 상태 `01` 자동 설정
+- [ ] Case 2 — 생성 시 UUID 자동 생성 / 상태 `01` 자동 설정
 - [ ] Case 2 — `releaseOrder` 후 `02` / `changeStatus` 파라미터 반영
-- [ ] Case 2/3 — 여러 건을 한 번에 생성했을 때 주문번호가 **연속·중복 없이** 부여되는지
-- [ ] Case 3 — 아이템 추가 시 번호가 10, 20, 30 … 으로 부여되는지
+- [ ] Case 2/3 — 같은 주문번호로 두 건 생성 시 유일 인덱스가 막는지
 - [ ] Case 3 — 아이템 추가·수정·삭제 후 헤더 총액 재계산 / 헤더 삭제 시 오류 없이 연쇄 삭제
 - [ ] Case 3 — 공급업체 미입력 시 저장 거부 및 메시지 표시
 - [ ] Case 5 — 검토 레코드가 **없는** 자재에 `approveReview` 실행 시 신규 생성되는지 (upsert 확인)

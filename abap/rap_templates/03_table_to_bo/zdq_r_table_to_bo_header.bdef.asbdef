@@ -1,0 +1,74 @@
+managed implementation in class zbp_dq_r_table_to_bo_header unique;
+strict ( 2 );
+
+define behavior for ZDQ_R_TABLE_TO_BO_HEADER alias OrderHeader
+persistent table zdq_tordhdr
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  create;
+  update;
+  delete;
+  association _Item { create; }
+
+  field ( mandatory : create ) OrderDate, Supplier, Plant, Currency;
+  // 총액은 아이템 합계로 자동 계산, 상태는 액션으로만 변경
+  field ( readonly ) OrderStatus, TotalAmount,
+                     CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
+
+  action closeOrder result [1] $self;
+
+  validation checkSupplier on save { create; field Supplier; }
+
+  mapping for zdq_tordhdr
+  {
+    OrderId            = order_id;
+    OrderDate          = order_date;
+    Supplier           = supplier;
+    Plant              = plant;
+    Currency           = currency;
+    TotalAmount        = total_amount;
+    OrderStatus        = order_status;
+    CreatedBy          = created_by;
+    CreatedAt          = created_at;
+    LastChangedBy      = last_changed_by;
+    LastChangedAt      = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}
+
+define behavior for ZDQ_R_TABLE_TO_BO_ITEM alias OrderItem
+persistent table zdq_torditm
+lock dependent by _Header
+authorization dependent by _Header
+etag master LocalLastChangedAt
+{
+  update;
+  delete;
+  association _Header;
+
+  field ( readonly ) OrderId;
+  field ( mandatory ) Product, Quantity, QuantityUnit, Currency;
+  field ( readonly ) CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
+
+  // 아이템 변경 시 헤더 총액 재계산
+  determination calcTotalAmount on save { create; update; delete; }
+
+  mapping for zdq_torditm
+  {
+    OrderId            = order_id;
+    ItemNo             = item_no;
+    Product            = product;
+    Quantity           = quantity;
+    QuantityUnit       = quantity_unit;
+    NetAmount          = net_amount;
+    Currency           = currency;
+    DeliveryDate       = delivery_date;
+    CreatedBy          = created_by;
+    CreatedAt          = created_at;
+    LastChangedBy      = last_changed_by;
+    LastChangedAt      = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

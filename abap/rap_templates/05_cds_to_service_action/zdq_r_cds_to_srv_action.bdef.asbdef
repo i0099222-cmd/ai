@@ -1,0 +1,20 @@
+// 원천이 표준 CDS(읽기 전용)이므로 persistent table 을 둘 수 없다.
+// 조회/잠금/트랜잭션 버퍼는 프레임워크가 담당하고, 저장만 saver 에서 직접 구현한다.
+managed with unmanaged save implementation in class zbp_dq_r_cds_to_srv_action unique;
+strict ( 2 );
+
+define behavior for ZDQ_R_CDS_TO_SRV_ACTION alias ProductReview
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  update;
+
+  // 표준 CDS 에서 온 필드와 이력 필드는 변경 불가
+  field ( readonly ) Product, ProductType, ProductGroup, BaseUnit,
+                     ReviewStatus,
+                     CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
+
+  // 검토상태는 액션으로만 변경
+  action approveReview result [1] $self;
+}

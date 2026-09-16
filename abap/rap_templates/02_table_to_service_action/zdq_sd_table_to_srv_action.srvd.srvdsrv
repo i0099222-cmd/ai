@@ -1,0 +1,4 @@
+@EndUserText.label: 'Case2: Table to Service with Action'
+define service ZDQ_SD_TABLE_TO_SRV_ACTION {
+  expose ZDQ_P_TABLE_TO_SRV_ACTION as PurchaseOrder;
+}

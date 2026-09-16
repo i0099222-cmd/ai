@@ -1,0 +1,4 @@
+@EndUserText.label: 'Case1: Table to Service (조회 전용)'
+define service ZDQ_SD_TABLE_TO_SERVICE {
+  expose ZDQ_C_TABLE_TO_SERVICE as PurchaseOrder;
+}

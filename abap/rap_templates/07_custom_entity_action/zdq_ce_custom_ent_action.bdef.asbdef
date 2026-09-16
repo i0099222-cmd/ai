@@ -1,0 +1,11 @@
+// custom entity 는 ABAP SQL 로 읽을 수 없으므로 managed 를 쓸 수 없다.
+// 조회(read) / 잠금(lock) / 저장(save) 을 모두 직접 구현한다.
+unmanaged implementation in class zbp_dq_ce_custom_ent_action unique;
+strict ( 2 );
+
+define behavior for ZDQ_CE_CUSTOM_ENT_ACTION alias ProductReview
+lock master
+authorization master ( global )
+{
+  action approveReview result [1] $self;
+}

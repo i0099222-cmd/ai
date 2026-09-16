@@ -1,0 +1,4 @@
+@EndUserText.label: 'Case5: CDS to Service with Action'
+define service ZDQ_SD_CDS_TO_SRV_ACTION {
+  expose ZDQ_P_CDS_TO_SRV_ACTION as ProductReview;
+}

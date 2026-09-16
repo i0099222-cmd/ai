@@ -1,0 +1,4 @@
+@EndUserText.label: 'Case8: Table Function to Service'
+define service ZDQ_SD_TABLE_FUNC_TO_SERVICE {
+  expose ZDQ_C_TABLE_FUNC_TO_SERVICE as PurchaseOrderSummary;
+}

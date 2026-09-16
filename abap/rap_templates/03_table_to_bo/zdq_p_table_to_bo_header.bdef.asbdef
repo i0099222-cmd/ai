@@ -1,0 +1,21 @@
+projection;
+strict ( 2 );
+
+define behavior for ZDQ_P_TABLE_TO_BO_HEADER alias PurchaseOrder
+{
+  use create;
+  use update;
+  use delete;
+
+  use action closeOrder;
+
+  use association _Item { create; }
+}
+
+define behavior for ZDQ_P_TABLE_TO_BO_ITEM alias PurchaseOrderItem
+{
+  use update;
+  use delete;
+
+  use association _Header;
+}

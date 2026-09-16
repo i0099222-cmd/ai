@@ -1,0 +1,4 @@
+@EndUserText.label: 'Case7: Custom Entity with Action'
+define service ZDQ_SD_CUSTOM_ENT_ACTION {
+  expose ZDQ_CE_CUSTOM_ENT_ACTION as ProductReview;
+}

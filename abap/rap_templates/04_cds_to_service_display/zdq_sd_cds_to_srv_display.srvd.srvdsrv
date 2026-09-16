@@ -1,0 +1,4 @@
+@EndUserText.label: 'Case4: CDS to Service with Display'
+define service ZDQ_SD_CDS_TO_SRV_DISPLAY {
+  expose ZDQ_C_CDS_TO_SRV_DISPLAY as Product;
+}

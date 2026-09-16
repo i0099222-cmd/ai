@@ -1,0 +1,4 @@
+@EndUserText.label: 'Case6: Custom Entity with Display'
+define service ZDQ_SD_CUSTOM_ENT_DISPLAY {
+  expose ZDQ_CE_CUSTOM_ENT_DISPLAY as PurchaseOrderItem;
+}

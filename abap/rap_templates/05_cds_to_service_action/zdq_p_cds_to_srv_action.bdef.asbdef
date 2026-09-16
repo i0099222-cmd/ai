@@ -1,0 +1,8 @@
+projection;
+strict ( 2 );
+
+define behavior for ZDQ_P_CDS_TO_SRV_ACTION alias ProductReview
+{
+  use update;
+  use action approveReview;
+}

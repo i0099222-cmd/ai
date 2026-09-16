@@ -1,0 +1,5 @@
+@EndUserText.label: 'Case3: Table to BO (Header / Item)'
+define service ZDQ_SD_TABLE_TO_BO {
+  expose ZDQ_P_TABLE_TO_BO_HEADER as PurchaseOrder;
+  expose ZDQ_P_TABLE_TO_BO_ITEM   as PurchaseOrderItem;
+}

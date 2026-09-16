@@ -1,0 +1,40 @@
+managed implementation in class zbp_dq_r_table_to_srv_action unique;
+strict ( 2 );
+
+define behavior for ZDQ_R_TABLE_TO_SRV_ACTION alias PurchaseOrder
+persistent table zdq_tordhdr
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  create;
+  update;
+  delete;
+
+  field ( mandatory : create ) OrderDate, Supplier, Plant, Currency;
+  // 상태는 액션으로만 변경 가능
+  field ( readonly ) OrderStatus, CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
+
+  // 파라미터 없는 단순 상태 변경
+  action releaseOrder result [1] $self;
+  // 파라미터를 받는 상태 변경
+  action changeStatus parameter ZDQ_A_ORDER_STATUS result [1] $self;
+
+  determination setInitialStatus on modify { create; }
+
+  mapping for zdq_tordhdr
+  {
+    OrderId            = order_id;
+    OrderDate          = order_date;
+    Supplier           = supplier;
+    Plant              = plant;
+    Currency           = currency;
+    TotalAmount        = total_amount;
+    OrderStatus        = order_status;
+    CreatedBy          = created_by;
+    CreatedAt          = created_at;
+    LastChangedBy      = last_changed_by;
+    LastChangedAt      = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+}

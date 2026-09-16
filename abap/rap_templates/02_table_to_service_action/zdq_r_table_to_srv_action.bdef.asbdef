@@ -23,8 +23,6 @@ etag master LocalLastChangedAt
   // 파라미터를 받는 상태 변경
   action changeStatus parameter ZDQ_A_ORDER_STATUS result [1] $self;
 
-  determination setInitialStatus on modify { create; }
-
   mapping for zdq_tordhdr
   {
     OrderUUID          = orderuuid;

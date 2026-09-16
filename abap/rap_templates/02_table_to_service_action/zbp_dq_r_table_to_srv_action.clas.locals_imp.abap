@@ -2,17 +2,10 @@ CLASS lhc_purchaseorder DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
 
-    CONSTANTS:
-      BEGIN OF c_status,
-        created  TYPE zdq_r_table_to_srv_action-OrderStatus VALUE '01',
-        released TYPE zdq_r_table_to_srv_action-OrderStatus VALUE '02',
-      END OF c_status.
+    CONSTANTS c_status_released TYPE zdq_r_table_to_srv_action-OrderStatus VALUE '02'.
 
     METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
       IMPORTING REQUEST requested_authorizations FOR PurchaseOrder RESULT result.
-
-    METHODS setinitialstatus FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR PurchaseOrder~setInitialStatus.
 
     METHODS releaseorder FOR MODIFY
       IMPORTING keys FOR ACTION PurchaseOrder~releaseOrder RESULT result.
@@ -35,33 +28,13 @@ CLASS lhc_purchaseorder IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD setinitialstatus.
-    " 생성 시 상태가 비어 있으면 '작성중'으로 채운다.
-    READ ENTITIES OF zdq_r_table_to_srv_action IN LOCAL MODE
-      ENTITY PurchaseOrder
-        FIELDS ( OrderStatus )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(orders).
-
-    DELETE orders WHERE OrderStatus IS NOT INITIAL.
-    CHECK orders IS NOT INITIAL.
-
-    MODIFY ENTITIES OF zdq_r_table_to_srv_action IN LOCAL MODE
-      ENTITY PurchaseOrder
-        UPDATE FIELDS ( OrderStatus )
-        WITH VALUE #( FOR ord IN orders ( %tky        = ord-%tky
-                                          OrderStatus = c_status-created ) )
-      REPORTED DATA(update_reported).
-  ENDMETHOD.
-
-
   METHOD releaseorder.
     " IN LOCAL MODE 이므로 BDEF 의 readonly 제한을 받지 않는다.
     MODIFY ENTITIES OF zdq_r_table_to_srv_action IN LOCAL MODE
       ENTITY PurchaseOrder
         UPDATE FIELDS ( OrderStatus )
         WITH VALUE #( FOR key IN keys ( %tky        = key-%tky
-                                        OrderStatus = c_status-released ) )
+                                        OrderStatus = c_status_released ) )
       FAILED failed
       REPORTED reported.
 

@@ -183,6 +183,7 @@ zdq_tordhdr ──▶ ZDQ_I_TABLE_TO_SRV_ACTION ──▶ ZDQ_R_TABLE_TO_SRV_ACT
   - `releaseOrder` : 파라미터 없는 액션
   - `changeStatus` : `ZDQ_A_ORDER_STATUS` 파라미터를 받는 액션
 - 핸들러에서 `MODIFY ENTITIES ... IN LOCAL MODE` 를 쓰면 `readonly` 제약을 우회할 수 있다.
+- determination 없이 액션 핸들러만 있다. 상태 변경 로직은 전부 액션 안에 있다.
 
 ### Case 3 — Table to BO (Header / Item)
 
@@ -301,7 +302,7 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
 ### 9.2 기능 확인
 
 - [ ] Case 1/4/6/8 — 목록 조회, 필터, 정렬, 페이징, 건수
-- [ ] Case 2 — 생성 시 UUID 자동 생성 / 상태 `01` 자동 설정
+- [ ] Case 2 — 생성 시 UUID 자동 생성 / 생성 직후 상태는 빈 값
 - [ ] Case 2 — `releaseOrder` 후 `02` / `changeStatus` 파라미터 반영
 - [ ] Case 2/3 — 같은 주문번호로 두 건 생성 시 유일 인덱스가 막는지
 - [ ] Case 3 — 아이템 추가·수정·삭제 후 헤더 총액 재계산 / 헤더 삭제 시 오류 없이 연쇄 삭제

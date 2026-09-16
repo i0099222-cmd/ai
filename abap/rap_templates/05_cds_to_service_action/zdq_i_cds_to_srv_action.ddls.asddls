@@ -18,8 +18,8 @@ define view entity ZDQ_I_CDS_TO_SRV_ACTION
       Product.ProductGroup                as ProductGroup,
       Product.BaseUnit                    as BaseUnit,
 
-      Review.review_status                as ReviewStatus,
-      Review.review_note                  as ReviewNote,
+      Review.reviewstatus                 as ReviewStatus,
+      Review.reviewnote                   as ReviewNote,
 
       @Semantics.user.createdBy: true
       Review.created_by                   as CreatedBy,

@@ -7,11 +7,16 @@ define table zdq_tordhdr {
 
   key client       : abap.clnt not null;
 
+  -- 기술 키 : RAP 프레임워크가 생성 (numbering : managed)
+  @EndUserText.label : '주문 UUID'
+  key orderuuid    : sysuuid_x16 not null;
+
+  -- 업무 키 : 번호범위 오브젝트 ZDQ_ORDER 로 채번. SE11 에서 유일 인덱스 필요
   @EndUserText.label : '주문번호'
-  key order_id     : abap.char(10) not null;
+  orderid          : abap.char(10);
 
   @EndUserText.label : '주문일'
-  order_date       : abap.dats;
+  orderdate        : abap.dats;
 
   @EndUserText.label : '공급업체'
   supplier         : lifnr;
@@ -24,11 +29,11 @@ define table zdq_tordhdr {
 
   @EndUserText.label : '주문총액'
   @Semantics.amount.currencyCode : 'zdq_tordhdr.currency'
-  total_amount     : abap.curr(15,2);
+  totalamount      : abap.curr(15,2);
 
   -- 01:작성중 / 02:릴리즈 / 03:종결
   @EndUserText.label : '주문상태'
-  order_status     : abap.char(2);
+  orderstatus      : abap.char(2);
 
   include zscm00010;
 

@@ -12,24 +12,29 @@ etag master LocalLastChangedAt
   delete;
   association _Item { create; }
 
+  // 기술 키는 프레임워크가 생성, 업무 키는 저장 시 채번
+  field ( numbering : managed, readonly ) OrderUUID;
   field ( mandatory : create ) OrderDate, Supplier, Plant, Currency;
   // 총액은 아이템 합계로 자동 계산, 상태는 액션으로만 변경
-  field ( readonly ) OrderStatus, TotalAmount,
+  field ( readonly ) OrderId, OrderStatus, TotalAmount,
                      CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
 
   action closeOrder result [1] $self;
 
   validation checkSupplier on save { create; field Supplier; }
 
+  determination setOrderNumber on save { create; }
+
   mapping for zdq_tordhdr
   {
-    OrderId            = order_id;
-    OrderDate          = order_date;
+    OrderUUID          = orderuuid;
+    OrderId            = orderid;
+    OrderDate          = orderdate;
     Supplier           = supplier;
     Plant              = plant;
     Currency           = currency;
-    TotalAmount        = total_amount;
-    OrderStatus        = order_status;
+    TotalAmount        = totalamount;
+    OrderStatus        = orderstatus;
     CreatedBy          = created_by;
     CreatedAt          = created_at;
     LastChangedBy      = last_changed_by;
@@ -48,23 +53,27 @@ etag master LocalLastChangedAt
   delete;
   association _Header;
 
-  field ( readonly ) OrderId;
+  // ItemUUID 는 프레임워크가, OrderUUID 는 부모 association 이 채운다
+  field ( numbering : managed, readonly ) ItemUUID;
+  field ( readonly ) OrderUUID, ItemNo,
+                     CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
   field ( mandatory ) Product, Quantity, QuantityUnit, Currency;
-  field ( readonly ) CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
 
-  // 아이템 변경 시 헤더 총액 재계산
+  // 아이템 번호 자동 부여 + 헤더 총액 재계산
+  determination setItemNumber   on save { create; }
   determination calcTotalAmount on save { create; update; delete; }
 
   mapping for zdq_torditm
   {
-    OrderId            = order_id;
-    ItemNo             = item_no;
+    ItemUUID           = itemuuid;
+    OrderUUID          = orderuuid;
+    ItemNo             = itemno;
     Product            = product;
     Quantity           = quantity;
-    QuantityUnit       = quantity_unit;
-    NetAmount          = net_amount;
+    QuantityUnit       = quantityunit;
+    NetAmount          = netamount;
     Currency           = currency;
-    DeliveryDate       = delivery_date;
+    DeliveryDate       = deliverydate;
     CreatedBy          = created_by;
     CreatedAt          = created_at;
     LastChangedBy      = last_changed_by;

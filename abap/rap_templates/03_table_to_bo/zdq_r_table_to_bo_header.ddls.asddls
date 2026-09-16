@@ -7,8 +7,9 @@ define root view entity ZDQ_R_TABLE_TO_BO_HEADER
   composition [0..*] of ZDQ_R_TABLE_TO_BO_ITEM as _Item
 
 {
-  key Ord.OrderId,
+  key Ord.OrderUUID,
 
+      Ord.OrderId,
       Ord.OrderDate,
       Ord.Supplier,
       Ord.Plant,

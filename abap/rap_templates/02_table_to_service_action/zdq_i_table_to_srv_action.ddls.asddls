@@ -8,15 +8,16 @@ define view entity ZDQ_I_TABLE_TO_SRV_ACTION
   association [0..1] to I_Plant    as _Plant    on $projection.Plant    = _Plant.Plant
 
 {
-  key OrderHeader.order_id                as OrderId,
+  key OrderHeader.orderuuid               as OrderUUID,
 
-      OrderHeader.order_date              as OrderDate,
+      OrderHeader.orderid                 as OrderId,
+      OrderHeader.orderdate               as OrderDate,
       OrderHeader.supplier                as Supplier,
       OrderHeader.plant                   as Plant,
-      OrderHeader.order_status            as OrderStatus,
+      OrderHeader.orderstatus             as OrderStatus,
 
       @Semantics.amount.currencyCode: 'Currency'
-      OrderHeader.total_amount            as TotalAmount,
+      OrderHeader.totalamount             as TotalAmount,
       @Semantics.currencyCode: true
       OrderHeader.currency                as Currency,
 

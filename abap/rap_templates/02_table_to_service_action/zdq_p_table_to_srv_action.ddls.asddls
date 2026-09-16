@@ -11,6 +11,9 @@ define root view entity ZDQ_P_TABLE_TO_SRV_ACTION
       @UI.facet: [ { id: 'Header', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE,
                      label: '주문 기본정보', position: 10 } ]
 
+      @UI.hidden: true
+  key OrderUUID,
+
       @UI.lineItem      : [ { position: 10 },
                             { type: #FOR_ACTION, dataAction: 'releaseOrder', label: '릴리즈' },
                             { type: #FOR_ACTION, dataAction: 'changeStatus', label: '상태변경' } ]
@@ -19,7 +22,7 @@ define root view entity ZDQ_P_TABLE_TO_SRV_ACTION
                             { type: #FOR_ACTION, dataAction: 'changeStatus', label: '상태변경' } ]
       @UI.selectionField: [ { position: 10 } ]
       @Search.defaultSearchElement: true
-  key OrderId,
+      OrderId,
 
       @UI.lineItem      : [ { position: 20 } ]
       @UI.identification: [ { position: 20 } ]

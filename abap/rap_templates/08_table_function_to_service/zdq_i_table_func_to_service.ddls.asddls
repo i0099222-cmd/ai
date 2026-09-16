@@ -8,19 +8,19 @@ define view entity ZDQ_I_TABLE_FUNC_TO_SERVICE
 
 {
       // 단위·통화까지 포함해야 키가 유일해진다.
-  key Summary.order_id                    as OrderId,
+  key Summary.orderid                     as OrderId,
   key Summary.product                     as Product,
-  key Summary.quantity_unit               as QuantityUnit,
+  key Summary.quantityunit                as QuantityUnit,
   key Summary.currency                    as Currency,
 
-      Summary.product_name                as ProductName,
+      Summary.productname                 as ProductName,
 
       @Semantics.quantity.unitOfMeasure: 'QuantityUnit'
-      Summary.total_qty                   as TotalQuantity,
+      Summary.totalqty                    as TotalQuantity,
       @Semantics.amount.currencyCode: 'Currency'
-      Summary.total_amount                as TotalAmount,
+      Summary.totalamount                 as TotalAmount,
 
-      Summary.item_count                  as ItemCount,
+      Summary.itemcount                   as ItemCount,
 
       _Product
 }

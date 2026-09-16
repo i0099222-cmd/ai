@@ -10,9 +10,11 @@ SAP S/4HANA Private Cloud Edition 환경에서 사용할 **RAP 표준 템플릿*
 | 항목 | 값 |
 |------|-----|
 | 릴리즈 | S/4HANA 2021(ABAP Platform 7.56) 이상 권장 |
-| ABAP 언어 버전 | Standard ABAP (Case 6~8 은 `MAKT` 등 비릴리즈 오브젝트를 참조) |
+| ABAP 언어 버전 | Standard ABAP (Case 8 은 `MAKT` 등 비릴리즈 오브젝트를 참조) |
 | 패키지 | 프로젝트 개발 패키지 1개 (예: `ZDQ_RAP_TEMPLATE`) |
 | 히스토리 구조 | `ZSCM00010` (RAP 표준형 5필드 — `00_common/zscm00010.reference.md` 참고) |
+| 번호범위 | `ZDQ_ORDER` (Case 2 / 3 — `00_common/zdq_order.nrob.md` 참고) |
+| 잠금 오브젝트 | `EZDQ_TPRDREV` (Case 7 — `00_common/ezdq_tprdrev.enqu.md` 참고) |
 
 ---
 
@@ -37,6 +39,16 @@ SAP S/4HANA Private Cloud Edition 환경에서 사용할 **RAP 표준 템플릿*
 >
 > CDS/클래스 이름은 최대 30자이므로 `SERVICE` → `SRV`, `FUNCTION` → `FUNC` 로 줄인 곳이 있다.
 
+### 필드 표기
+
+| 대상 | 표기 | 예 |
+|------|------|-----|
+| CBO 테이블 필드 | 소문자, **언더스코어 없음** | `orderid`, `totalamount`, `quantityunit` |
+| CDS element | 카멜 케이스 | `OrderId`, `TotalAmount`, `QuantityUnit` |
+| `ZSCM00010` include 필드 | 기존 구조 그대로 (언더스코어 유지) | `created_by`, `local_last_changed_at` |
+
+`mapping for` 블록에서 이력 필드만 좌우 이름이 달라 보이는 이유다.
+
 ### I - R - P 를 언제 쓰고 Table → C 를 언제 쓰나
 
 - **변경(액션/CRUD)이 있는 경우** → `I` → `R` → `P`
@@ -46,34 +58,60 @@ SAP S/4HANA Private Cloud Edition 환경에서 사용할 **RAP 표준 템플릿*
 
 ---
 
-## 3. 공통 데이터 모델
+## 3. 키 설계 — UUID 를 쓰는 기준
+
+| 상황 | 키 | 이유 |
+|------|-----|------|
+| 자체 CBO 마스터/트랜잭션 (Case 1·2·3) | **UUID** | 저장 시점 채번·draft·composition 에 유리, 키는 나중에 못 바꾼다 |
+| 표준 오브젝트에 종속된 CBO (Case 5·7 의 `ZDQ_TPRDREV`) | **업무 키** (`MATNR`) | 표준 CDS 와 조인해야 하므로 UUID 를 쓸 수 없다 |
+| 조회 전용 집계 (Case 8) | **업무 키 조합** | 영속 테이블이 아니므로 UUID 가 의미 없다 |
+
+UUID 를 쓰면 업무 번호(주문번호·아이템번호)는 별도로 채워야 한다.
+
+- 주문번호 `ORDERID` → 번호범위 `ZDQ_ORDER` + `determination setOrderNumber on save`
+- 아이템번호 `ITEMNO` → `determination setItemNumber on save` (헤더별 최대값 + 10)
+- 화면에는 `@ObjectModel.semanticKey` 로 업무 번호가 보이고 UUID 는 `@UI.hidden` 처리한다
+
+### 아이템 키에 부모 UUID 를 포함한 이유
+
+`ZDQ_TORDITM` 의 키는 `CLIENT + ORDERUUID + ITEMUUID` 다.
+아이템 키를 `ITEMUUID` 하나로 두면 **삭제 determination 에서 부모를 알 수 없어**
+헤더 총액 재계산이 동작하지 않는다 (삭제된 인스턴스는 더 이상 READ 되지 않는다).
+부모 키를 아이템 키에 포함하면 `keys-OrderUUID` 로 바로 부모를 찾을 수 있다.
+
+---
+
+## 4. 공통 데이터 모델
 
 모든 케이스가 **같은 CBO 테이블 + 같은 표준 CDS** 를 바라본다. 케이스 간 CDS 의존은 없으므로
 필요한 케이스만 골라서 생성해도 되고, 전부 생성하면 하나의 업무 데이터로 연결된다.
 
 ```
-  [CBO]                                        [Standard CDS]
+  [CBO]                                          [Standard CDS]
 
-  ZDQ_TORDHDR (구매주문 헤더)  ── supplier ──▶  I_Supplier
-      │  order_id                 plant    ──▶  I_Plant
+  ZDQ_TORDHDR (구매주문 헤더)                     I_Supplier
+      key CLIENT + ORDERUUID     ── supplier ──▶
+      ORDERID (번호범위 채번)     ── plant    ──▶  I_Plant
       │
-      └─▶ ZDQ_TORDITM (구매주문 아이템) ── product ──▶ I_Product
-                                                        │
-  ZDQ_TPRDREV (자재 검토상태) ──── product ─────────────┘
-                                                   I_ProductDescription
+      └─▶ ZDQ_TORDITM (구매주문 아이템)
+             key CLIENT + ORDERUUID + ITEMUUID
+             ITEMNO                ── product ──▶ I_Product
+                                                    │
+  ZDQ_TPRDREV (자재 검토상태)  ──── product ────────┘
+      key CLIENT + PRODUCT                        I_ProductDescription
 ```
 
-| 테이블 | 내용 | 사용 케이스 |
-|--------|------|-------------|
-| `ZDQ_TORDHDR` | 구매주문 헤더 | 1, 2, 3 |
-| `ZDQ_TORDITM` | 구매주문 아이템 | 3, 6, 8 |
-| `ZDQ_TPRDREV` | 자재 검토상태 (액션 저장 대상) | 5, 7 |
+| 테이블 | 키 | 사용 케이스 |
+|--------|-----|-------------|
+| `ZDQ_TORDHDR` | `CLIENT`, `ORDERUUID` | 1, 2, 3 |
+| `ZDQ_TORDITM` | `CLIENT`, `ORDERUUID`, `ITEMUUID` | 3, 6, 8 |
+| `ZDQ_TPRDREV` | `CLIENT`, `PRODUCT` | 5, 7 |
 
 세 테이블 모두 `include zscm00010;` 로 히스토리 필드를 갖는다.
 
 ---
 
-## 4. 케이스 요약
+## 5. 케이스 요약
 
 | # | 케이스 | 원천 | CDS 구성 | Behavior | 액션 |
 |---|--------|------|----------|----------|------|
@@ -82,25 +120,27 @@ SAP S/4HANA Private Cloud Edition 환경에서 사용할 **RAP 표준 템플릿*
 | 3 | Table to BO | `ZDQ_TORDHDR` + `ZDQ_TORDITM` | I → R → P (Header/Item) | `managed` + composition | `closeOrder` |
 | 4 | CDS to Service with Display | `I_Product` | I → C | 없음 (조회) | – |
 | 5 | CDS to Service with Action | `I_Product` + `ZDQ_TPRDREV` | I → R → P | `managed with unmanaged save` | `approveReview` |
-| 6 | Custom Entity with display | `ZDQ_TORDITM` + `I_ProductDescription` | Custom entity | 없음 (조회) | – |
+| 6 | Custom Entity with display | `ZDQ_TORDITM` + `ZDQ_TORDHDR` | Custom entity | 없음 (조회) | – |
 | 7 | Custom Entity with Action | `I_Product` + `ZDQ_TPRDREV` | Custom entity | `unmanaged` | `approveReview` |
-| 8 | Table Function to Service | `ZDQ_TORDITM` + `MAKT` | TF → I → C | 없음 (조회) | – |
+| 8 | Table Function to Service | `ZDQ_TORDITM` + `ZDQ_TORDHDR` + `MAKT` | TF → I → C | 없음 (조회) | – |
 
 액션은 모두 **필드 하나를 바꾸는 수준**으로만 구현했다 (주문상태 / 검토상태).
 
 ---
 
-## 5. 생성 순서
+## 6. 생성 순서
 
 1. `00_common` 의 테이블 3개 (`ZSCM00010` 이 먼저 존재해야 한다)
-2. Case 7 을 만들 경우 잠금 오브젝트 `EZDQ_TPRDREV`
-3. 케이스별로 `I → R → P/C → Abstract → BDEF → Behavior pool → Service definition → Service binding` 순서
-4. Service binding 은 ADT 에서 생성 (파일로 관리되지 않음) — 아래 6번 표 참고
-5. Service binding 에서 **Publish** 실행 → Fiori Elements Preview 로 확인
+2. `ZDQ_TORDHDR` 에 유일 인덱스 `(CLIENT, ORDERID)` 생성 (SE11)
+3. Case 2/3 을 만들 경우 번호범위 오브젝트 `ZDQ_ORDER` (SNRO) + 구간 `01` (SNUM)
+4. Case 7 을 만들 경우 잠금 오브젝트 `EZDQ_TPRDREV` (SE11)
+5. 케이스별로 `I → R → P/C → Abstract → BDEF → Behavior pool → Service definition → Service binding` 순서
+6. Service binding 은 ADT 에서 생성 (파일로 관리되지 않음) — 아래 7번 표 참고
+7. Service binding 에서 **Publish** 실행 → Fiori Elements Preview 로 확인
 
 ---
 
-## 6. Service Binding 목록
+## 7. Service Binding 목록
 
 모두 **OData V4 / UI** 타입으로 생성한다.
 
@@ -117,7 +157,7 @@ SAP S/4HANA Private Cloud Edition 환경에서 사용할 **RAP 표준 템플릿*
 
 ---
 
-## 7. 케이스별 상세
+## 8. 케이스별 상세
 
 ### Case 1 — Table to Service (조회 전용)
 
@@ -127,7 +167,7 @@ zdq_tordhdr ──▶ ZDQ_I_TABLE_TO_SERVICE ──▶ ZDQ_C_TABLE_TO_SERVICE �
 
 - 가장 기본 형태. behavior 가 없으므로 root view 없이 `I → C` 로 끝난다.
 - `I` 뷰에서 `I_Supplier` / `I_Plant` association 을 노출하고, `C` 뷰에서 경로식으로 텍스트를 가져온다.
-- 텍스트 필드는 `@ObjectModel.text.element` 로 코드 필드에 연결한다.
+- 키는 `OrderUUID` 지만 화면에는 `@ObjectModel.semanticKey` 로 `OrderId` 가 보인다.
 
 ### Case 2 — Table to Service with Action
 
@@ -138,11 +178,12 @@ zdq_tordhdr ──▶ ZDQ_I_TABLE_TO_SRV_ACTION ──▶ ZDQ_R_TABLE_TO_SRV_ACT
 ```
 
 - `managed` + `persistent table zdq_tordhdr`. CRUD 는 프레임워크가 처리한다.
+- `field ( numbering : managed, readonly ) OrderUUID;` 로 키는 프레임워크가 생성한다.
+- 주문번호는 `determination setOrderNumber on save` 에서 번호범위로 채운다.
 - `OrderStatus` 는 `field ( readonly )` 로 막고 **액션으로만** 변경한다.
   - `releaseOrder` : 파라미터 없는 액션
   - `changeStatus` : `ZDQ_A_ORDER_STATUS` 파라미터를 받는 액션
 - 핸들러에서 `MODIFY ENTITIES ... IN LOCAL MODE` 를 쓰면 `readonly` 제약을 우회할 수 있다.
-- `determination setInitialStatus` 로 생성 시 상태를 `01` 로 채운다.
 
 ### Case 3 — Table to BO (Header / Item)
 
@@ -153,11 +194,13 @@ ZDQ_P_TABLE_TO_BO_HEADER ──redirected──▶ ZDQ_P_TABLE_TO_BO_ITEM
 
 - 헤더/아이템 **composition** 이 핵심. 아이템은 `lock dependent by _Header`,
   `authorization dependent by _Header` 로 헤더에 종속시킨다.
+- 아이템 키는 `OrderUUID + ItemUUID`. `OrderUUID` 는 부모 association 이, `ItemUUID` 는
+  `numbering : managed` 로 프레임워크가 채운다.
+- `determination setItemNumber` (아이템 `on save`) 가 아이템 번호를 10 단위로 부여한다.
 - `determination calcTotalAmount` (아이템 `on save`) 가 헤더 총액을 재계산한다.
   헤더가 함께 삭제된 경우를 대비해 헤더 존재 여부를 먼저 확인한다.
 - `validation checkSupplier` 로 필수값 검증 + 메시지 반환 패턴을 보여준다.
   메시지 클래스 없이 `new_message_with_text( )` 를 사용했다.
-- 아이템 번호(`ItemNo`)는 키이므로 생성 시 사용자가 입력한다.
 
 ### Case 4 — CDS to Service with Display
 
@@ -181,6 +224,7 @@ zdq_tprdrev┘                                      │ (BDEF: managed with unma
 **이 케이스의 핵심** — 표준 CDS 는 읽기 전용이라 `persistent table` 을 지정할 수 없다.
 
 - 변경 대상 필드만 CBO 테이블(`ZDQ_TPRDREV`)에 두고 `LEFT OUTER JOIN` 으로 붙인다.
+- 표준 CDS 와 조인해야 하므로 이 테이블의 키는 UUID 가 아니라 **자재코드**다.
 - `managed with unmanaged save` 를 쓰면 조회/잠금/트랜잭션 버퍼는 프레임워크가 처리하고
   **저장만** saver 의 `save_modified` 에서 구현하면 된다.
 - 검토 레코드가 아직 없는 자재도 있으므로 saver 에서 `MODIFY ... FROM TABLE` (upsert) 로 저장한다.
@@ -195,8 +239,8 @@ ZDQ_CE_CUSTOM_ENT_DISPLAY ◀── ZCL_DQ_CE_DISPLAY_QUERY (if_rap_query_provid
 - 조회 로직을 ABAP 으로 직접 구현해야 할 때 쓴다 (RFC, 외부 연계, 복잡한 가공 등).
 - query provider 에서 반드시 처리해야 하는 것: **필터 / `$count` / `$top` / `$skip`**.
   이 셋을 빠뜨리면 화면 페이징과 건수 표시가 깨진다.
+- 아이템 키가 UUID 이므로 주문번호는 헤더를 조인해서 가져온다.
 - 정렬(`get_sort_elements( )`)은 템플릿에서 고정 `ORDER BY` 로 처리했다.
-  화면에서 컬럼 정렬이 필요하면 이 부분을 확장한다.
 
 ### Case 7 — Custom Entity with Action
 
@@ -217,7 +261,6 @@ ZDQ_CE_CUSTOM_ENT_ACTION ◀── ZCL_DQ_CE_ACTION_QUERY   (조회)
 | `lsc_zdq_ce_custom_ent_action~save` | 버퍼 → DB 저장 |
 | `lsc_zdq_ce_custom_ent_action~cleanup` | 롤백 시 버퍼 정리 |
 
-- 잠금 오브젝트 생성은 `00_common/ezdq_tprdrev.enqu.md` 참고.
 - `ENQUEUE_EZDQ_TPRDREV` 의 파라미터명은 생성된 함수모듈 시그니처에 맞춰 조정한다.
 
 ### Case 8 — Table Function to Service
@@ -230,22 +273,25 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
 - CDS 만으로 표현하기 어려운 집계/가공을 SQLScript 로 처리할 때 쓴다.
 - 클라이언트 처리: `@ClientHandling.algorithm: #SESSION_VARIABLE` +
   `@Environment.systemField: #CLIENT` 파라미터 + `returns` 의 `client` 필드. 세 개가 세트다.
-- 단위/통화가 섞인 합계가 나오지 않도록 `quantity_unit`, `currency` 까지 `GROUP BY` 에 넣고
+- 아이템 키가 UUID 이므로 업무 주문번호는 헤더를 조인해서 가져온다.
+- 단위/통화가 섞인 합계가 나오지 않도록 `quantityunit`, `currency` 까지 `GROUP BY` 에 넣고
   키에도 포함했다.
-- AMDP 는 `USING` 에 적은 DB 오브젝트만 접근할 수 있다 (`zdq_torditm`, `makt`).
+- AMDP 는 `USING` 에 적은 DB 오브젝트만 접근할 수 있다.
 
 ---
 
-## 8. 활성화 전 검증 체크리스트
+## 9. 활성화 전 검증 체크리스트
 
 이 템플릿은 실제 시스템에서 활성화 검증을 거치지 않았다. 아래 항목은 **처음 생성할 때 반드시 확인**한다.
 
-### 8.1 필수 확인
+### 9.1 필수 확인
 
 - [ ] `ZSCM00010` 의 실제 필드명이 `CREATED_BY / CREATED_AT / LAST_CHANGED_BY / LAST_CHANGED_AT /
       LOCAL_LAST_CHANGED_AT` 인지. 다르면 `ZDQ_I_*` 뷰의 select list 와 BDEF 의 `mapping for` 두 곳을 수정
-- [ ] 타임스탬프 필드 타입이 `timestampl` (DEC 21,7) 인지. `utclong` 이면 saver 의
+- [ ] 타임스탬프 필드 타입이 `timestampl` (DEC 21,7) 인지. `utclong` 이면 Case 5 saver 의
       `GET TIME STAMP FIELD` 대상 변수 타입을 `utclong` 으로 바꾼다
+- [ ] 번호범위 `ZDQ_ORDER` 구간 `01` 생성 여부. 없으면 Case 2/3 저장 시 오류 메시지가 뜬다
+- [ ] `ZDQ_TORDHDR` 의 `(CLIENT, ORDERID)` 유일 인덱스 생성 여부
 - [ ] 사용한 표준 CDS 필드가 해당 릴리즈에 존재하는지
   - `I_Product` : `Product`, `ProductType`, `ProductGroup`, `Division`, `BaseUnit`, `CreationDate`, `CreatedByUser`
   - `I_ProductDescription` : `Product`, `Language`, `ProductDescription`
@@ -255,10 +301,13 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
       지원하지 않으면 `ZDQ_I_TABLE_FUNC_TO_SERVICE` 를 classic `define view` 로 작성한다
 - [ ] Case 7: 잠금 오브젝트 `EZDQ_TPRDREV` 생성 및 ENQUEUE 함수모듈 파라미터명 확인
 
-### 8.2 기능 확인
+### 9.2 기능 확인
 
 - [ ] Case 1/4/6/8 — 목록 조회, 필터, 정렬, 페이징, 건수
-- [ ] Case 2 — 생성 시 상태 `01` 자동 설정 / `releaseOrder` 후 `02` / `changeStatus` 파라미터 반영
+- [ ] Case 2 — 생성 시 UUID 자동 생성 / 주문번호 채번 / 상태 `01` 자동 설정
+- [ ] Case 2 — `releaseOrder` 후 `02` / `changeStatus` 파라미터 반영
+- [ ] Case 2/3 — 여러 건을 한 번에 생성했을 때 주문번호가 **연속·중복 없이** 부여되는지
+- [ ] Case 3 — 아이템 추가 시 번호가 10, 20, 30 … 으로 부여되는지
 - [ ] Case 3 — 아이템 추가·수정·삭제 후 헤더 총액 재계산 / 헤더 삭제 시 오류 없이 연쇄 삭제
 - [ ] Case 3 — 공급업체 미입력 시 저장 거부 및 메시지 표시
 - [ ] Case 5 — 검토 레코드가 **없는** 자재에 `approveReview` 실행 시 신규 생성되는지 (upsert 확인)
@@ -267,7 +316,7 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
 
 ---
 
-## 9. 템플릿에 포함하지 않은 것
+## 10. 템플릿에 포함하지 않은 것
 
 의도적으로 제외했다. 프로젝트 표준에 맞춰 별도로 결정한다.
 
@@ -275,14 +324,13 @@ ZCL_DQ_TABLE_FUNC_TO_SERVICE (AMDP) ──▶ ZDQ_TF_TABLE_FUNC_TO_SERVICE
 |------|------|
 | DCL (접근 제어) | 모든 뷰가 `@AccessControl.authorizationCheck: #NOT_REQUIRED`. 권한 오브젝트 확정 후 DCL 추가 |
 | 권한 체크 | `get_global_authorizations` 는 전역 허용. 실제로는 `AUTHORITY-CHECK` 로 대체 |
-| Draft | Case 3 는 non-draft. 필요 시 BDEF 에 `with draft;` + draft 테이블 추가 |
+| Draft | Case 3 는 non-draft. 키가 UUID 이므로 BDEF 에 `with draft;` + draft 테이블만 추가하면 된다 |
 | 메시지 클래스 | `new_message_with_text( )` 사용. 다국어가 필요하면 T100 메시지 클래스로 교체 |
 | 값 도움말 | 상태 코드 값 도움말 뷰 미포함. 필요 시 `@Consumption.valueHelpDefinition` 추가 |
-| 번호 채번 | 주문번호/아이템번호는 사용자 입력. 자동 채번이 필요하면 determination + 번호범위 사용 |
 
 ---
 
-## 10. 파일 확장자
+## 11. 파일 확장자
 
 ADT 에 복사해 넣기 좋도록 소스 형태로 관리한다 (abapGit 형식 준용).
 

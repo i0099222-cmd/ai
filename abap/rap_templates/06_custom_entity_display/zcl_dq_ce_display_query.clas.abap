@@ -13,8 +13,8 @@ CLASS zcl_dq_ce_display_query IMPLEMENTATION.
 
   METHOD if_rap_query_provider~select.
 
-    DATA order_range   TYPE RANGE OF zdq_torditm-order_id.
-    DATA product_range TYPE RANGE OF zdq_torditm-product.
+    DATA order_range   TYPE RANGE OF zdq_tordhdr-orderid.
+    DATA product_range TYPE RANGE OF matnr.
     DATA items         TYPE STANDARD TABLE OF zdq_ce_custom_ent_display WITH EMPTY KEY.
 
     " 1) OData 필터를 RANGE 로 변환
@@ -34,9 +34,10 @@ CLASS zcl_dq_ce_display_query IMPLEMENTATION.
 
     " 2) 전체 건수 ($count)
     IF io_request->is_total_numb_of_rec_requested( ).
-      SELECT COUNT(*) FROM zdq_torditm
-        WHERE order_id IN @order_range
-          AND product  IN @product_range
+      SELECT COUNT(*) FROM zdq_torditm AS itm
+             INNER JOIN zdq_tordhdr AS hdr ON hdr~orderuuid = itm~orderuuid
+        WHERE hdr~orderid IN @order_range
+          AND itm~product IN @product_range
         INTO @DATA(record_count).
 
       io_response->set_total_number_of_records( record_count ).
@@ -53,21 +54,24 @@ CLASS zcl_dq_ce_display_query IMPLEMENTATION.
       ENDIF.
 
       SELECT FROM zdq_torditm AS itm
+             INNER JOIN zdq_tordhdr AS hdr
+               ON hdr~orderuuid = itm~orderuuid
              LEFT OUTER JOIN I_ProductDescription AS txt
                ON  txt~Product  = itm~product
                AND txt~Language = @sy-langu
-        FIELDS itm~order_id           AS orderid,
-               itm~item_no            AS itemno,
+        FIELDS itm~itemuuid           AS itemuuid,
+               hdr~orderid            AS orderid,
+               itm~itemno             AS itemno,
                itm~product            AS product,
                txt~ProductDescription AS productdescription,
                itm~quantity           AS quantity,
-               itm~quantity_unit      AS quantityunit,
-               itm~net_amount         AS netamount,
+               itm~quantityunit       AS quantityunit,
+               itm~netamount          AS netamount,
                itm~currency           AS currency,
-               itm~delivery_date      AS deliverydate
-        WHERE itm~order_id IN @order_range
-          AND itm~product  IN @product_range
-        ORDER BY itm~order_id, itm~item_no
+               itm~deliverydate       AS deliverydate
+        WHERE hdr~orderid IN @order_range
+          AND itm~product IN @product_range
+        ORDER BY hdr~orderid, itm~itemno
         INTO CORRESPONDING FIELDS OF TABLE @items
         UP TO @max_rows ROWS
         OFFSET @skip_rows.

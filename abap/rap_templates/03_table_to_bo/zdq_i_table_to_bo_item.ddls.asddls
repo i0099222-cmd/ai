@@ -11,22 +11,23 @@ define view entity ZDQ_I_TABLE_TO_BO_ITEM
     and _ProductText.Language = $session.system_language
 
 {
-  key OrderItem.order_id                  as OrderId,
-  key OrderItem.item_no                   as ItemNo,
+  key OrderItem.orderuuid                 as OrderUUID,
+  key OrderItem.itemuuid                  as ItemUUID,
 
+      OrderItem.itemno                    as ItemNo,
       OrderItem.product                   as Product,
 
       @Semantics.quantity.unitOfMeasure: 'QuantityUnit'
       OrderItem.quantity                  as Quantity,
       @Semantics.unitOfMeasure: true
-      OrderItem.quantity_unit             as QuantityUnit,
+      OrderItem.quantityunit              as QuantityUnit,
 
       @Semantics.amount.currencyCode: 'Currency'
-      OrderItem.net_amount                as NetAmount,
+      OrderItem.netamount                 as NetAmount,
       @Semantics.currencyCode: true
       OrderItem.currency                  as Currency,
 
-      OrderItem.delivery_date             as DeliveryDate,
+      OrderItem.deliverydate              as DeliveryDate,
 
       @Semantics.user.createdBy: true
       OrderItem.created_by                as CreatedBy,

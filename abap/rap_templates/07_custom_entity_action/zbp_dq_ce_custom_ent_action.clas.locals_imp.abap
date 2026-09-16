@@ -13,7 +13,7 @@ CLASS lhc_productreview DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
 
-    CONSTANTS c_status_approved TYPE zdq_tprdrev-review_status VALUE '03'.
+    CONSTANTS c_status_approved TYPE zdq_tprdrev-reviewstatus VALUE '03'.
 
     METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
       IMPORTING REQUEST requested_authorizations FOR ProductReview RESULT result.
@@ -48,8 +48,8 @@ CLASS lhc_productreview IMPLEMENTATION.
       FIELDS prd~Product            AS product,
              txt~ProductDescription AS productdescription,
              prd~ProductType        AS producttype,
-             rev~review_status      AS reviewstatus,
-             rev~review_note        AS reviewnote,
+             rev~reviewstatus       AS reviewstatus,
+             rev~reviewnote         AS reviewnote,
              rev~last_changed_by    AS lastchangedby,
              rev~last_changed_at    AS lastchangedat
       FOR ALL ENTRIES IN @keys
@@ -61,8 +61,8 @@ CLASS lhc_productreview IMPLEMENTATION.
       READ TABLE lcl_review_buffer=>changes INTO DATA(buffered)
            WITH TABLE KEY product = <review>-Product.
       IF sy-subrc = 0.
-        <review>-ReviewStatus  = buffered-review_status.
-        <review>-ReviewNote    = buffered-review_note.
+        <review>-ReviewStatus  = buffered-reviewstatus.
+        <review>-ReviewNote    = buffered-reviewnote.
         <review>-LastChangedBy = buffered-last_changed_by.
         <review>-LastChangedAt = buffered-last_changed_at.
       ENDIF.
@@ -105,7 +105,7 @@ CLASS lhc_productreview IMPLEMENTATION.
     LOOP AT keys INTO DATA(key).
       DELETE lcl_review_buffer=>changes WHERE product = key-Product.
       INSERT VALUE #( product               = key-Product
-                      review_status         = c_status_approved
+                      reviewstatus          = c_status_approved
                       last_changed_by       = changed_by
                       last_changed_at       = changed_at
                       local_last_changed_at = changed_at )
@@ -154,7 +154,7 @@ CLASS lsc_zdq_ce_custom_ent_action IMPLEMENTATION.
       IF sy-subrc = 0.
         review-created_by  = db_review-created_by.
         review-created_at  = db_review-created_at.
-        review-review_note = db_review-review_note.
+        review-reviewnote  = db_review-reviewnote.
       ELSE.
         review-created_by  = change-last_changed_by.
         review-created_at  = change-last_changed_at.

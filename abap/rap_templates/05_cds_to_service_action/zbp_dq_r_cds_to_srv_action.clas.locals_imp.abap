@@ -83,10 +83,10 @@ CLASS lsc_zdq_r_cds_to_srv_action IMPLEMENTATION.
 
       " %control 이 켜진 필드만 반영한다.
       IF changed-%control-ReviewStatus = if_abap_behv=>mk-on.
-        review-review_status = changed-ReviewStatus.
+        review-reviewstatus = changed-ReviewStatus.
       ENDIF.
       IF changed-%control-ReviewNote = if_abap_behv=>mk-on.
-        review-review_note = changed-ReviewNote.
+        review-reviewnote = changed-ReviewNote.
       ENDIF.
 
       review-last_changed_by       = changed_by.

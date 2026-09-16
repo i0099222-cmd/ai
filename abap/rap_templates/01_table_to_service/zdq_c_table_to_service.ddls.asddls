@@ -10,11 +10,15 @@ define view entity ZDQ_C_TABLE_TO_SERVICE
       @UI.facet: [ { id: 'Header', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE,
                      label: '주문 기본정보', position: 10 } ]
 
+      // 기술 키는 화면에 노출하지 않고 업무 키(OrderId)를 semanticKey 로 보여준다.
+      @UI.hidden: true
+  key Ord.OrderUUID,
+
       @UI.lineItem      : [ { position: 10 } ]
       @UI.identification: [ { position: 10 } ]
       @UI.selectionField: [ { position: 10 } ]
       @Search.defaultSearchElement: true
-  key Ord.OrderId,
+      Ord.OrderId,
 
       @UI.lineItem      : [ { position: 20 } ]
       @UI.identification: [ { position: 20 } ]

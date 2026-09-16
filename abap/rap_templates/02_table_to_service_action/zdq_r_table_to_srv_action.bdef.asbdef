@@ -11,9 +11,11 @@ etag master LocalLastChangedAt
   update;
   delete;
 
+  // 기술 키는 프레임워크가 생성, 업무 키는 저장 시 채번
+  field ( numbering : managed, readonly ) OrderUUID;
+  field ( readonly ) OrderId, OrderStatus,
+                     CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
   field ( mandatory : create ) OrderDate, Supplier, Plant, Currency;
-  // 상태는 액션으로만 변경 가능
-  field ( readonly ) OrderStatus, CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChangedAt;
 
   // 파라미터 없는 단순 상태 변경
   action releaseOrder result [1] $self;
@@ -21,16 +23,18 @@ etag master LocalLastChangedAt
   action changeStatus parameter ZDQ_A_ORDER_STATUS result [1] $self;
 
   determination setInitialStatus on modify { create; }
+  determination setOrderNumber   on save   { create; }
 
   mapping for zdq_tordhdr
   {
-    OrderId            = order_id;
-    OrderDate          = order_date;
+    OrderUUID          = orderuuid;
+    OrderId            = orderid;
+    OrderDate          = orderdate;
     Supplier           = supplier;
     Plant              = plant;
     Currency           = currency;
-    TotalAmount        = total_amount;
-    OrderStatus        = order_status;
+    TotalAmount        = totalamount;
+    OrderStatus        = orderstatus;
     CreatedBy          = created_by;
     CreatedAt          = created_at;
     LastChangedBy      = last_changed_by;

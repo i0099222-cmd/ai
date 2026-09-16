@@ -5,12 +5,13 @@ define view entity ZDQ_R_TABLE_TO_BO_ITEM
   as select from ZDQ_I_TABLE_TO_BO_ITEM as Itm
 
   association to parent ZDQ_R_TABLE_TO_BO_HEADER as _Header
-    on $projection.OrderId = _Header.OrderId
+    on $projection.OrderUUID = _Header.OrderUUID
 
 {
-  key Itm.OrderId,
-  key Itm.ItemNo,
+  key Itm.OrderUUID,
+  key Itm.ItemUUID,
 
+      Itm.ItemNo,
       Itm.Product,
       Itm.Quantity,
       Itm.QuantityUnit,

@@ -58,8 +58,8 @@ CLASS zcl_dq_ce_action_query IMPLEMENTATION.
         FIELDS prd~Product            AS product,
                txt~ProductDescription AS productdescription,
                prd~ProductType        AS producttype,
-               rev~review_status      AS reviewstatus,
-               rev~review_note        AS reviewnote,
+               rev~reviewstatus       AS reviewstatus,
+               rev~reviewnote         AS reviewnote,
                rev~last_changed_by    AS lastchangedby,
                rev~last_changed_at    AS lastchangedat
         WHERE prd~Product     IN @product_range

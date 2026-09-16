@@ -13,13 +13,16 @@ define root view entity ZDQ_P_TABLE_TO_BO_HEADER
                    { id: 'Item',   purpose: #STANDARD, type: #LINEITEM_REFERENCE,
                      label: '주문 아이템', position: 20, targetElement: '_Item' } ]
 
+      @UI.hidden: true
+  key OrderUUID,
+
       @UI.lineItem      : [ { position: 10 },
                             { type: #FOR_ACTION, dataAction: 'closeOrder', label: '주문 종결' } ]
       @UI.identification: [ { position: 10 },
                             { type: #FOR_ACTION, dataAction: 'closeOrder', label: '주문 종결' } ]
       @UI.selectionField: [ { position: 10 } ]
       @Search.defaultSearchElement: true
-  key OrderId,
+      OrderId,
 
       @UI.lineItem      : [ { position: 20 } ]
       @UI.identification: [ { position: 20 } ]

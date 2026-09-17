@@ -22,7 +22,8 @@
 "!          send_to_approver( )       승인 요청 제출
 "!          unlock( )                 잠금 해제
 "!          get_exemption_id( )       생성된 예외 ID
-"!   controller->approve_exemptions_by_if( exemptions_for_approval )  <- 일괄 승인
+"!   controller->approve_exemptions_by_if( exemptions_for_approval )  <- 테이블 일괄 승인
+"!   controller->reject_exemptions_by_id( exemption_id, assessment )  <- 건별 반려
 "!
 "! set_object_scope 가 있으므로 패키지 스코프를 표준 예외 1건으로 넘길 수 있다.
 "! 오브젝트마다 예외를 전개할 필요가 없고, 예외 ID 는 신청서(헤더)에 1개면 된다.
@@ -59,6 +60,7 @@ CLASS zcl_atc_exempt_sync DEFINITION
     "! 철회/만료된 예외를 표준 저장소에서 무효화한다.
     METHODS revoke_exemption
       IMPORTING iv_extexemptid   TYPE char32
+                iv_reason        TYPE string OPTIONAL
       RETURNING VALUE(rs_result) TYPE ty_result.
 
     "! ADT 에서 직접 올라온 신청을 CBO 대장으로 끌어온다.
@@ -141,10 +143,17 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
         " 이어서 바로 승인한다. 결재는 이미 이 앱에서 끝났고, 표준에 승인대기
         " 상태로 남겨두면 표준 Fiori 앱에서 다른 사람이 먼저 결재할 수 있다.
-        " TODO exemptions_for_approval 의 행 구조 확인 후 채울 것.
-        "   (예외 ID 만 담는지, 승인자/코멘트도 함께 담는지)
-        " lo_controller->approve_exemptions_by_if(
-        "   exemptions_for_approval = VALUE #( ( ... lv_exemption_id ... ) ) ).
+        "
+        " TODO 확인 필요: reject 쪽에 reject_exemptions_by_id( exemption_id, assessment )
+        "   가 있으므로 승인에도 approve_exemptions_by_id 가 있을 가능성이 높다.
+        "   있으면 아래처럼 건별로 부르는 편이 간단하다.
+        "
+        " lo_controller->approve_exemptions_by_id(
+        "   exemption_id = lv_exemption_id
+        "   assessment   = is_exemption-reasontext ).
+        "
+        "   없으면 approve_exemptions_by_if( exemptions_for_approval = <테이블> ) 로
+        "   가야 하고, 그 행 구조를 확인해야 한다.
 
         rs_result = VALUE #( success     = abap_true
                              extexemptid = CONV #( lv_exemption_id )
@@ -165,17 +174,28 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
     " 표준 쪽 예외도 함께 무효화해야 한다. CBO 만 철회하면 대장은 철회인데
     " 실제로는 계속 면제되는 상태로 남는다.
     "
-    " TODO 확인 필요: 기존 예외를 읽어오는 메소드와 무효화 방법.
-    "   컨트롤러에 get/read 계열이 있는지 보고, 없으면 SATC_CI_R_EXEMPTION 뷰로
-    "   찾은 뒤 상태를 바꾸는 경로를 확인한다.
-    "   유효기간을 오늘 이전으로 당기는(set_validity_date) 방식으로 사실상
-    "   무효화하는 것도 대안이 된다.
+    " reject_exemptions_by_id( ) 로 이미 승인된 예외를 반려 상태로 돌린다.
+    " assessment 에 철회 사유를 남겨 표준 쪽에서도 이유를 알 수 있게 한다.
 
     DATA(lo_controller) = get_controller( ).
 
-    rs_result = VALUE #(
-      success = abap_false
-      message = |표준 예외 무효화 보류: 무효화 경로 확인 필요.| ).
+    TRY.
+
+        " TODO 동작 확인: 이미 승인(approved)된 예외에 reject 를 걸었을 때
+        "   상태가 실제로 바뀌고 면제가 풀리는지 테스트할 것.
+        "   승인 전 상태에서만 동작한다면, 대안은 기존 예외를 다시 읽어
+        "   set_validity_date( ) 를 어제 날짜로 당기는 것이다.
+        lo_controller->reject_exemptions_by_id(
+          exemption_id = CONV #( iv_extexemptid )
+          assessment   = iv_reason ).
+
+        rs_result = VALUE #( success = abap_true
+                             message = |표준 예외 { iv_extexemptid } 무효화| ).
+
+      CATCH cx_root INTO DATA(lo_error).
+        rs_result = VALUE #( success = abap_false
+                             message = lo_error->get_text( ) ).
+    ENDTRY.
 
   ENDMETHOD.
 

@@ -49,6 +49,7 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | `create_exemption` 필수 파라미터 | `i_object_type` / `i_object_name` / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관** |
 | 예외 오브젝트 API | `set_object_scope`(타입 `SATC_CI_OBJ_SCOPE`) / `set_check_scope` / `set_reason` / `set_validity_date` / `set_approver` / `set_notification_type` / `send_to_approver` / `unlock` / `get_exemption_id` | **`set_object_scope` 덕분에 패키지 스코프를 표준 예외 1건으로 넘길 수 있다** → 예외 ID 는 헤더에 1개, 오브젝트별 전개 불필요. 유효기간도 표준에 넘어간다 |
 | 알림 유형 | `REJ` 반려 시 / `ALWS` 승인·반려 모두 / `NEVR` 없음 | 조직 정책이므로 `ztatccfg-notiftype` 설정으로 |
+| 반려 API | `reject_exemptions_by_id( exemption_id, assessment )` | 철회·만료 시 표준 무효화 경로로 사용 |
 | `checksum` | 필드명 동일, 타입 `int4` | 아이템 컬럼을 `char(32)` → `int4` 로 수정 |
 | `SATC_CI_OBJ_SCOPE` 고정값 | `FND` / `OBJ` / `PCKG` — 우리 값과 동일 | 변환 없이 그대로 전달 |
 | `set_check_scope` 고정값 | `MSG` / `CHK` / `ALL` / `FND` | 신청서는 `MSG` / `CHK` 만 사용 |
@@ -62,9 +63,10 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
 | 2 | `SATC_API_FINDINGS` 의 `devclass` / `objecttype` / `objectname` / `lineno` / `checkid` / `messageid` / `msgtext` 필드명 | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
-| 3 | `approve_exemptions_by_if` 의 **`exemptions_for_approval` 파라미터 타입/행 구조** 🔴 | 그 메소드에 F2 | 승인 호출 완성 |
-| 4 | 표준 예외 **무효화** 경로 (철회·만료 시) | 컨트롤러 메소드 목록 전체 | `revoke_exemption`. 없으면 `set_validity_date` 를 과거로 당기는 대안 |
-| 5 | `set_check_scope` 의 `ALL` / `FND` 가 무슨 의미인지 | 도메인 설명 텍스트 | 없어도 진행 가능 (신청서는 `MSG`/`CHK` 만 사용) |
+| 3 | **`approve_exemptions_by_id` 가 있는지** 🔴 (reject 에 `_by_id` 가 있으니 짝이 있을 것) | `controller->` + Ctrl+Space | 있으면 건별 호출로 끝. 없으면 `_by_if` 의 테이블 행 구조를 확인해야 한다 |
+| 4 | **`get_exemption_id( )` 의 반환 타입** 🔴 | 시그니처 | `extexemptid` 를 `char(32)` 로 잡았다. `checksum` 처럼 숫자형이면 컬럼을 고쳐야 한다 |
+| 5 | 승인된 예외에 `reject_exemptions_by_id` 를 걸면 면제가 풀리는지 | 테스트 1건 | 안 풀리면 `set_validity_date` 를 과거로 당기는 대안 |
+| 6 | `set_check_scope` 의 `ALL` / `FND` 의미 | 도메인 설명 텍스트 | 없어도 진행 가능 |
 
 #### 표준 예외 생성 흐름 (확정)
 

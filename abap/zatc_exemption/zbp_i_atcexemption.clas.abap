@@ -1316,7 +1316,12 @@ CLASS lsc_zi_atcexemption IMPLEMENTATION.
         OR ls_exemption-exemptstatus = zif_atc_exemption=>status-expired )
      AND ls_exemption-extexemptid IS NOT INITIAL.
 
-        DATA(ls_revoked) = lo_sync->revoke_exemption( ls_exemption-extexemptid ).
+        DATA(ls_revoked) = lo_sync->revoke_exemption(
+                             iv_extexemptid = ls_exemption-extexemptid
+                             iv_reason      = COND #(
+                               WHEN ls_exemption-exemptstatus = zif_atc_exemption=>status-expired
+                               THEN |유효기간 경과로 자동 만료|
+                               ELSE |CBO 대장에서 철회| ) ).
 
         INSERT ztatcexemptlog FROM @( VALUE #(
           loguuid    = cl_system_uuid=>create_uuid_x16_static( )

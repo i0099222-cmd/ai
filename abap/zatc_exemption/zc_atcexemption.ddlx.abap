@@ -87,11 +87,13 @@ annotate entity ZC_AtcExemption with
 
   // FND 스코프 전용. Phase 1 에서는 화면에 내보내지 않는다.
   @UI.hidden: true
-  SubObject;
-  @UI.hidden: true
   LineNo;
   @UI.hidden: true
-  FindingKey;
+  ResultId;
+  @UI.hidden: true
+  ItemId;
+  @UI.hidden: true
+  CheckRunIndex;
 
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 60 }]
   @EndUserText.label: '체크 ID'

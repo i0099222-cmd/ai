@@ -61,7 +61,7 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
     "   전달해야 할 값: scopetype, devclass, objecttype, objectname,
     "                   checkid, messageid, rulescope, reasoncode, reasontext,
     "                   validfrom, validto
-    "   FND 스코프까지 열리면 findingkey 도 함께 넘겨야 한다.
+    "   FND 스코프까지 열리면 finding 식별자(resultid/itemid)도 함께 넘겨야 한다.
     "   돌려받은 예외 ID 를 ztatcexempt-extexemptid 에 저장해야 철회/연장 시
     "   표준 쪽 레코드를 다시 찾을 수 있다.
 

@@ -37,7 +37,7 @@ etag master LocalLastChangedAt
   field ( readonly ) InclSubPkg;
 
   // FND 스코프 전용. Phase 1 에서는 채우지 않는다.
-  field ( readonly ) SubObject, LineNo, FindingKey;
+  field ( readonly ) LineNo, ResultId, ItemId, CheckRunIndex;
 
   field ( mandatory ) CheckVariant, ScopeType, ValidTo;
 
@@ -109,9 +109,10 @@ etag master LocalLastChangedAt
     InclSubPkg         = inclsubpkg;
     ObjectType         = objecttype;
     ObjectName         = objectname;
-    SubObject          = subobject;
     LineNo             = lineno;
-    FindingKey         = findingkey;
+    ResultId           = resultid;
+    ItemId             = itemid;
+    CheckRunIndex      = checkrunindex;
     CheckId            = checkid;
     MessageId          = messageid;
     RuleScope          = rulescope;
@@ -125,10 +126,10 @@ etag master LocalLastChangedAt
     ApprovedAt         = approvedat;
     ExtExemptId        = extexemptid;
     PreRegFlag         = preregflag;
-    CreatedBy          = ernam;
-    LastChangedBy      = aenam;
+    CreatedBy          = createdby;
     CreatedAt          = createdat;
-    LastChangedAt      = lastchangedat;
+    LastChangedBy      = changedby;
+    LastChangedAt      = changedat;
     LocalLastChangedAt = loclastchgat;
   }
 
@@ -159,18 +160,19 @@ etag master LocalLastChangedAt
     Devclass           = devclass;
     ObjectType         = objecttype;
     ObjectName         = objectname;
-    SubObject          = subobject;
     LineNo             = lineno;
-    FindingKey         = findingkey;
+    ResultId           = resultid;
+    ItemId             = itemid;
+    CheckRunIndex      = checkrunindex;
     CheckVariant       = checkvariant;
     CheckId            = checkid;
     MessageId          = messageid;
     Priority           = priority;
     MessageText        = msgtext;
-    CreatedBy          = ernam;
-    LastChangedBy      = aenam;
+    CreatedBy          = createdby;
     CreatedAt          = createdat;
-    LocalLastChangedAt = lastchangedat;
+    LastChangedBy      = changedby;
+    LocalLastChangedAt = loclastchgat;
   }
 }
 

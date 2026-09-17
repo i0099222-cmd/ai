@@ -58,8 +58,9 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
     "   - ADT 에서 Properties > API State 를 확인한다.
     "     "Released for Cloud Development" 가 아니면 이 클래스는 클래식 ABAP
     "     패키지에 두고 RAP 쪽에서는 래퍼로 호출해야 한다.
-    "   - findingkey 에 해당하는 표준 필드명이 무엇인지 확인해 매핑한다.
-    "     라인 번호만 보관하면 Phase 2 의 FND 스코프에서 예외가 계속 풀린다.
+    "   - finding 의 키는 resultid + itemid + checkrunindex 이며 런 단위다.
+    "     FND 스코프를 열려면 코드 변경·재실행에도 유지되는 식별자가 필요한데,
+    "     이 3종으로는 부족하다. Phase 2 착수 전 표준에 그런 키가 있는지 확인할 것.
     "   아래 SELECT 는 필드명을 확인한 뒤 그대로 채우면 되도록 구조만 잡아 둔 것이다.
 
     DATA(lt_devclass) = expand_packages( iv_devclass   = is_selection-devclass
@@ -87,9 +88,10 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
              devclass,
              objecttype,
              objectname,
-             subobject,
              lineno,
-             findingkey,
+             resultid,
+             itemid,
+             checkrunindex,
              checkid,
              messageid,
              priority,

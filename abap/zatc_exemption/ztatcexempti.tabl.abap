@@ -16,15 +16,21 @@ define table ztatcexempti {
 
   "! --- 이하 ATC finding 스냅샷 ---
   "! 주의: 아이템의 역할은 헤더의 scopetype 에 따라 다르다.
-  "!   FND      : 면제 대상 그 자체 (1:1). findingkey / lineno 가 판정에 쓰인다.
+  "!   FND      : 면제 대상 그 자체 (1:1). resultid / itemid / lineno 가 판정에 쓰인다.
   "!   OBJ, PKG : 신청 근거(증빙) 스냅샷. 효력은 오브젝트/패키지 전체이며
   "!              여기 담긴 건에 한정되지 않는다.
   devclass       : devclass;
   objecttype     : trobjtype;
   objectname     : sobj_name;
-  subobject      : abap.char(40);
   lineno         : abap.int4;
-  findingkey     : abap.char(60);
+
+  "! ATC finding 식별 3종. SATC_API_FINDINGS 의 키와 같다.
+  "! 주의: resultid 는 ATC 실행(결과) 단위이므로 이 3종은 런마다 달라진다.
+  "! 증빙 추적에는 쓸 수 있지만, FND 스코프 예외의 영구 키로는 쓸 수 없다.
+  resultid       : abap.char(32);
+  itemid         : abap.char(32);
+  checkrunindex  : abap.int4;
+
   checkvariant   : abap.char(30);
   checkid        : abap.char(30);
   messageid      : abap.char(30);
@@ -33,7 +39,7 @@ define table ztatcexempti {
 
   include zscm00010;
 
-  createdat      : timestampl;
-  lastchangedat  : timestampl;
+  "! RAP OCC 용 로컬 변경 타임스탬프
+  loclastchgat   : timestampl;
 
 }

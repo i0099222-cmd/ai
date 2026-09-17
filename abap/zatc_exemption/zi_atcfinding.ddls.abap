@@ -12,9 +12,10 @@
 // 배치, 보관 정책을 만들 이유가 없다.
 //
 // TODO 확인 필요: SATC_API_FINDINGS 의 나머지 필드명과 API State.
-//   checkvariant / priority 는 존재가 확인되었다. findingkey / subobject /
-//   contactperson / responsible 은 아직 가정이며, zcl_atc_finding_reader 의
-//   SELECT 와 같은 가정을 쓴다.
+//   checkvariant / priority / contactperson / responsible / resultid / itemid /
+//   checkrunindex 는 존재가 확인되었다. devclass / objecttype / objectname /
+//   lineno / checkid / messageid / msgtext 는 아직 가정이며,
+//   zcl_atc_finding_reader 의 SELECT 와 같은 가정을 쓴다.
 //
 // 면제 판정에 소스 라인이 들어가지 않는 것이 요건의 기술적 실체다.
 // 그래서 코드를 수정해 라인이 밀려도 OBJ/PKG 예외는 그대로 유지된다.
@@ -52,12 +53,14 @@ define view entity ZI_AtcFinding
   key Finding.devclass      as Devclass,
   key Finding.objecttype    as ObjectType,
   key Finding.objectname    as ObjectName,
-  key Finding.subobject     as SubObject,
   key Finding.lineno        as LineNo,
   key Finding.checkid       as CheckId,
   key Finding.messageid     as MessageId,
 
-      Finding.findingkey    as FindingKey,
+      // SATC_API_FINDINGS 의 키 3종. 런 단위라 실행마다 달라진다.
+      Finding.resultid      as ResultId,
+      Finding.itemid        as ItemId,
+      Finding.checkrunindex as CheckRunIndex,
       Cfg.checkgroup        as CheckGroup,
       Finding.priority      as Priority,
       Finding.msgtext       as MessageText,

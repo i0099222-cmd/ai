@@ -68,9 +68,11 @@ INTERFACE zif_atc_exemption
       devclass      TYPE devclass,
       objecttype    TYPE trobjtype,
       objectname    TYPE sobj_name,
-      subobject     TYPE char40,
       lineno        TYPE i,
-      findingkey    TYPE char60,
+      "! SATC_API_FINDINGS 의 키 3종. 런 단위라 실행마다 달라진다.
+      resultid      TYPE char32,
+      itemid        TYPE char32,
+      checkrunindex TYPE i,
       checkid       TYPE char30,
       messageid     TYPE char30,
       priority      TYPE int1,

@@ -1767,7 +1767,7 @@ Number Range
 
 | SCOPETYPE | 아이템의 역할 |
 |---|---|
-| `FND` | 면제 대상 그 자체 (1:1). `findingkey` / `lineno` 가 판정에 쓰인다 |
+| `FND` | 면제 대상 그 자체 (1:1). `resultid` / `itemid` / `lineno` 가 판정에 쓰인다. **단 이 값들은 ATC 실행 단위라 런마다 바뀌므로, FND 를 열기 전에 영구 식별자를 확보해야 한다** |
 | `OBJ` / `PKG` | **신청 근거(증빙) 스냅샷.** 효력은 오브젝트/패키지 전체이며 아이템에 담긴 건에 한정되지 않는다 |
 
 `createFromFinding` 액션은 finding 의 **자연키**(패키지/오브젝트/체크/메시지)를 파라미터로
@@ -1803,7 +1803,7 @@ Number Range
 
 | 항목 | 미루면 |
 |---|---|
-| `subobject` / `lineno` / `findingkey` 컬럼 | 운영 데이터 있는 상태에서 구조변경 + CDS/BDEF 수정 + 마이그레이션 + 재테스트 |
+| `lineno` / `resultid` / `itemid` / `checkrunindex` 컬럼 | 운영 데이터 있는 상태에서 구조변경 + CDS/BDEF 수정 + 마이그레이션 + 재테스트 |
 | **권한 오브젝트 `Z_ATCEXEM` 의 4개 필드** | 🔴 PFCG 역할 전수 재작업 + 보안팀 재승인 + 감사 이슈 |
 | 아이템 의미의 스코프별 분기 | 기존 데이터와 섞여 판정 버그 |
 | 설정 기반 동적 범위 목록 | 전 로직 리팩터링 |
@@ -1815,8 +1815,8 @@ Number Range
 
 | # | 가정 | 틀리면 수정 범위 |
 |---|---|---|
-| 1 | `ZSCM00010` 의 생성자/변경자 필드가 `ernam` / `aenam` | CDS 2개 × 2줄 + BDEF mapping 2줄 |
-| 2 | `SATC_API_FINDINGS` 의 `findingkey` / `subobject` / `contactperson` / `responsible` 필드명 (`checkvariant`, `priority` 는 확인됨) | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` |
+| 1 | `ZSCM00010` 의 **변경자/변경일시** 필드가 `changedby` / `changedat` (`createdby` / `createdat` 는 확인됨) | CDS 2개 × 2줄 + BDEF mapping 2줄 |
+| 2 | `SATC_API_FINDINGS` 의 `devclass` / `objecttype` / `objectname` / `lineno` / `checkid` / `messageid` / `msgtext` 필드명 (키 `resultid`+`itemid`+`checkrunindex`, `checkvariant`, `priority`, `contactperson`, `responsible` 은 확인됨. `subobject` 는 **없음**) | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` |
 | 3 | `SATC_API_FINDINGS` / `TDEVC` 의 API State | 리더 클래스를 클래식 패키지로 분리 |
 | 4 | 적용범위 코드값 `OBJ` / `PKG` | `zif_atc_exemption` 상수 2개 + 설정 데이터 |
 | 5 | **표준 예외 생성 API 존재** 🔴 | `zcl_atc_exempt_sync` 구현. 없으면 조회 전용으로 후퇴 |

@@ -35,23 +35,89 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 
 시스템 접근 없이 작성했으므로 아래는 **가정**이다. 활성화 전에 반드시 확인할 것.
 
+### 확인된 것
+
+| 오브젝트 | 확인된 내용 |
+|---|---|
+| `ZSCM00010` | `createdby` / `createdat` 등 |
+| `SATC_API_FINDINGS` | 키 = `resultid` + `itemid` + `checkrunindex`. `checkvariant` / `priority` / `contactperson` / `responsible` 존재. **`subobject` 없음** |
+
+### 남은 가정
+
 | # | 가정 | 확인 방법 | 틀리면 |
 |---|---|---|---|
-| 1 | `ZSCM00010` 의 생성자/변경자 필드명이 `ernam` / `aenam` | ADT 에서 ZSCM00010 열기 | `zi_atcexemption.ddls.abap`, `zi_atcexemptionitem.ddls.abap` 각 2줄 + BDEF mapping 2줄 수정 |
-| 2 | `SATC_API_FINDINGS` 의 `findingkey` / `subobject` / `contactperson` / `responsible` 필드명 (`checkvariant`, `priority` 는 **확인됨**) | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
-| 3 | `SATC_API_FINDINGS` / `TDEVC` 의 API State | ADT → Properties → API State | Cloud 미릴리즈면 리더 클래스를 클래식 패키지로 분리 |
-| 4 | 적용범위 코드값 `OBJ` / `PKG` | 표준 scope 필드 → Domain → Value Range | `zif_atc_exemption` 상수 2개 + 설정 데이터 수정 |
-| 5 | **표준 예외 생성 API 존재 여부** 🔴 | 표준 Fiori 앱 "Approve ATC Exemptions" 의 OData 서비스 추적 | 없으면 `zcl_atc_exempt_sync` 구현 불가 → 조회/거버넌스 전용으로 후퇴 |
+| 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
+| 2 | `SATC_API_FINDINGS` 의 `devclass` / `objecttype` / `objectname` / `lineno` / `checkid` / `messageid` / `msgtext` 필드명 | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
+| 3 | `SATC_API_FINDINGS` / `TDEVC` 의 API State | 아래 설명 참조 | Cloud 미릴리즈면 리더 클래스를 클래식 패키지로 분리 |
+| 4 | 적용범위 코드값 `OBJ` / `PKG` | 아래 설명 참조 | `zif_atc_exemption` 상수 2개 + 설정 데이터 |
+| 5 | **표준 예외 생성 API 존재 여부** 🔴 | 아래 설명 참조 | 없으면 `zcl_atc_exempt_sync` 구현 불가 → 조회/거버넌스 전용으로 후퇴 |
 
-**5번이 가장 중요하다.** 지금 `zcl_atc_exempt_sync` 는 "미구현"을 돌려주는 스텁이다.
-그 상태로도 신청·승인·이력·조회는 전부 동작하고 CBO 대장도 채워지지만,
-**표준 ATC 억제는 되지 않는다** (TR 릴리즈 차단이 그대로 유지됨).
+### 3번 — API State 확인 방법
 
-추적 경로:
+ABAP Cloud(Tier 1) 코드에서 SAP 표준 오브젝트를 쓰려면 그 오브젝트가 **릴리즈**되어
+있어야 한다. 릴리즈 여부를 SAP 이 "API State" 로 표시한다.
+
 ```
-/IWFND/MAINT_SERVICE 에서 "Approve ATC Exemptions" 의 OData 서비스명 확보
-  → ADT 에서 구현 클래스 열기
-  → 승인/반려 시 호출하는 클래스·메소드가 곧 zcl_atc_exempt_sync 가 호출할 API
+ADT 에서 SATC_API_FINDINGS 를 연다
+  -> Properties 뷰 (없으면 Window > Show View > Properties)
+  -> API State 항목 확인
+
+  "Released for Cloud Development"                -> ABAP Cloud 에서 사용 가능
+  "Not Released" / "Use System-Internally Only"   -> 클래식 ABAP 에서만 가능
+```
+
+더 간단한 실측 방법: ABAP Cloud 언어버전 패키지에 이 뷰를 읽는 테스트 CDS 를 하나
+만들어 활성화해 본다. 안 되면 "not released" 오류가 그대로 뜬다.
+
+**왜 중요한가**: 미릴리즈면 `zcl_atc_finding_reader` 와 `ZI_AtcFinding` 을
+클래식 ABAP 패키지(Tier 3)에 두고, RAP 앱에서는 래퍼로 호출해야 한다.
+나중에 바꾸면 패키지 구조를 다시 짜야 하므로 착수 전에 정해야 한다.
+
+### 4번 — 적용범위 코드값 확인 방법
+
+ADT 의 `Request Exemption` 에서 `Apply exemption to` 가 3개(Finding / ABAP Object /
+All Objects of Package)인 것은 확인됐다. 필요한 건 그 3개가 **DB 에 어떤 코드값으로
+저장되는지** 다. `FND` 는 확인됐고 나머지 2개는 `OBJ` / `PKG` 로 가정했다.
+
+```
+FND 값을 본 그 필드에서
+  -> 우클릭 Navigate / Go to Definition
+  -> Data Element -> Domain -> Value Range (고정값 목록)
+  -> 3개 값과 설명 텍스트를 확인
+```
+
+**왜 중요한가**: 값이 다르면 `zif_atc_exemption` 의 상수와 컨트롤 테이블 초기
+데이터가 전부 어긋나 신청이 전건 거부된다.
+
+### 5번 — 표준 예외 생성 API 🔴
+
+**이 앱에서 승인한 예외를 표준 ATC 예외 저장소에 프로그램으로 만들어 넣을 수 있는가** 를
+묻는 것이다. 다섯 개 중 가장 중요하다.
+
+```
+[API 가 있으면]
+  앱에서 승인 -> 표준 저장소에 예외 생성
+    -> ADT / TR 릴리즈 게이트 / CI-CD 가 전부 그 예외를 보고 억제한다
+    -> 개발자가 겪던 TR 릴리즈 차단이 실제로 풀린다
+
+[API 가 없으면]
+  앱에서 승인 -> CBO 대장에만 기록
+    -> 표준 ATC 는 그 사실을 모른다
+    -> finding 은 계속 나오고 TR 릴리즈도 계속 막힌다
+    -> 앱의 가치가 "현황 조회 + 거버넌스 기록" 으로 줄어든다
+```
+
+지금 `zcl_atc_exempt_sync` 는 "미구현" 을 돌려주는 스텁이다. 그 상태로도
+신청·승인·이력·조회는 전부 동작하고 CBO 대장도 채워지지만 **억제는 되지 않는다.**
+
+추적 경로 (표준 Fiori 앱이 이미 하고 있는 일을 따라간다):
+```
+1) /IWFND/MAINT_SERVICE 에서 "Approve ATC Exemptions" 의 OData 서비스명을 찾는다
+2) ADT 에서 그 서비스의 구현 클래스를 연다
+3) 승인/반려 액션이 호출하는 클래스·메소드가 곧 우리가 호출할 API 다
+   (표준 앱이 그 방법으로 예외 상태를 바꾸고 있으므로 반드시 존재한다)
+4) 그 클래스가 릴리즈되어 있는지(3번 API State)도 같이 본다
+대안 검색: ADT 에서 SATC_API* / CL_SATC_*API* / SATC*EXEMPT*
 ```
 
 ---
@@ -293,10 +359,16 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 - 권한 역할에 `CHECKGRP` 값 추가
 
 이미 선반영된 것:
-- `subobject` / `lineno` / `findingkey` 컬럼
+- `lineno` / `resultid` / `itemid` / `checkrunindex` 컬럼
 - 권한 오브젝트 4개 필드
 - 아이템 의미의 스코프별 분기 (`FND` = 대상 / `OBJ`·`PKG` = 증빙)
 - 설정 기반 동적 범위 목록
+
+Phase 2 착수 전 풀어야 할 것:
+- **FND 스코프의 영구 식별자.** `resultid` + `itemid` + `checkrunindex` 는 ATC 실행
+  단위라 런마다 바뀐다. 이대로 FND 예외를 만들면 다음 실행에서 매칭이 끊긴다.
+  코드 변경·재실행에도 유지되는 식별자가 표준에 있는지 확인해야 한다.
+  (OBJ / PKG 스코프는 애초에 이 값을 쓰지 않으므로 Phase 1 에는 영향 없다)
 
 Phase 2 에서 실측이 필요한 것:
 - 라이브 조회 성능. 대상 체크가 늘어 건수가 커지면 그때 스냅샷 계층을 도입한다.

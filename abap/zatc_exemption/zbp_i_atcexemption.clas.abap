@@ -280,7 +280,6 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
 
-    GET TIME STAMP FIELD DATA(lv_now).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
@@ -313,10 +312,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                                              THEN sy-datum ELSE ls_exemption-validfrom )
                       rulescope    = COND #( WHEN ls_exemption-rulescope IS INITIAL
                                              THEN zif_atc_exemption=>rulescope-message
-                                             ELSE ls_exemption-rulescope )
-                      createdat    = lv_now
-                      lastchangedat      = lv_now
-                      locallastchangedat = lv_now )
+                                             ELSE ls_exemption-rulescope ) )
              TO lt_update.
 
       write_log( is_row    = ls_exemption
@@ -328,8 +324,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptid exemptstatus requester validfrom rulescope
-                        createdat lastchangedat locallastchangedat )
+        UPDATE FIELDS ( exemptid exemptstatus requester validfrom rulescope )
         WITH lt_update
       REPORTED DATA(lt_reported).
 
@@ -441,7 +436,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( scopetype devclass objecttype objectname findingkey )
+        FIELDS ( scopetype devclass objecttype objectname resultid itemid )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -468,9 +463,8 @@ CLASS lhc_exemption IMPLEMENTATION.
           ENDIF.
 
         WHEN zif_atc_exemption=>scope-fnd.
-          " Phase 2 대비. 라인 번호만으로는 코드 변경 시 매칭이 깨지므로
-          " 표준 finding 식별자를 반드시 보관한다.
-          IF ls_exemption-findingkey IS INITIAL.
+          " Phase 2 대비. finding 식별자가 없으면 어느 건에 대한 예외인지 알 수 없다.
+          IF ls_exemption-resultid IS INITIAL OR ls_exemption-itemid IS INITIAL.
             lv_error = '005'.
           ENDIF.
 
@@ -769,7 +763,6 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     DATA(lo_reader) = NEW zcl_atc_finding_reader( ).
 
-    GET TIME STAMP FIELD DATA(lv_now).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption)
          WHERE exemptstatus = zif_atc_exemption=>status-draft.
@@ -800,9 +793,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       APPEND VALUE #( %tky               = ls_exemption-%tky
                       exemptstatus       = zif_atc_exemption=>status-pending
-                      reasontext         = lv_reason
-                      lastchangedat      = lv_now
-                      locallastchangedat = lv_now ) TO lt_update.
+                      reasontext         = lv_reason ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-submit
@@ -814,7 +805,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus reasontext lastchangedat locallastchangedat )
+        UPDATE FIELDS ( exemptstatus reasontext )
         WITH lt_update.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
@@ -837,7 +828,6 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
 
-    GET TIME STAMP FIELD DATA(lv_now).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption)
          WHERE exemptstatus = zif_atc_exemption=>status-pending.
@@ -845,9 +835,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 철회는 상신 취소다. 레코드는 남고 상태만 초안으로 돌아간다.
       " 삭제와 구분된다 - 삭제는 이력까지 사라지므로 초안에서만 허용한다.
       APPEND VALUE #( %tky               = ls_exemption-%tky
-                      exemptstatus       = zif_atc_exemption=>status-draft
-                      lastchangedat      = lv_now
-                      locallastchangedat = lv_now ) TO lt_update.
+                      exemptstatus       = zif_atc_exemption=>status-draft ) TO lt_update.
 
       write_log( is_row    = ls_exemption
                  iv_action = zif_atc_exemption=>logaction-withdraw
@@ -858,7 +846,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus lastchangedat locallastchangedat )
+        UPDATE FIELDS ( exemptstatus )
         WITH lt_update.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
@@ -913,9 +901,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                       exemptstatus       = zif_atc_exemption=>status-approved
                       approver           = sy-uname
                       approvedat         = lv_now
-                      extexemptid        = ls_sync-extexemptid
-                      lastchangedat      = lv_now
-                      locallastchangedat = lv_now ) TO lt_update.
+                      extexemptid        = ls_sync-extexemptid ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-approve
@@ -927,8 +913,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus approver approvedat extexemptid
-                        lastchangedat locallastchangedat )
+        UPDATE FIELDS ( exemptstatus approver approvedat extexemptid )
         WITH lt_update.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
@@ -972,9 +957,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       APPEND VALUE #( %tky               = ls_key-%tky
                       exemptstatus       = zif_atc_exemption=>status-rejected
                       approver           = sy-uname
-                      approvedat         = lv_now
-                      lastchangedat      = lv_now
-                      locallastchangedat = lv_now ) TO lt_update.
+                      approvedat         = lv_now ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-reject
@@ -986,8 +969,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus approver approvedat
-                        lastchangedat locallastchangedat )
+        UPDATE FIELDS ( exemptstatus approver approvedat )
         WITH lt_update.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
@@ -1012,7 +994,6 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
 
-    GET TIME STAMP FIELD DATA(lv_now).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption)
          WHERE exemptstatus = zif_atc_exemption=>status-approved.
@@ -1030,9 +1011,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       ENDIF.
 
       APPEND VALUE #( %tky               = ls_exemption-%tky
-                      exemptstatus       = zif_atc_exemption=>status-revoked
-                      lastchangedat      = lv_now
-                      locallastchangedat = lv_now ) TO lt_update.
+                      exemptstatus       = zif_atc_exemption=>status-revoked ) TO lt_update.
 
       write_log( is_row    = ls_exemption
                  iv_action = zif_atc_exemption=>logaction-revoke
@@ -1043,7 +1022,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus lastchangedat locallastchangedat )
+        UPDATE FIELDS ( exemptstatus )
         WITH lt_update.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
@@ -1066,7 +1045,6 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
 
-    GET TIME STAMP FIELD DATA(lv_now).
 
     LOOP AT keys INTO DATA(ls_key).
 
@@ -1089,9 +1067,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                       validto            = ls_key-%param-newvalidto
                       exemptstatus       = zif_atc_exemption=>status-pending
                       approver           = space
-                      approvedat         = space
-                      lastchangedat      = lv_now
-                      locallastchangedat = lv_now ) TO lt_update.
+                      approvedat         = space ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-submit
@@ -1104,8 +1080,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( validto exemptstatus approver approvedat
-                        lastchangedat locallastchangedat )
+        UPDATE FIELDS ( validto exemptstatus approver approvedat )
         WITH lt_update.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
@@ -1225,9 +1200,10 @@ CLASS lhc_exemption IMPLEMENTATION.
                         devclass    = ls_finding-devclass
                         objecttype  = ls_finding-objecttype
                         objectname  = ls_finding-objectname
-                        subobject   = ls_finding-subobject
                         lineno      = ls_finding-lineno
-                        findingkey  = ls_finding-findingkey
+                        resultid    = ls_finding-resultid
+                        itemid      = ls_finding-itemid
+                        checkrunindex = ls_finding-checkrunindex
                         checkid     = ls_finding-checkid
                         messageid   = ls_finding-messageid
                         priority    = ls_finding-priority
@@ -1246,8 +1222,8 @@ CLASS lhc_exemption IMPLEMENTATION.
         WITH lt_create
       ENTITY exemption
         CREATE BY \_Item
-        FIELDS ( itemno checkvariant devclass objecttype objectname subobject lineno
-                 findingkey checkid messageid priority messagetext )
+        FIELDS ( itemno checkvariant devclass objecttype objectname lineno
+                 resultid itemid checkrunindex checkid messageid priority messagetext )
         WITH lt_item
       MAPPED DATA(lt_mapped)
       FAILED DATA(lt_failed)

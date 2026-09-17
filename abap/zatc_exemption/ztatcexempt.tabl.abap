@@ -36,15 +36,15 @@ define table ztatcexempt {
   "! 대상 오브젝트명. OBJ/FND 스코프에서 필수.
   objectname        : sobj_name;
 
-  "! 인클루드명. FND 스코프 전용 (Phase 2 대비 선반영)
-  subobject         : abap.char(40);
-
   "! 소스 라인. FND 스코프 전용 (Phase 2 대비 선반영)
   lineno            : abap.int4;
 
-  "! 표준 finding 식별자. FND 스코프 전용 (Phase 2 대비 선반영)
-  "! 라인 번호만으로는 코드 변경 시 매칭이 깨지므로 표준 키를 그대로 보관한다.
-  findingkey        : abap.char(60);
+  "! ATC finding 식별 3종. FND 스코프 전용 (Phase 2 대비 선반영)
+  "! 미해결 과제: resultid 는 ATC 실행 단위라 런마다 바뀐다. FND 스코프를 열 때
+  "! 코드 변경·재실행에도 유지되는 식별자가 표준에 있는지 확인해야 한다.
+  resultid          : abap.char(32);
+  itemid            : abap.char(32);
+  checkrunindex     : abap.int4;
 
   "! 대상 체크 ID. 예외가 적용될 규칙이다 (정책 조회용 변형과는 별개).
   "! 공란이면 변형에 속한 모든 체크.
@@ -83,13 +83,13 @@ define table ztatcexempt {
   "! 사전등록 여부. finding 없이 선제적으로 등록한 건이면 X.
   preregflag        : abap_boolean;
 
-  "! CBO 공통 이력 구조 (생성자/생성일/변경자/변경일 등)
+  "! CBO 공통 이력 구조. createdby / createdat / 변경자 / 변경일시를 제공한다.
+  "! RAP 의 CreatedBy / CreatedAt / LastChangedBy / LastChangedAt 은 이 include 의
+  "! 필드에 매핑하며, managed 런타임이 자동으로 채운다.
   include zscm00010;
 
-  "! RAP 기술 필드. ZSCM00010 의 날짜+시간 분리 필드는 etag 로 쓸 수 없으므로
-  "! 타임스탬프 필드를 별도로 둔다.
-  createdat         : timestampl;
-  lastchangedat     : timestampl;
+  "! RAP OCC(etag master)용 로컬 변경 타임스탬프.
+  "! include 와 이름이 겹치지 않도록 별도 이름을 쓴다.
   loclastchgat      : timestampl;
 
 }

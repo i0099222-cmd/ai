@@ -12,9 +12,10 @@ define view entity ZC_AtcExemptionItem
       Devclass,
       ObjectType,
       ObjectName,
-      SubObject,
       LineNo,
-      FindingKey,
+      ResultId,
+      ItemId,
+      CheckRunIndex,
       CheckVariant,
       CheckId,
       MessageId,
@@ -22,8 +23,8 @@ define view entity ZC_AtcExemptionItem
       MessageText,
 
       CreatedBy,
-      LastChangedBy,
       CreatedAt,
+      LastChangedBy,
       LocalLastChangedAt,
 
       _Exemption : redirected to parent ZC_AtcExemption

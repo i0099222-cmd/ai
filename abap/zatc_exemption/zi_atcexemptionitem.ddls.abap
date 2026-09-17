@@ -8,7 +8,7 @@
   dataClass: #MIXED
 }
 // 아이템의 역할은 상위 헤더의 ScopeType 에 따라 다르다.
-//   FND      : 면제 대상 그 자체 (1:1). FindingKey / LineNo 가 판정에 쓰인다.
+//   FND      : 면제 대상 그 자체 (1:1). ResultId / ItemId / LineNo 가 판정에 쓰인다.
 //   OBJ, PKG : 신청 근거(증빙) 스냅샷. 효력은 오브젝트/패키지 전체이며
 //              여기 담긴 건에 한정되지 않는다.
 define view entity ZI_AtcExemptionItem
@@ -24,25 +24,26 @@ define view entity ZI_AtcExemptionItem
       devclass       as Devclass,
       objecttype     as ObjectType,
       objectname     as ObjectName,
-      subobject      as SubObject,
       lineno         as LineNo,
-      findingkey     as FindingKey,
+      resultid       as ResultId,
+      itemid         as ItemId,
+      checkrunindex  as CheckRunIndex,
       checkvariant   as CheckVariant,
       checkid        as CheckId,
       messageid      as MessageId,
       priority       as Priority,
       msgtext        as MessageText,
 
-      // TODO 확인 필요: ZSCM00010 필드명 (헤더와 동일)
+      // ZSCM00010 필드 (헤더와 동일한 TODO 가 변경자/변경일시에 적용된다)
       @Semantics.user.createdBy: true
-      ernam          as CreatedBy,
-      @Semantics.user.lastChangedBy: true
-      aenam          as LastChangedBy,
-
+      createdby      as CreatedBy,
       @Semantics.systemDateTime.createdAt: true
       createdat      as CreatedAt,
+      @Semantics.user.lastChangedBy: true
+      changedby      as LastChangedBy,
+
       @Semantics.systemDateTime.localInstanceLastChangedAt: true
-      lastchangedat  as LocalLastChangedAt,
+      loclastchgat   as LocalLastChangedAt,
 
       _Exemption
 }

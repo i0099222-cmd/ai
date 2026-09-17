@@ -36,9 +36,6 @@ etag master LocalLastChangedAt
   // 열어 두면 화면 표시와 실제 판정이 어긋난다. 필드는 Phase 2 대비로 남긴다.
   field ( readonly ) InclSubPkg;
 
-  // FND 스코프 전용. Phase 1 에서는 채우지 않는다.
-  field ( readonly ) LineNo, ResultId, ItemId, CheckRunIndex;
-
   field ( mandatory ) CheckVariant, ScopeType, ValidTo;
 
   create;
@@ -109,10 +106,6 @@ etag master LocalLastChangedAt
     InclSubPkg         = inclsubpkg;
     ObjectType         = objecttype;
     ObjectName         = objectname;
-    LineNo             = lineno;
-    ResultId           = resultid;
-    ItemId             = itemid;
-    CheckRunIndex      = checkrunindex;
     CheckId            = checkid;
     MessageId          = messageid;
     RuleScope          = rulescope;
@@ -157,14 +150,10 @@ etag master LocalLastChangedAt
     ItemUuid           = itemuuid;
     ExemptUuid         = exemptuuid;
     ItemNo             = itemno;
-    Devclass           = devclass;
     ObjectType         = objecttype;
     ObjectName         = objectname;
     LineNo             = lineno;
-    ResultId           = resultid;
-    ItemId             = itemid;
-    CheckRunIndex      = checkrunindex;
-    CheckVariant       = checkvariant;
+    Checksum           = checksum;
     CheckId            = checkid;
     MessageId          = messageid;
     Priority           = priority;

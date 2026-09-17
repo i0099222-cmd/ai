@@ -15,23 +15,24 @@ define table ztatcexempti {
   itemno         : abap.int4;
 
   "! --- 이하 ATC finding 스냅샷 ---
-  "! 주의: 아이템의 역할은 헤더의 scopetype 에 따라 다르다.
-  "!   FND      : 면제 대상 그 자체 (1:1). resultid / itemid / lineno 가 판정에 쓰인다.
-  "!   OBJ, PKG : 신청 근거(증빙) 스냅샷. 효력은 오브젝트/패키지 전체이며
-  "!              여기 담긴 건에 한정되지 않는다.
-  devclass       : devclass;
+  "! 아이템의 역할은 헤더의 scopetype 에 따라 다르다.
+  "!   FND       : 면제 대상 그 자체 (1:1). checksum 이 판정에 쓰인다.
+  "!   OBJ, PCKG : 신청 근거(증빙) 스냅샷. 효력은 오브젝트/패키지 전체이며
+  "!               여기 담긴 건에 한정되지 않는다.
+  "!
+  "! 패키지와 체크 변형은 헤더에만 둔다. 한 신청서의 증빙은 모두 같은 변형에서
+  "! 나오고 같은 패키지에 속하므로, 아이템에 또 두면 어긋날 여지만 생긴다.
   objecttype     : trobjtype;
   objectname     : sobj_name;
   lineno         : abap.int4;
 
-  "! ATC finding 식별 3종. SATC_API_FINDINGS 의 키와 같다.
-  "! 주의: resultid 는 ATC 실행(결과) 단위이므로 이 3종은 런마다 달라진다.
-  "! 증빙 추적에는 쓸 수 있지만, FND 스코프 예외의 영구 키로는 쓸 수 없다.
-  resultid       : abap.char(32);
-  itemid         : abap.char(32);
-  checkrunindex  : abap.int4;
+  "! ATC finding 의 식별자. 코드가 바뀌어도 같은 위반이면 유지되는 값이다.
+  "! SATC_API_FINDINGS 의 키(resultid/itemid/checkrunindex)는 ATC 실행 단위라
+  "! 런마다 바뀌어 예외의 영구 키로 쓸 수 없다. 그래서 checksum 을 보관한다.
+  "! TODO 확인 필요: 이 값에 해당하는 SATC_API_FINDINGS 의 필드명.
+  checksum       : abap.char(32);
 
-  checkvariant   : abap.char(30);
+  "! 한 변형 안에서도 체크와 메시지는 아이템마다 다를 수 있어 여기 둔다.
   checkid        : abap.char(30);
   messageid      : abap.char(30);
   priority       : abap.int1;

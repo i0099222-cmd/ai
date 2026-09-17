@@ -88,9 +88,7 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
     "     상태       승인 상태로 바로 생성한다 (위 클래스 주석의 이유)
     "     승인자     is_exemption-approver
     "
-    "   FND 스코프까지 열리면 finding 식별자도 함께 넘겨야 한다. 다만 지금 가진
-    "   resultid / itemid / checkrunindex 는 ATC 실행 단위라 런마다 바뀌므로,
-    "   FND 를 열기 전에 영구 식별자를 먼저 확보해야 한다.
+    "   FND 스코프까지 열리면 아이템의 checksum 도 함께 넘겨야 한다.
     "
     "   돌려받은 예외 ID 를 rs_result-extexemptid 에 담아야 한다. 이 값이 없으면
     "   나중에 철회/연장할 때 표준 쪽 레코드를 다시 찾을 수 없다.

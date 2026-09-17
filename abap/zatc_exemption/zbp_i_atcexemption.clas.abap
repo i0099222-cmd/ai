@@ -436,7 +436,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( scopetype devclass objecttype objectname resultid itemid )
+        FIELDS ( scopetype devclass objecttype objectname )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -463,8 +463,10 @@ CLASS lhc_exemption IMPLEMENTATION.
           ENDIF.
 
         WHEN zif_atc_exemption=>scope-fnd.
-          " Phase 2 대비. finding 식별자가 없으면 어느 건에 대한 예외인지 알 수 없다.
-          IF ls_exemption-resultid IS INITIAL OR ls_exemption-itemid IS INITIAL.
+          " Phase 2 대비. 대상 finding 은 아이템 1건이고 식별자(checksum)도 거기 있다.
+          " 헤더에는 어느 오브젝트의 건인지만 있으면 된다.
+          IF ls_exemption-objecttype IS INITIAL
+          OR ls_exemption-objectname IS INITIAL.
             lv_error = '005'.
           ENDIF.
 
@@ -1194,16 +1196,12 @@ CLASS lhc_exemption IMPLEMENTATION.
       DATA(lv_itemno) = 0.
       LOOP AT lt_finding INTO DATA(ls_finding).
         lv_itemno = lv_itemno + 1.
-        APPEND VALUE #( %cid         = |{ ls_key-%cid }_I{ lv_itemno }|
+        APPEND VALUE #( %cid        = |{ ls_key-%cid }_I{ lv_itemno }|
                         itemno      = lv_itemno
-                        checkvariant = ls_finding-checkvariant
-                        devclass    = ls_finding-devclass
                         objecttype  = ls_finding-objecttype
                         objectname  = ls_finding-objectname
                         lineno      = ls_finding-lineno
-                        resultid    = ls_finding-resultid
-                        itemid      = ls_finding-itemid
-                        checkrunindex = ls_finding-checkrunindex
+                        checksum    = ls_finding-checksum
                         checkid     = ls_finding-checkid
                         messageid   = ls_finding-messageid
                         priority    = ls_finding-priority
@@ -1222,8 +1220,8 @@ CLASS lhc_exemption IMPLEMENTATION.
         WITH lt_create
       ENTITY exemption
         CREATE BY \_Item
-        FIELDS ( itemno checkvariant devclass objecttype objectname lineno
-                 resultid itemid checkrunindex checkid messageid priority messagetext )
+        FIELDS ( itemno objecttype objectname lineno
+                 checksum checkid messageid priority messagetext )
         WITH lt_item
       MAPPED DATA(lt_mapped)
       FAILED DATA(lt_failed)

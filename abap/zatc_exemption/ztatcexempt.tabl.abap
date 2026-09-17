@@ -36,15 +36,8 @@ define table ztatcexempt {
   "! 대상 오브젝트명. OBJ/FND 스코프에서 필수.
   objectname        : sobj_name;
 
-  "! 소스 라인. FND 스코프 전용 (Phase 2 대비 선반영)
-  lineno            : abap.int4;
-
-  "! ATC finding 식별 3종. FND 스코프 전용 (Phase 2 대비 선반영)
-  "! 미해결 과제: resultid 는 ATC 실행 단위라 런마다 바뀐다. FND 스코프를 열 때
-  "! 코드 변경·재실행에도 유지되는 식별자가 표준에 있는지 확인해야 한다.
-  resultid          : abap.char(32);
-  itemid            : abap.char(32);
-  checkrunindex     : abap.int4;
+  "! FND 스코프의 대상 finding 은 아이템 1건이다. 식별자(checksum)는 아이템에만 둔다.
+  "! 헤더에 또 두면 두 값이 어긋났을 때 어느 쪽이 맞는지 알 수 없게 된다.
 
   "! 대상 체크 ID. 예외가 적용될 규칙이다 (정책 조회용 변형과는 별개).
   "! 공란이면 변형에 속한 모든 체크.

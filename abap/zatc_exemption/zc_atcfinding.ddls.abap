@@ -15,9 +15,7 @@ define view entity ZC_AtcFinding
   key CheckId,
   key MessageId,
 
-      ResultId,
-      ItemId,
-      CheckRunIndex,
+      Checksum,
       CheckGroup,
       Priority,
       MessageText,

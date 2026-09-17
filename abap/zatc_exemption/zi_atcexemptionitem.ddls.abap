@@ -8,9 +8,12 @@
   dataClass: #MIXED
 }
 // 아이템의 역할은 상위 헤더의 ScopeType 에 따라 다르다.
-//   FND      : 면제 대상 그 자체 (1:1). ResultId / ItemId / LineNo 가 판정에 쓰인다.
-//   OBJ, PKG : 신청 근거(증빙) 스냅샷. 효력은 오브젝트/패키지 전체이며
-//              여기 담긴 건에 한정되지 않는다.
+//   FND       : 면제 대상 그 자체 (1:1). Checksum 이 판정에 쓰인다.
+//   OBJ, PCKG : 신청 근거(증빙) 스냅샷. 효력은 오브젝트/패키지 전체이며
+//               여기 담긴 건에 한정되지 않는다.
+//
+// 패키지와 체크 변형은 헤더에만 둔다. 한 신청서의 증빙은 모두 같은 변형에서
+// 나오고 같은 패키지에 속하므로, 아이템에 또 두면 어긋날 여지만 생긴다.
 define view entity ZI_AtcExemptionItem
   as select from ztatcexempti
   association to parent ZI_AtcExemption as _Exemption
@@ -21,14 +24,10 @@ define view entity ZI_AtcExemptionItem
       exemptuuid     as ExemptUuid,
       itemno         as ItemNo,
 
-      devclass       as Devclass,
       objecttype     as ObjectType,
       objectname     as ObjectName,
       lineno         as LineNo,
-      resultid       as ResultId,
-      itemid         as ItemId,
-      checkrunindex  as CheckRunIndex,
-      checkvariant   as CheckVariant,
+      checksum       as Checksum,
       checkid        as CheckId,
       messageid      as MessageId,
       priority       as Priority,

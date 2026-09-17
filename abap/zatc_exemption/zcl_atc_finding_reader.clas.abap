@@ -58,9 +58,10 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
     "   - ADT 에서 Properties > API State 를 확인한다.
     "     "Released for Cloud Development" 가 아니면 이 클래스는 클래식 ABAP
     "     패키지에 두고 RAP 쪽에서는 래퍼로 호출해야 한다.
-    "   - finding 의 키는 resultid + itemid + checkrunindex 이며 런 단위다.
-    "     FND 스코프를 열려면 코드 변경·재실행에도 유지되는 식별자가 필요한데,
-    "     이 3종으로는 부족하다. Phase 2 착수 전 표준에 그런 키가 있는지 확인할 것.
+    "   - TODO 확인 필요: checksum 필드의 존재와 이름.
+    "     뷰의 키(resultid/itemid/checkrunindex)는 ATC 실행 단위라 런마다 바뀌어
+    "     예외의 영구 키로 쓸 수 없다. 기존 샘플 프로그램이 아이템에 checksum 을
+    "     보관하고 있으므로 이 뷰에도 같은 값이 있을 것으로 보고 읽는다.
     "   아래 SELECT 는 필드명을 확인한 뒤 그대로 채우면 되도록 구조만 잡아 둔 것이다.
 
     DATA(lt_devclass) = expand_packages( iv_devclass   = is_selection-devclass
@@ -89,9 +90,7 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
              objecttype,
              objectname,
              lineno,
-             resultid,
-             itemid,
-             checkrunindex,
+             checksum,
              checkid,
              messageid,
              priority,

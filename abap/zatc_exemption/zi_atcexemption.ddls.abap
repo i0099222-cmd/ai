@@ -30,12 +30,6 @@ define root view entity ZI_AtcExemption
       objecttype        as ObjectType,
       objectname        as ObjectName,
 
-      // FND 스코프 전용 (Phase 2 대비 선반영)
-      lineno            as LineNo,
-      resultid          as ResultId,
-      itemid            as ItemId,
-      checkrunindex     as CheckRunIndex,
-
       checkid           as CheckId,
       messageid         as MessageId,
       rulescope         as RuleScope,

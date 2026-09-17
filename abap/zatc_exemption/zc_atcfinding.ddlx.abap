@@ -9,10 +9,7 @@
 }
 annotate entity ZC_AtcFinding with
 {
-  @UI.hidden: true
-  FindingUuid;
-
-  // 데이터량이 Phase 2 에서 수만~수십만 건으로 늘어난다.
+  // ATC 결과를 라이브로 읽는다. Phase 2 에서 대상 체크가 늘면 건수가 커지므로
   // 필수 필터를 걸어 전체 조회를 막는다.
   @UI.selectionField: [{ position: 10 }]
   @EndUserText.label: '패키지'
@@ -62,8 +59,4 @@ annotate entity ZC_AtcFinding with
   @UI.lineItem: [{ position: 70, importance: #MEDIUM }]
   @EndUserText.label: '면제 만료일'
   ExemptValidTo;
-
-  @UI.lineItem: [{ position: 80, importance: #LOW }]
-  @EndUserText.label: '스냅샷일자'
-  SnapshotDate;
 }

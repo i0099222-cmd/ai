@@ -251,26 +251,19 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD is_approver.
 
-    " 요구 승인 레벨은 (체크그룹, 적용범위) 설정에서 온다.
-    " 네이밍 PKG 는 아키텍트, 보안 FND 는 보안담당처럼 체크마다 다르게 둔다.
-    DATA(ls_scope) = zcl_atc_config=>get( )->get_scope(
-                       iv_checkgroup = is_exemption-checkgroup
-                       iv_scopetype  = is_exemption-scopetype ).
-
+    " 승인 권한은 권한 오브젝트 하나로 판정한다. SCOPETYPE 필드가 있으므로
+    " "누가 어느 범위를 승인할 수 있는지" 는 PFCG 역할에서 표현된다.
+    "   팀리더   : SCOPETYPE = OBJ
+    "   아키텍트 : SCOPETYPE = OBJ, PKG
+    "   보안담당 : CHECKGRP = SECURITY
+    " 컨트롤 테이블에 승인 레벨을 따로 두면 같은 것을 두 군데서 관리하게 된다.
     AUTHORITY-CHECK OBJECT zif_atc_exemption=>authobject-name
       ID 'CHECKGRP'  FIELD is_exemption-checkgroup
       ID 'DEVCLASS'  FIELD is_exemption-devclass
       ID 'SCOPETYPE' FIELD is_exemption-scopetype
       ID 'ACTVT'     FIELD zif_atc_exemption=>authobject-actvt_appr.
 
-    IF sy-subrc <> 0.
-      rv_can = abap_false.
-      RETURN.
-    ENDIF.
-
-    " TODO 승인 레벨을 권한 오브젝트의 추가 필드로 둘지, 역할 매핑 테이블로 둘지
-    "   조직 결정 후 확정한다. 지금은 설정에 레벨이 있고 권한이 있으면 통과시킨다.
-    rv_can = xsdbool( ls_scope-apprlevel > 0 ).
+    rv_can = xsdbool( sy-subrc = 0 ).
 
   ENDMETHOD.
 
@@ -356,9 +349,9 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       " 체크그룹은 사용자가 고르는 값이 아니라 체크 마스터에서 파생된다.
       APPEND VALUE #( %tky       = ls_exemption-%tky
-                      checkgroup = zcl_atc_config=>get( )->derive_checkgroup(
+                      checkgroup = zcl_atc_config=>get( )->get_config(
                                      iv_checkid   = ls_exemption-checkid
-                                     iv_messageid = ls_exemption-messageid ) )
+                                     iv_messageid = ls_exemption-messageid )-checkgroup )
              TO lt_update.
 
     ENDLOOP.
@@ -413,20 +406,19 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkgroup scopetype )
+        FIELDS ( checkgroup checkid messageid scopetype )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
       " 요건 "패키지/오브젝트 단위로만 등록" 이 강제되는 지점.
-      " 값을 코드로 비교하지 않고 설정을 조회한다. Phase 1 은 (NAMING, FND) 가
-      " 비활성이라 FND 가 거부되고, Phase 2 에서 설정 행만 바꾸면 열린다.
-      DATA(ls_scope) = zcl_atc_config=>get( )->get_scope(
-                         iv_checkgroup = ls_exemption-checkgroup
-                         iv_scopetype  = ls_exemption-scopetype ).
-
-      IF ls_scope-activeflg = abap_true.
+      " 값을 코드로 비교하지 않고 컨트롤 테이블을 조회한다. Phase 1 네이밍은
+      " fndactive 가 공란이라 FND 가 거부되고, Phase 2 에서 설정 행만 바꾸면 열린다.
+      IF zcl_atc_config=>get( )->is_scope_allowed(
+           iv_checkid   = ls_exemption-checkid
+           iv_messageid = ls_exemption-messageid
+           iv_scopetype = ls_exemption-scopetype ) = abap_true.
         CONTINUE.
       ENDIF.
 
@@ -599,7 +591,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkgroup scopetype validfrom validto )
+        FIELDS ( checkid messageid validfrom validto )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -618,18 +610,20 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 상한은 (체크그룹, 적용범위) 설정값이다. 보안 체크는 3개월, 네이밍은
-      " 12개월처럼 다르게 둘 수 있다.
-      DATA(ls_scope) = zcl_atc_config=>get( )->get_scope(
-                         iv_checkgroup = ls_exemption-checkgroup
-                         iv_scopetype  = ls_exemption-scopetype ).
+      " 상한은 컨트롤 테이블의 체크별 설정값이다. 보안 체크는 3개월, 네이밍은
+      " 12개월처럼 다르게 둘 수 있다. 0 이면 제한 없음.
+      DATA(ls_config) = zcl_atc_config=>get( )->get_config(
+                          iv_checkid   = ls_exemption-checkid
+                          iv_messageid = ls_exemption-messageid ).
 
-      IF ls_scope-maxvalidmon <= 0.
+      IF ls_config-maxvalidmon <= 0.
         CONTINUE.
       ENDIF.
 
+      " 개월 상한을 일수로 환산한다. 월말 경계까지 엄격히 볼 필요는 없어
+      " 30일 근사로 충분하다.
       DATA(lv_max_date) = CONV d( ls_exemption-validfrom ).
-      lv_max_date = lv_max_date + ( ls_scope-maxvalidmon * 30 ).
+      lv_max_date = lv_max_date + ( ls_config-maxvalidmon * 30 ).
 
       IF ls_exemption-validto > lv_max_date.
         APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
@@ -637,7 +631,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                         %state_area      = 'VALIDATE_VALIDITY'
                         %element-validto = if_abap_behv=>mk-on
                         %msg = new_error( iv_number = '011'
-                                          iv_v1     = ls_scope-maxvalidmon ) )
+                                          iv_v1     = ls_config-maxvalidmon ) )
                TO reported-exemption.
       ENDIF.
 
@@ -650,17 +644,15 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkgroup scopetype reasoncode reasontext )
+        FIELDS ( checkid messageid reasoncode reasontext )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
-      DATA(ls_scope) = zcl_atc_config=>get( )->get_scope(
-                         iv_checkgroup = ls_exemption-checkgroup
-                         iv_scopetype  = ls_exemption-scopetype ).
-
-      IF ls_scope-reasonreq <> abap_true.
+      IF zcl_atc_config=>get( )->get_config(
+           iv_checkid   = ls_exemption-checkid
+           iv_messageid = ls_exemption-messageid )-reasonreq <> abap_true.
         CONTINUE.
       ENDIF.
 
@@ -1131,57 +1123,74 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     DATA lt_create TYPE TABLE FOR CREATE zi_atcexemption.
     DATA lt_item   TYPE TABLE FOR CREATE zi_atcexemption\_Item.
+    DATA ls_item   LIKE LINE OF lt_item.
+
+    DATA(lo_reader) = NEW zcl_atc_finding_reader( ).
 
     LOOP AT keys INTO DATA(ls_key).
 
-      " 출발점이 된 finding 에서 패키지/오브젝트만 가져온다.
-      " 라인 정보는 헤더로 올리지 않고 아이템(증빙)에만 남긴다. 이것이
-      " "코드를 고쳐도 예외가 유지되는" 구조의 핵심이다.
-      SELECT SINGLE *
-        FROM ztatcfinding
-        WHERE findinguuid = @ls_key-%param-findinguuid
-        INTO @DATA(ls_finding).
+      DATA(ls_param) = ls_key-%param.
+      DATA(lv_scope) = ls_param-scopetype.
 
-      IF sy-subrc <> 0.
+      " 증빙으로 쓸 finding 을 다시 읽는다. 파라미터로 라인 정보를 받지 않고
+      " 여기서 채우는 이유는, 신청서 헤더에 라인을 올리지 않는다는 원칙을
+      " 호출자 쪽에서도 지키게 하려는 것이다.
+      DATA(lt_finding) = lo_reader->select( VALUE #(
+                           devclass   = ls_param-devclass
+                           objecttype = ls_param-objecttype
+                           objectname = ls_param-objectname
+                           checkid    = ls_param-checkid
+                           messageid  = ls_param-messageid
+                           only_mine  = abap_false ) ).
+
+      IF lt_finding IS INITIAL.
         APPEND VALUE #( %cid = ls_key-%cid ) TO failed-exemption.
         APPEND VALUE #( %cid = ls_key-%cid
                         %msg = new_error( iv_number = '017' ) ) TO reported-exemption.
         CONTINUE.
       ENDIF.
 
-      DATA(lv_scope) = ls_key-%param-scopetype.
-
       APPEND VALUE #(
         %cid       = ls_key-%cid
         scopetype  = lv_scope
-        devclass   = ls_finding-devclass
+        devclass   = ls_param-devclass
         " 패키지 스코프면 오브젝트를 비운다. 그래야 효력 범위가 패키지 전체임이
         " 데이터에서도 분명해진다.
         objecttype = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pkg
-                             THEN space ELSE ls_finding-objecttype )
+                             THEN space ELSE ls_param-objecttype )
         objectname = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pkg
-                             THEN space ELSE ls_finding-objectname )
-        checkid    = ls_finding-checkid
-        messageid  = ls_finding-messageid
+                             THEN space ELSE ls_param-objectname )
+        checkid    = ls_param-checkid
+        messageid  = ls_param-messageid
         rulescope  = zif_atc_exemption=>rulescope-message
         validfrom  = sy-datum
         preregflag = abap_false ) TO lt_create.
 
-      " 증빙 1건. 조회 화면에서 여러 건을 골라 넘기면 여기가 N 건이 된다.
-      APPEND VALUE #(
-        %cid_ref = ls_key-%cid
-        %target  = VALUE #( ( %cid        = |{ ls_key-%cid }_I1|
-                              itemno      = 1
-                              devclass    = ls_finding-devclass
-                              objecttype  = ls_finding-objecttype
-                              objectname  = ls_finding-objectname
-                              subobject   = ls_finding-subobject
-                              lineno      = ls_finding-lineno
-                              findingkey  = ls_finding-findingkey
-                              checkid     = ls_finding-checkid
-                              messageid   = ls_finding-messageid
-                              priority    = ls_finding-priority
-                              messagetext = ls_finding-msgtext ) ) ) TO lt_item.
+      " 선택한 오브젝트의 위반 건을 증빙으로 붙인다.
+      " PKG 스코프라도 증빙은 출발점이 된 오브젝트의 것만 담는다. 효력 범위와
+      " 증빙 범위는 다르며, 그 구분이 이 설계의 전제다.
+      CLEAR ls_item.
+      ls_item-%cid_ref = ls_key-%cid.
+
+      DATA(lv_itemno) = 0.
+      LOOP AT lt_finding INTO DATA(ls_finding).
+        lv_itemno = lv_itemno + 1.
+        APPEND VALUE #( %cid        = |{ ls_key-%cid }_I{ lv_itemno }|
+                        itemno      = lv_itemno
+                        devclass    = ls_finding-devclass
+                        objecttype  = ls_finding-objecttype
+                        objectname  = ls_finding-objectname
+                        subobject   = ls_finding-subobject
+                        lineno      = ls_finding-lineno
+                        findingkey  = ls_finding-findingkey
+                        checkid     = ls_finding-checkid
+                        messageid   = ls_finding-messageid
+                        priority    = ls_finding-priority
+                        messagetext = ls_finding-msgtext )
+               TO ls_item-%target.
+      ENDLOOP.
+
+      APPEND ls_item TO lt_item.
 
     ENDLOOP.
 

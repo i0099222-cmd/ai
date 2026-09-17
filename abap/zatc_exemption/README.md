@@ -19,10 +19,10 @@ RAP 애플리케이션. 설계 배경과 의사결정은 [`docs/atc-exemption-ap
 ```
 요건 : "네이밍 예외를 패키지/오브젝트 단위로만 등록"
 
-구현 : ztatcscope 초기 데이터
-         (NAMING, FND) activeflg = 공란   -> 화면 목록에 안 뜨고 validation 이 거부
-         (NAMING, OBJ) activeflg = X
-         (NAMING, PKG) activeflg = X
+구현 : ztatccfg 초기 데이터
+         네이밍체크 행의  fndactive = 공란  -> 화면 목록에 안 뜨고 validation 이 거부
+                         objactive = X
+                         pkgactive = X
 
 Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변경 0
 ```
@@ -38,7 +38,7 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | # | 가정 | 확인 방법 | 틀리면 |
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 생성자/변경자 필드명이 `ernam` / `aenam` | ADT 에서 ZSCM00010 열기 | `zi_atcexemption.ddls.abap`, `zi_atcexemptionitem.ddls.abap` 각 2줄 + BDEF mapping 2줄 수정 |
-| 2 | `SATC_API_FINDINGS` 필드명 (`findingkey` 포함) | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT 만 수정 (의존 격리됨) |
+| 2 | `SATC_API_FINDINGS` 필드명 (`findingkey` 포함) | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
 | 3 | `SATC_API_FINDINGS` / `TDEVC` 의 API State | ADT → Properties → API State | Cloud 미릴리즈면 리더 클래스를 클래식 패키지로 분리 |
 | 4 | 적용범위 코드값 `OBJ` / `PKG` | 표준 scope 필드 → Domain → Value Range | `zif_atc_exemption` 상수 2개 + 설정 데이터 수정 |
 | 5 | **표준 예외 생성 API 존재 여부** 🔴 | 표준 Fiori 앱 "Approve ATC Exemptions" 의 OData 서비스 추적 | 없으면 `zcl_atc_exempt_sync` 구현 불가 → 조회/거버넌스 전용으로 후퇴 |
@@ -58,16 +58,26 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 
 ## 오브젝트 목록
 
-### 테이블 (필드명 언더바 없음, CBO 이력 구조 `ZSCM00010` 포함)
+### 테이블 4개 (필드명 언더바 없음, CBO 이력 구조 `ZSCM00010` 포함)
 
-| 테이블 | 용도 | 키 |
-|---|---|---|
-| `ztatcexempt` | 예외 신청 헤더 (승인 대상) | `exemptuuid` |
-| `ztatcexempti` | 신청 아이템 (근거 finding) | `itemuuid` |
-| `ztatcexemptlog` | 상태 변경 이력 | `loguuid` |
-| `ztatcfinding` | ATC finding 스냅샷 | `findinguuid` |
-| `ztatccheck` | 대상 체크 마스터 (설정) | `checkid` + `messageid` |
-| `ztatcscope` | 체크그룹 × 적용범위 허용 매트릭스 (설정) | `checkgroup` + `scopetype` |
+| 테이블 | 분류 | Delivery Class | 용도 | 키 |
+|---|---|---|---|---|
+| `ztatcexempt` | 업무 데이터 | `A` | 예외 신청 헤더 (승인 대상) | `exemptuuid` |
+| `ztatcexempti` | 업무 데이터 | `A` | 신청 아이템 (근거 finding) | `itemuuid` |
+| `ztatcexemptlog` | 업무 데이터 | `A` | 상태 변경 이력 | `loguuid` |
+| `ztatccfg` | **컨트롤** | `C` | 앱 동작 규칙 (대상 체크 + 허용 범위) | `checkid` + `messageid` |
+
+`ztatccfg` 는 업무 데이터가 아니라 **컨트롤 테이블**이다. 답하는 질문은 두 개다.
+
+```
+① 이 체크가 앱의 관리 대상인가?   -> activeflg                      (요건: 네이밍 건만)
+② 어떤 적용범위를 허용하는가?      -> fndactive / objactive / pkgactive (요건: 패키지/오브젝트만)
+```
+
+**가동 전에 초기 데이터를 넣어야 한다. 비어 있으면 모든 신청이 거부된다.**
+
+ATC finding 은 별도 테이블에 적재하지 않고 `SATC_API_FINDINGS` 에서 **라이브로 읽는다.**
+추세 리포팅이 요건에 없어 스냅샷 계층과 적재 배치, 보관 정책을 두지 않았다.
 
 ### CDS
 
@@ -77,10 +87,12 @@ ZI_AtcExemption (root)  ─ composition ─► ZI_AtcExemptionItem
      └► ZC_AtcExemption / ZC_AtcExemptionItem / ZC_AtcExemptionLog
 
 ZI_AtcActiveExemption   승인 + 유효기간 내 예외만
-ZI_AtcFinding           finding × 예외 조인 → 면제 여부 계산
-     └► ZC_AtcFinding   (읽기 전용)
+ZI_AtcFinding           SATC_API_FINDINGS(라이브) × ztatccfg × 예외 → 면제 여부 계산
+     └► ZC_AtcFinding   (읽기 전용, 키 = finding 자연키)
 
-ZI_AtcScopeVH / ZI_AtcCheckVH / ZI_AtcPackageVH   값 도움
+ZI_AtcScopeVH     ztatccfg 의 허용 플래그를 union 으로 행으로 펼친 값 도움
+ZI_AtcCheckVH     활성 체크 목록
+ZI_AtcPackageVH   패키지 값 도움
 ZD_AtcCreateFromFinding / ZD_AtcReject / ZD_AtcExtend   액션 파라미터
 ```
 
@@ -89,10 +101,9 @@ ZD_AtcCreateFromFinding / ZD_AtcReject / ZD_AtcExtend   액션 파라미터
 | 클래스 | 역할 |
 |---|---|
 | `zbp_i_atcexemption` | behavior pool. 판정·상태전이·이력 |
-| `zcl_atc_config` | 설정 조회 (세션 버퍼링). 정책값의 단일 창구 |
+| `zcl_atc_config` | 컨트롤 테이블 조회 (세션 버퍼링). 정책값의 단일 창구 |
 | `zcl_atc_finding_reader` | ATC 표준 의존 격리. finding 조회 + 영향도 시뮬레이션 |
 | `zcl_atc_exempt_sync` | 표준 예외 저장소 반영 **(스텁 — 확인 과제 5)** |
-| `zcl_atc_snapshot_job` | finding 스냅샷 적재 + 보관 정책 |
 | `zcl_atc_expiry_job` | 만료 전환 + D-30 알림 대상 추출 |
 | `zif_atc_exemption` | 상수/타입. 코드값 리터럴의 유일한 위치 |
 
@@ -149,8 +160,8 @@ ACTVT: 01 생성 / 02 변경 / 03 조회 / 43 승인
 > 보안팀 재승인과 감사 이슈가 따라온다. 이 프로젝트에서 나중으로 미뤘을 때
 > 비용이 가장 비대칭적으로 큰 항목이다.
 
-### 5. 배치 잡 2개
-`zcl_atc_snapshot_job` / `zcl_atc_expiry_job` 을 일 1회 스케줄.
+### 5. 배치 잡 1개
+`zcl_atc_expiry_job` 의 `run( )` 을 일 1회 스케줄 (만료 전환 + D-30 알림 대상 추출).
 
 ### 6. 런치패드 타일 2개 (앱은 1개)
 
@@ -161,35 +172,43 @@ ACTVT: 01 생성 / 02 변경 / 03 조회 / 43 승인
 
 ---
 
-## 설정 초기 데이터
+## 컨트롤 테이블 초기 데이터 (`ztatccfg`)
 
-### `ztatcscope` — Phase 1
+### Phase 1 — 네이밍
 
-| checkgroup | scopetype | activeflg | apprlevel | maxvalidmon | reasonreq |
-|---|---|---|---|---|---|
-| NAMING | FND | (공란) | | | |
-| NAMING | OBJ | X | 1 (팀리더) | 12 | X |
-| NAMING | PKG | X | 2 (아키텍트) | 12 | X |
+| checkid | messageid | checkgroup | activeflg | fndactive | objactive | pkgactive | maxvalidmon | reasonreq | maxpriority |
+|---|---|---|---|---|---|---|---|---|---|
+| 네이밍체크 | 접두어위반 | NAMING | X | (공란) | X | X | 12 | X | 2 |
+| 네이밍체크 | 변수명위반 | NAMING | X | (공란) | X | X | 12 | X | 2 |
 
-### `ztatcscope` — Phase 2 추가 예시 (코드 변경 없음)
+체크 ID 와 메시지 ID 는 SCI 체크 변형 화면에서 확보해 등록한다.
+메시지 단위 행이 없으면 `messageid` 를 공란으로 둔 행이 그 체크 전체에 적용된다.
 
-| checkgroup | scopetype | activeflg | apprlevel | maxvalidmon | reasonreq |
-|---|---|---|---|---|---|
-| PERF | FND | X | 1 | 6 | X |
-| PERF | OBJ | X | 2 | 6 | X |
-| PERF | PKG | (공란) | | | |
-| SECURITY | FND | X | 3 (보안담당) | 3 | X |
-| SECURITY | OBJ | (공란) | | | |
-| SECURITY | PKG | (공란) | | | |
+`fndactive` 가 공란이므로 화면 드롭다운에 Finding 이 나타나지 않고,
+OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 
-> 보안 체크를 `PKG` 로 열면 그 패키지의 보안 검증이 통째로 꺼진다.
-> 체크마다 허용 범위가 정반대여야 하는 이유이며, 매트릭스가 2차원인 이유다.
+### Phase 2 추가 예시 — 코드 변경 없음
 
-### `ztatccheck` — Phase 1
-네이밍 체크의 체크 ID / 메시지 ID 를 SCI 변형 화면에서 확보해 등록.
-`checkgroup = NAMING`, `activeflg = X`, `maxpriority` 는 정책에 맞게.
+| checkid | checkgroup | activeflg | fndactive | objactive | pkgactive | maxvalidmon |
+|---|---|---|---|---|---|---|
+| 성능체크 | PERF | X | X | X | (공란) | 6 |
+| 보안체크 | SECURITY | X | X | (공란) | (공란) | 3 |
 
----
+> 성능·보안 체크는 라인별 판단이 본질이라 `FND` 를 열어야 한다.
+> 반대로 보안 체크를 `PKG` 로 열면 그 패키지의 보안 검증이 통째로 꺼진다.
+> 체크마다 허용 범위가 정반대여야 하는 이유이며, 허용 플래그를 체크 단위로 둔 이유다.
+
+### 승인 권한은 여기 없다
+
+컨트롤 테이블에 승인 레벨 컬럼을 두지 않는다. 권한 오브젝트 `Z_ATCEXEM` 의
+`SCOPETYPE` 필드가 이미 "누가 어느 범위를 승인할 수 있는지" 를 표현하므로
+같은 것을 두 군데서 관리하게 된다.
+
+```
+팀리더 역할     : SCOPETYPE = OBJ,      ACTVT = 43
+아키텍트 역할   : SCOPETYPE = OBJ, PKG, ACTVT = 43
+보안담당 역할   : CHECKGRP  = SECURITY, ACTVT = 43
+```
 
 ## 동작 요약
 
@@ -252,8 +271,7 @@ ACTVT: 01 생성 / 02 변경 / 03 조회 / 43 승인
 ## Phase 2 (기타 ATC 체크 확장 — 확정)
 
 코드 변경 없이 되는 것:
-- `ztatccheck` 에 체크 행 추가
-- `ztatcscope` 에 체크그룹 × 범위 행 추가 (`FND` 활성화 포함)
+- `ztatccfg` 에 체크 행 추가 (허용 플래그로 `FND` 활성화 포함)
 - 권한 역할에 `CHECKGRP` 값 추가
 
 이미 선반영된 것:
@@ -263,4 +281,6 @@ ACTVT: 01 생성 / 02 변경 / 03 조회 / 43 승인
 - 설정 기반 동적 범위 목록
 
 Phase 2 에서 실측이 필요한 것:
-- 스냅샷 데이터량 (수만~수십만 건). 인덱스 `devclass + checkgroup + snapshotdate`, 보관 정책
+- 라이브 조회 성능. 대상 체크가 늘어 건수가 커지면 그때 스냅샷 계층을 도입한다.
+  지금 미리 만들지 않은 이유는 추세 리포팅이 요건에 없고, 네이밍만으로는 수천 건
+  수준이어서 라이브로 충분하기 때문이다. 추가는 나중에도 어렵지 않다.

@@ -13,11 +13,11 @@ define table ztatcexempt {
   "! 사용자 표시용 신청번호 (넘버레인지)
   exemptid          : abap.char(12);
 
-  "! 체크 그룹. ztatccheck 에서 파생. 예: NAMING / PERF / SECURITY
+  "! 체크 그룹. ztatccfg 에서 파생. 예: NAMING / PERF / SECURITY
   checkgroup        : abap.char(10);
 
   "! 적용 범위. FND / OBJ / PKG.
-  "! 허용 여부는 ztatcscope 설정으로 판정한다 (하드코딩 금지).
+  "! 허용 여부는 ztatccfg 컨트롤 테이블로 판정한다 (하드코딩 금지).
   scopetype         : abap.char(3);
 
   "! 대상 패키지. OBJ/FND 스코프에서는 TADIR 에서 파생된다.
@@ -59,7 +59,7 @@ define table ztatcexempt {
 
   validfrom         : abap.dats;
 
-  "! 유효종료일. 필수이며 상한은 ztatcscope-maxvalidmon 으로 제한된다.
+  "! 유효종료일. 필수이며 상한은 ztatccfg-maxvalidmon 으로 제한된다.
   validto           : abap.dats;
 
   "! 10 초안 / 20 승인대기 / 30 승인 / 40 반려 / 50 철회 / 60 만료

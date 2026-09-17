@@ -5,7 +5,7 @@ INTERFACE zif_atc_exemption
   PUBLIC.
 
   "! 적용 범위 (ADT "Apply exemption to" 와 1:1 대응)
-  "!   fnd = Finding                  - Phase 1 비활성 (ztatcscope 로 제어)
+  "!   fnd = Finding                  - Phase 1 비활성 (ztatccfg 로 제어)
   "!   obj = ABAP Object
   "!   pkg = All Objects of Package
   "! TODO 표준 도메인 고정값 확인 후 obj/pkg 실제 코드값으로 교체할 것.
@@ -93,17 +93,22 @@ INTERFACE zif_atc_exemption
       only_mine   TYPE abap_boolean,
     END OF ty_selection.
 
-  "! 적용범위 설정 1행
+  "! 컨트롤 테이블 1행 (ztatccfg)
+  "! 승인 레벨은 여기 없다. 권한 오브젝트 Z_ATCEXEM 의 SCOPETYPE 필드가 담당한다.
   TYPES:
-    BEGIN OF ty_scopecfg,
+    BEGIN OF ty_config,
+      checkid     TYPE char30,
+      messageid   TYPE char30,
       checkgroup  TYPE char10,
-      scopetype   TYPE char3,
       activeflg   TYPE abap_boolean,
-      apprlevel   TYPE int1,
+      fndactive   TYPE abap_boolean,
+      objactive   TYPE abap_boolean,
+      pkgactive   TYPE abap_boolean,
       maxvalidmon TYPE int2,
       reasonreq   TYPE abap_boolean,
-    END OF ty_scopecfg,
-    tt_scopecfg TYPE STANDARD TABLE OF ty_scopecfg WITH EMPTY KEY.
+      maxpriority TYPE int1,
+    END OF ty_config,
+    tt_config TYPE STANDARD TABLE OF ty_config WITH EMPTY KEY.
 
   TYPES tt_devclass TYPE STANDARD TABLE OF devclass WITH EMPTY KEY.
 

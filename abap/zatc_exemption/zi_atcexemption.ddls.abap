@@ -18,7 +18,7 @@ define root view entity ZI_AtcExemption
       checkgroup        as CheckGroup,
 
       // 적용 범위. FND / OBJ / PKG.
-      // 허용 여부는 ztatcscope 설정이 판정한다. 뷰에서 값을 거르지 않는다.
+      // 허용 여부는 ztatccfg 컨트롤 테이블이 판정한다. 뷰에서 값을 거르지 않는다.
       scopetype         as ScopeType,
 
       devclass          as Devclass,

@@ -1,15 +1,32 @@
 @EndUserText.label: 'finding 에서 예외 신청 생성 파라미터'
+// 조회 화면에서 위반 건을 선택하면 그 finding 의 자연키가 넘어온다.
+// 스냅샷 테이블이 없으므로 UUID 대신 자연키를 쓴다.
+//
+// 라인/인클루드는 파라미터에 없다. 신청서 헤더에 라인을 올리지 않는 것이
+// "코드를 고쳐도 예외가 유지되는" 구조의 핵심이기 때문이다.
+// 증빙(아이템)에 들어갈 라인 정보는 액션이 finding 을 다시 읽어 채운다.
 define abstract entity ZD_AtcCreateFromFinding
 {
-  // 신청의 출발점이 된 finding. 여기서 패키지/오브젝트를 프리필한다.
-  // 라인 정보는 증빙(아이템)으로만 넘기고 판정 키로는 쓰지 않는다.
-  @EndUserText.label: '대상 finding'
-  FindingUuid : sysuuid_x16;
+  @EndUserText.label: '패키지'
+  Devclass   : devclass;
 
-  // 적용 범위. 선택 가능한 값은 ztatcscope 설정이 정한다.
+  @EndUserText.label: '오브젝트 타입'
+  ObjectType : trobjtype;
+
+  @EndUserText.label: '오브젝트명'
+  ObjectName : sobj_name;
+
+  @EndUserText.label: '체크 ID'
+  CheckId    : abap.char(30);
+
+  @EndUserText.label: '메시지 ID'
+  MessageId  : abap.char(30);
+
+  // 적용 범위. 선택 가능한 값은 컨트롤 테이블이 정한다.
   @EndUserText.label: '적용범위'
   @Consumption.valueHelpDefinition: [{
-    entity: { name: 'ZI_AtcScopeVH', element: 'ScopeType' }
+    entity:            { name: 'ZI_AtcScopeVH', element: 'ScopeType' },
+    additionalBinding: [{ localElement: 'CheckId', element: 'CheckId' }]
   }]
-  ScopeType : abap.char(3);
+  ScopeType  : abap.char(3);
 }

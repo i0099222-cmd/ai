@@ -11,7 +11,7 @@ define service ZUI_AtcExemption {
   expose ZC_AtcExemptionItem as ExemptionItem;
   expose ZC_AtcExemptionLog  as ExemptionLog;
 
-  // 위반 현황 조회 (읽기 전용)
+  // 위반 현황 조회 (읽기 전용). ATC 결과를 라이브로 읽는다.
   expose ZC_AtcFinding       as Finding;
 
   // 값 도움

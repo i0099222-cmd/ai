@@ -11,15 +11,14 @@ define root view entity ZC_AtcExemption
       @Search.defaultSearchElement: true
       ExemptId,
 
-      @Consumption.valueHelpDefinition: [{
-        entity: { name: 'ZI_AtcCheckVH', element: 'CheckGroup' }
-      }]
+      // 컨트롤 테이블에서 파생되는 값이라 사용자가 고르지 않는다.
       CheckGroup,
 
-      // 드롭다운 목록은 ZI_AtcScopeVH 가 채운다. 값이 열려 있는지는 설정이 정한다.
+      // 드롭다운 목록은 ZI_AtcScopeVH 가 채운다. 어떤 값이 열려 있는지는
+      // 컨트롤 테이블(ztatccfg)의 fndactive/objactive/pkgactive 가 정한다.
       @Consumption.valueHelpDefinition: [{
         entity:            { name: 'ZI_AtcScopeVH', element: 'ScopeType' },
-        additionalBinding: [{ localElement: 'CheckGroup', element: 'CheckGroup' }]
+        additionalBinding: [{ localElement: 'CheckId', element: 'CheckId' }]
       }]
       ScopeType,
 

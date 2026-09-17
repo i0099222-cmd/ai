@@ -1,0 +1,170 @@
+"! ATC finding 조회 어댑터.
+"!
+"! ATC 표준 오브젝트에 대한 의존을 이 클래스 하나로 격리한다. 표준 테이블/뷰의
+"! 필드명이나 릴리즈 상태가 바뀌어도 수정 지점은 여기뿐이다. 다른 클래스나
+"! behavior pool 은 SATC_* 를 직접 SELECT 하지 않는다.
+"!
+"! 읽기 경로는 두 개다.
+"!   경로 1 (개발자)      : only_mine = X  -> contactperson/responsible = sy-uname
+"!   경로 2 (승인자/조회) : only_mine 공란 -> 담당자 필터 없음. 호출자가 권한을 검증한다.
+"! 경로 2 가 없으면 승인자가 타인의 finding 을 볼 수 없어 승인 자체가 불가능하고,
+"! 패키지 영향도 시뮬레이션도 성립하지 않는다.
+CLASS zcl_atc_finding_reader DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+
+    "! 조건에 맞는 ATC finding 을 읽는다.
+    METHODS select
+      IMPORTING is_selection      TYPE zif_atc_exemption=>ty_selection
+                iv_max_rows       TYPE i DEFAULT 0
+      RETURNING VALUE(rt_finding) TYPE zif_atc_exemption=>tt_finding.
+
+    "! 예외 1건이 현재 몇 건의 finding 을 덮는지 계산한다.
+    "! 패키지 스코프 승인 전에 승인자에게 보여주는 영향도의 근거이며,
+    "! 신청 시 근거 텍스트에 자동 기입하는 데에도 쓴다.
+    METHODS simulate_impact
+      IMPORTING iv_scopetype      TYPE char3
+                iv_devclass       TYPE devclass
+                iv_inclsubpkg     TYPE abap_boolean DEFAULT abap_false
+                iv_objecttype     TYPE trobjtype OPTIONAL
+                iv_objectname     TYPE sobj_name OPTIONAL
+                iv_checkid        TYPE char30 OPTIONAL
+                iv_messageid      TYPE char30 OPTIONAL
+      RETURNING VALUE(rt_finding) TYPE zif_atc_exemption=>tt_finding.
+
+  PRIVATE SECTION.
+
+    "! 하위 패키지까지 펼친 패키지 목록
+    METHODS expand_packages
+      IMPORTING iv_devclass         TYPE devclass
+                iv_inclsubpkg       TYPE abap_boolean
+      RETURNING VALUE(rt_devclass)  TYPE zif_atc_exemption=>tt_devclass.
+
+ENDCLASS.
+
+
+CLASS zcl_atc_finding_reader IMPLEMENTATION.
+
+  METHOD select.
+
+    " TODO 확인 필요: SATC_API_FINDINGS 의 실제 필드명과 API State.
+    "   - ADT 에서 Properties > API State 를 확인한다.
+    "     "Released for Cloud Development" 가 아니면 이 클래스는 클래식 ABAP
+    "     패키지에 두고 RAP 쪽에서는 래퍼로 호출해야 한다.
+    "   - findingkey 에 해당하는 표준 필드명이 무엇인지 확인해 매핑한다.
+    "     라인 번호만 보관하면 Phase 2 의 FND 스코프에서 예외가 계속 풀린다.
+    "   아래 SELECT 는 필드명을 확인한 뒤 그대로 채우면 되도록 구조만 잡아 둔 것이다.
+
+    DATA(lt_devclass) = expand_packages( iv_devclass   = is_selection-devclass
+                                         iv_inclsubpkg = is_selection-inclsubpkg ).
+
+    SELECT FROM satc_api_findings
+      FIELDS devclass,
+             objecttype,
+             objectname,
+             subobject,
+             lineno,
+             findingkey,
+             checkid,
+             messageid,
+             priority,
+             msgtext,
+             contactperson,
+             responsible
+      WHERE ( devclass   IN @lt_devclass      OR @lt_devclass IS INITIAL )
+        AND ( objecttype  = @is_selection-objecttype OR @is_selection-objecttype IS INITIAL )
+        AND ( objectname  = @is_selection-objectname OR @is_selection-objectname IS INITIAL )
+        AND ( checkid     = @is_selection-checkid    OR @is_selection-checkid    IS INITIAL )
+        AND ( messageid   = @is_selection-messageid  OR @is_selection-messageid  IS INITIAL )
+        " 경로 1 : 담당자 본인 건만. 경로 2 : 조건 자체를 무력화한다.
+        AND ( @is_selection-only_mine = @abap_false
+              OR contactperson = @sy-uname
+              OR responsible   = @sy-uname )
+      INTO CORRESPONDING FIELDS OF TABLE @rt_finding
+      UP TO @iv_max_rows ROWS.
+
+  ENDMETHOD.
+
+
+  METHOD simulate_impact.
+
+    DATA ls_selection TYPE zif_atc_exemption=>ty_selection.
+
+    " 영향도는 담당자와 무관하게 범위 전체를 봐야 하므로 항상 경로 2 로 읽는다.
+    ls_selection = VALUE #( checkid   = iv_checkid
+                            messageid = iv_messageid
+                            only_mine = abap_false ).
+
+    CASE iv_scopetype.
+
+      WHEN zif_atc_exemption=>scope-pkg.
+        " 패키지 전체. 여기서 나오는 건수가 곧 "신청서에 없던 건까지 몇 개 풀리는가" 다.
+        ls_selection-devclass   = iv_devclass.
+        ls_selection-inclsubpkg = iv_inclsubpkg.
+
+      WHEN zif_atc_exemption=>scope-obj.
+        ls_selection-devclass   = iv_devclass.
+        ls_selection-objecttype = iv_objecttype.
+        ls_selection-objectname = iv_objectname.
+
+      WHEN OTHERS.
+        " FND 는 신청서에 담긴 그 건 자체이므로 시뮬레이션 대상이 아니다.
+        RETURN.
+
+    ENDCASE.
+
+    rt_finding = select( ls_selection ).
+
+  ENDMETHOD.
+
+
+  METHOD expand_packages.
+
+    " TODO 확인 필요: TDEVC 의 API State. ABAP Cloud 에서 직접 SELECT 가 막히면
+    "   패키지 계층 조회용 released CDS 뷰로 교체한다.
+
+    DATA lt_parent TYPE zif_atc_exemption=>tt_devclass.
+    DATA lt_child  TYPE zif_atc_exemption=>tt_devclass.
+    DATA lt_next   TYPE zif_atc_exemption=>tt_devclass.
+
+    IF iv_devclass IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    APPEND iv_devclass TO rt_devclass.
+
+    IF iv_inclsubpkg = abap_false.
+      RETURN.
+    ENDIF.
+
+    lt_parent = rt_devclass.
+
+    " 상위-하위 관계를 한 단계씩 따라 내려간다.
+    WHILE lt_parent IS NOT INITIAL.
+
+      CLEAR: lt_child, lt_next.
+
+      SELECT devclass
+        FROM tdevc
+        FOR ALL ENTRIES IN @lt_parent
+        WHERE parentcl = @lt_parent-table_line
+        INTO TABLE @lt_child.
+
+      " 이미 담은 패키지는 건너뛴다. 순환 참조가 있어도 루프가 멈춘다.
+      LOOP AT lt_child INTO DATA(lv_child).
+        IF NOT line_exists( rt_devclass[ table_line = lv_child ] ).
+          APPEND lv_child TO rt_devclass.
+          APPEND lv_child TO lt_next.
+        ENDIF.
+      ENDLOOP.
+
+      lt_parent = lt_next.
+
+    ENDWHILE.
+
+  ENDMETHOD.
+
+ENDCLASS.

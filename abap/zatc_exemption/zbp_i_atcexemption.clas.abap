@@ -874,8 +874,6 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
 
-    DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
-
     GET TIME STAMP FIELD DATA(lv_now).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption)
@@ -890,35 +888,25 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 실행 계층 반영. 표준 저장소에 예외를 만든다.
-      " 아직 API 가 확인되지 않아 실패하더라도 CBO 승인 기록은 남긴다.
-      " 대장이 원천이고 표준 반영은 뒤따르는 구조이기 때문이다.
-      DATA(ls_sync) = lo_sync->create_exemption( CORRESPONDING #( ls_exemption ) ).
+      " 여기서는 CBO 대장의 결재만 기록한다.
+      " 표준 예외 생성은 저장 시퀀스(saver 의 save_modified)에서 한다. 액션에서
+      " 부르면 DB 를 바꾸고 잠금을 잡는 호출이 저장 전에 일어나므로, 사용자가
+      " 초안을 버리거나 저장이 실패하면 CBO 기록 없는 표준 예외만 남는다.
+      APPEND VALUE #( %tky         = ls_exemption-%tky
+                      exemptstatus = zif_atc_exemption=>status-approved
+                      approver     = sy-uname
+                      approvedat   = lv_now ) TO lt_update.
 
-      IF ls_sync-success = abap_false.
-        APPEND VALUE #( %tky = ls_exemption-%tky
-                        %msg = new_message_with_text(
-                                 severity = if_abap_behv_message=>severity-warning
-                                 text     = ls_sync-message ) ) TO reported-exemption.
-      ENDIF.
-
-      APPEND VALUE #( %tky               = ls_exemption-%tky
-                      exemptstatus       = zif_atc_exemption=>status-approved
-                      approver           = sy-uname
-                      approvedat         = lv_now
-                      extexemptid        = ls_sync-extexemptid ) TO lt_update.
-
-      write_log( is_row     = ls_exemption
-                 iv_action  = zif_atc_exemption=>logaction-approve
-                 iv_from    = ls_exemption-exemptstatus
-                 iv_to      = zif_atc_exemption=>status-approved
-                 iv_comment = ls_sync-message ).
+      write_log( is_row    = ls_exemption
+                 iv_action = zif_atc_exemption=>logaction-approve
+                 iv_from   = ls_exemption-exemptstatus
+                 iv_to     = zif_atc_exemption=>status-approved ).
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus approver approvedat extexemptid )
+        UPDATE FIELDS ( exemptstatus approver approvedat )
         WITH lt_update.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
@@ -997,24 +985,10 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
 
-    DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
-
-
     LOOP AT lt_exemption INTO DATA(ls_exemption)
          WHERE exemptstatus = zif_atc_exemption=>status-approved.
 
-      " 표준 쪽 예외도 함께 무효화해야 한다. CBO 만 철회하면 대장은 철회인데
-      " 실제로는 계속 면제되는 상태가 된다.
-      IF ls_exemption-extexemptid IS NOT INITIAL.
-        DATA(ls_sync) = lo_sync->revoke_exemption( ls_exemption-extexemptid ).
-        IF ls_sync-success = abap_false.
-          APPEND VALUE #( %tky = ls_exemption-%tky
-                          %msg = new_message_with_text(
-                                   severity = if_abap_behv_message=>severity-warning
-                                   text     = ls_sync-message ) ) TO reported-exemption.
-        ENDIF.
-      ENDIF.
-
+      " 표준 쪽 무효화도 저장 시퀀스에서 한다 (승인과 같은 이유).
       APPEND VALUE #( %tky               = ls_exemption-%tky
                       exemptstatus       = zif_atc_exemption=>status-revoked ) TO lt_update.
 
@@ -1277,6 +1251,86 @@ CLASS lhc_exemption IMPLEMENTATION.
                           severity = if_abap_behv_message=>severity-error
                           v1       = iv_v1
                           v2       = iv_v2 ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! 저장 시퀀스. 표준 ATC 예외 저장소 반영을 여기서 수행한다.
+"!
+"! 액션이 아니라 저장 시점인 이유: create_exemption 은 DB 를 바꾸고 잠금을 잡는다.
+"! RAP 에서 그런 호출은 저장 시퀀스 안에서만 해야 한다. 액션에서 부르면
+"! 사용자가 초안을 버리거나 저장이 실패했을 때 CBO 기록 없는 표준 예외가 남는다.
+"!
+"! 기존 샘플은 같은 이유로 BGPF 를 썼지만, 우리는 백그라운드 처리가 필요 없으므로
+"! RAP 의 additional save 로 충분하다.
+CLASS lsc_zi_atcexemption DEFINITION INHERITING FROM cl_abap_behavior_saver.
+
+  PROTECTED SECTION.
+    METHODS save_modified REDEFINITION.
+
+ENDCLASS.
+
+
+CLASS lsc_zi_atcexemption IMPLEMENTATION.
+
+  METHOD save_modified.
+
+    DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
+
+    " 이번 저장에서 승인/철회로 바뀐 건만 표준에 반영한다.
+    LOOP AT update-exemption INTO DATA(ls_exemption).
+
+      " 승인되었는데 아직 표준 예외가 없는 건 -> 생성
+      IF ls_exemption-exemptstatus = zif_atc_exemption=>status-approved
+     AND ls_exemption-extexemptid IS INITIAL.
+
+        SELECT SINGLE * FROM ztatcexempt
+          WHERE exemptuuid = @ls_exemption-exemptuuid
+          INTO @DATA(ls_db).
+
+        DATA(ls_created) = lo_sync->create_exemption( ls_db ).
+
+        " 표준 반영이 실패해도 CBO 승인 기록은 되돌리지 않는다. 대장이 원천이고
+        " 표준 반영은 뒤따르는 구조다. 실패한 건은 extexemptid 가 비어 있으므로
+        " 정합성 점검 배치가 찾아낸다.
+        UPDATE ztatcexempt
+          SET extexemptid = @ls_created-extexemptid
+          WHERE exemptuuid = @ls_exemption-exemptuuid.
+
+        INSERT ztatcexemptlog FROM @( VALUE #(
+          loguuid    = cl_system_uuid=>create_uuid_x16_static( )
+          exemptuuid = ls_exemption-exemptuuid
+          seqnr      = 0
+          actioncode = zif_atc_exemption=>logaction-sync
+          fromstat   = zif_atc_exemption=>status-approved
+          tostat     = zif_atc_exemption=>status-approved
+          commenttxt = ls_created-message
+          actionby   = sy-uname ) ).
+
+      ENDIF.
+
+      " 철회/만료되었는데 표준 예외가 남아 있는 건 -> 무효화
+      IF ( ls_exemption-exemptstatus = zif_atc_exemption=>status-revoked
+        OR ls_exemption-exemptstatus = zif_atc_exemption=>status-expired )
+     AND ls_exemption-extexemptid IS NOT INITIAL.
+
+        DATA(ls_revoked) = lo_sync->revoke_exemption( ls_exemption-extexemptid ).
+
+        INSERT ztatcexemptlog FROM @( VALUE #(
+          loguuid    = cl_system_uuid=>create_uuid_x16_static( )
+          exemptuuid = ls_exemption-exemptuuid
+          seqnr      = 0
+          actioncode = zif_atc_exemption=>logaction-sync
+          fromstat   = zif_atc_exemption=>status-approved
+          tostat     = ls_exemption-exemptstatus
+          commenttxt = ls_revoked-message
+          actionby   = sy-uname ) ).
+
+      ENDIF.
+
+    ENDLOOP.
 
   ENDMETHOD.
 

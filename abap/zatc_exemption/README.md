@@ -47,7 +47,9 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | **표준 예외 API** | `CL_SATC_API=>CREATE_API_FACTORY( )->GET_EXEMPTION_CONTROLLER( )` | **Option B 확정.** 커스텀 체크 클래스(Option C) 폐기 |
 | 컨트롤러 메소드 | `create_exemption( )` / `approve_exemptions_by_if( )` | **생성이 되므로 앱의 신청 기능이 유효**하다 |
 | `create_exemption` 필수 파라미터 | `i_object_type` / `i_object_name` / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관** |
-| 예외 오브젝트 setter | `set_object_scope` / `set_check_scope` / `set_reason` / `set_approver` / `set_notification_type` | **`set_object_scope` 덕분에 패키지 스코프를 표준 예외 1건으로 넘길 수 있다** → 예외 ID 는 헤더에 1개. 오브젝트별 전개 불필요 |
+| 예외 오브젝트 API | `set_object_scope`(타입 `SATC_CI_OBJ_SCOPE`) / `set_check_scope` / `set_reason` / `set_validity_date` / `set_approver` / `set_notification_type` / `send_to_approver` / `unlock` / `get_exemption_id` | **`set_object_scope` 덕분에 패키지 스코프를 표준 예외 1건으로 넘길 수 있다** → 예외 ID 는 헤더에 1개, 오브젝트별 전개 불필요. 유효기간도 표준에 넘어간다 |
+| 알림 유형 | `REJ` 반려 시 / `ALWS` 승인·반려 모두 / `NEVR` 없음 | 조직 정책이므로 `ztatccfg-notiftype` 설정으로 |
+| `checksum` 타입 | `int4` | 아이템 컬럼을 `char(32)` → `int4` 로 수정 |
 
 표준 승인 로직은 결국 `SATC_CI_R_EXEMPTION` 의 `state` / `approver` 를 바꾸는 것이고,
 그 경로가 위 컨트롤러다. 우리 앱도 같은 경로를 쓴다.
@@ -58,12 +60,11 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
 | 2 | `SATC_API_FINDINGS` 의 `devclass` / `objecttype` / `objectname` / `lineno` / `checkid` / `messageid` / `msgtext` 필드명 | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
-| 3 | setter 가 받는 값의 타입 (`set_object_scope` 에 `PCKG` 를 그대로 넘길 수 있는지, 표준 상수로 변환해야 하는지) | 메소드 시그니처 | `zcl_atc_exempt_sync` 값 변환 |
-| 4 | **유효기간 setter 존재 여부** | setter 목록 | 없으면 `validto` 를 표준에 넘길 수 없고, 만료 관리는 CBO 배치가 전담 |
-| 5 | **저장/제출 메소드** (create + setter 로 끝인지, save/submit 이 따로 있는지) | 컨트롤러 메소드 목록 | `zcl_atc_exempt_sync` 마무리 |
-| 6 | **생성된 예외 ID 취득 방법** | 반환값 / getter | 없으면 철회·연장 시 표준 레코드를 찾을 수 없다 |
-| 7 | `SATC_API_FINDINGS` 에 `checksum` 필드가 있는지 | 뷰 열기 | 리더 SELECT + `ZI_AtcFinding` + 아이템 테이블 |
-| 8 | `set_notification_type( )` 이 무엇을 알려주는지 | setter 시그니처 | 표준 알림이 커버하는 범위에 따라 CBO 만료 알림 배치와 역할이 겹칠 수 있다 |
+| 3 | `SATC_CI_OBJ_SCOPE` 의 고정값이 우리 `FND`/`OBJ`/`PCKG` 와 같은지 | 도메인 값 범위 | `zcl_atc_exempt_sync` 의 `CONV` 를 매핑으로 교체 |
+| 4 | `set_check_scope` 가 받는 값 (우리 `rulescope` 의 `MSG`/`CHK` 대응) | 시그니처 | 위와 동일 |
+| 5 | `approve_exemptions_by_if` 의 `exemptions_for_approval` 행 구조 | 시그니처 | 승인 호출 완성 |
+| 6 | 표준 예외 **무효화** 경로 (철회·만료 시) | 컨트롤러 메소드 목록 | `revoke_exemption`. 없으면 `set_validity_date` 를 과거로 당기는 방식 |
+| 7 | `SATC_API_FINDINGS` 에 `checksum` 필드가 있는지 | 뷰 열기 | 리더 SELECT + `ZI_AtcFinding` |
 
 #### 표준 예외 생성 흐름 (확정)
 
@@ -75,11 +76,41 @@ DATA(lo_exemption) = lo_controller->create_exemption(
   i_check_code     = ...    " 메시지. 비워 둘 수 없다
   i_contact_person = ... ).
 
-lo_exemption->set_object_scope( ... ).   " FND / OBJ / PCKG  <- 범위를 여기서 넓힌다
-lo_exemption->set_check_scope( ... ).    " 메시지 단위 / 체크 전체
+lo_exemption->set_object_scope( ... ).       " FND / OBJ / PCKG  <- 범위를 여기서 넓힌다
+lo_exemption->set_check_scope( ... ).        " 메시지 단위 / 체크 전체
 lo_exemption->set_reason( ... ).
+lo_exemption->set_validity_date( ... ).
 lo_exemption->set_approver( ... ).
+lo_exemption->set_notification_type( ... ).  " REJ / ALWS / NEVR
+lo_exemption->send_to_approver( ).           " 승인 요청 제출
+lo_exemption->unlock( ).
+DATA(lv_id) = lo_exemption->get_exemption_id( ).
+
+" 이어서 바로 승인한다
+lo_controller->approve_exemptions_by_if( exemptions_for_approval = ... ).
 ```
+
+생성만으로는 승인 상태가 되지 않는다. `send_to_approver( )` 로 승인 요청까지 간 뒤
+`approve_exemptions_by_if( )` 로 승인해야 한다. **두 호출을 한 번에 이어서 한다** —
+중간 상태로 남겨두면 표준 Fiori 승인 앱에서 다른 사람이 먼저 결재할 수 있고,
+그러면 CBO 대장을 거치지 않은 승인이 생긴다.
+
+#### 왜 액션이 아니라 저장 시퀀스에서 부르는가
+
+`create_exemption` 은 DB 를 바꾸고 잠금을 잡는다. RAP 에서 그런 호출은 저장
+시퀀스 안에서만 해야 한다.
+
+```
+[액션에서 호출]  승인 버튼 -> 표준 예외 생성 -> 사용자가 초안을 버림
+                 -> CBO 기록은 없는데 표준 예외만 남는다  X
+
+[저장에서 호출]  승인 버튼 -> CBO 상태만 변경
+                 -> 저장 시퀀스에서 표준 예외 생성
+                 -> 저장이 실패하면 둘 다 안 된다             O
+```
+
+기존 샘플은 같은 이유로 BGPF 를 썼지만, 우리는 백그라운드 처리가 필요 없으므로
+RAP 의 **`with additional save`** (saver 클래스의 `save_modified`) 로 충분하다.
 
 ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것과 같은 순서다.
 **그래서 패키지 스코프에서도 헤더에 오브젝트를 보관한다.** 효력은 패키지 전체이고,

@@ -34,6 +34,14 @@ INTERFACE zif_atc_exemption
       expired  TYPE char2 VALUE '60',
     END OF status.
 
+  "! 표준 예외의 이메일 알림 유형 (set_notification_type)
+  CONSTANTS:
+    BEGIN OF notification,
+      on_rejection TYPE char4 VALUE 'REJ',
+      always       TYPE char4 VALUE 'ALWS',
+      never        TYPE char4 VALUE 'NEVR',
+    END OF notification.
+
   "! 이력 액션 코드
   CONSTANTS:
     BEGIN OF logaction,
@@ -70,7 +78,7 @@ INTERFACE zif_atc_exemption
       objectname    TYPE sobj_name,
       lineno        TYPE i,
       "! 코드가 바뀌어도 같은 위반이면 유지되는 finding 식별자
-      checksum      TYPE char32,
+      checksum      TYPE i,
       checkid       TYPE char30,
       messageid     TYPE char30,
       priority      TYPE int1,
@@ -107,6 +115,7 @@ INTERFACE zif_atc_exemption
       pkgactive    TYPE abap_boolean,
       maxvalidmon  TYPE int2,
       reasonreq    TYPE abap_boolean,
+      notiftype    TYPE char4,
       maxpriority  TYPE int1,
     END OF ty_config,
     tt_config TYPE STANDARD TABLE OF ty_config WITH EMPTY KEY.

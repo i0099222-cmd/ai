@@ -16,6 +16,7 @@ define view entity ZI_AtcVariantVH
       checkgroup   as CheckGroup,
       maxvalidmon  as MaxValidMonths,
       reasonreq    as ReasonRequired,
+      notiftype    as NotificationType,
       maxpriority  as MaxPriority
 }
 where activeflg = 'X'

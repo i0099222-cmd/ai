@@ -59,6 +59,11 @@ define table ztatccfg {
   "! 사유 코드/근거 텍스트 필수 여부
   reasonreq       : abap_boolean;
 
+  "! 표준 예외의 이메일 알림 유형 (set_notification_type).
+  "!   REJ  반려 시에만 / ALWS 승인·반려 모두 / NEVR 보내지 않음
+  "! 조직 정책이라 코드에 박지 않는다.
+  notiftype       : abap.char(4);
+
   "! 예외 신청을 허용하는 최대 Priority. 0 이면 제한 없음.
   "! Priority 는 1 이 가장 심각하다. 2 로 두면 Prio 1 위반은 신청 자체를 차단한다.
   maxpriority     : abap.int1;

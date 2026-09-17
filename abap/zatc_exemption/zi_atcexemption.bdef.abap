@@ -6,6 +6,9 @@
 managed implementation in class zbp_i_atcexemption unique;
 strict ( 2 );
 with draft;
+// 표준 예외 생성은 DB 를 바꾸고 잠금을 잡는다. RAP 에서 그런 호출은 저장
+// 시퀀스 안에서만 해야 하므로, 액션이 아니라 additional save 에서 수행한다.
+with additional save;
 
 define behavior for ZI_AtcExemption alias Exemption
 persistent table ztatcexempt

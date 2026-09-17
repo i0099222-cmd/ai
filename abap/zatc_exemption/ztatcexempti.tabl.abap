@@ -30,7 +30,7 @@ define table ztatcexempti {
   "! SATC_API_FINDINGS 의 키(resultid/itemid/checkrunindex)는 ATC 실행 단위라
   "! 런마다 바뀌어 예외의 영구 키로 쓸 수 없다. 그래서 checksum 을 보관한다.
   "! TODO 확인 필요: 이 값에 해당하는 SATC_API_FINDINGS 의 필드명.
-  checksum       : abap.char(32);
+  checksum       : abap.int4;
 
   "! 한 변형 안에서도 체크와 메시지는 아이템마다 다를 수 있어 여기 둔다.
   checkid        : abap.char(30);

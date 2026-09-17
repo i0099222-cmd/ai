@@ -27,6 +27,7 @@ define root view entity ZI_AtcExemption
 
       devclass          as Devclass,
       inclsubpkg        as InclSubPkg,
+      // PCKG 스코프에서는 출발점 오브젝트다 (표준 생성에 필수). 효력은 패키지 전체.
       objecttype        as ObjectType,
       objectname        as ObjectName,
 

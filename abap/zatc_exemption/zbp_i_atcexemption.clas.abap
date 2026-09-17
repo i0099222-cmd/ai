@@ -448,11 +448,14 @@ CLASS lhc_exemption IMPLEMENTATION.
       CASE ls_exemption-scopetype.
 
         WHEN zif_atc_exemption=>scope-pckg.
-          " 패키지 스코프에 오브젝트가 들어 있으면 의도가 모호해진다.
+          " 패키지 스코프도 출발점 오브젝트가 필요하다.
+          " 표준 create_exemption 이 오브젝트를 필수로 받고, 그 뒤에
+          " set_object_scope( ) 로 패키지까지 넓히는 순서이기 때문이다.
+          " 효력은 패키지 전체이고, 이 오브젝트는 어디서 시작했는지의 기록이다.
           IF ls_exemption-devclass IS INITIAL.
             lv_error = '002'.
-          ELSEIF ls_exemption-objecttype IS NOT INITIAL
-              OR ls_exemption-objectname IS NOT INITIAL.
+          ELSEIF ls_exemption-objecttype IS INITIAL
+              OR ls_exemption-objectname IS INITIAL.
             lv_error = '003'.
           ENDIF.
 
@@ -1175,12 +1178,11 @@ CLASS lhc_exemption IMPLEMENTATION.
         checkvariant = ls_param-checkvariant
         scopetype  = lv_scope
         devclass   = ls_param-devclass
-        " 패키지 스코프면 오브젝트를 비운다. 그래야 효력 범위가 패키지 전체임이
-        " 데이터에서도 분명해진다.
-        objecttype = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
-                             THEN space ELSE ls_param-objecttype )
-        objectname = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
-                             THEN space ELSE ls_param-objectname )
+        " 패키지 스코프에서도 오브젝트를 채운다. 표준 create_exemption 이
+        " 오브젝트를 필수로 받고 set_object_scope( ) 로 범위를 넓히는 구조라,
+        " 출발점 오브젝트가 없으면 표준에 반영할 수 없다.
+        objecttype = ls_param-objecttype
+        objectname = ls_param-objectname
         checkid    = ls_param-checkid
         messageid  = ls_param-messageid
         rulescope  = zif_atc_exemption=>rulescope-message

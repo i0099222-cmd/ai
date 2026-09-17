@@ -30,10 +30,12 @@ define table ztatcexempt {
   "! 하위 패키지 포함 여부 (PKG 스코프에서만 의미 있음)
   inclsubpkg        : abap_boolean;
 
-  "! 대상 오브젝트 타입. OBJ/FND 스코프에서 필수.
+  "! 오브젝트 타입/명. 모든 스코프에서 필수다.
+  "! OBJ / FND 에서는 면제 대상 그 자체이고,
+  "! PCKG 에서는 "출발점 오브젝트" 다. 표준 create_exemption 이 오브젝트를
+  "! 필수로 받은 뒤 set_object_scope( ) 로 패키지까지 넓히는 구조라,
+  "! 이 값이 없으면 패키지 예외도 표준에 반영할 수 없다.
   objecttype        : trobjtype;
-
-  "! 대상 오브젝트명. OBJ/FND 스코프에서 필수.
   objectname        : sobj_name;
 
   "! FND 스코프의 대상 finding 은 아이템 1건이다. 식별자(checksum)는 아이템에만 둔다.

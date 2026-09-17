@@ -8,10 +8,20 @@
 "!   표준 Fiori 앱 "Approve ATC Exemptions" 도 결국 이 경로로 예외의 state 와
 "!   approver 를 바꾼다 (SATC_CI_R_EXEMPTION).
 "!
-"! 확인된 컨트롤러 메소드
-"!   create_exemption( i_object_type, i_object_name, i_check_class,
-"!                     i_check_code, i_contact_person )   <- 이 5개가 필수
-"!   approve_exemptions_by_if( exemptions_for_approval )  <- 테이블 일괄 승인
+"! 확인된 표준 API
+"!   controller->create_exemption( i_object_type, i_object_name,
+"!                                 i_check_class, i_check_code,
+"!                                 i_contact_person )   <- 이 5개가 필수
+"!     -> 예외 오브젝트를 돌려주고, 나머지는 setter 로 채운다
+"!          exemption->set_object_scope( )       FND / OBJ / PCKG
+"!          exemption->set_check_scope( )        메시지 단위 / 체크 전체
+"!          exemption->set_reason( )
+"!          exemption->set_approver( )
+"!          exemption->set_notification_type( )
+"!   controller->approve_exemptions_by_if( exemptions_for_approval )  <- 일괄 승인
+"!
+"! set_object_scope 가 있으므로 패키지 스코프를 표준 예외 1건으로 넘길 수 있다.
+"! 오브젝트마다 예외를 전개할 필요가 없고, 예외 ID 는 신청서(헤더)에 1개면 된다.
 "!
 "! 반영 시점을 "승인 시" 로 잡은 이유:
 "!   상신 시점에 표준 예외를 만들면 그 예외가 표준 승인 대기 상태로 남는다.
@@ -80,64 +90,48 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
   METHOD create_exemption.
 
-    " 확인된 필수 파라미터 (기존 샘플 프로그램이 쓰는 컨트롤러와 동일)
-    "   i_object_type / i_object_name / i_check_class / i_check_code / i_contact_person
+    " 생성은 두 단계다.
+    "   1) create_exemption( ) 으로 예외 오브젝트를 만든다. 오브젝트와 체크가 필수다.
+    "   2) setter 로 적용범위·사유·승인자를 채운다.
     "
-    " 여기서 드러나는 두 가지
-    "   1) 오브젝트가 필수다. 즉 표준 예외는 오브젝트 단위로 만들어진다.
-    "   2) 체크 클래스와 체크 코드가 필수다. "변형 전체 면제" 같은 건 없고
-    "      어느 체크의 어느 메시지인지를 반드시 지정해야 한다.
-    "      -> 우리 신청서에서도 CheckId / MessageId 를 필수로 받는다.
+    " 패키지 스코프도 오브젝트를 하나 넘겨서 만든 뒤 set_object_scope( ) 로 넓힌다.
+    " ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것과 같은 순서다.
+    " 그래서 헤더의 objecttype / objectname 은 패키지 스코프에서도 비워 두지 않고
+    " "출발점 오브젝트" 로 보관한다.
 
     DATA(lo_controller) = get_controller( ).
 
-    CASE is_exemption-scopetype.
-
-      WHEN zif_atc_exemption=>scope-obj.
-        " 오브젝트 1건 -> 표준 예외 1건. 파라미터가 그대로 대응된다.
-
-        " TODO 실제 호출로 교체. 남은 확인 사항은 선택 파라미터다.
-        "   유효기간 / 사유 / 승인자 / 적용범위를 넘기는 선택 파라미터가 있는지,
-        "   그리고 반환값에서 예외 ID 를 어떻게 받는지.
-        "
-        " lo_controller->create_exemption(
-        "   i_object_type    = is_exemption-objecttype
-        "   i_object_name    = is_exemption-objectname
-        "   i_check_class    = is_exemption-checkid
-        "   i_check_code     = is_exemption-messageid
-        "   i_contact_person = is_exemption-requester
-        "   " + 선택 파라미터: validto / reasoncode / reasontext / approver / scope
-        " ).
-
-      WHEN zif_atc_exemption=>scope-pckg.
-        " 미확정 지점.
-        "
-        " 필수 파라미터에 패키지가 없고 오브젝트가 필수라는 것은, 표준 예외가
-        " 오브젝트 단위로 만들어진다는 뜻이다. 패키지 스코프를 표준에 넘기는
-        " 방법은 둘 중 하나다.
-        "
-        "   (a) 선택 파라미터로 적용범위(PCKG)를 넘길 수 있다
-        "       -> 표준 예외 1건으로 끝난다. 향후 생성 오브젝트도 표준이 알아서 덮는다.
-        "       -> 지금 구조 그대로 (헤더에 예외 ID 1개)
-        "
-        "   (b) 넘길 수 없다 (오브젝트 단위 생성만 가능)
-        "       -> 승인 시 그 패키지의 위반 오브젝트마다 예외를 N건 만들어야 한다.
-        "       -> 그러면 예외 ID 가 아이템으로 내려가고,
-        "          향후 생성되는 오브젝트는 덮이지 않으므로 주기 배치로 재전개해야 한다.
-        "       -> 기존 샘플이 아이템마다 exemption_id / item_state / failure_id 를
-        "          들고 있는 이유가 이것일 수 있다.
-        "
-        " 선택 파라미터 목록을 확인해 (a)/(b) 를 확정한 뒤 구현한다.
-        " i_object_type 에 'DEVC'(패키지)를 넣는 방식이 가능한지도 같이 본다.
-
-      WHEN zif_atc_exemption=>scope-fnd.
-        " Phase 2. 아이템의 checksum 을 넘기는 선택 파라미터가 있는지 확인 후 구현.
-
-    ENDCASE.
+    " TODO 실제 호출로 교체. 남은 확인 사항은 setter 의 파라미터 타입과 저장 메소드다.
+    "
+    " DATA(lo_exemption) = lo_controller->create_exemption(
+    "   i_object_type    = is_exemption-objecttype
+    "   i_object_name    = is_exemption-objectname
+    "   i_check_class    = is_exemption-checkid
+    "   i_check_code     = is_exemption-messageid
+    "   i_contact_person = is_exemption-requester ).
+    "
+    " lo_exemption->set_object_scope( is_exemption-scopetype ).   " FND / OBJ / PCKG
+    " lo_exemption->set_check_scope( is_exemption-rulescope ).    " 메시지 / 체크 전체
+    " lo_exemption->set_reason( is_exemption-reasontext ).
+    " lo_exemption->set_approver( is_exemption-approver ).
+    "
+    " TODO 확인 필요
+    "   - set_object_scope / set_check_scope 가 받는 값의 타입.
+    "     우리 scopetype( FND / OBJ / PCKG )을 그대로 넘길 수 있는지, 아니면
+    "     표준 enum/상수로 변환해야 하는지.
+    "   - 유효기간 setter 가 따로 있는지 (set_valid_until 류).
+    "     없으면 우리 validto 를 표준에 반영할 방법이 없으므로, 만료 관리는
+    "     CBO 쪽 배치가 전적으로 책임진다.
+    "   - 저장/제출 메소드. create + setter 만으로 저장되는지, 별도 save/submit 이
+    "     필요한지, 아니면 approve_exemptions_by_if( ) 가 그 역할을 겸하는지.
+    "   - 생성된 예외 ID 를 어디서 받는지 -> rs_result-extexemptid 에 담아야 한다.
+    "     이 값이 없으면 나중에 철회/연장할 때 표준 레코드를 찾을 수 없다.
+    "   - set_notification_type( ) 의 선택지. 표준 알림이 어디까지 해 주는지에 따라
+    "     CBO 쪽 만료 알림 배치와 역할이 겹칠 수 있다.
 
     rs_result = VALUE #(
       success = abap_false
-      message = |표준 예외 반영 보류: 선택 파라미터 확인 필요. | &&
+      message = |표준 예외 반영 보류: setter 파라미터 타입과 저장 메소드 확인 필요. | &&
                 |CBO 대장에는 승인 기록이 저장되었습니다.| ).
 
   ENDMETHOD.

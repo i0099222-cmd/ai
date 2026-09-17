@@ -45,8 +45,9 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | **API State** | **릴리즈됨** | RAP 앱 전체를 **ABAP Cloud(Tier 1)** 로 간다. 클래식 패키지 분리 불필요 |
 | **적용범위 코드값** | `FND` / `OBJ` / **`PCKG`** | 가정했던 `PKG` 가 틀렸다. 값과 함께 **필드 길이도 `char(4)`** 로 수정 |
 | **표준 예외 API** | `CL_SATC_API=>CREATE_API_FACTORY( )->GET_EXEMPTION_CONTROLLER( )` | **Option B 확정.** 커스텀 체크 클래스(Option C) 폐기 |
-| 컨트롤러 메소드 | `create_exemption( )` / `approve_exemptions_by_if( )` | **생성이 되므로 앱의 신청 기능이 유효**하다. 지금 구조 유지 |
-| `create_exemption` 필수 파라미터 | `i_object_type` / `i_object_name` / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지가 필수 → 신청서의 `CheckId`/`MessageId` 도 필수로 변경 |
+| 컨트롤러 메소드 | `create_exemption( )` / `approve_exemptions_by_if( )` | **생성이 되므로 앱의 신청 기능이 유효**하다 |
+| `create_exemption` 필수 파라미터 | `i_object_type` / `i_object_name` / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관** |
+| 예외 오브젝트 setter | `set_object_scope` / `set_check_scope` / `set_reason` / `set_approver` / `set_notification_type` | **`set_object_scope` 덕분에 패키지 스코프를 표준 예외 1건으로 넘길 수 있다** → 예외 ID 는 헤더에 1개. 오브젝트별 전개 불필요 |
 
 표준 승인 로직은 결국 `SATC_CI_R_EXEMPTION` 의 `state` / `approver` 를 바꾸는 것이고,
 그 경로가 위 컨트롤러다. 우리 앱도 같은 경로를 쓴다.
@@ -57,33 +58,35 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
 | 2 | `SATC_API_FINDINGS` 의 `devclass` / `objecttype` / `objectname` / `lineno` / `checkid` / `messageid` / `msgtext` 필드명 | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
-| 3 | **예외 컨트롤러의 메소드 시그니처** 🔴 | ADT 에서 `GET_EXEMPTION_CONTROLLER( )` 의 반환 타입을 열고 메소드 목록 확인 | `zcl_atc_exempt_sync` 의 세 메소드 본문 |
-| 4 | `SATC_API_FINDINGS` 에 `checksum` 필드가 있는지 | 뷰 열기 | 리더 SELECT + `ZI_AtcFinding` + 아이템 테이블 |
-| 5 | 예외 컨트롤러가 **스코프 파라미터**를 받는지 (건별 생성만 되는지) | 컨트롤러 메소드 시그니처 | 아래 참조 |
+| 3 | setter 가 받는 값의 타입 (`set_object_scope` 에 `PCKG` 를 그대로 넘길 수 있는지, 표준 상수로 변환해야 하는지) | 메소드 시그니처 | `zcl_atc_exempt_sync` 값 변환 |
+| 4 | **유효기간 setter 존재 여부** | setter 목록 | 없으면 `validto` 를 표준에 넘길 수 없고, 만료 관리는 CBO 배치가 전담 |
+| 5 | **저장/제출 메소드** (create + setter 로 끝인지, save/submit 이 따로 있는지) | 컨트롤러 메소드 목록 | `zcl_atc_exempt_sync` 마무리 |
+| 6 | **생성된 예외 ID 취득 방법** | 반환값 / getter | 없으면 철회·연장 시 표준 레코드를 찾을 수 없다 |
+| 7 | `SATC_API_FINDINGS` 에 `checksum` 필드가 있는지 | 뷰 열기 | 리더 SELECT + `ZI_AtcFinding` + 아이템 테이블 |
+| 8 | `set_notification_type( )` 이 무엇을 알려주는지 | setter 시그니처 | 표준 알림이 커버하는 범위에 따라 CBO 만료 알림 배치와 역할이 겹칠 수 있다 |
 
-#### 5번 — 패키지 스코프를 표준에 어떻게 넘기는가 🔴
+#### 표준 예외 생성 흐름 (확정)
 
-`create_exemption` 의 **필수 파라미터에 오브젝트가 있고 패키지가 없다.**
-표준 예외가 오브젝트 단위로 만들어진다는 뜻이다. 패키지 스코프는 둘 중 하나다.
+```abap
+DATA(lo_exemption) = lo_controller->create_exemption(
+  i_object_type    = ...    " 출발점 오브젝트. 패키지 스코프에서도 필수
+  i_object_name    = ...
+  i_check_class    = ...    " 체크. 비워 둘 수 없다
+  i_check_code     = ...    " 메시지. 비워 둘 수 없다
+  i_contact_person = ... ).
 
+lo_exemption->set_object_scope( ... ).   " FND / OBJ / PCKG  <- 범위를 여기서 넓힌다
+lo_exemption->set_check_scope( ... ).    " 메시지 단위 / 체크 전체
+lo_exemption->set_reason( ... ).
+lo_exemption->set_approver( ... ).
 ```
-(a) 선택 파라미터로 적용범위(PCKG)를 넘길 수 있다
-    -> 표준 예외 1건으로 끝. 향후 생성 오브젝트도 표준이 알아서 덮는다
-    -> 지금 구조 그대로 (헤더에 예외 ID 1개)
 
-(b) 넘길 수 없다 (오브젝트 단위 생성만)
-    -> 승인 시 그 패키지의 위반 오브젝트마다 예외를 N건 만들어야 한다
-    -> 예외 ID 가 아이템으로 내려가고, 아이템에 상태·실패사유가 필요해진다
-    -> 향후 생성 오브젝트는 덮이지 않으므로 주기 배치로 재전개해야 한다
-    -> 기존 샘플이 아이템마다 exemption_id / item_state / failure_id 를
-       들고 있는 이유가 이것일 수 있다
-```
+ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것과 같은 순서다.
+**그래서 패키지 스코프에서도 헤더에 오브젝트를 보관한다.** 효력은 패키지 전체이고,
+그 오브젝트는 어디서 시작했는지의 기록이다.
 
-**확인할 것: `create_exemption` 의 선택(optional) 파라미터 목록.**
-적용범위 / 패키지 / 유효기간 / 사유 / 승인자를 넘기는 파라미터가 있는지 본다.
-`i_object_type` 에 `'DEVC'`(패키지)를 넣는 방식이 되는지도 같이 확인한다.
-
-이것만 확정되면 표준 반영이 완성된다. 지금 `zcl_atc_exempt_sync` 는 팩토리까지 호출해
+`set_object_scope( )` 가 있으므로 **오브젝트마다 예외를 전개할 필요가 없다.**
+예외 ID 는 신청서(헤더)에 1개면 되고, 아이템에 상태·실패사유를 둘 이유도 없다. 지금 `zcl_atc_exempt_sync` 는 팩토리까지 호출해
 컨트롤러를 얻어 두고, 그 위에서 무엇을 부를지만 비워 둔 상태다.
 
 ### 왜 "승인 시" 에 표준 예외를 만드는가
@@ -204,7 +207,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 |---|---|
 | 001 | 적용범위 &1 은(는) 체크그룹 &2 에서 허용되지 않습니다 |
 | 002 | 패키지 스코프에는 패키지를 지정해야 합니다 |
-| 003 | 패키지 스코프에는 오브젝트를 지정할 수 없습니다 |
+| 003 | 패키지 스코프에도 출발점 오브젝트가 필요합니다 |
 | 004 | 오브젝트 스코프에는 오브젝트 타입과 이름이 필요합니다 |
 | 005 | Finding 스코프에는 finding 식별자가 필요합니다 |
 | 006 | &1 은(는) 고객 네임스페이스 패키지가 아닙니다 |

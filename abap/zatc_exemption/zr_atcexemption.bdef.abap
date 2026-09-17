@@ -55,11 +55,8 @@ etag master LocalLastChangedAt
   draft determine action Prepare
   {
     validation validateScope;
-    validation validateScopeFields;
-    validation validateObject;
     validation validateVariant;
     validation validateRuleScope;
-    validation validatePriority;
     validation validateValidity;
     validation validateReason;
     validation validateOverlap;
@@ -92,14 +89,14 @@ etag master LocalLastChangedAt
   determination deriveCheckGroup on modify { field CheckVariant; }
   determination derivePackage    on modify { field ObjectType, ObjectName; }
 
-  validation validateScope       on save { field ScopeType, CheckVariant; create; update; }
-  validation validateScopeFields on save { field ScopeType, Devclass, ObjectType, ObjectName; create; update; }
-  validation validateObject      on save { field Devclass, ObjectType, ObjectName; create; update; }
+  // 같은 필드에 걸리는 검증은 한 메소드로 묶었다. 나눠 두면 같은 인스턴스를
+  // 여러 번 읽을 뿐이고, 트리거가 다른 것만 따로 두면 바뀐 필드에 걸린 검증만 돈다.
+  validation validateScope       on save { field ScopeType, CheckVariant, Devclass, ObjectType, ObjectName; create; update; }
   validation validateVariant     on save { field CheckVariant; create; update; }
   validation validateRuleScope   on save { field RuleScope; create; update; }
-  validation validatePriority    on save { field CheckVariant; create; update; }
   validation validateValidity    on save { field ValidFrom, ValidTo; create; update; }
   validation validateReason      on save { field ReasonCode, ReasonText; create; update; }
+  // 유일하게 다른 레코드를 DB 조회한다. 무거워서 따로 둔다.
   validation validateOverlap     on save { create; update; }
 
   mapping for ztatcexempt

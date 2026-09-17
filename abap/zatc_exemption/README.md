@@ -375,6 +375,25 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 `checkgroup` 을 별도로 둔 이유는 변형명이 버전과 함께 바뀔 수 있기 때문이다
 (`Z_NAMING_V1` → `V2`). 권한 역할에는 더 안정적인 분류값을 쓴다.
 
+## Validation 구성
+
+같은 필드에 걸리는 검증은 한 메소드로 묶었다. 나눠 두면 같은 인스턴스를 여러 번
+읽을 뿐이고, **트리거가 다른 것만 따로 두어야** 바뀐 필드에 걸린 검증만 돈다.
+
+| Validation | 트리거 필드 | 검증 내용 | 메시지 |
+|---|---|---|---|
+| `validateScope` | ScopeType, CheckVariant, Devclass, ObjectType, ObjectName | ① 이 변형에서 그 범위를 쓸 수 있는가 ② 범위별 필수 필드 ③ 대상 실재 + 고객 네임스페이스 | 001~008 |
+| `validateVariant` | CheckVariant | ① 관리 대상 변형인가 ② 증빙의 Priority 가 상한 이내인가 | 009, 018 |
+| `validateRuleScope` | RuleScope | `MSG` / `CHK` 만 허용 (`ALL` 차단) | 019 |
+| `validateValidity` | ValidFrom, ValidTo | 기간 유효성 + 설정된 개월 상한 | 010, 011 |
+| `validateReason` | ReasonCode, ReasonText | 사유 코드 + 근거 최소 길이 | 012 |
+| `validateOverlap` | (항상) | 동일 범위의 유효 예외 중복 | 013 |
+
+`validateScope` 는 앞 단계가 실패하면 뒤를 보지 않는다. 범위가 틀렸는데 필드 조합
+메시지까지 같이 나오면 무엇을 고쳐야 할지 흐려진다.
+
+`validateOverlap` 만 다른 레코드를 DB 조회한다. 무거워서 따로 둔다.
+
 ## 동작 요약
 
 ### 상태 전이

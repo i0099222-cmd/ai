@@ -46,20 +46,11 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS validatescope FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatescope.
 
-    METHODS validatescopefields FOR VALIDATE ON SAVE
-      IMPORTING keys FOR exemption~validatescopefields.
-
-    METHODS validateobject FOR VALIDATE ON SAVE
-      IMPORTING keys FOR exemption~validateobject.
-
     METHODS validatevariant FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatevariant.
 
     METHODS validaterulescope FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validaterulescope.
-
-    METHODS validatepriority FOR VALIDATE ON SAVE
-      IMPORTING keys FOR exemption~validatepriority.
 
     METHODS validatevalidity FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatevalidity.
@@ -404,47 +395,42 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validatescope.
 
+    " 적용범위 관련 검증을 한 곳에 모았다. 셋 다 같은 필드에 걸려 있어
+    " 나눠 두면 같은 인스턴스를 세 번 읽게 되고 얻는 게 없다.
+    "   1) 이 변형에서 그 범위를 쓸 수 있는가        -> 요건 "패키지/오브젝트 단위로만"
+    "   2) 범위에 맞는 필드가 채워졌는가
+    "   3) 대상이 실재하고 고객 네임스페이스인가
+    " 앞 단계가 실패하면 뒤는 보지 않는다. 범위가 틀렸는데 필드 조합을
+    " 따지는 메시지까지 같이 나오면 사용자가 무엇을 고쳐야 할지 흐려진다.
+
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkvariant scopetype )
+        FIELDS ( checkvariant scopetype devclass objecttype objectname )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
-      " 요건 "패키지/오브젝트 단위로만 등록" 이 강제되는 지점.
+      " --- 1) 범위 허용 여부 ---
       " 값을 코드로 비교하지 않고 컨트롤 테이블을 조회한다. Phase 1 네이밍 변형은
       " fndactive 가 공란이라 FND 가 거부되고, Phase 2 에서 설정 행만 바꾸면 열린다.
       IF zcl_atc_config=>get( )->is_scope_allowed(
            iv_checkvariant = ls_exemption-checkvariant
-           iv_scopetype    = ls_exemption-scopetype ) = abap_true.
+           iv_scopetype    = ls_exemption-scopetype ) = abap_false.
+
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky               = ls_exemption-%tky
+                        %state_area        = 'VALIDATE_SCOPE'
+                        %element-scopetype = if_abap_behv=>mk-on
+                        %msg = new_error( iv_number = '001'
+                                          iv_v1     = ls_exemption-scopetype
+                                          iv_v2     = ls_exemption-checkvariant ) )
+               TO reported-exemption.
         CONTINUE.
+
       ENDIF.
 
-      APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
-      APPEND VALUE #( %tky                 = ls_exemption-%tky
-                      %state_area          = 'VALIDATE_SCOPE'
-                      %element-scopetype   = if_abap_behv=>mk-on
-                      %msg = new_error( iv_number = '001'
-                                        iv_v1     = ls_exemption-scopetype
-                                        iv_v2     = ls_exemption-checkvariant ) )
-             TO reported-exemption.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD validatescopefields.
-
-    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
-      ENTITY exemption
-        FIELDS ( scopetype devclass objecttype objectname )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_exemption).
-
-    LOOP AT lt_exemption INTO DATA(ls_exemption).
-
+      " --- 2) 범위별 필수 필드 ---
       DATA lv_error TYPE symsgno.
       CLEAR lv_error.
 
@@ -478,33 +464,18 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       ENDCASE.
 
-      IF lv_error IS INITIAL.
+      IF lv_error IS NOT INITIAL.
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky               = ls_exemption-%tky
+                        %state_area        = 'VALIDATE_SCOPE'
+                        %element-scopetype = if_abap_behv=>mk-on
+                        %msg = new_error( iv_number = lv_error
+                                          iv_v1     = ls_exemption-scopetype ) )
+               TO reported-exemption.
         CONTINUE.
       ENDIF.
 
-      APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
-      APPEND VALUE #( %tky               = ls_exemption-%tky
-                      %state_area        = 'VALIDATE_SCOPEFIELDS'
-                      %element-scopetype = if_abap_behv=>mk-on
-                      %msg = new_error( iv_number = lv_error
-                                        iv_v1     = ls_exemption-scopetype ) )
-             TO reported-exemption.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD validateobject.
-
-    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
-      ENTITY exemption
-        FIELDS ( devclass objecttype objectname )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_exemption).
-
-    LOOP AT lt_exemption INTO DATA(ls_exemption).
-
+      " --- 3) 대상 실재 여부 ---
       " 고객 네임스페이스만 허용한다. 표준 패키지/오브젝트에 예외를 거는 것은
       " 이 앱의 목적이 아니다.
       IF ls_exemption-devclass IS NOT INITIAL
@@ -513,7 +484,7 @@ CLASS lhc_exemption IMPLEMENTATION.
      AND ls_exemption-devclass(1) <> '/'.
         APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
         APPEND VALUE #( %tky              = ls_exemption-%tky
-                        %state_area       = 'VALIDATE_OBJECT'
+                        %state_area       = 'VALIDATE_SCOPE'
                         %element-devclass = if_abap_behv=>mk-on
                         %msg = new_error( iv_number = '006'
                                           iv_v1     = ls_exemption-devclass ) )
@@ -528,7 +499,7 @@ CLASS lhc_exemption IMPLEMENTATION.
         IF lv_pkg_exists <> abap_true.
           APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
           APPEND VALUE #( %tky              = ls_exemption-%tky
-                          %state_area       = 'VALIDATE_OBJECT'
+                          %state_area       = 'VALIDATE_SCOPE'
                           %element-devclass = if_abap_behv=>mk-on
                           %msg = new_error( iv_number = '007'
                                             iv_v1     = ls_exemption-devclass ) )
@@ -546,7 +517,7 @@ CLASS lhc_exemption IMPLEMENTATION.
         IF lv_obj_exists <> abap_true.
           APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
           APPEND VALUE #( %tky                = ls_exemption-%tky
-                          %state_area         = 'VALIDATE_OBJECT'
+                          %state_area         = 'VALIDATE_SCOPE'
                           %element-objectname = if_abap_behv=>mk-on
                           %msg = new_error( iv_number = '008'
                                             iv_v1     = ls_exemption-objectname ) )
@@ -561,27 +532,60 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validatevariant.
 
+    " 변형 관련 검증 두 가지를 한 곳에 모았다. 트리거가 CheckVariant 로 같아
+    " 나눠 둘 이유가 없었다.
+    "   1) 이 변형이 앱의 관리 대상인가      -> 요건 "네이밍 건만"
+    "   2) 증빙 finding 의 Priority 가 허용 범위인가
+
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( checkvariant )
         WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_exemption).
+      RESULT DATA(lt_exemption)
+      ENTITY exemption BY \_Item
+        FIELDS ( priority )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_item).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
-      " 컨트롤 테이블에 활성으로 등록된 체크 변형만 허용한다. Phase 1 은 네이밍
-      " 변형만 활성이므로 요건 "네이밍 건만" 이 코드 수정 없이 지켜진다.
-      IF zcl_atc_config=>get( )->is_variant_active( ls_exemption-checkvariant ) = abap_true.
+      DATA(ls_config) = zcl_atc_config=>get( )->get_config( ls_exemption-checkvariant ).
+
+      " --- 1) 관리 대상 변형인가 ---
+      " Phase 1 은 네이밍 변형만 활성이므로 요건 "네이밍 건만" 이 코드 수정 없이 지켜진다.
+      IF ls_config-activeflg <> abap_true.
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky                  = ls_exemption-%tky
+                        %state_area           = 'VALIDATE_VARIANT'
+                        %element-checkvariant = if_abap_behv=>mk-on
+                        %msg = new_error( iv_number = '009'
+                                          iv_v1     = ls_exemption-checkvariant ) )
+               TO reported-exemption.
         CONTINUE.
       ENDIF.
 
-      APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
-      APPEND VALUE #( %tky                  = ls_exemption-%tky
-                      %state_area           = 'VALIDATE_VARIANT'
-                      %element-checkvariant = if_abap_behv=>mk-on
-                      %msg = new_error( iv_number = '009'
-                                        iv_v1     = ls_exemption-checkvariant ) )
-             TO reported-exemption.
+      " --- 2) Priority 상한 ---
+      " 심각도가 높은 위반은 예외로 덮지 못하게 막는다.
+      " Priority 는 1 이 가장 심각하므로, 허용 상한보다 작은 값이면 거부한다.
+      IF ls_config-maxpriority <= 0.
+        CONTINUE.
+      ENDIF.
+
+      LOOP AT lt_item INTO DATA(ls_item)
+           WHERE exemptuuid = ls_exemption-exemptuuid
+             AND priority   > 0
+             AND priority   < ls_config-maxpriority.
+
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky        = ls_exemption-%tky
+                        %state_area = 'VALIDATE_VARIANT'
+                        %msg = new_error( iv_number = '018'
+                                          iv_v1     = ls_item-priority
+                                          iv_v2     = ls_config-maxpriority ) )
+               TO reported-exemption.
+        EXIT.
+
+      ENDLOOP.
 
     ENDLOOP.
 
@@ -616,50 +620,6 @@ CLASS lhc_exemption IMPLEMENTATION.
                       %msg = new_error( iv_number = '019'
                                         iv_v1     = ls_exemption-rulescope ) )
              TO reported-exemption.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD validatepriority.
-
-    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
-      ENTITY exemption
-        FIELDS ( checkvariant )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_exemption)
-      ENTITY exemption BY \_Item
-        FIELDS ( priority )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_item).
-
-    LOOP AT lt_exemption INTO DATA(ls_exemption).
-
-      " 심각도가 높은 위반은 예외로 덮지 못하게 막는다.
-      " Priority 는 1 이 가장 심각하므로, 허용 상한보다 작은 값이면 거부한다.
-      DATA(lv_max) = zcl_atc_config=>get( )->get_config(
-                       ls_exemption-checkvariant )-maxpriority.
-
-      IF lv_max <= 0.
-        CONTINUE.
-      ENDIF.
-
-      LOOP AT lt_item INTO DATA(ls_item)
-           WHERE exemptuuid = ls_exemption-exemptuuid
-             AND priority   > 0
-             AND priority   < lv_max.
-
-        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
-        APPEND VALUE #( %tky        = ls_exemption-%tky
-                        %state_area = 'VALIDATE_PRIORITY'
-                        %msg = new_error( iv_number = '018'
-                                          iv_v1     = ls_item-priority
-                                          iv_v2     = lv_max ) )
-               TO reported-exemption.
-        EXIT.
-
-      ENDLOOP.
 
     ENDLOOP.
 

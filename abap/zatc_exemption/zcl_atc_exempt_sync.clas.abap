@@ -22,8 +22,9 @@
 "!          send_to_approver( )       승인 요청 제출
 "!          unlock( )                 잠금 해제
 "!          get_exemption_id( )       생성된 예외 ID
-"!   controller->approve_exemptions_by_if( exemptions_for_approval )  <- 테이블 일괄 승인
-"!   controller->reject_exemptions_by_id( exemption_id, assessment )  <- 건별 반려
+"!   controller->approve_exemption_by_id( exemption_id, assessment )  <- 건별 승인
+"!   controller->reject_exemptions_by_id( exemption_id, assessment ) <- 건별 반려
+"!   controller->approve_exemptions_by_if( exemptions_for_approval ) <- 테이블 일괄 승인
 "!
 "! set_object_scope 가 있으므로 패키지 스코프를 표준 예외 1건으로 넘길 수 있다.
 "! 오브젝트마다 예외를 전개할 필요가 없고, 예외 ID 는 신청서(헤더)에 1개면 된다.
@@ -48,7 +49,8 @@ CLASS zcl_atc_exempt_sync DEFINITION
     TYPES:
       BEGIN OF ty_result,
         success     TYPE abap_boolean,
-        extexemptid TYPE char32,
+        "! SATC_CI_EXEMPTION_ID 와 같은 타입
+        extexemptid TYPE sysuuid_c32,
         message     TYPE string,
       END OF ty_result.
 
@@ -59,7 +61,7 @@ CLASS zcl_atc_exempt_sync DEFINITION
 
     "! 철회/만료된 예외를 표준 저장소에서 무효화한다.
     METHODS revoke_exemption
-      IMPORTING iv_extexemptid   TYPE char32
+      IMPORTING iv_extexemptid   TYPE sysuuid_c32
                 iv_reason        TYPE string OPTIONAL
       RETURNING VALUE(rs_result) TYPE ty_result.
 
@@ -139,24 +141,17 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         lo_exemption->send_to_approver( ).
         lo_exemption->unlock( ).
 
+        " SATC_CI_EXEMPTION_ID (SYSUUID_C32)
         DATA(lv_exemption_id) = lo_exemption->get_exemption_id( ).
 
         " 이어서 바로 승인한다. 결재는 이미 이 앱에서 끝났고, 표준에 승인대기
         " 상태로 남겨두면 표준 Fiori 앱에서 다른 사람이 먼저 결재할 수 있다.
-        "
-        " TODO 확인 필요: reject 쪽에 reject_exemptions_by_id( exemption_id, assessment )
-        "   가 있으므로 승인에도 approve_exemptions_by_id 가 있을 가능성이 높다.
-        "   있으면 아래처럼 건별로 부르는 편이 간단하다.
-        "
-        " lo_controller->approve_exemptions_by_id(
-        "   exemption_id = lv_exemption_id
-        "   assessment   = is_exemption-reasontext ).
-        "
-        "   없으면 approve_exemptions_by_if( exemptions_for_approval = <테이블> ) 로
-        "   가야 하고, 그 행 구조를 확인해야 한다.
+        lo_controller->approve_exemption_by_id(
+          exemption_id = lv_exemption_id
+          assessment   = is_exemption-reasontext ).
 
         rs_result = VALUE #( success     = abap_true
-                             extexemptid = CONV #( lv_exemption_id )
+                             extexemptid = lv_exemption_id
                              message     = |표준 예외 { lv_exemption_id } 생성| ).
 
       CATCH cx_root INTO DATA(lo_error).
@@ -186,7 +181,7 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         "   승인 전 상태에서만 동작한다면, 대안은 기존 예외를 다시 읽어
         "   set_validity_date( ) 를 어제 날짜로 당기는 것이다.
         lo_controller->reject_exemptions_by_id(
-          exemption_id = CONV #( iv_extexemptid )
+          exemption_id = iv_extexemptid
           assessment   = iv_reason ).
 
         rs_result = VALUE #( success = abap_true

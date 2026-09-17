@@ -41,7 +41,7 @@ etag master LocalLastChangedAt
 
   // CheckId / MessageId 가 필수인 이유: 표준 create_exemption 이
   // i_check_class 와 i_check_code 를 필수로 요구한다. 비워 두면 표준에 반영할 수 없다.
-  field ( mandatory ) CheckVariant, ScopeType, CheckId, MessageId, ValidTo;
+  field ( mandatory ) CheckVariant, ScopeType, RuleScope, CheckId, MessageId, ValidTo;
 
   create;
   update;
@@ -58,6 +58,7 @@ etag master LocalLastChangedAt
     validation validateScopeFields;
     validation validateObject;
     validation validateVariant;
+    validation validateRuleScope;
     validation validatePriority;
     validation validateValidity;
     validation validateReason;
@@ -95,6 +96,7 @@ etag master LocalLastChangedAt
   validation validateScopeFields on save { field ScopeType, Devclass, ObjectType, ObjectName; create; update; }
   validation validateObject      on save { field Devclass, ObjectType, ObjectName; create; update; }
   validation validateVariant     on save { field CheckVariant; create; update; }
+  validation validateRuleScope   on save { field RuleScope; create; update; }
   validation validatePriority    on save { field CheckVariant; create; update; }
   validation validateValidity    on save { field ValidFrom, ValidTo; create; update; }
   validation validateReason      on save { field ReasonCode, ReasonText; create; update; }

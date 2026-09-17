@@ -71,9 +71,9 @@ define table ztatcexempt {
 
   approvedat        : timestampl;
 
-  "! 표준 ATC 예외 저장소에 생성된 예외 ID.
+  "! 표준 ATC 예외 저장소에 생성된 예외 ID (SATC_CI_EXEMPTION_ID = SYSUUID_C32).
   "! 승인 시 표준 반영이 성공하면 채워지며, 철회/연장 시 역추적에 사용한다.
-  extexemptid       : abap.char(32);
+  extexemptid       : sysuuid_c32;
 
   "! 사전등록 여부. finding 없이 선제적으로 등록한 건이면 X.
   preregflag        : abap_boolean;

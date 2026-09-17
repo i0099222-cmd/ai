@@ -52,7 +52,9 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | 반려 API | `reject_exemptions_by_id( exemption_id, assessment )` | 철회·만료 시 표준 무효화 경로로 사용 |
 | `checksum` | 필드명 동일, 타입 `int4` | 아이템 컬럼을 `char(32)` → `int4` 로 수정 |
 | `SATC_CI_OBJ_SCOPE` 고정값 | `FND` / `OBJ` / `PCKG` — 우리 값과 동일 | 변환 없이 그대로 전달 |
-| `set_check_scope` 고정값 | `MSG` / `CHK` / `ALL` / `FND` | 신청서는 `MSG` / `CHK` 만 사용 |
+| `set_check_scope` 고정값 | `FND` finding 1건 / `MSG` 이 메시지 / `CHK` 이 체크 전체 / `ALL` **모든 체크** | `MSG`·`CHK` 만 허용. **`ALL` 은 validation 이 거부** (아래 참조) |
+| `approve_exemption_by_id` | `exemption_id`, `assessment` | 건별 승인. 테이블 조립 불필요 |
+| `SATC_CI_EXEMPTION_ID` | `SYSUUID_C32` | `extexemptid` 를 `char(32)` → `sysuuid_c32` 로 |
 
 표준 승인 로직은 결국 `SATC_CI_R_EXEMPTION` 의 `state` / `approver` 를 바꾸는 것이고,
 그 경로가 위 컨트롤러다. 우리 앱도 같은 경로를 쓴다.
@@ -96,6 +98,20 @@ lo_controller->approve_exemptions_by_if( exemptions_for_approval = ... ).
 `approve_exemptions_by_if( )` 로 승인해야 한다. **두 호출을 한 번에 이어서 한다** —
 중간 상태로 남겨두면 표준 Fiori 승인 앱에서 다른 사람이 먼저 결재할 수 있고,
 그러면 CBO 대장을 거치지 않은 승인이 생긴다.
+
+#### `ALL` 규칙 범위를 막는 이유
+
+표준 `set_check_scope` 는 `ALL`(모든 체크)을 받지만 이 앱은 거부한다.
+
+```
+ScopeType = PCKG  +  RuleScope = ALL
+  -> 그 패키지의 ATC 체크가 통째로 꺼진다
+  -> 네이밍 예외를 신청했는데 성능·보안 검증까지 같이 사라진다
+  -> 요건("네이밍 건만")을 정면으로 깬다
+```
+
+`FND` 는 건 단위라 적용범위(`ScopeType`)에서 이미 다루므로 규칙 축에서는 쓰지 않는다.
+결과적으로 `RuleScope` 는 `MSG`(이 메시지) 또는 `CHK`(이 체크 전체) 둘뿐이다.
 
 #### 왜 액션이 아니라 저장 시퀀스에서 부르는가
 
@@ -256,6 +272,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 016 | 연장일은 현재 유효종료일보다 뒤여야 합니다 |
 | 017 | 대상 finding 을 찾을 수 없습니다 |
 | 018 | Priority &1 위반은 예외 대상이 아닙니다 (허용: &2 이상) |
+| 019 | 규칙 범위 &1 은(는) 허용되지 않습니다 (메시지 또는 체크만 가능) |
 
 ### 4. 권한 오브젝트 `Z_ATCEXEM`
 

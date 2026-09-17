@@ -18,16 +18,20 @@ INTERFACE zif_atc_exemption
     END OF scope.
 
   "! 규칙 적용 축 (set_check_scope). 표준 고정값 4종.
-  "!   msg = 이 메시지만          ADT 화면의 "Message"
-  "!   chk = 이 체크의 모든 메시지  ADT 화면의 "Check"
-  "! TODO 확인 필요: all / fnd 의 의미. ADT 화면에는 앞의 두 개만 노출되므로
-  "!   내부 전용일 수 있다. 의미를 확인하기 전까지는 msg / chk 만 사용한다.
+  "!   finding = 이 finding 한 건만
+  "!   message = 이 메시지만          ADT 화면의 "Message"
+  "!   check   = 이 체크의 모든 메시지  ADT 화면의 "Check"
+  "!   all     = 모든 체크           <- 이 앱에서는 금지한다
+  "!
+  "! all 을 허용하면 대상 오브젝트/패키지의 ATC 체크가 통째로 꺼진다.
+  "! 네이밍 예외를 신청했는데 성능·보안 체크까지 같이 면제되는 셈이라,
+  "! 요건("네이밍 건만")을 정면으로 깬다. validateRuleScope 가 거부한다.
   CONSTANTS:
     BEGIN OF rulescope,
+      finding TYPE char3 VALUE 'FND',
       message TYPE char3 VALUE 'MSG',
       check   TYPE char3 VALUE 'CHK',
       all     TYPE char3 VALUE 'ALL',
-      finding TYPE char3 VALUE 'FND',
     END OF rulescope.
 
   "! 신청서 상태

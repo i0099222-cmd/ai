@@ -55,6 +55,9 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS validatevariant FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatevariant.
 
+    METHODS validaterulescope FOR VALIDATE ON SAVE
+      IMPORTING keys FOR exemption~validaterulescope.
+
     METHODS validatepriority FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatepriority.
 
@@ -578,6 +581,40 @@ CLASS lhc_exemption IMPLEMENTATION.
                       %element-checkvariant = if_abap_behv=>mk-on
                       %msg = new_error( iv_number = '009'
                                         iv_v1     = ls_exemption-checkvariant ) )
+             TO reported-exemption.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD validaterulescope.
+
+    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        FIELDS ( rulescope )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_exemption).
+
+    LOOP AT lt_exemption INTO DATA(ls_exemption).
+
+      " 표준 set_check_scope 는 FND / MSG / CHK / ALL 을 받지만, 이 앱은
+      " MSG 와 CHK 만 허용한다.
+      "   ALL 은 대상 오브젝트/패키지의 ATC 체크를 통째로 끈다. 네이밍 예외를
+      "     신청했는데 성능·보안 체크까지 같이 면제되는 셈이라 요건을 정면으로 깬다.
+      "     패키지 스코프와 겹치면 그 패키지의 모든 검증이 사라진다.
+      "   FND 는 건 단위이므로 적용범위(ScopeType)에서 이미 다루고 있다.
+      IF ls_exemption-rulescope = zif_atc_exemption=>rulescope-message
+      OR ls_exemption-rulescope = zif_atc_exemption=>rulescope-check.
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+      APPEND VALUE #( %tky               = ls_exemption-%tky
+                      %state_area        = 'VALIDATE_RULESCOPE'
+                      %element-rulescope = if_abap_behv=>mk-on
+                      %msg = new_error( iv_number = '019'
+                                        iv_v1     = ls_exemption-rulescope ) )
              TO reported-exemption.
 
     ENDLOOP.

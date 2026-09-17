@@ -1,9 +1,9 @@
-@EndUserText.label: '유효기간 연장 파라미터'
+@EndUserText.label: 'Extend Validity'
 define abstract entity ZD_AtcExtend
 {
-  @EndUserText.label: '변경할 유효종료일'
+  @EndUserText.label: 'New Valid To'
   NewValidTo : abap.dats;
 
-  @EndUserText.label: '연장 사유'
+  @EndUserText.label: 'Extension Reason'
   ExtendReason : abap.string(0);
 }

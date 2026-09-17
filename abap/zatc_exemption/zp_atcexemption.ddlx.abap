@@ -1,26 +1,26 @@
 @Metadata.layer: #CORE
 @UI: {
   headerInfo: {
-    typeName:       'ATC 예외',
-    typeNamePlural: 'ATC 예외',
+    typeName:       'Exemption Request',
+    typeNamePlural: 'Exemption Requests',
     title:          { type: #STANDARD, value: 'ExemptId' },
     description:    { value: 'Devclass' }
   },
   presentationVariant: [{ sortOrder: [{ by: 'ExemptId', direction: #DESC }] }]
 }
-annotate entity ZC_AtcExemption with
+annotate entity ZP_AtcExemption with
 {
   @UI.facet: [
     { id: 'Head',   purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE,
-      label: '신청 정보', position: 10 },
+      label: 'Request', position: 10 },
     { id: 'Scope',  purpose: #STANDARD, type: #FIELDGROUP_REFERENCE,
-      label: '적용 범위', position: 20, targetQualifier: 'ScopeGroup' },
+      label: 'Scope', position: 20, targetQualifier: 'ScopeGroup' },
     { id: 'Reason', purpose: #STANDARD, type: #FIELDGROUP_REFERENCE,
-      label: '사유 및 유효기간', position: 30, targetQualifier: 'ReasonGroup' },
+      label: 'Reason and Validity', position: 30, targetQualifier: 'ReasonGroup' },
     { id: 'Item',   purpose: #STANDARD, type: #LINEITEM_REFERENCE,
-      label: '근거 finding', position: 40, targetElement: '_Item' },
+      label: 'Evidence Findings', position: 40, targetElement: '_Item' },
     { id: 'Log',    purpose: #STANDARD, type: #LINEITEM_REFERENCE,
-      label: '처리 이력', position: 50, targetElement: '_Log' }
+      label: 'History', position: 50, targetElement: '_Log' }
   ]
 
   @UI.hidden: true
@@ -31,14 +31,14 @@ annotate entity ZC_AtcExemption with
     identification: [{ position: 10 }],
     selectionField: [{ position: 10 }]
   }
-  @EndUserText.label: '신청번호'
+  @EndUserText.label: 'Request ID'
   ExemptId;
 
   @UI: {
     identification: [{ position: 15 }],
     selectionField: [{ position: 15 }]
   }
-  @EndUserText.label: '체크 변형'
+  @EndUserText.label: 'Check Variant'
   CheckVariant;
 
   @UI: {
@@ -46,7 +46,7 @@ annotate entity ZC_AtcExemption with
     identification: [{ position: 20 }],
     selectionField: [{ position: 20 }]
   }
-  @EndUserText.label: '체크그룹'
+  @EndUserText.label: 'Check Group'
   CheckGroup;
 
   @UI: {
@@ -55,7 +55,7 @@ annotate entity ZC_AtcExemption with
     fieldGroup:     [{ qualifier: 'ScopeGroup', position: 10 }],
     selectionField: [{ position: 30 }]
   }
-  @EndUserText.label: '적용범위'
+  @EndUserText.label: 'Object Scope'
   ScopeType;
 
   @UI: {
@@ -63,60 +63,60 @@ annotate entity ZC_AtcExemption with
     fieldGroup:     [{ qualifier: 'ScopeGroup', position: 20 }],
     selectionField: [{ position: 40 }]
   }
-  @EndUserText.label: '패키지'
+  @EndUserText.label: 'Package'
   Devclass;
 
   // Phase 1 은 읽기 전용. 면제 판정이 하위 패키지를 전개하지 못한다.
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 30 }]
-  @EndUserText.label: '하위 패키지 포함 (Phase 2)'
+  @EndUserText.label: 'Include Subpackages (Phase 2)'
   InclSubPkg;
 
   @UI: {
     lineItem:   [{ position: 50, importance: #MEDIUM }],
     fieldGroup: [{ qualifier: 'ScopeGroup', position: 40 }]
   }
-  @EndUserText.label: '오브젝트 타입'
+  @EndUserText.label: 'Object Type'
   ObjectType;
 
   @UI: {
     lineItem:   [{ position: 60, importance: #HIGH }],
     fieldGroup: [{ qualifier: 'ScopeGroup', position: 50 }]
   }
-  @EndUserText.label: '오브젝트명'
+  @EndUserText.label: 'Object Name'
   ObjectName;
 
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 60 }]
-  @EndUserText.label: '체크 ID'
+  @EndUserText.label: 'Check Class'
   CheckId;
 
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 70 }]
-  @EndUserText.label: '메시지 ID'
+  @EndUserText.label: 'Check Message Code'
   MessageId;
 
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 80 }]
-  @EndUserText.label: '규칙 적용 축'
+  @EndUserText.label: 'Check Scope'
   RuleScope;
 
   @UI.fieldGroup: [{ qualifier: 'ReasonGroup', position: 10 }]
-  @EndUserText.label: '사유 코드'
+  @EndUserText.label: 'Reason Code'
   ReasonCode;
 
   @UI: {
     fieldGroup:  [{ qualifier: 'ReasonGroup', position: 20 }],
     multiLineText: true
   }
-  @EndUserText.label: '근거'
+  @EndUserText.label: 'Justification'
   ReasonText;
 
   @UI.fieldGroup: [{ qualifier: 'ReasonGroup', position: 30 }]
-  @EndUserText.label: '유효시작일'
+  @EndUserText.label: 'Valid From'
   ValidFrom;
 
   @UI: {
     lineItem:   [{ position: 70, importance: #HIGH }],
     fieldGroup: [{ qualifier: 'ReasonGroup', position: 40 }]
   }
-  @EndUserText.label: '유효종료일'
+  @EndUserText.label: 'Valid To'
   ValidTo;
 
   @UI: {
@@ -125,7 +125,7 @@ annotate entity ZC_AtcExemption with
     identification: [{ position: 30 }],
     selectionField: [{ position: 50 }]
   }
-  @EndUserText.label: '상태'
+  @EndUserText.label: 'Status'
   ExemptStatus;
 
   @UI: {
@@ -133,26 +133,26 @@ annotate entity ZC_AtcExemption with
     identification: [{ position: 40 }],
     selectionField: [{ position: 60 }]
   }
-  @EndUserText.label: '신청자'
+  @EndUserText.label: 'Requester'
   Requester;
 
   @UI: {
     lineItem:       [{ position: 100, importance: #MEDIUM }],
     identification: [{ position: 50 }]
   }
-  @EndUserText.label: '승인자'
+  @EndUserText.label: 'Approver'
   Approver;
 
   @UI.identification: [{ position: 60 }]
-  @EndUserText.label: '승인일시'
+  @EndUserText.label: 'Approved At'
   ApprovedAt;
 
   @UI.identification: [{ position: 70 }]
-  @EndUserText.label: '표준 예외 ID'
+  @EndUserText.label: 'Standard Exemption ID'
   ExtExemptId;
 
   @UI.identification: [{ position: 80 }]
-  @EndUserText.label: '사전등록'
+  @EndUserText.label: 'Pre-Registered'
   PreRegFlag;
 
   @UI.hidden: true

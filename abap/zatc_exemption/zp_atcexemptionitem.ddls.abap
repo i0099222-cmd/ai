@@ -1,8 +1,8 @@
 @AccessControl.authorizationCheck: #CHECK
-@EndUserText.label: 'ATC 예외 신청 아이템'
+@EndUserText.label: 'ATC Exemption Request Item'
 @Metadata.allowExtensions: true
-define view entity ZC_AtcExemptionItem
-  as projection on ZI_AtcExemptionItem
+define view entity ZP_AtcExemptionItem
+  as projection on ZR_AtcExemptionItem
 {
   key ItemUuid,
 
@@ -23,5 +23,5 @@ define view entity ZC_AtcExemptionItem
       LastChangedBy,
       LocalLastChangedAt,
 
-      _Exemption : redirected to parent ZC_AtcExemption
+      _Exemption : redirected to parent ZP_AtcExemption
 }

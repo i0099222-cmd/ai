@@ -1,6 +1,6 @@
 @AbapCatalog.viewEnhancementCategory: [#NONE]
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: '체크 변형 값 도움 (컨트롤 테이블 기반)'
+@EndUserText.label: 'Check Variant Value Help'
 @Metadata.ignorePropagatedAnnotations: true
 @ObjectModel.usageType: {
   serviceQuality: #D,

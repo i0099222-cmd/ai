@@ -1,6 +1,6 @@
 @AbapCatalog.viewEnhancementCategory: [#NONE]
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: '개발 패키지 값 도움'
+@EndUserText.label: 'Package Value Help'
 @Metadata.ignorePropagatedAnnotations: true
 @ObjectModel.usageType: {
   serviceQuality: #D,

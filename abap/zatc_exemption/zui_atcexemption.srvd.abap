@@ -1,4 +1,4 @@
-@EndUserText.label: 'ATC 예외 관리'
+@EndUserText.label: 'ATC Exemption Management'
 // 앱은 하나다. 신청과 승인을 한 서비스에 함께 노출하고, 화면 안에서
 // 권한과 instance features 로 구분한다.
 //
@@ -7,12 +7,12 @@
 //   타일 B "ATC 예외 승인"  : 상태 = 승인대기
 // 각 타일을 개발자 / 승인자 역할 카탈로그에 나누어 배치한다.
 define service ZUI_AtcExemption {
-  expose ZC_AtcExemption     as Exemption;
-  expose ZC_AtcExemptionItem as ExemptionItem;
-  expose ZC_AtcExemptionLog  as ExemptionLog;
+  expose ZP_AtcExemption     as Exemption;
+  expose ZP_AtcExemptionItem as ExemptionItem;
+  expose ZP_AtcExemptionLog  as ExemptionLog;
 
   // 위반 현황 조회 (읽기 전용). ATC 결과를 라이브로 읽는다.
-  expose ZC_AtcFinding       as Finding;
+  expose ZP_AtcFinding       as Finding;
 
   // 값 도움
   expose ZI_AtcScopeVH       as ScopeVH;

@@ -1,4 +1,4 @@
-@EndUserText.label : 'ATC 예외 신청 아이템 (finding)'
+@EndUserText.label : 'ATC Exemption Request Item'
 @AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
 @AbapCatalog.tableCategory : #TRANSPARENT
 @AbapCatalog.deliveryClass : #A

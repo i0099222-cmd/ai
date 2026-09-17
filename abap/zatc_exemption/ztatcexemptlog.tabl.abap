@@ -1,4 +1,4 @@
-@EndUserText.label : 'ATC 예외 신청 상태 이력'
+@EndUserText.label : 'ATC Exemption Status History'
 @AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
 @AbapCatalog.tableCategory : #TRANSPARENT
 @AbapCatalog.deliveryClass : #A

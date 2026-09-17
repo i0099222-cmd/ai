@@ -1,8 +1,8 @@
 @AccessControl.authorizationCheck: #CHECK
-@EndUserText.label: 'ATC 예외 신청 이력'
+@EndUserText.label: 'ATC Exemption Status History'
 @Metadata.allowExtensions: true
-define view entity ZC_AtcExemptionLog
-  as projection on ZI_AtcExemptionLog
+define view entity ZP_AtcExemptionLog
+  as projection on ZR_AtcExemptionLog
 {
   key LogUuid,
 
@@ -15,5 +15,5 @@ define view entity ZC_AtcExemptionLog
       ActionBy,
       ActionAt,
 
-      _Exemption : redirected to parent ZC_AtcExemption
+      _Exemption : redirected to parent ZP_AtcExemption
 }

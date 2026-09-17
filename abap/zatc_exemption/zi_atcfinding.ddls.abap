@@ -1,6 +1,6 @@
 @AbapCatalog.viewEnhancementCategory: [#NONE]
 @AccessControl.authorizationCheck: #CHECK
-@EndUserText.label: 'ATC 위반 현황 (면제 여부 포함)'
+@EndUserText.label: 'ATC Findings with Exemption Status - Interface'
 @Metadata.ignorePropagatedAnnotations: true
 @ObjectModel.usageType: {
   serviceQuality: #A,

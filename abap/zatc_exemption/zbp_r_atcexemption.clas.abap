@@ -1,16 +1,16 @@
-"! ZI_AtcExemption BO 의 behavior implementation.
+"! ZR_AtcExemption BO 의 behavior implementation.
 "!
 "! 이 클래스에는 코드값 리터럴을 두지 않는다. 적용범위 허용 여부, 대상 체크,
 "! 유효기간 상한, 승인 레벨은 전부 zcl_atc_config 를 통해 설정 테이블에서 읽는다.
 "! ("IF scopetype = 'FND'" 같은 하드코딩은 Phase 2 확장 때 전부 되돌려야 한다)
-CLASS zbp_i_atcexemption DEFINITION
+CLASS zbp_r_atcexemption DEFINITION
   PUBLIC
   ABSTRACT
   FINAL
-  FOR BEHAVIOR OF zi_atcexemption.
+  FOR BEHAVIOR OF zr_atcexemption.
 ENDCLASS.
 
-CLASS zbp_i_atcexemption IMPLEMENTATION.
+CLASS zbp_r_atcexemption IMPLEMENTATION.
 ENDCLASS.
 
 
@@ -22,7 +22,7 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     "! 읽기 결과 라인. %tky 에 %is_draft 가 포함되어 있어 이력을 draft/active
     "! 어느 인스턴스에 달아야 하는지가 이 타입으로 전달된다.
-    TYPES tt_read TYPE TABLE FOR READ RESULT zi_atcexemption.
+    TYPES tt_read TYPE TABLE FOR READ RESULT zr_atcexemption.
     TYPES ty_read TYPE LINE OF tt_read.
 
     METHODS get_instance_features FOR INSTANCE FEATURES
@@ -123,7 +123,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD get_instance_features.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption)
@@ -196,7 +196,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD get_instance_authorizations.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption)
@@ -276,12 +276,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD setinitialvalues.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
@@ -325,7 +325,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( exemptid exemptstatus requester validfrom rulescope )
         WITH lt_update
@@ -338,13 +338,13 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD derivecheckgroup.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( checkvariant )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
@@ -356,7 +356,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( checkgroup )
         WITH lt_update.
@@ -366,13 +366,13 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD derivepackage.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( scopetype objecttype objectname devclass )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
     LOOP AT lt_exemption INTO DATA(ls_exemption)
          WHERE objecttype IS NOT INITIAL
@@ -394,7 +394,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( devclass )
         WITH lt_update.
@@ -404,7 +404,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validatescope.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( checkvariant scopetype )
         WITH CORRESPONDING #( keys )
@@ -437,7 +437,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validatescopefields.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( scopetype devclass objecttype objectname )
         WITH CORRESPONDING #( keys )
@@ -497,7 +497,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validateobject.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( devclass objecttype objectname )
         WITH CORRESPONDING #( keys )
@@ -561,7 +561,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validatevariant.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( checkvariant )
         WITH CORRESPONDING #( keys )
@@ -590,7 +590,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validaterulescope.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( rulescope )
         WITH CORRESPONDING #( keys )
@@ -624,7 +624,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validatepriority.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( checkvariant )
         WITH CORRESPONDING #( keys )
@@ -668,7 +668,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validatevalidity.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( checkvariant validfrom validto )
         WITH CORRESPONDING #( keys )
@@ -719,7 +719,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validatereason.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( checkvariant reasoncode reasontext )
         WITH CORRESPONDING #( keys )
@@ -754,7 +754,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD validateoverlap.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
@@ -796,12 +796,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD submit.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
     DATA(lo_reader) = NEW zcl_atc_finding_reader( ).
 
@@ -845,12 +845,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( exemptstatus reasontext )
         WITH lt_update.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_result).
@@ -863,12 +863,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD withdraw.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
 
     LOOP AT lt_exemption INTO DATA(ls_exemption)
@@ -886,12 +886,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( exemptstatus )
         WITH lt_update.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_result).
@@ -904,12 +904,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD approve.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
     GET TIME STAMP FIELD DATA(lv_now).
 
@@ -941,12 +941,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( exemptstatus approver approvedat )
         WITH lt_update.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_result).
@@ -959,12 +959,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD reject.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
     GET TIME STAMP FIELD DATA(lv_now).
 
@@ -997,12 +997,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( exemptstatus approver approvedat )
         WITH lt_update.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_result).
@@ -1015,12 +1015,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD revoke.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
     LOOP AT lt_exemption INTO DATA(ls_exemption)
          WHERE exemptstatus = zif_atc_exemption=>status-approved.
@@ -1036,12 +1036,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( exemptstatus )
         WITH lt_update.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_result).
@@ -1054,12 +1054,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD extendvalidity.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
-    DATA lt_update TYPE TABLE FOR UPDATE zi_atcexemption.
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
 
     LOOP AT keys INTO DATA(ls_key).
@@ -1094,12 +1094,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( validto exemptstatus approver approvedat )
         WITH lt_update.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_result).
@@ -1112,7 +1112,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD simulateimpact.
 
-    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
@@ -1154,8 +1154,8 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD createfromfinding.
 
-    DATA lt_create TYPE TABLE FOR CREATE zi_atcexemption.
-    DATA lt_item   TYPE TABLE FOR CREATE zi_atcexemption\_Item.
+    DATA lt_create TYPE TABLE FOR CREATE zr_atcexemption.
+    DATA lt_item   TYPE TABLE FOR CREATE zr_atcexemption\_Item.
     DATA ls_item   LIKE LINE OF lt_item.
 
     DATA(lo_reader) = NEW zcl_atc_finding_reader( ).
@@ -1226,7 +1226,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     ENDLOOP.
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         CREATE FIELDS ( checkvariant scopetype devclass objecttype objectname
                         checkid messageid rulescope validfrom preregflag )
@@ -1252,7 +1252,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD write_log.
 
-    DATA lt_log TYPE TABLE FOR CREATE zi_atcexemption\_Log.
+    DATA lt_log TYPE TABLE FOR CREATE zr_atcexemption\_Log.
 
     GET TIME STAMP FIELD DATA(lv_now).
 
@@ -1272,7 +1272,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                                              actionby    = sy-uname
                                              actionat    = lv_now ) ) ) ).
 
-    MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         CREATE BY \_Log
         FIELDS ( seqnr actioncode fromstatus tostatus commenttext actionby actionat )
@@ -1302,7 +1302,7 @@ ENDCLASS.
 "!
 "! 기존 샘플은 같은 이유로 BGPF 를 썼지만, 우리는 백그라운드 처리가 필요 없으므로
 "! RAP 의 additional save 로 충분하다.
-CLASS lsc_zi_atcexemption DEFINITION INHERITING FROM cl_abap_behavior_saver.
+CLASS lsc_zr_atcexemption DEFINITION INHERITING FROM cl_abap_behavior_saver.
 
   PROTECTED SECTION.
     METHODS save_modified REDEFINITION.
@@ -1310,7 +1310,7 @@ CLASS lsc_zi_atcexemption DEFINITION INHERITING FROM cl_abap_behavior_saver.
 ENDCLASS.
 
 
-CLASS lsc_zi_atcexemption IMPLEMENTATION.
+CLASS lsc_zr_atcexemption IMPLEMENTATION.
 
   METHOD save_modified.
 

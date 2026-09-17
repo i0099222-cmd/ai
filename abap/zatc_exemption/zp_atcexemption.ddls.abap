@@ -1,10 +1,10 @@
 @AccessControl.authorizationCheck: #CHECK
-@EndUserText.label: 'ATC 예외 신청/승인'
+@EndUserText.label: 'ATC Exemption Request'
 @Metadata.allowExtensions: true
 @Search.searchable: true
-define root view entity ZC_AtcExemption
+define root view entity ZP_AtcExemption
   provider contract transactional_query
-  as projection on ZI_AtcExemption
+  as projection on ZR_AtcExemption
 {
   key ExemptUuid,
 
@@ -75,6 +75,6 @@ define root view entity ZC_AtcExemption
       LastChangedAt,
       LocalLastChangedAt,
 
-      _Item : redirected to composition child ZC_AtcExemptionItem,
-      _Log  : redirected to composition child ZC_AtcExemptionLog
+      _Item : redirected to composition child ZP_AtcExemptionItem,
+      _Log  : redirected to composition child ZP_AtcExemptionLog
 }

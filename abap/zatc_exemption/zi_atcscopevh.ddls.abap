@@ -1,6 +1,6 @@
 @AbapCatalog.viewEnhancementCategory: [#NONE]
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: '적용범위 값 도움 (컨트롤 테이블 기반)'
+@EndUserText.label: 'Object Scope Value Help'
 @Metadata.ignorePropagatedAnnotations: true
 @ObjectModel.usageType: {
   serviceQuality: #D,
@@ -20,7 +20,7 @@ define view entity ZI_AtcScopeVH
   key checkvariant                       as CheckVariant,
   key cast( 'FND' as abap.char( 4 ) )    as ScopeType,
       checkgroup                         as CheckGroup,
-      cast( 'Finding (건 단위)' as abap.char( 40 ) ) as ScopeTypeText
+      cast( 'Finding' as abap.char( 40 ) ) as ScopeTypeText
 }
 where activeflg = 'X' and fndactive = 'X'
 
@@ -29,7 +29,7 @@ union select from ztatccfg
   key checkvariant                       as CheckVariant,
   key cast( 'OBJ' as abap.char( 4 ) )    as ScopeType,
       checkgroup                         as CheckGroup,
-      cast( 'ABAP Object (오브젝트)' as abap.char( 40 ) ) as ScopeTypeText
+      cast( 'ABAP Object' as abap.char( 40 ) ) as ScopeTypeText
 }
 where activeflg = 'X' and objactive = 'X'
 
@@ -38,6 +38,6 @@ union select from ztatccfg
   key checkvariant                       as CheckVariant,
   key cast( 'PCKG' as abap.char( 4 ) )    as ScopeType,
       checkgroup                         as CheckGroup,
-      cast( 'Package (패키지 전체)' as abap.char( 40 ) ) as ScopeTypeText
+      cast( 'All Objects of Package' as abap.char( 40 ) ) as ScopeTypeText
 }
 where activeflg = 'X' and pkgactive = 'X'

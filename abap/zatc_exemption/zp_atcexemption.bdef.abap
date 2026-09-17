@@ -2,7 +2,7 @@ projection;
 strict ( 2 );
 use draft;
 
-define behavior for ZC_AtcExemption alias Exemption
+define behavior for ZP_AtcExemption alias Exemption
 {
   use create;
   use update;
@@ -28,7 +28,7 @@ define behavior for ZC_AtcExemption alias Exemption
   use association _Log  { with draft; }
 }
 
-define behavior for ZC_AtcExemptionItem alias ExemptionItem
+define behavior for ZP_AtcExemptionItem alias ExemptionItem
 {
   use update;
   use delete;
@@ -36,7 +36,7 @@ define behavior for ZC_AtcExemptionItem alias ExemptionItem
   use association _Exemption { with draft; }
 }
 
-define behavior for ZC_AtcExemptionLog alias ExemptionLog
+define behavior for ZP_AtcExemptionLog alias ExemptionLog
 {
   use association _Exemption { with draft; }
 }

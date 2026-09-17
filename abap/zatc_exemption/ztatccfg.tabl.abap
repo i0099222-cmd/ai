@@ -1,4 +1,4 @@
-@EndUserText.label : 'ATC 예외 관리 컨트롤 테이블'
+@EndUserText.label : 'ATC Exemption Control Table'
 @AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
 @AbapCatalog.tableCategory : #TRANSPARENT
 @AbapCatalog.deliveryClass : #C

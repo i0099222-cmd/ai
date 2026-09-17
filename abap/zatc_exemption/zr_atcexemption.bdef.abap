@@ -3,14 +3,14 @@
 // 앱은 하나이고 BO 도 하나다. 신청자와 승인자는 별도 앱이 아니라
 // 권한 + instance features 로 구분한다. 같은 신청서를 신청자는 작성하고
 // 승인자는 읽고 결재하므로 화면을 나눌 이유가 없다.
-managed implementation in class zbp_i_atcexemption unique;
+managed implementation in class zbp_r_atcexemption unique;
 strict ( 2 );
 with draft;
 // 표준 예외 생성은 DB 를 바꾸고 잠금을 잡는다. RAP 에서 그런 호출은 저장
 // 시퀀스 안에서만 해야 하므로, 액션이 아니라 additional save 에서 수행한다.
 with additional save;
 
-define behavior for ZI_AtcExemption alias Exemption
+define behavior for ZR_AtcExemption alias Exemption
 persistent table ztatcexempt
 draft table ztatcexempt_d
 lock master
@@ -137,7 +137,7 @@ etag master LocalLastChangedAt
   association _Log  { with draft; }
 }
 
-define behavior for ZI_AtcExemptionItem alias ExemptionItem
+define behavior for ZR_AtcExemptionItem alias ExemptionItem
 persistent table ztatcexempti
 draft table ztatcexempti_d
 lock dependent by _Exemption
@@ -173,7 +173,7 @@ etag master LocalLastChangedAt
 }
 
 // 이력은 시스템이 쓰고 사용자는 읽기만 한다. create/update/delete 를 열지 않는다.
-define behavior for ZI_AtcExemptionLog alias ExemptionLog
+define behavior for ZR_AtcExemptionLog alias ExemptionLog
 persistent table ztatcexemptlog
 draft table ztatcexemptlog_d
 lock dependent by _Exemption

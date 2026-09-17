@@ -1,4 +1,4 @@
-@EndUserText.label: 'finding 에서 예외 신청 생성 파라미터'
+@EndUserText.label: 'Create Exemption Request from Finding'
 // 조회 화면에서 위반 건을 선택하면 그 finding 의 자연키가 넘어온다.
 // 스냅샷 테이블이 없으므로 UUID 대신 자연키를 쓴다.
 //
@@ -7,26 +7,26 @@
 // 증빙(아이템)에 들어갈 라인 정보는 액션이 finding 을 다시 읽어 채운다.
 define abstract entity ZD_AtcCreateFromFinding
 {
-  @EndUserText.label: '체크 변형'
+  @EndUserText.label: 'Check Variant'
   CheckVariant : abap.char(30);
 
-  @EndUserText.label: '패키지'
+  @EndUserText.label: 'Package'
   Devclass   : devclass;
 
-  @EndUserText.label: '오브젝트 타입'
+  @EndUserText.label: 'Object Type'
   ObjectType : trobjtype;
 
-  @EndUserText.label: '오브젝트명'
+  @EndUserText.label: 'Object Name'
   ObjectName : sobj_name;
 
-  @EndUserText.label: '체크 ID'
+  @EndUserText.label: 'Check Class'
   CheckId    : abap.char(30);
 
-  @EndUserText.label: '메시지 ID'
+  @EndUserText.label: 'Check Message Code'
   MessageId  : abap.char(30);
 
   // 적용 범위. 선택 가능한 값은 컨트롤 테이블이 정한다.
-  @EndUserText.label: '적용범위'
+  @EndUserText.label: 'Object Scope'
   @Consumption.valueHelpDefinition: [{
     entity:            { name: 'ZI_AtcScopeVH', element: 'ScopeType' },
     additionalBinding: [{ localElement: 'CheckVariant', element: 'CheckVariant' }]

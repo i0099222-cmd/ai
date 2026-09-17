@@ -1,4 +1,4 @@
-@EndUserText.label : 'ATC 예외 신청 헤더'
+@EndUserText.label : 'ATC Exemption Request Header'
 @AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
 @AbapCatalog.tableCategory : #TRANSPARENT
 @AbapCatalog.deliveryClass : #A

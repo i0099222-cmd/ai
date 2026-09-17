@@ -5,6 +5,15 @@ RAP 애플리케이션. 설계 배경과 의사결정은 [`docs/atc-exemption-ap
 
 ---
 
+## 언어 방침
+
+시스템 언어가 EN 이므로 **사용자에게 보이는 텍스트는 전부 영어**로 둔다.
+- 오브젝트명 / 엔터티명 / 필드명 / 요소명
+- `@EndUserText.label` — 테이블, CDS 필드, UI 어노테이션, 액션 파라미터
+- 메시지 클래스 텍스트
+
+설계 의도를 적은 **소스 주석은 한국어**로 둔다. 개발자용이고 화면에 나가지 않는다.
+
 ## 설계 원칙
 
 | 원칙 | 내용 |
@@ -205,14 +214,32 @@ ATC finding 은 별도 테이블에 적재하지 않고 `SATC_API_FINDINGS` 에�
 
 ### CDS
 
-```
-ZI_AtcExemption (root)  ─ composition ─► ZI_AtcExemptionItem
-                        └ composition ─► ZI_AtcExemptionLog
-     └► ZC_AtcExemption / ZC_AtcExemptionItem / ZC_AtcExemptionLog
+트랜잭션 뷰는 **I → R → P** 3계층으로 둔다.
 
-ZI_AtcActiveExemption   승인 + 유효기간 내 예외만
-ZI_AtcFinding           SATC_API_FINDINGS(라이브) ⋈ ztatccfg(활성 변형) × 예외 → 면제 여부
-     └► ZC_AtcFinding   (읽기 전용, 키 = finding 자연키)
+```
+ztatcexempt / ztatcexempti / ztatcexemptlog
+     │
+     ▼  I  재사용 계층. 테이블을 그대로 노출, BO 구조 없음. 필드 레이블(EN)을 여기서 준다
+ZI_AtcExemption      ZI_AtcExemptionItem      ZI_AtcExemptionLog
+     │                                                 
+     ├─────────────────► ZI_AtcActiveExemption   승인 + 유효기간 내 예외만
+     │
+     ▼  R  BO 루트. composition + behavior definition
+ZR_AtcExemption ─ composition ─► ZR_AtcExemptionItem
+                └ composition ─► ZR_AtcExemptionLog
+     │
+     ▼  P  서비스 노출 + UI 어노테이션(ddlx)
+ZP_AtcExemption      ZP_AtcExemptionItem      ZP_AtcExemptionLog
+```
+
+읽기 전용 뷰는 R 계층이 필요 없어 I → P 2계층으로 둔다.
+
+```
+SATC_API_FINDINGS ⋈ ztatccfg(활성 변형) × ZI_AtcActiveExemption
+     ▼  I
+ZI_AtcFinding      면제 여부 계산
+     ▼  P
+ZP_AtcFinding      키 = finding 자연키
 
 ZI_AtcScopeVH     ztatccfg 의 허용 플래그를 union 으로 행으로 펼친 값 도움
 ZI_AtcVariantVH   활성 체크 변형 목록
@@ -220,11 +247,14 @@ ZI_AtcPackageVH   패키지 값 도움
 ZD_AtcCreateFromFinding / ZD_AtcReject / ZD_AtcExtend   액션 파라미터
 ```
 
+**필드 레이블은 I 계층에만 둔다.** R / P 는 그대로 물려받으므로 한 곳만 고치면 되고,
+P 의 ddlx 는 화면 배치(위치·중요도·facet)만 담당한다.
+
 ### 클래스
 
 | 클래스 | 역할 |
 |---|---|
-| `zbp_i_atcexemption` | behavior pool. 판정·상태전이·이력 |
+| `zbp_r_atcexemption` | behavior pool. 판정·상태전이·이력 |
 | `zcl_atc_config` | 컨트롤 테이블 조회 (세션 버퍼링). 정책값의 단일 창구 |
 | `zcl_atc_finding_reader` | ATC 표준 의존 격리. finding 조회 + 영향도 시뮬레이션 |
 | `zcl_atc_exempt_sync` | 표준 예외 저장소 반영 **(스텁 — 확인 과제 5)** |
@@ -233,7 +263,8 @@ ZD_AtcCreateFromFinding / ZD_AtcReject / ZD_AtcExtend   액션 파라미터
 
 ### 서비스
 
-`ZUI_AtcExemption` (OData V4 UI) → Fiori Elements List Report + Object Page
+`ZUI_AtcExemption` (OData V4 UI) → Fiori Elements List Report + Object Page.
+P 계층(`ZP_*`)만 노출하고 값 도움은 I 계층을 그대로 쓴다.
 
 ---
 
@@ -242,7 +273,7 @@ ZD_AtcCreateFromFinding / ZD_AtcReject / ZD_AtcExtend   액션 파라미터
 RAP 소스로 표현되지 않아 ADT/시스템에서 만들어야 하는 것들.
 
 ### 1. Draft 테이블 3개
-ADT 에서 BDEF 의 draft table 이름에 커서를 두고 quick fix 로 생성.
+ADT 에서 `ZR_AtcExemption` BDEF 의 draft table 이름에 커서를 두고 quick fix 로 생성.
 ```
 ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 ```
@@ -252,27 +283,29 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 
 ### 3. 메시지 클래스 `ZATC_EXEMPT`
 
+시스템 언어가 EN 이므로 텍스트는 영어로 등록한다.
+
 | 번호 | 텍스트 |
 |---|---|
-| 001 | 적용범위 &1 은(는) 체크그룹 &2 에서 허용되지 않습니다 |
-| 002 | 패키지 스코프에는 패키지를 지정해야 합니다 |
-| 003 | 패키지 스코프에도 출발점 오브젝트가 필요합니다 |
-| 004 | 오브젝트 스코프에는 오브젝트 타입과 이름이 필요합니다 |
-| 005 | Finding 스코프에는 finding 식별자가 필요합니다 |
-| 006 | &1 은(는) 고객 네임스페이스 패키지가 아닙니다 |
-| 007 | 패키지 &1 이(가) 존재하지 않습니다 |
-| 008 | 오브젝트 &1 이(가) 존재하지 않습니다 |
-| 009 | 체크 변형 &1 은(는) 예외 관리 대상이 아닙니다 |
-| 010 | 유효종료일은 시작일보다 뒤여야 합니다 |
-| 011 | 유효기간은 최대 &1 개월까지 허용됩니다 |
-| 012 | 사유 코드와 &1 자 이상의 근거를 입력하세요 |
-| 013 | 동일 범위의 유효한 예외가 이미 있습니다 (&1) |
-| 014 | 본인이 신청한 예외는 승인할 수 없습니다 |
-| 015 | 반려 사유를 입력하세요 |
-| 016 | 연장일은 현재 유효종료일보다 뒤여야 합니다 |
-| 017 | 대상 finding 을 찾을 수 없습니다 |
-| 018 | Priority &1 위반은 예외 대상이 아닙니다 (허용: &2 이상) |
-| 019 | 규칙 범위 &1 은(는) 허용되지 않습니다 (메시지 또는 체크만 가능) |
+| 001 | Object scope &1 is not allowed for check variant &2 |
+| 002 | Package is required for package scope |
+| 003 | Package scope also requires an origin object |
+| 004 | Object scope requires object type and object name |
+| 005 | Finding scope requires object type and object name |
+| 006 | &1 is not a customer namespace package |
+| 007 | Package &1 does not exist |
+| 008 | Object &1 does not exist |
+| 009 | Check variant &1 is not managed by this application |
+| 010 | Valid-to date must be later than valid-from date |
+| 011 | Validity period must not exceed &1 months |
+| 012 | Enter a reason code and a justification of at least &1 characters |
+| 013 | A valid exemption for the same scope already exists (&1) |
+| 014 | You cannot approve your own exemption request |
+| 015 | Enter a rejection reason |
+| 016 | New valid-to date must be later than the current one |
+| 017 | Finding not found |
+| 018 | Priority &1 findings cannot be exempted (allowed from &2) |
+| 019 | Check scope &1 is not allowed (use message or check) |
 
 ### 4. 권한 오브젝트 `Z_ATCEXEM`
 

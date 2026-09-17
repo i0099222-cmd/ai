@@ -15,6 +15,10 @@ annotate entity ZC_AtcFinding with
   @EndUserText.label: '패키지'
   Devclass;
 
+  @UI.selectionField: [{ position: 15 }]
+  @EndUserText.label: '체크 변형'
+  CheckVariant;
+
   @UI.selectionField: [{ position: 20 }]
   @EndUserText.label: '체크그룹'
   CheckGroup;

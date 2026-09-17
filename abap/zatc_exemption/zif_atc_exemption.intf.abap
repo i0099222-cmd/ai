@@ -5,7 +5,7 @@ INTERFACE zif_atc_exemption
   PUBLIC.
 
   "! 적용 범위 (ADT "Apply exemption to" 와 1:1 대응)
-  "!   fnd = Finding                  - Phase 1 비활성 (ztatccfg 로 제어)
+  "!   fnd = Finding                  - Phase 1 비활성 (ztatccfg 의 fndactive 로 제어)
   "!   obj = ABAP Object
   "!   pkg = All Objects of Package
   "! TODO 표준 도메인 고정값 확인 후 obj/pkg 실제 코드값으로 교체할 것.
@@ -64,6 +64,7 @@ INTERFACE zif_atc_exemption
   "! ATC finding 1건
   TYPES:
     BEGIN OF ty_finding,
+      checkvariant  TYPE char30,
       devclass      TYPE devclass,
       objecttype    TYPE trobjtype,
       objectname    TYPE sobj_name,
@@ -82,31 +83,31 @@ INTERFACE zif_atc_exemption
   "! finding 조회 조건
   TYPES:
     BEGIN OF ty_selection,
-      devclass    TYPE devclass,
-      inclsubpkg  TYPE abap_boolean,
-      objecttype  TYPE trobjtype,
-      objectname  TYPE sobj_name,
-      checkgroup  TYPE char10,
-      checkid     TYPE char30,
-      messageid   TYPE char30,
+      "! 공란이면 활성 변형 전체를 대상으로 한다.
+      checkvariant TYPE char30,
+      devclass     TYPE devclass,
+      inclsubpkg   TYPE abap_boolean,
+      objecttype   TYPE trobjtype,
+      objectname   TYPE sobj_name,
+      checkid      TYPE char30,
+      messageid    TYPE char30,
       "! X 이면 담당자 필터(경로 1). 공란이면 전체(경로 2, 승인자/조회용).
-      only_mine   TYPE abap_boolean,
+      only_mine    TYPE abap_boolean,
     END OF ty_selection.
 
-  "! 컨트롤 테이블 1행 (ztatccfg)
+  "! 컨트롤 테이블 1행 (ztatccfg). 키는 체크 변형이다.
   "! 승인 레벨은 여기 없다. 권한 오브젝트 Z_ATCEXEM 의 SCOPETYPE 필드가 담당한다.
   TYPES:
     BEGIN OF ty_config,
-      checkid     TYPE char30,
-      messageid   TYPE char30,
-      checkgroup  TYPE char10,
-      activeflg   TYPE abap_boolean,
-      fndactive   TYPE abap_boolean,
-      objactive   TYPE abap_boolean,
-      pkgactive   TYPE abap_boolean,
-      maxvalidmon TYPE int2,
-      reasonreq   TYPE abap_boolean,
-      maxpriority TYPE int1,
+      checkvariant TYPE char30,
+      checkgroup   TYPE char10,
+      activeflg    TYPE abap_boolean,
+      fndactive    TYPE abap_boolean,
+      objactive    TYPE abap_boolean,
+      pkgactive    TYPE abap_boolean,
+      maxvalidmon  TYPE int2,
+      reasonreq    TYPE abap_boolean,
+      maxpriority  TYPE int1,
     END OF ty_config,
     tt_config TYPE STANDARD TABLE OF ty_config WITH EMPTY KEY.
 

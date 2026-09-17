@@ -25,6 +25,7 @@ define table ztatcexempti {
   subobject      : abap.char(40);
   lineno         : abap.int4;
   findingkey     : abap.char(60);
+  checkvariant   : abap.char(30);
   checkid        : abap.char(30);
   messageid      : abap.char(30);
   priority       : abap.int1;

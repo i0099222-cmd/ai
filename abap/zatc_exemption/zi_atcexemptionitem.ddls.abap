@@ -27,6 +27,7 @@ define view entity ZI_AtcExemptionItem
       subobject      as SubObject,
       lineno         as LineNo,
       findingkey     as FindingKey,
+      checkvariant   as CheckVariant,
       checkid        as CheckId,
       messageid      as MessageId,
       priority       as Priority,

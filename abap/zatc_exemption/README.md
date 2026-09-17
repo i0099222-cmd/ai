@@ -19,10 +19,10 @@ RAP 애플리케이션. 설계 배경과 의사결정은 [`docs/atc-exemption-ap
 ```
 요건 : "네이밍 예외를 패키지/오브젝트 단위로만 등록"
 
-구현 : ztatccfg 초기 데이터
-         네이밍체크 행의  fndactive = 공란  -> 화면 목록에 안 뜨고 validation 이 거부
-                         objactive = X
-                         pkgactive = X
+구현 : ztatccfg 초기 데이터 — 키는 체크 변형이다
+         네이밍 전용 변형 1행:  fndactive = 공란  -> 드롭다운에 안 뜨고 validation 이 거부
+                               objactive = X
+                               pkgactive = X
 
 Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변경 0
 ```
@@ -38,7 +38,7 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | # | 가정 | 확인 방법 | 틀리면 |
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 생성자/변경자 필드명이 `ernam` / `aenam` | ADT 에서 ZSCM00010 열기 | `zi_atcexemption.ddls.abap`, `zi_atcexemptionitem.ddls.abap` 각 2줄 + BDEF mapping 2줄 수정 |
-| 2 | `SATC_API_FINDINGS` 필드명 (`findingkey` 포함) | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
+| 2 | `SATC_API_FINDINGS` 의 `findingkey` / `subobject` / `contactperson` / `responsible` 필드명 (`checkvariant`, `priority` 는 **확인됨**) | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
 | 3 | `SATC_API_FINDINGS` / `TDEVC` 의 API State | ADT → Properties → API State | Cloud 미릴리즈면 리더 클래스를 클래식 패키지로 분리 |
 | 4 | 적용범위 코드값 `OBJ` / `PKG` | 표준 scope 필드 → Domain → Value Range | `zif_atc_exemption` 상수 2개 + 설정 데이터 수정 |
 | 5 | **표준 예외 생성 API 존재 여부** 🔴 | 표준 Fiori 앱 "Approve ATC Exemptions" 의 OData 서비스 추적 | 없으면 `zcl_atc_exempt_sync` 구현 불가 → 조회/거버넌스 전용으로 후퇴 |
@@ -65,14 +65,24 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | `ztatcexempt` | 업무 데이터 | `A` | 예외 신청 헤더 (승인 대상) | `exemptuuid` |
 | `ztatcexempti` | 업무 데이터 | `A` | 신청 아이템 (근거 finding) | `itemuuid` |
 | `ztatcexemptlog` | 업무 데이터 | `A` | 상태 변경 이력 | `loguuid` |
-| `ztatccfg` | **컨트롤** | `C` | 앱 동작 규칙 (대상 체크 + 허용 범위) | `checkid` + `messageid` |
+| `ztatccfg` | **컨트롤** | `C` | 앱 동작 규칙 (대상 변형 + 허용 범위) | `checkvariant` |
 
-`ztatccfg` 는 업무 데이터가 아니라 **컨트롤 테이블**이다. 답하는 질문은 두 개다.
+`ztatccfg` 는 업무 데이터가 아니라 **컨트롤 테이블**이다. 답하는 질문은 네 개다.
 
 ```
-① 이 체크가 앱의 관리 대상인가?   -> activeflg                      (요건: 네이밍 건만)
-② 어떤 적용범위를 허용하는가?      -> fndactive / objactive / pkgactive (요건: 패키지/오브젝트만)
+① 이 변형의 결과가 앱 관리 대상인가?  -> activeflg                        (요건: 네이밍 건만)
+② 어떤 적용범위를 허용하는가?         -> fndactive / objactive / pkgactive  (요건: 패키지/오브젝트만)
+③ 유효기간 상한은?                   -> maxvalidmon
+④ 어느 Priority 까지 허용하는가?      -> maxpriority
 ```
+
+**체크 마스터가 아니다.** 체크의 실체(체크 클래스, 메시지 코드, 체크 제목)는 표준이
+갖고 있고 finding 에 실려 온다. 이 테이블은 그 위에 우리 정책만 얹는다.
+
+키를 **체크 변형**으로 잡은 이유: "무엇을 대상으로 볼지" 는 표준이 이미 체크 변형으로
+묶어놓았다. 체크 단위로 키를 잡으면 Phase 2 에서 수백 행을 손으로 등록해야 하고
+체크가 추가될 때마다 이 테이블을 손봐야 한다. 변형 단위면 Phase 1 은 **1행**,
+Phase 2 도 3~4행이면 끝나고 체크 추가는 변형 관리로 흡수된다.
 
 **가동 전에 초기 데이터를 넣어야 한다. 비어 있으면 모든 신청이 거부된다.**
 
@@ -87,11 +97,11 @@ ZI_AtcExemption (root)  ─ composition ─► ZI_AtcExemptionItem
      └► ZC_AtcExemption / ZC_AtcExemptionItem / ZC_AtcExemptionLog
 
 ZI_AtcActiveExemption   승인 + 유효기간 내 예외만
-ZI_AtcFinding           SATC_API_FINDINGS(라이브) × ztatccfg × 예외 → 면제 여부 계산
+ZI_AtcFinding           SATC_API_FINDINGS(라이브) ⋈ ztatccfg(활성 변형) × 예외 → 면제 여부
      └► ZC_AtcFinding   (읽기 전용, 키 = finding 자연키)
 
 ZI_AtcScopeVH     ztatccfg 의 허용 플래그를 union 으로 행으로 펼친 값 도움
-ZI_AtcCheckVH     활성 체크 목록
+ZI_AtcVariantVH   활성 체크 변형 목록
 ZI_AtcPackageVH   패키지 값 도움
 ZD_AtcCreateFromFinding / ZD_AtcReject / ZD_AtcExtend   액션 파라미터
 ```
@@ -138,7 +148,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 006 | &1 은(는) 고객 네임스페이스 패키지가 아닙니다 |
 | 007 | 패키지 &1 이(가) 존재하지 않습니다 |
 | 008 | 오브젝트 &1 이(가) 존재하지 않습니다 |
-| 009 | 체크 &1 은(는) 예외 관리 대상이 아닙니다 |
+| 009 | 체크 변형 &1 은(는) 예외 관리 대상이 아닙니다 |
 | 010 | 유효종료일은 시작일보다 뒤여야 합니다 |
 | 011 | 유효기간은 최대 &1 개월까지 허용됩니다 |
 | 012 | 사유 코드와 &1 자 이상의 근거를 입력하세요 |
@@ -147,6 +157,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 015 | 반려 사유를 입력하세요 |
 | 016 | 연장일은 현재 유효종료일보다 뒤여야 합니다 |
 | 017 | 대상 finding 을 찾을 수 없습니다 |
+| 018 | Priority &1 위반은 예외 대상이 아닙니다 (허용: &2 이상) |
 
 ### 4. 권한 오브젝트 `Z_ATCEXEM`
 
@@ -174,29 +185,32 @@ ACTVT: 01 생성 / 02 변경 / 03 조회 / 43 승인
 
 ## 컨트롤 테이블 초기 데이터 (`ztatccfg`)
 
-### Phase 1 — 네이밍
+### Phase 1 — 네이밍 전용 변형 1행
 
-| checkid | messageid | checkgroup | activeflg | fndactive | objactive | pkgactive | maxvalidmon | reasonreq | maxpriority |
-|---|---|---|---|---|---|---|---|---|---|
-| 네이밍체크 | 접두어위반 | NAMING | X | (공란) | X | X | 12 | X | 2 |
-| 네이밍체크 | 변수명위반 | NAMING | X | (공란) | X | X | 12 | X | 2 |
+| checkvariant | checkgroup | activeflg | fndactive | objactive | pkgactive | maxvalidmon | reasonreq | maxpriority |
+|---|---|---|---|---|---|---|---|---|
+| `Z_NAMING_ONLY` | NAMING | X | (공란) | X | X | 12 | X | 2 |
 
-체크 ID 와 메시지 ID 는 SCI 체크 변형 화면에서 확보해 등록한다.
-메시지 단위 행이 없으면 `messageid` 를 공란으로 둔 행이 그 체크 전체에 적용된다.
+전제: **네이밍 체크만 담은 전용 체크 변형**이 있어야 한다. 없으면 SCI 에서 하나
+만들고 그 이름을 여기 등록한다. 어떤 체크가 네이밍인지는 변형이 알고 있으므로
+우리 테이블에 체크를 열거하지 않는다.
 
 `fndactive` 가 공란이므로 화면 드롭다운에 Finding 이 나타나지 않고,
 OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 
+`maxpriority = 2` 는 Prio 1 위반을 예외 대상에서 제외한다는 뜻이다
+(Priority 는 1 이 가장 심각하다).
+
 ### Phase 2 추가 예시 — 코드 변경 없음
 
-| checkid | checkgroup | activeflg | fndactive | objactive | pkgactive | maxvalidmon |
+| checkvariant | checkgroup | activeflg | fndactive | objactive | pkgactive | maxvalidmon |
 |---|---|---|---|---|---|---|
-| 성능체크 | PERF | X | X | X | (공란) | 6 |
-| 보안체크 | SECURITY | X | X | (공란) | (공란) | 3 |
+| `Z_PERFORMANCE` | PERF | X | X | X | (공란) | 6 |
+| `Z_SECURITY` | SECURITY | X | X | (공란) | (공란) | 3 |
 
 > 성능·보안 체크는 라인별 판단이 본질이라 `FND` 를 열어야 한다.
 > 반대로 보안 체크를 `PKG` 로 열면 그 패키지의 보안 검증이 통째로 꺼진다.
-> 체크마다 허용 범위가 정반대여야 하는 이유이며, 허용 플래그를 체크 단위로 둔 이유다.
+> 체크마다 허용 범위가 정반대여야 하는 이유이며, 허용 플래그를 변형 단위로 둔 이유다.
 
 ### 승인 권한은 여기 없다
 
@@ -209,6 +223,9 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 아키텍트 역할   : SCOPETYPE = OBJ, PKG, ACTVT = 43
 보안담당 역할   : CHECKGRP  = SECURITY, ACTVT = 43
 ```
+
+`checkgroup` 을 별도로 둔 이유는 변형명이 버전과 함께 바뀔 수 있기 때문이다
+(`Z_NAMING_V1` → `V2`). 권한 역할에는 더 안정적인 분류값을 쓴다.
 
 ## 동작 요약
 
@@ -271,7 +288,8 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 ## Phase 2 (기타 ATC 체크 확장 — 확정)
 
 코드 변경 없이 되는 것:
-- `ztatccfg` 에 체크 행 추가 (허용 플래그로 `FND` 활성화 포함)
+- `ztatccfg` 에 체크 변형 행 추가 (허용 플래그로 `FND` 활성화 포함)
+- 새 체크가 늘어나도 변형에 담기면 되므로 이 테이블은 손대지 않는다
 - 권한 역할에 `CHECKGRP` 값 추가
 
 이미 선반영된 것:

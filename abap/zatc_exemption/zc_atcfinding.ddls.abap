@@ -7,6 +7,7 @@
 define view entity ZC_AtcFinding
   as projection on ZI_AtcFinding
 {
+  key CheckVariant,
   key Devclass,
   key ObjectType,
   key ObjectName,

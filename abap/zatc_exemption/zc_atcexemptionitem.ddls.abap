@@ -15,6 +15,7 @@ define view entity ZC_AtcExemptionItem
       SubObject,
       LineNo,
       FindingKey,
+      CheckVariant,
       CheckId,
       MessageId,
       Priority,

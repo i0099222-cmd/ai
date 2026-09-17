@@ -13,7 +13,11 @@ define table ztatcexempt {
   "! 사용자 표시용 신청번호 (넘버레인지)
   exemptid          : abap.char(12);
 
-  "! 체크 그룹. ztatccfg 에서 파생. 예: NAMING / PERF / SECURITY
+  "! 체크 변형. 이 신청에 어떤 정책(허용 범위, 유효기간 상한)이 적용되는지를
+  "! 결정하는 키다. finding 에서 그대로 받아 보관한다.
+  checkvariant      : abap.char(30);
+
+  "! 체크 그룹. ztatccfg 에서 파생. 권한 판정에 쓴다. 예: NAMING / PERF / SECURITY
   checkgroup        : abap.char(10);
 
   "! 적용 범위. FND / OBJ / PKG.
@@ -42,7 +46,8 @@ define table ztatcexempt {
   "! 라인 번호만으로는 코드 변경 시 매칭이 깨지므로 표준 키를 그대로 보관한다.
   findingkey        : abap.char(60);
 
-  "! 대상 체크 ID. 공란이면 체크그룹 전체.
+  "! 대상 체크 ID. 예외가 적용될 규칙이다 (정책 조회용 변형과는 별개).
+  "! 공란이면 변형에 속한 모든 체크.
   checkid           : abap.char(30);
 
   "! 대상 메시지 ID. 공란이면 체크의 모든 메시지.

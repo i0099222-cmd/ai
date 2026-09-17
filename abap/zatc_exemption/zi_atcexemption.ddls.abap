@@ -15,6 +15,10 @@ define root view entity ZI_AtcExemption
   key exemptuuid        as ExemptUuid,
 
       exemptid          as ExemptId,
+
+      // 이 신청에 어떤 정책이 적용되는지를 결정하는 키
+      checkvariant      as CheckVariant,
+      // ztatccfg 에서 파생. 권한 판정에 쓴다.
       checkgroup        as CheckGroup,
 
       // 적용 범위. FND / OBJ / PKG.

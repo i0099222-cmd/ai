@@ -39,7 +39,7 @@ etag master LocalLastChangedAt
   // FND 스코프 전용. Phase 1 에서는 채우지 않는다.
   field ( readonly ) SubObject, LineNo, FindingKey;
 
-  field ( mandatory ) ScopeType, CheckId, ValidTo;
+  field ( mandatory ) CheckVariant, ScopeType, ValidTo;
 
   create;
   update;
@@ -55,7 +55,8 @@ etag master LocalLastChangedAt
     validation validateScope;
     validation validateScopeFields;
     validation validateObject;
-    validation validateCheck;
+    validation validateVariant;
+    validation validatePriority;
     validation validateValidity;
     validation validateReason;
     validation validateOverlap;
@@ -85,13 +86,14 @@ etag master LocalLastChangedAt
     parameter ZD_AtcCreateFromFinding [1] result [1] $self;
 
   determination setInitialValues on modify { create; }
-  determination deriveCheckGroup on modify { field CheckId, MessageId; }
+  determination deriveCheckGroup on modify { field CheckVariant; }
   determination derivePackage    on modify { field ObjectType, ObjectName; }
 
-  validation validateScope       on save { field ScopeType;  create; update; }
+  validation validateScope       on save { field ScopeType, CheckVariant; create; update; }
   validation validateScopeFields on save { field ScopeType, Devclass, ObjectType, ObjectName; create; update; }
   validation validateObject      on save { field Devclass, ObjectType, ObjectName; create; update; }
-  validation validateCheck       on save { field CheckId, MessageId; create; update; }
+  validation validateVariant     on save { field CheckVariant; create; update; }
+  validation validatePriority    on save { field CheckVariant; create; update; }
   validation validateValidity    on save { field ValidFrom, ValidTo; create; update; }
   validation validateReason      on save { field ReasonCode, ReasonText; create; update; }
   validation validateOverlap     on save { create; update; }
@@ -100,6 +102,7 @@ etag master LocalLastChangedAt
   {
     ExemptUuid         = exemptuuid;
     ExemptId           = exemptid;
+    CheckVariant       = checkvariant;
     CheckGroup         = checkgroup;
     ScopeType          = scopetype;
     Devclass           = devclass;
@@ -159,6 +162,7 @@ etag master LocalLastChangedAt
     SubObject          = subobject;
     LineNo             = lineno;
     FindingKey         = findingkey;
+    CheckVariant       = checkvariant;
     CheckId            = checkid;
     MessageId          = messageid;
     Priority           = priority;

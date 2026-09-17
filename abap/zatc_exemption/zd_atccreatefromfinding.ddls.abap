@@ -7,6 +7,9 @@
 // 증빙(아이템)에 들어갈 라인 정보는 액션이 finding 을 다시 읽어 채운다.
 define abstract entity ZD_AtcCreateFromFinding
 {
+  @EndUserText.label: '체크 변형'
+  CheckVariant : abap.char(30);
+
   @EndUserText.label: '패키지'
   Devclass   : devclass;
 
@@ -26,7 +29,7 @@ define abstract entity ZD_AtcCreateFromFinding
   @EndUserText.label: '적용범위'
   @Consumption.valueHelpDefinition: [{
     entity:            { name: 'ZI_AtcScopeVH', element: 'ScopeType' },
-    additionalBinding: [{ localElement: 'CheckId', element: 'CheckId' }]
+    additionalBinding: [{ localElement: 'CheckVariant', element: 'CheckVariant' }]
   }]
   ScopeType  : abap.char(3);
 }

@@ -4,6 +4,9 @@
 "! 필드명이나 릴리즈 상태가 바뀌어도 수정 지점은 여기뿐이다. 다른 클래스나
 "! behavior pool 은 SATC_* 를 직접 SELECT 하지 않는다.
 "!
+"! 대상 범위는 컨트롤 테이블의 활성 체크 변형이 정한다. 체크 ID 를 코드에
+"! 열거하지 않는다.
+"!
 "! 읽기 경로는 두 개다.
 "!   경로 1 (개발자)      : only_mine = X  -> contactperson/responsible = sy-uname
 "!   경로 2 (승인자/조회) : only_mine 공란 -> 담당자 필터 없음. 호출자가 권한을 검증한다.
@@ -26,7 +29,8 @@ CLASS zcl_atc_finding_reader DEFINITION
     "! 패키지 스코프 승인 전에 승인자에게 보여주는 영향도의 근거이며,
     "! 신청 시 근거 텍스트에 자동 기입하는 데에도 쓴다.
     METHODS simulate_impact
-      IMPORTING iv_scopetype      TYPE char3
+      IMPORTING iv_checkvariant   TYPE char30
+                iv_scopetype      TYPE char3
                 iv_devclass       TYPE devclass
                 iv_inclsubpkg     TYPE abap_boolean DEFAULT abap_false
                 iv_objecttype     TYPE trobjtype OPTIONAL
@@ -61,8 +65,26 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
     DATA(lt_devclass) = expand_packages( iv_devclass   = is_selection-devclass
                                          iv_inclsubpkg = is_selection-inclsubpkg ).
 
+    " 대상 변형은 컨트롤 테이블이 정한다. 체크 ID 를 코드에 박지 않는 이유가
+    " 이것이다 - 무엇을 볼지는 표준의 체크 변형이, 그 변형을 쓸지는 설정이 정한다.
+    DATA lt_variant TYPE RANGE OF char30.
+
+    IF is_selection-checkvariant IS NOT INITIAL.
+      lt_variant = VALUE #( ( sign = 'I' option = 'EQ'
+                              low  = is_selection-checkvariant ) ).
+    ELSE.
+      lt_variant = VALUE #( FOR ls_cfg IN zcl_atc_config=>get( )->get_active_variants( )
+                            ( sign = 'I' option = 'EQ' low = ls_cfg-checkvariant ) ).
+    ENDIF.
+
+    " 활성 변형이 하나도 없으면 대상이 없다는 뜻이다. 조건 없이 전체를 읽지 않는다.
+    IF lt_variant IS INITIAL.
+      RETURN.
+    ENDIF.
+
     SELECT FROM satc_api_findings
-      FIELDS devclass,
+      FIELDS checkvariant,
+             devclass,
              objecttype,
              objectname,
              subobject,
@@ -74,7 +96,8 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
              msgtext,
              contactperson,
              responsible
-      WHERE ( devclass   IN @lt_devclass      OR @lt_devclass IS INITIAL )
+      WHERE checkvariant IN @lt_variant
+        AND ( devclass   IN @lt_devclass      OR @lt_devclass IS INITIAL )
         AND ( objecttype  = @is_selection-objecttype OR @is_selection-objecttype IS INITIAL )
         AND ( objectname  = @is_selection-objectname OR @is_selection-objectname IS INITIAL )
         AND ( checkid     = @is_selection-checkid    OR @is_selection-checkid    IS INITIAL )
@@ -94,9 +117,10 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
     DATA ls_selection TYPE zif_atc_exemption=>ty_selection.
 
     " 영향도는 담당자와 무관하게 범위 전체를 봐야 하므로 항상 경로 2 로 읽는다.
-    ls_selection = VALUE #( checkid   = iv_checkid
-                            messageid = iv_messageid
-                            only_mine = abap_false ).
+    ls_selection = VALUE #( checkvariant = iv_checkvariant
+                            checkid      = iv_checkid
+                            messageid    = iv_messageid
+                            only_mine    = abap_false ).
 
     CASE iv_scopetype.
 

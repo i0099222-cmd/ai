@@ -11,6 +11,11 @@ define root view entity ZC_AtcExemption
       @Search.defaultSearchElement: true
       ExemptId,
 
+      @Consumption.valueHelpDefinition: [{
+        entity: { name: 'ZI_AtcVariantVH', element: 'CheckVariant' }
+      }]
+      CheckVariant,
+
       // 컨트롤 테이블에서 파생되는 값이라 사용자가 고르지 않는다.
       CheckGroup,
 
@@ -18,7 +23,7 @@ define root view entity ZC_AtcExemption
       // 컨트롤 테이블(ztatccfg)의 fndactive/objactive/pkgactive 가 정한다.
       @Consumption.valueHelpDefinition: [{
         entity:            { name: 'ZI_AtcScopeVH', element: 'ScopeType' },
-        additionalBinding: [{ localElement: 'CheckId', element: 'CheckId' }]
+        additionalBinding: [{ localElement: 'CheckVariant', element: 'CheckVariant' }]
       }]
       ScopeType,
 
@@ -42,15 +47,9 @@ define root view entity ZC_AtcExemption
       LineNo,
       FindingKey,
 
-      @Consumption.valueHelpDefinition: [{
-        entity: { name: 'ZI_AtcCheckVH', element: 'CheckId' }
-      }]
+      // 체크 ID / 메시지 ID 는 finding 에서 프리필된다. 체크의 마스터는 표준이
+      // 갖고 있으므로 우리 쪽 값 도움을 만들지 않는다.
       CheckId,
-
-      @Consumption.valueHelpDefinition: [{
-        entity:            { name: 'ZI_AtcCheckVH', element: 'MessageId' },
-        additionalBinding: [{ localElement: 'CheckId', element: 'CheckId' }]
-      }]
       MessageId,
 
       RuleScope,

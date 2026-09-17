@@ -52,8 +52,11 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS validateobject FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validateobject.
 
-    METHODS validatecheck FOR VALIDATE ON SAVE
-      IMPORTING keys FOR exemption~validatecheck.
+    METHODS validatevariant FOR VALIDATE ON SAVE
+      IMPORTING keys FOR exemption~validatevariant.
+
+    METHODS validatepriority FOR VALIDATE ON SAVE
+      IMPORTING keys FOR exemption~validatepriority.
 
     METHODS validatevalidity FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatevalidity.
@@ -339,7 +342,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkid messageid )
+        FIELDS ( checkvariant )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -347,11 +350,10 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
-      " 체크그룹은 사용자가 고르는 값이 아니라 체크 마스터에서 파생된다.
+      " 체크그룹은 사용자가 고르는 값이 아니라 변형 정책에서 파생된다.
       APPEND VALUE #( %tky       = ls_exemption-%tky
                       checkgroup = zcl_atc_config=>get( )->get_config(
-                                     iv_checkid   = ls_exemption-checkid
-                                     iv_messageid = ls_exemption-messageid )-checkgroup )
+                                     ls_exemption-checkvariant )-checkgroup )
              TO lt_update.
 
     ENDLOOP.
@@ -406,19 +408,18 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkgroup checkid messageid scopetype )
+        FIELDS ( checkvariant scopetype )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
       " 요건 "패키지/오브젝트 단위로만 등록" 이 강제되는 지점.
-      " 값을 코드로 비교하지 않고 컨트롤 테이블을 조회한다. Phase 1 네이밍은
+      " 값을 코드로 비교하지 않고 컨트롤 테이블을 조회한다. Phase 1 네이밍 변형은
       " fndactive 가 공란이라 FND 가 거부되고, Phase 2 에서 설정 행만 바꾸면 열린다.
       IF zcl_atc_config=>get( )->is_scope_allowed(
-           iv_checkid   = ls_exemption-checkid
-           iv_messageid = ls_exemption-messageid
-           iv_scopetype = ls_exemption-scopetype ) = abap_true.
+           iv_checkvariant = ls_exemption-checkvariant
+           iv_scopetype    = ls_exemption-scopetype ) = abap_true.
         CONTINUE.
       ENDIF.
 
@@ -428,7 +429,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                       %element-scopetype   = if_abap_behv=>mk-on
                       %msg = new_error( iv_number = '001'
                                         iv_v1     = ls_exemption-scopetype
-                                        iv_v2     = ls_exemption-checkgroup ) )
+                                        iv_v2     = ls_exemption-checkvariant ) )
              TO reported-exemption.
 
     ENDLOOP.
@@ -556,31 +557,73 @@ CLASS lhc_exemption IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD validatecheck.
+  METHOD validatevariant.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkid messageid )
+        FIELDS ( checkvariant )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
-      " 앱이 취급 대상으로 등록한 체크만 허용한다. Phase 1 은 NAMING 만 활성이므로
-      " 요건 "네이밍 건만" 이 코드 수정 없이 지켜진다.
-      IF zcl_atc_config=>get( )->is_check_active(
-           iv_checkid   = ls_exemption-checkid
-           iv_messageid = ls_exemption-messageid ) = abap_true.
+      " 컨트롤 테이블에 활성으로 등록된 체크 변형만 허용한다. Phase 1 은 네이밍
+      " 변형만 활성이므로 요건 "네이밍 건만" 이 코드 수정 없이 지켜진다.
+      IF zcl_atc_config=>get( )->is_variant_active( ls_exemption-checkvariant ) = abap_true.
         CONTINUE.
       ENDIF.
 
       APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
-      APPEND VALUE #( %tky             = ls_exemption-%tky
-                      %state_area      = 'VALIDATE_CHECK'
-                      %element-checkid = if_abap_behv=>mk-on
+      APPEND VALUE #( %tky                  = ls_exemption-%tky
+                      %state_area           = 'VALIDATE_VARIANT'
+                      %element-checkvariant = if_abap_behv=>mk-on
                       %msg = new_error( iv_number = '009'
-                                        iv_v1     = ls_exemption-checkid ) )
+                                        iv_v1     = ls_exemption-checkvariant ) )
              TO reported-exemption.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD validatepriority.
+
+    READ ENTITIES OF zi_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        FIELDS ( checkvariant )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_exemption)
+      ENTITY exemption BY \_Item
+        FIELDS ( priority )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_item).
+
+    LOOP AT lt_exemption INTO DATA(ls_exemption).
+
+      " 심각도가 높은 위반은 예외로 덮지 못하게 막는다.
+      " Priority 는 1 이 가장 심각하므로, 허용 상한보다 작은 값이면 거부한다.
+      DATA(lv_max) = zcl_atc_config=>get( )->get_config(
+                       ls_exemption-checkvariant )-maxpriority.
+
+      IF lv_max <= 0.
+        CONTINUE.
+      ENDIF.
+
+      LOOP AT lt_item INTO DATA(ls_item)
+           WHERE exemptuuid = ls_exemption-exemptuuid
+             AND priority   > 0
+             AND priority   < lv_max.
+
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky        = ls_exemption-%tky
+                        %state_area = 'VALIDATE_PRIORITY'
+                        %msg = new_error( iv_number = '018'
+                                          iv_v1     = ls_item-priority
+                                          iv_v2     = lv_max ) )
+               TO reported-exemption.
+        EXIT.
+
+      ENDLOOP.
 
     ENDLOOP.
 
@@ -591,7 +634,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkid messageid validfrom validto )
+        FIELDS ( checkvariant validfrom validto )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -612,9 +655,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       " 상한은 컨트롤 테이블의 체크별 설정값이다. 보안 체크는 3개월, 네이밍은
       " 12개월처럼 다르게 둘 수 있다. 0 이면 제한 없음.
-      DATA(ls_config) = zcl_atc_config=>get( )->get_config(
-                          iv_checkid   = ls_exemption-checkid
-                          iv_messageid = ls_exemption-messageid ).
+      DATA(ls_config) = zcl_atc_config=>get( )->get_config( ls_exemption-checkvariant ).
 
       IF ls_config-maxvalidmon <= 0.
         CONTINUE.
@@ -644,15 +685,14 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkid messageid reasoncode reasontext )
+        FIELDS ( checkvariant reasoncode reasontext )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
       IF zcl_atc_config=>get( )->get_config(
-           iv_checkid   = ls_exemption-checkid
-           iv_messageid = ls_exemption-messageid )-reasonreq <> abap_true.
+           ls_exemption-checkvariant )-reasonreq <> abap_true.
         CONTINUE.
       ENDIF.
 
@@ -738,6 +778,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 그래서 상신 시점에 영향 건수를 계산해 근거 텍스트에 붙여 둔다.
       " 어느 화면에서 결재하든 승인자가 파급 효과를 읽을 수 있게 하는 장치다.
       DATA(lt_impact) = lo_reader->simulate_impact(
+                          iv_checkvariant = ls_exemption-checkvariant
                           iv_scopetype  = ls_exemption-scopetype
                           iv_devclass   = ls_exemption-devclass
                           iv_inclsubpkg = ls_exemption-inclsubpkg
@@ -1092,6 +1133,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 패키지 단위 승인의 유일한 안전장치. 이게 없으면 승인자는 자기가
       " 무엇을 승인하는지 모른 채 패키지 전체의 규칙을 해제하게 된다.
       DATA(lt_impact) = lo_reader->simulate_impact(
+                          iv_checkvariant = ls_exemption-checkvariant
                           iv_scopetype  = ls_exemption-scopetype
                           iv_devclass   = ls_exemption-devclass
                           iv_inclsubpkg = ls_exemption-inclsubpkg
@@ -1136,12 +1178,13 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 여기서 채우는 이유는, 신청서 헤더에 라인을 올리지 않는다는 원칙을
       " 호출자 쪽에서도 지키게 하려는 것이다.
       DATA(lt_finding) = lo_reader->select( VALUE #(
-                           devclass   = ls_param-devclass
-                           objecttype = ls_param-objecttype
-                           objectname = ls_param-objectname
-                           checkid    = ls_param-checkid
-                           messageid  = ls_param-messageid
-                           only_mine  = abap_false ) ).
+                           checkvariant = ls_param-checkvariant
+                           devclass     = ls_param-devclass
+                           objecttype   = ls_param-objecttype
+                           objectname   = ls_param-objectname
+                           checkid      = ls_param-checkid
+                           messageid    = ls_param-messageid
+                           only_mine    = abap_false ) ).
 
       IF lt_finding IS INITIAL.
         APPEND VALUE #( %cid = ls_key-%cid ) TO failed-exemption.
@@ -1151,7 +1194,8 @@ CLASS lhc_exemption IMPLEMENTATION.
       ENDIF.
 
       APPEND VALUE #(
-        %cid       = ls_key-%cid
+        %cid         = ls_key-%cid
+        checkvariant = ls_param-checkvariant
         scopetype  = lv_scope
         devclass   = ls_param-devclass
         " 패키지 스코프면 오브젝트를 비운다. 그래야 효력 범위가 패키지 전체임이
@@ -1175,8 +1219,9 @@ CLASS lhc_exemption IMPLEMENTATION.
       DATA(lv_itemno) = 0.
       LOOP AT lt_finding INTO DATA(ls_finding).
         lv_itemno = lv_itemno + 1.
-        APPEND VALUE #( %cid        = |{ ls_key-%cid }_I{ lv_itemno }|
+        APPEND VALUE #( %cid         = |{ ls_key-%cid }_I{ lv_itemno }|
                         itemno      = lv_itemno
+                        checkvariant = ls_finding-checkvariant
                         devclass    = ls_finding-devclass
                         objecttype  = ls_finding-objecttype
                         objectname  = ls_finding-objectname
@@ -1196,12 +1241,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zi_atcexemption IN LOCAL MODE
       ENTITY exemption
-        CREATE FIELDS ( scopetype devclass objecttype objectname
+        CREATE FIELDS ( checkvariant scopetype devclass objecttype objectname
                         checkid messageid rulescope validfrom preregflag )
         WITH lt_create
       ENTITY exemption
         CREATE BY \_Item
-        FIELDS ( itemno devclass objecttype objectname subobject lineno
+        FIELDS ( itemno checkvariant devclass objecttype objectname subobject lineno
                  findingkey checkid messageid priority messagetext )
         WITH lt_item
       MAPPED DATA(lt_mapped)

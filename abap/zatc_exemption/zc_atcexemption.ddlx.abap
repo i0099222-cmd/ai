@@ -35,6 +35,13 @@ annotate entity ZC_AtcExemption with
   ExemptId;
 
   @UI: {
+    identification: [{ position: 15 }],
+    selectionField: [{ position: 15 }]
+  }
+  @EndUserText.label: '체크 변형'
+  CheckVariant;
+
+  @UI: {
     lineItem:       [{ position: 20, importance: #HIGH }],
     identification: [{ position: 20 }],
     selectionField: [{ position: 20 }]

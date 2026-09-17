@@ -11,8 +11,10 @@
 // 스냅샷 테이블을 두지 않는다 - 추세 리포팅이 요건에 없으므로 중간 적재 계층과
 // 배치, 보관 정책을 만들 이유가 없다.
 //
-// TODO 확인 필요: SATC_API_FINDINGS 의 실제 필드명과 API State.
-//   아래 필드명은 가정이다. zcl_atc_finding_reader 의 SELECT 와 같은 가정을 쓴다.
+// TODO 확인 필요: SATC_API_FINDINGS 의 나머지 필드명과 API State.
+//   checkvariant / priority 는 존재가 확인되었다. findingkey / subobject /
+//   contactperson / responsible 은 아직 가정이며, zcl_atc_finding_reader 의
+//   SELECT 와 같은 가정을 쓴다.
 //
 // 면제 판정에 소스 라인이 들어가지 않는 것이 요건의 기술적 실체다.
 // 그래서 코드를 수정해 라인이 밀려도 OBJ/PKG 예외는 그대로 유지된다.
@@ -23,12 +25,12 @@
 define view entity ZI_AtcFinding
   as select from satc_api_findings as Finding
 
-  // 컨트롤 테이블에 활성으로 등록된 체크만 앱의 대상이다.
-  // inner join 이므로 요건 "네이밍 건만" 이 여기서 한 번 더 걸러진다.
+  // 컨트롤 테이블에 활성으로 등록된 체크 변형의 결과만 앱의 대상이다.
+  // inner join 이라 요건 "네이밍 건만" 이 여기서 걸러지며, 체크 ID 를 뷰에
+  // 하드코딩하지 않아도 된다. 무엇이 네이밍 체크인지는 표준의 변형이 안다.
   inner join ztatccfg as Cfg
-    on  Cfg.checkid   = Finding.checkid
-    and Cfg.activeflg = 'X'
-    and ( Cfg.messageid = Finding.messageid or Cfg.messageid = '' )
+    on  Cfg.checkvariant = Finding.checkvariant
+    and Cfg.activeflg    = 'X'
 
   left outer join ZI_AtcActiveExemption as PkgExempt
     on  PkgExempt.ScopeType  = 'PKG'
@@ -46,6 +48,7 @@ define view entity ZI_AtcFinding
 
 {
   // 스냅샷 테이블이 없으므로 finding 의 자연키가 그대로 엔터티 키가 된다.
+  key Finding.checkvariant  as CheckVariant,
   key Finding.devclass      as Devclass,
   key Finding.objecttype    as ObjectType,
   key Finding.objectname    as ObjectName,

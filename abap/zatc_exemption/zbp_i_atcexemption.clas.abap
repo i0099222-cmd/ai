@@ -447,7 +447,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       CASE ls_exemption-scopetype.
 
-        WHEN zif_atc_exemption=>scope-pkg.
+        WHEN zif_atc_exemption=>scope-pckg.
           " 패키지 스코프에 오브젝트가 들어 있으면 의도가 모호해진다.
           IF ls_exemption-devclass IS INITIAL.
             lv_error = '002'.
@@ -786,7 +786,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                   |{ ls_exemption-objecttype } { ls_exemption-objectname }\n| &&
                   |[자동] 신청 시점 면제 대상: { lines( lt_impact ) }건\n|.
 
-      IF ls_exemption-scopetype = zif_atc_exemption=>scope-pkg.
+      IF ls_exemption-scopetype = zif_atc_exemption=>scope-pckg.
         lv_reason = |{ lv_reason }[자동] 주의: 이 패키지에 향후 생성되는 | &&
                     |오브젝트도 자동 면제됩니다.\n|.
       ENDIF.
@@ -1119,7 +1119,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       DATA(lv_text) = |이 예외 승인 시 면제되는 현재 위반: { lines( lt_impact ) }건|.
 
-      IF ls_exemption-scopetype = zif_atc_exemption=>scope-pkg.
+      IF ls_exemption-scopetype = zif_atc_exemption=>scope-pckg.
         lv_text = |{ lv_text } (이 패키지에 향후 생성되는 오브젝트도 자동 면제됩니다)|.
       ENDIF.
 
@@ -1175,9 +1175,9 @@ CLASS lhc_exemption IMPLEMENTATION.
         devclass   = ls_param-devclass
         " 패키지 스코프면 오브젝트를 비운다. 그래야 효력 범위가 패키지 전체임이
         " 데이터에서도 분명해진다.
-        objecttype = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pkg
+        objecttype = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
                              THEN space ELSE ls_param-objecttype )
-        objectname = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pkg
+        objectname = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
                              THEN space ELSE ls_param-objectname )
         checkid    = ls_param-checkid
         messageid  = ls_param-messageid

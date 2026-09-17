@@ -31,5 +31,5 @@ define abstract entity ZD_AtcCreateFromFinding
     entity:            { name: 'ZI_AtcScopeVH', element: 'ScopeType' },
     additionalBinding: [{ localElement: 'CheckVariant', element: 'CheckVariant' }]
   }]
-  ScopeType  : abap.char(3);
+  ScopeType  : abap.char(4);
 }

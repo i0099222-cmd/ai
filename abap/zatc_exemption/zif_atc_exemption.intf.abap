@@ -4,16 +4,16 @@
 INTERFACE zif_atc_exemption
   PUBLIC.
 
-  "! 적용 범위 (ADT "Apply exemption to" 와 1:1 대응)
-  "!   fnd = Finding                  - Phase 1 비활성 (ztatccfg 의 fndactive 로 제어)
-  "!   obj = ABAP Object
-  "!   pkg = All Objects of Package
-  "! TODO 표준 도메인 고정값 확인 후 obj/pkg 실제 코드값으로 교체할 것.
+  "! 적용 범위 (ADT "Apply exemption to" 와 1:1 대응). 표준 도메인 값 확인 완료.
+  "!   fnd  = Finding                 - Phase 1 비활성 (ztatccfg 의 fndactive 로 제어)
+  "!   obj  = ABAP Object
+  "!   pckg = All Objects of Package
+  "! 표준 도메인 고정값과 일치해야 한다. 'PCKG' 가 4자이므로 필드 길이는 char4 다.
   CONSTANTS:
     BEGIN OF scope,
-      fnd TYPE char3 VALUE 'FND',
-      obj TYPE char3 VALUE 'OBJ',
-      pkg TYPE char3 VALUE 'PKG',
+      fnd  TYPE char4 VALUE 'FND',
+      obj  TYPE char4 VALUE 'OBJ',
+      pckg TYPE char4 VALUE 'PCKG',
     END OF scope.
 
   "! 규칙 적용 축

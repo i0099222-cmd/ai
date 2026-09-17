@@ -3,21 +3,16 @@
 "! 설계 전제: 관리는 CBO, 실행은 표준.
 "!   - 신청/승인/이력/권한은 CBO 테이블이 원천이다 (감사 대응, 자사 통제).
 "!   - 억제 자체는 표준 메커니즘이 한다. 커스텀 체크 클래스는 만들지 않는다.
-"!     표준 네이밍 체크를 대체하면 표준 개선/노트 수혜를 잃고 유지보수 책임만 넘어온다.
 "!
-"! TODO 확인 필요 (착수 전 최우선): 표준 예외 생성 API 존재 여부.
-"!   찾는 방법
-"!     1) 표준 Fiori 앱 "Approve ATC Exemptions" 의 OData 서비스를 추적한다.
-"!        /IWFND/MAINT_SERVICE 에서 서비스명을 찾고, ADT 에서 구현 클래스를 연다.
-"!        승인/반려 시 호출하는 클래스·메소드가 곧 여기서 호출할 API 다.
-"!     2) ADT 에서 SATC_API* / CL_SATC_*API* / SATC*EXEMPT* 를 검색한다.
-"!   결과에 따른 분기
-"!     있음 -> 아래 create_exemption / revoke_exemption 을 그 API 로 구현한다.
-"!     없음 -> 표준 반영을 포기하고 조회/거버넌스 전용으로 후퇴한다.
-"!             (커스텀 체크 클래스로 우회하지 않는다 - 설계 원칙 위반)
+"! 표준 진입점: CL_SATC_API=>CREATE_API_FACTORY( )->GET_EXEMPTION_CONTROLLER( )
+"!   표준 Fiori 앱 "Approve ATC Exemptions" 도 결국 이 경로로 예외의 state 와
+"!   approver 를 바꾼다 (SATC_CI_R_EXEMPTION).
 "!
-"! API 가 확인되기 전까지 이 클래스는 "미구현" 을 돌려준다. 그래도 승인 자체는
-"! 정상 동작하며 CBO 대장에는 기록이 남는다. 표준 반영만 보류될 뿐이다.
+"! 반영 시점을 "승인 시" 로 잡은 이유:
+"!   상신 시점에 표준 예외를 만들면 그 예외가 표준 승인 대기 상태로 남는다.
+"!   그러면 표준 Fiori 승인 앱에서 누군가 먼저 승인해 버릴 수 있고, CBO 대장을
+"!   거치지 않은 결재가 생긴다. 승인이 끝난 뒤에 승인 상태로 만들어 넣으면
+"!   표준 저장소에는 이미 결정된 예외만 존재하고, 결재 창구는 이 앱 하나로 남는다.
 CLASS zcl_atc_exempt_sync DEFINITION
   PUBLIC
   FINAL
@@ -50,24 +45,61 @@ CLASS zcl_atc_exempt_sync DEFINITION
     METHODS sync_from_standard
       RETURNING VALUE(rv_synced) TYPE i.
 
+  PRIVATE SECTION.
+
+    "! 표준 예외 컨트롤러. 최초 호출 시 한 번만 만든다.
+    METHODS get_controller
+      RETURNING VALUE(ro_controller) TYPE REF TO object.
+
+    DATA mo_controller TYPE REF TO object.
+
 ENDCLASS.
 
 
 CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
+  METHOD get_controller.
+
+    IF mo_controller IS NOT BOUND.
+      " TODO 반환 타입을 실제 인터페이스로 바꿀 것.
+      "   ADT 에서 GET_EXEMPTION_CONTROLLER( ) 의 RETURNING 타입을 확인해
+      "   REF TO object 대신 그 인터페이스로 선언하면 코드 완성과 구문 점검을
+      "   받을 수 있다. 지금은 메소드 시그니처를 모르는 상태라 느슨하게 둔다.
+      mo_controller = cl_satc_api=>create_api_factory( )->get_exemption_controller( ).
+    ENDIF.
+
+    ro_controller = mo_controller.
+
+  ENDMETHOD.
+
+
   METHOD create_exemption.
 
-    " TODO 표준 예외 생성 API 확인 후 구현.
-    "   전달해야 할 값: scopetype, devclass, objecttype, objectname,
-    "                   checkid, messageid, rulescope, reasoncode, reasontext,
-    "                   validfrom, validto
-    "   FND 스코프까지 열리면 finding 식별자(resultid/itemid)도 함께 넘겨야 한다.
-    "   돌려받은 예외 ID 를 ztatcexempt-extexemptid 에 저장해야 철회/연장 시
-    "   표준 쪽 레코드를 다시 찾을 수 있다.
+    " TODO 컨트롤러의 메소드 시그니처 확인 후 실제 호출로 교체.
+    "   확인 방법: ADT 에서 위 get_controller 의 반환 타입을 열고 메소드 목록을 본다.
+    "              (또는 표준 Fiori 승인 앱의 구현 클래스가 어떤 메소드를 쓰는지 본다)
+    "
+    "   넘겨야 할 값
+    "     적용범위   is_exemption-scopetype   FND / OBJ / PCKG
+    "     대상       is_exemption-devclass / objecttype / objectname
+    "     규칙       is_exemption-checkid / messageid / rulescope
+    "     사유       is_exemption-reasoncode / reasontext
+    "     유효기간   is_exemption-validfrom / validto
+    "     상태       승인 상태로 바로 생성한다 (위 클래스 주석의 이유)
+    "     승인자     is_exemption-approver
+    "
+    "   FND 스코프까지 열리면 finding 식별자도 함께 넘겨야 한다. 다만 지금 가진
+    "   resultid / itemid / checkrunindex 는 ATC 실행 단위라 런마다 바뀌므로,
+    "   FND 를 열기 전에 영구 식별자를 먼저 확보해야 한다.
+    "
+    "   돌려받은 예외 ID 를 rs_result-extexemptid 에 담아야 한다. 이 값이 없으면
+    "   나중에 철회/연장할 때 표준 쪽 레코드를 다시 찾을 수 없다.
+
+    DATA(lo_controller) = get_controller( ).
 
     rs_result = VALUE #(
       success = abap_false
-      message = |표준 예외 반영 보류: 예외 생성 API 미확인. | &&
+      message = |표준 예외 반영 보류: 예외 컨트롤러 메소드 미구현. | &&
                 |CBO 대장에는 승인 기록이 저장되었습니다.| ).
 
   ENDMETHOD.
@@ -75,18 +107,22 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
   METHOD revoke_exemption.
 
-    " TODO create_exemption 과 동일한 API 확인 후 구현.
+    " TODO create_exemption 과 같은 컨트롤러로 구현.
+    "   표준 쪽 예외도 함께 무효화해야 한다. CBO 만 철회하면 대장은 철회인데
+    "   실제로는 계속 면제되는 상태가 된다.
+
+    DATA(lo_controller) = get_controller( ).
 
     rs_result = VALUE #(
       success = abap_false
-      message = |표준 예외 무효화 보류: 예외 무효화 API 미확인.| ).
+      message = |표준 예외 무효화 보류: 예외 컨트롤러 메소드 미구현.| ).
 
   ENDMETHOD.
 
 
   METHOD sync_from_standard.
 
-    " TODO 표준 예외 조회 경로 확인 후 구현.
+    " TODO 구현. 읽기는 SATC_CI_R_EXEMPTION 뷰로 가능하다.
     "   1) 표준 저장소에서 예외 목록을 읽는다.
     "   2) ztatcexempt-extexemptid 에 없는 건을 CBO 대장에 등록한다
     "      (출처를 구분할 수 있게 이력에 SYNC 로 남긴다).

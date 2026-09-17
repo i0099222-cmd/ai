@@ -30,7 +30,7 @@ CLASS zcl_atc_finding_reader DEFINITION
     "! 신청 시 근거 텍스트에 자동 기입하는 데에도 쓴다.
     METHODS simulate_impact
       IMPORTING iv_checkvariant   TYPE char30
-                iv_scopetype      TYPE char3
+                iv_scopetype      TYPE char4
                 iv_devclass       TYPE devclass
                 iv_inclsubpkg     TYPE abap_boolean DEFAULT abap_false
                 iv_objecttype     TYPE trobjtype OPTIONAL
@@ -126,7 +126,7 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
 
     CASE iv_scopetype.
 
-      WHEN zif_atc_exemption=>scope-pkg.
+      WHEN zif_atc_exemption=>scope-pckg.
         " 패키지 전체. 여기서 나오는 건수가 곧 "신청서에 없던 건까지 몇 개 풀리는가" 다.
         ls_selection-devclass   = iv_devclass.
         ls_selection-inclsubpkg = iv_inclsubpkg.

@@ -22,7 +22,7 @@ define table ztatcexempt {
 
   "! 적용 범위. FND / OBJ / PKG.
   "! 허용 여부는 ztatccfg 컨트롤 테이블로 판정한다 (하드코딩 금지).
-  scopetype         : abap.char(3);
+  scopetype         : abap.char(4);
 
   "! 대상 패키지. OBJ/FND 스코프에서는 TADIR 에서 파생된다.
   devclass          : devclass;

@@ -35,12 +35,19 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 
 시스템 접근 없이 작성했으므로 아래는 **가정**이다. 활성화 전에 반드시 확인할 것.
 
-### 확인된 것
+### 확인 완료
 
-| 오브젝트 | 확인된 내용 |
-|---|---|
-| `ZSCM00010` | `createdby` / `createdat` 등 |
-| `SATC_API_FINDINGS` | 키 = `resultid` + `itemid` + `checkrunindex`. `checkvariant` / `priority` / `contactperson` / `responsible` 존재. **`subobject` 없음** |
+| 항목 | 결과 | 설계에 반영된 것 |
+|---|---|---|
+| `ZSCM00010` | `createdby` / `createdat` 등 | 같은 이름의 자체 컬럼 제거 (충돌이었음). include 가 감사 필드를 제공하고 managed 런타임이 채운다 |
+| `SATC_API_FINDINGS` 키 | `resultid` + `itemid` + `checkrunindex` | 가정했던 `findingkey` 대체. `subobject` 는 없어서 제거 |
+| `SATC_API_FINDINGS` 기타 | `checkvariant` / `priority` / `contactperson` / `responsible` 존재 | 컨트롤 테이블을 변형 기준으로, `maxpriority` 검증 추가 |
+| **API State** | **릴리즈됨** | RAP 앱 전체를 **ABAP Cloud(Tier 1)** 로 간다. 클래식 패키지 분리 불필요 |
+| **적용범위 코드값** | `FND` / `OBJ` / **`PCKG`** | 가정했던 `PKG` 가 틀렸다. 값과 함께 **필드 길이도 `char(4)`** 로 수정 |
+| **표준 예외 API** | `CL_SATC_API=>CREATE_API_FACTORY( )->GET_EXEMPTION_CONTROLLER( )` | **Option B 확정.** 커스텀 체크 클래스(Option C) 폐기 |
+
+표준 승인 로직은 결국 `SATC_CI_R_EXEMPTION` 의 `state` / `approver` 를 바꾸는 것이고,
+그 경로가 위 컨트롤러다. 우리 앱도 같은 경로를 쓴다.
 
 ### 남은 가정
 
@@ -48,79 +55,22 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
 | 2 | `SATC_API_FINDINGS` 의 `devclass` / `objecttype` / `objectname` / `lineno` / `checkid` / `messageid` / `msgtext` 필드명 | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
-| 3 | `SATC_API_FINDINGS` / `TDEVC` 의 API State | 아래 설명 참조 | Cloud 미릴리즈면 리더 클래스를 클래식 패키지로 분리 |
-| 4 | 적용범위 코드값 `OBJ` / `PKG` | 아래 설명 참조 | `zif_atc_exemption` 상수 2개 + 설정 데이터 |
-| 5 | **표준 예외 생성 API 존재 여부** 🔴 | 아래 설명 참조 | 없으면 `zcl_atc_exempt_sync` 구현 불가 → 조회/거버넌스 전용으로 후퇴 |
+| 3 | **예외 컨트롤러의 메소드 시그니처** 🔴 | ADT 에서 `GET_EXEMPTION_CONTROLLER( )` 의 반환 타입을 열고 메소드 목록 확인 | `zcl_atc_exempt_sync` 의 세 메소드 본문 |
 
-### 3번 — API State 확인 방법
+3번만 남으면 표준 반영이 완성된다. 지금 `zcl_atc_exempt_sync` 는 팩토리까지 호출해
+컨트롤러를 얻어 두고, 그 위에서 무엇을 부를지만 비워 둔 상태다.
 
-ABAP Cloud(Tier 1) 코드에서 SAP 표준 오브젝트를 쓰려면 그 오브젝트가 **릴리즈**되어
-있어야 한다. 릴리즈 여부를 SAP 이 "API State" 로 표시한다.
+### 왜 "승인 시" 에 표준 예외를 만드는가
 
 ```
-ADT 에서 SATC_API_FINDINGS 를 연다
-  -> Properties 뷰 (없으면 Window > Show View > Properties)
-  -> API State 항목 확인
+[상신 시 생성]  표준 저장소에 승인대기 예외가 생긴다
+                 -> 표준 Fiori 승인 앱에서 누군가 먼저 승인할 수 있다
+                 -> CBO 대장을 거치지 않은 결재가 생긴다  X
 
-  "Released for Cloud Development"                -> ABAP Cloud 에서 사용 가능
-  "Not Released" / "Use System-Internally Only"   -> 클래식 ABAP 에서만 가능
+[승인 시 생성]  이 앱에서 결재가 끝난 뒤 승인 상태로 만들어 넣는다
+                 -> 표준 저장소에는 이미 결정된 예외만 존재한다
+                 -> 결재 창구가 이 앱 하나로 유지된다      O
 ```
-
-더 간단한 실측 방법: ABAP Cloud 언어버전 패키지에 이 뷰를 읽는 테스트 CDS 를 하나
-만들어 활성화해 본다. 안 되면 "not released" 오류가 그대로 뜬다.
-
-**왜 중요한가**: 미릴리즈면 `zcl_atc_finding_reader` 와 `ZI_AtcFinding` 을
-클래식 ABAP 패키지(Tier 3)에 두고, RAP 앱에서는 래퍼로 호출해야 한다.
-나중에 바꾸면 패키지 구조를 다시 짜야 하므로 착수 전에 정해야 한다.
-
-### 4번 — 적용범위 코드값 확인 방법
-
-ADT 의 `Request Exemption` 에서 `Apply exemption to` 가 3개(Finding / ABAP Object /
-All Objects of Package)인 것은 확인됐다. 필요한 건 그 3개가 **DB 에 어떤 코드값으로
-저장되는지** 다. `FND` 는 확인됐고 나머지 2개는 `OBJ` / `PKG` 로 가정했다.
-
-```
-FND 값을 본 그 필드에서
-  -> 우클릭 Navigate / Go to Definition
-  -> Data Element -> Domain -> Value Range (고정값 목록)
-  -> 3개 값과 설명 텍스트를 확인
-```
-
-**왜 중요한가**: 값이 다르면 `zif_atc_exemption` 의 상수와 컨트롤 테이블 초기
-데이터가 전부 어긋나 신청이 전건 거부된다.
-
-### 5번 — 표준 예외 생성 API 🔴
-
-**이 앱에서 승인한 예외를 표준 ATC 예외 저장소에 프로그램으로 만들어 넣을 수 있는가** 를
-묻는 것이다. 다섯 개 중 가장 중요하다.
-
-```
-[API 가 있으면]
-  앱에서 승인 -> 표준 저장소에 예외 생성
-    -> ADT / TR 릴리즈 게이트 / CI-CD 가 전부 그 예외를 보고 억제한다
-    -> 개발자가 겪던 TR 릴리즈 차단이 실제로 풀린다
-
-[API 가 없으면]
-  앱에서 승인 -> CBO 대장에만 기록
-    -> 표준 ATC 는 그 사실을 모른다
-    -> finding 은 계속 나오고 TR 릴리즈도 계속 막힌다
-    -> 앱의 가치가 "현황 조회 + 거버넌스 기록" 으로 줄어든다
-```
-
-지금 `zcl_atc_exempt_sync` 는 "미구현" 을 돌려주는 스텁이다. 그 상태로도
-신청·승인·이력·조회는 전부 동작하고 CBO 대장도 채워지지만 **억제는 되지 않는다.**
-
-추적 경로 (표준 Fiori 앱이 이미 하고 있는 일을 따라간다):
-```
-1) /IWFND/MAINT_SERVICE 에서 "Approve ATC Exemptions" 의 OData 서비스명을 찾는다
-2) ADT 에서 그 서비스의 구현 클래스를 연다
-3) 승인/반려 액션이 호출하는 클래스·메소드가 곧 우리가 호출할 API 다
-   (표준 앱이 그 방법으로 예외 상태를 바꾸고 있으므로 반드시 존재한다)
-4) 그 클래스가 릴리즈되어 있는지(3번 API State)도 같이 본다
-대안 검색: ADT 에서 SATC_API* / CL_SATC_*API* / SATC*EXEMPT*
-```
-
----
 
 ## 오브젝트 목록
 
@@ -275,7 +225,7 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 | `Z_SECURITY` | SECURITY | X | X | (공란) | (공란) | 3 |
 
 > 성능·보안 체크는 라인별 판단이 본질이라 `FND` 를 열어야 한다.
-> 반대로 보안 체크를 `PKG` 로 열면 그 패키지의 보안 검증이 통째로 꺼진다.
+> 반대로 보안 체크를 `PCKG` 로 열면 그 패키지의 보안 검증이 통째로 꺼진다.
 > 체크마다 허용 범위가 정반대여야 하는 이유이며, 허용 플래그를 변형 단위로 둔 이유다.
 
 ### 승인 권한은 여기 없다
@@ -286,7 +236,7 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 
 ```
 팀리더 역할     : SCOPETYPE = OBJ,      ACTVT = 43
-아키텍트 역할   : SCOPETYPE = OBJ, PKG, ACTVT = 43
+아키텍트 역할   : SCOPETYPE = OBJ, PCKG, ACTVT = 43
 보안담당 역할   : CHECKGRP  = SECURITY, ACTVT = 43
 ```
 
@@ -323,7 +273,7 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 상태를 finding 에 저장하지 않는다 — 저장하면 유효기간 만료를 반영할 방법이 없다.
 
 **판정 조건에 소스 라인이 들어가지 않는 것이 요건의 기술적 실체다.**
-그래서 코드를 고쳐 라인이 밀려도 OBJ/PKG 예외는 유지된다.
+그래서 코드를 고쳐 라인이 밀려도 OBJ/PCKG 예외는 유지된다.
 
 ### 패키지 승인의 파급 효과
 
@@ -331,10 +281,10 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 통제 장치:
 
 - 유효기간 필수 + 설정 기반 상한
-- `PKG` 는 더 높은 승인 레벨 요구 (`apprlevel`)
+- `PCKG` 승인은 더 높은 권한 요구 (권한 오브젝트의 `SCOPETYPE`)
 - `simulateImpact` 액션으로 승인 전 면제 건수 확인
 - 상신 시 영향 건수를 근거 텍스트에 자동 기입 → **표준 승인 앱에서 결재해도 승인자가 읽을 수 있다**
-- 목록에서 `PKG` 행을 경고색으로 표시 (`ScopeCriticality`)
+- 목록에서 `PCKG` 행을 경고색으로 표시 (`ScopeCriticality`)
 - 자기승인 금지
 
 ---
@@ -361,14 +311,14 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 이미 선반영된 것:
 - `lineno` / `resultid` / `itemid` / `checkrunindex` 컬럼
 - 권한 오브젝트 4개 필드
-- 아이템 의미의 스코프별 분기 (`FND` = 대상 / `OBJ`·`PKG` = 증빙)
+- 아이템 의미의 스코프별 분기 (`FND` = 대상 / `OBJ`·`PCKG` = 증빙)
 - 설정 기반 동적 범위 목록
 
 Phase 2 착수 전 풀어야 할 것:
 - **FND 스코프의 영구 식별자.** `resultid` + `itemid` + `checkrunindex` 는 ATC 실행
   단위라 런마다 바뀐다. 이대로 FND 예외를 만들면 다음 실행에서 매칭이 끊긴다.
   코드 변경·재실행에도 유지되는 식별자가 표준에 있는지 확인해야 한다.
-  (OBJ / PKG 스코프는 애초에 이 값을 쓰지 않으므로 Phase 1 에는 영향 없다)
+  (OBJ / PCKG 스코프는 애초에 이 값을 쓰지 않으므로 Phase 1 에는 영향 없다)
 
 Phase 2 에서 실측이 필요한 것:
 - 라이브 조회 성능. 대상 체크가 늘어 건수가 커지면 그때 스냅샷 계층을 도입한다.

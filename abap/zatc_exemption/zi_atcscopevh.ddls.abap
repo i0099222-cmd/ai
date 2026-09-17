@@ -18,7 +18,7 @@ define view entity ZI_AtcScopeVH
   as select from ztatccfg
 {
   key checkvariant                       as CheckVariant,
-  key cast( 'FND' as abap.char( 3 ) )    as ScopeType,
+  key cast( 'FND' as abap.char( 4 ) )    as ScopeType,
       checkgroup                         as CheckGroup,
       cast( 'Finding (건 단위)' as abap.char( 40 ) ) as ScopeTypeText
 }
@@ -27,7 +27,7 @@ where activeflg = 'X' and fndactive = 'X'
 union select from ztatccfg
 {
   key checkvariant                       as CheckVariant,
-  key cast( 'OBJ' as abap.char( 3 ) )    as ScopeType,
+  key cast( 'OBJ' as abap.char( 4 ) )    as ScopeType,
       checkgroup                         as CheckGroup,
       cast( 'ABAP Object (오브젝트)' as abap.char( 40 ) ) as ScopeTypeText
 }
@@ -36,7 +36,7 @@ where activeflg = 'X' and objactive = 'X'
 union select from ztatccfg
 {
   key checkvariant                       as CheckVariant,
-  key cast( 'PKG' as abap.char( 3 ) )    as ScopeType,
+  key cast( 'PCKG' as abap.char( 4 ) )    as ScopeType,
       checkgroup                         as CheckGroup,
       cast( 'Package (패키지 전체)' as abap.char( 40 ) ) as ScopeTypeText
 }

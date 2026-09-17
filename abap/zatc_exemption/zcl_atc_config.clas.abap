@@ -31,7 +31,7 @@ CLASS zcl_atc_config DEFINITION
     "! 요건 "패키지/오브젝트 단위로만 등록" 이 판정되는 지점.
     METHODS is_scope_allowed
       IMPORTING iv_checkvariant   TYPE char30
-                iv_scopetype      TYPE char3
+                iv_scopetype      TYPE char4
       RETURNING VALUE(rv_allowed) TYPE abap_boolean.
 
     "! 활성 변형 전체. 조회 뷰와 배치가 대상 범위를 잡을 때 쓴다.
@@ -107,7 +107,7 @@ CLASS zcl_atc_config IMPLEMENTATION.
         rv_allowed = ls_config-fndactive.
       WHEN zif_atc_exemption=>scope-obj.
         rv_allowed = ls_config-objactive.
-      WHEN zif_atc_exemption=>scope-pkg.
+      WHEN zif_atc_exemption=>scope-pckg.
         rv_allowed = ls_config-pkgactive.
       WHEN OTHERS.
         " 알 수 없는 코드값은 허용하지 않는다.

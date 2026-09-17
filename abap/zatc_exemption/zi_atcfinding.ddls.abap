@@ -34,7 +34,7 @@ define view entity ZI_AtcFinding
     and Cfg.activeflg    = 'X'
 
   left outer join ZI_AtcActiveExemption as PkgExempt
-    on  PkgExempt.ScopeType  = 'PKG'
+    on  PkgExempt.ScopeType  = 'PCKG'
     and PkgExempt.Devclass   = Finding.devclass
     and ( PkgExempt.CheckId   = Finding.checkid   or PkgExempt.CheckId   = '' )
     and ( PkgExempt.MessageId = Finding.messageid or PkgExempt.MessageId = '' )
@@ -77,9 +77,9 @@ define view entity ZI_AtcFinding
 
       // 어느 범위의 예외로 면제되었는지
       case
-        when PkgExempt.ExemptId is not initial then cast( 'PKG' as abap.char( 3 ) )
-        when ObjExempt.ExemptId is not initial then cast( 'OBJ' as abap.char( 3 ) )
-        else cast( '' as abap.char( 3 ) )
+        when PkgExempt.ExemptId is not initial then cast( 'PCKG' as abap.char( 4 ) )
+        when ObjExempt.ExemptId is not initial then cast( 'OBJ' as abap.char( 4 ) )
+        else cast( '' as abap.char( 4 ) )
       end                   as ExemptScopeType,
 
       // E 면제 / O 미처리. 조회 화면의 기본 필터축이다.

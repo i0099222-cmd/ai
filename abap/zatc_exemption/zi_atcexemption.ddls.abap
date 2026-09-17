@@ -68,7 +68,7 @@ define root view entity ZI_AtcExemption
       // 적용범위 색. 패키지 스코프는 목록에서 눈에 띄게 둔다.
       // 가장 넓고 향후 생성 오브젝트까지 덮는 범위라 무심코 승인되면 안 된다.
       case scopetype
-        when 'PKG' then 2
+        when 'PCKG' then 2
         else 0
       end               as ScopeCriticality,
 

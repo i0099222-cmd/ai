@@ -4,7 +4,8 @@
 INTERFACE zif_atc_exemption
   PUBLIC.
 
-  "! 적용 범위 (ADT "Apply exemption to" 와 1:1 대응). 표준 도메인 값 확인 완료.
+  "! 적용 범위 (set_object_scope, 타입 SATC_CI_OBJ_SCOPE).
+  "! ADT "Apply exemption to" 와 1:1 대응하며 표준 고정값과 값이 같음을 확인했다.
   "!   fnd  = Finding                 - Phase 1 비활성 (ztatccfg 의 fndactive 로 제어)
   "!   obj  = ABAP Object
   "!   pckg = All Objects of Package
@@ -16,11 +17,17 @@ INTERFACE zif_atc_exemption
       pckg TYPE char4 VALUE 'PCKG',
     END OF scope.
 
-  "! 규칙 적용 축
+  "! 규칙 적용 축 (set_check_scope). 표준 고정값 4종.
+  "!   msg = 이 메시지만          ADT 화면의 "Message"
+  "!   chk = 이 체크의 모든 메시지  ADT 화면의 "Check"
+  "! TODO 확인 필요: all / fnd 의 의미. ADT 화면에는 앞의 두 개만 노출되므로
+  "!   내부 전용일 수 있다. 의미를 확인하기 전까지는 msg / chk 만 사용한다.
   CONSTANTS:
     BEGIN OF rulescope,
       message TYPE char3 VALUE 'MSG',
       check   TYPE char3 VALUE 'CHK',
+      all     TYPE char3 VALUE 'ALL',
+      finding TYPE char3 VALUE 'FND',
     END OF rulescope.
 
   "! 신청서 상태

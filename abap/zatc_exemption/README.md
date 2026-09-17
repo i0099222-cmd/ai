@@ -49,7 +49,9 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | `create_exemption` 필수 파라미터 | `i_object_type` / `i_object_name` / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관** |
 | 예외 오브젝트 API | `set_object_scope`(타입 `SATC_CI_OBJ_SCOPE`) / `set_check_scope` / `set_reason` / `set_validity_date` / `set_approver` / `set_notification_type` / `send_to_approver` / `unlock` / `get_exemption_id` | **`set_object_scope` 덕분에 패키지 스코프를 표준 예외 1건으로 넘길 수 있다** → 예외 ID 는 헤더에 1개, 오브젝트별 전개 불필요. 유효기간도 표준에 넘어간다 |
 | 알림 유형 | `REJ` 반려 시 / `ALWS` 승인·반려 모두 / `NEVR` 없음 | 조직 정책이므로 `ztatccfg-notiftype` 설정으로 |
-| `checksum` 타입 | `int4` | 아이템 컬럼을 `char(32)` → `int4` 로 수정 |
+| `checksum` | 필드명 동일, 타입 `int4` | 아이템 컬럼을 `char(32)` → `int4` 로 수정 |
+| `SATC_CI_OBJ_SCOPE` 고정값 | `FND` / `OBJ` / `PCKG` — 우리 값과 동일 | 변환 없이 그대로 전달 |
+| `set_check_scope` 고정값 | `MSG` / `CHK` / `ALL` / `FND` | 신청서는 `MSG` / `CHK` 만 사용 |
 
 표준 승인 로직은 결국 `SATC_CI_R_EXEMPTION` 의 `state` / `approver` 를 바꾸는 것이고,
 그 경로가 위 컨트롤러다. 우리 앱도 같은 경로를 쓴다.
@@ -60,11 +62,9 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
 | 2 | `SATC_API_FINDINGS` 의 `devclass` / `objecttype` / `objectname` / `lineno` / `checkid` / `messageid` / `msgtext` 필드명 | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
-| 3 | `SATC_CI_OBJ_SCOPE` 의 고정값이 우리 `FND`/`OBJ`/`PCKG` 와 같은지 | 도메인 값 범위 | `zcl_atc_exempt_sync` 의 `CONV` 를 매핑으로 교체 |
-| 4 | `set_check_scope` 가 받는 값 (우리 `rulescope` 의 `MSG`/`CHK` 대응) | 시그니처 | 위와 동일 |
-| 5 | `approve_exemptions_by_if` 의 `exemptions_for_approval` 행 구조 | 시그니처 | 승인 호출 완성 |
-| 6 | 표준 예외 **무효화** 경로 (철회·만료 시) | 컨트롤러 메소드 목록 | `revoke_exemption`. 없으면 `set_validity_date` 를 과거로 당기는 방식 |
-| 7 | `SATC_API_FINDINGS` 에 `checksum` 필드가 있는지 | 뷰 열기 | 리더 SELECT + `ZI_AtcFinding` |
+| 3 | `approve_exemptions_by_if` 의 **`exemptions_for_approval` 파라미터 타입/행 구조** 🔴 | 그 메소드에 F2 | 승인 호출 완성 |
+| 4 | 표준 예외 **무효화** 경로 (철회·만료 시) | 컨트롤러 메소드 목록 전체 | `revoke_exemption`. 없으면 `set_validity_date` 를 과거로 당기는 대안 |
+| 5 | `set_check_scope` 의 `ALL` / `FND` 가 무슨 의미인지 | 도메인 설명 텍스트 | 없어도 진행 가능 (신청서는 `MSG`/`CHK` 만 사용) |
 
 #### 표준 예외 생성 흐름 (확정)
 

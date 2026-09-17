@@ -13,8 +13,8 @@
 "!                                 i_check_class, i_check_code,
 "!                                 i_contact_person )
 "!     -> 예외 오브젝트를 돌려주고, 나머지는 setter 로 채운다
-"!          set_object_scope( )       SATC_CI_OBJ_SCOPE 타입. FND / OBJ / PCKG
-"!          set_check_scope( )        메시지 단위 / 체크 전체
+"!          set_object_scope( )       SATC_CI_OBJ_SCOPE. FND / OBJ / PCKG
+"!          set_check_scope( )        MSG / CHK / ALL / FND
 "!          set_reason( )
 "!          set_validity_date( )
 "!          set_approver( )
@@ -116,17 +116,16 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
           i_check_code     = is_exemption-messageid
           i_contact_person = is_exemption-requester ).
 
-        " TODO 값 변환 확인: set_object_scope 는 SATC_CI_OBJ_SCOPE 타입을 받는다.
-        "   우리 scopetype( FND / OBJ / PCKG )을 그대로 넘길 수 있는지, 아니면
-        "   그 도메인의 고정값으로 매핑해야 하는지 확인해 여기서 변환한다.
+        " SATC_CI_OBJ_SCOPE 의 고정값이 우리 scopetype( FND / OBJ / PCKG )과
+        " 같음을 확인했으므로 변환 없이 넘긴다.
         lo_exemption->set_object_scope( CONV #( is_exemption-scopetype ) ).
 
-        " TODO set_check_scope 가 받는 값 확인. 우리 rulescope( MSG / CHK ) 대응.
+        " 체크 축은 MSG / CHK / ALL / FND 중 하나다. 신청서는 MSG / CHK 만 쓴다.
         lo_exemption->set_check_scope( CONV #( is_exemption-rulescope ) ).
 
         lo_exemption->set_reason( is_exemption-reasontext ).
         lo_exemption->set_validity_date( is_exemption-validto ).
-        lo_exemption->set_approver( is_exemption-approver ).
+        lo_exemption->set_approver( i_approver = is_exemption-approver ).
 
         " 알림 유형은 조직 정책이므로 컨트롤 테이블에서 읽는다.
         lo_exemption->set_notification_type(

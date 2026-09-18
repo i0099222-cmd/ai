@@ -15,6 +15,7 @@
 //   messagetitle   -> 메시지 텍스트 MessageText
 //   packagename    -> 패키지        Devclass  (SSTRING -> CHAR30 캐스트)
 //   moduleid       -> 체크 클래스   CheckClass (SATC_AC_CHM.ci_id 조인)
+//   priority       -> 우선순위      Priority   (ENUMC3 -> INT1 캐스트)
 //   module_msg_key -> 체크 코드     CheckCode  (CHAR25 -> CHAR10 캐스트)
 //
 // 면제 판정에 소스 라인이 들어가지 않는 것이 요건의 기술적 실체다.
@@ -97,7 +98,12 @@ define view entity ZI_AtcFinding
       Finding.checksum           as Checksum,
 
       Cfg.checkgroup             as CheckGroup,
-      Finding.priority           as Priority,
+      // priority 의 DDIC 타입은 ENUMC3 다. 그 타입을 우리 쪽으로 퍼뜨리지 않고
+      // 여기서 INT1 로 바꾼다. ATC 우선순위는 1/2/3 이라 값 손실이 없고,
+      // ztatccfg-maxpriority(INT1) 와의 숫자 비교가 그대로 성립한다.
+      // 열거 타입이라 이 캐스트가 활성화에서 거부되면 abap.numc( 3 ) 으로
+      // 바꾸고 maxpriority / ty_finding-priority 도 같은 타입으로 맞춘다.
+      cast( Finding.priority as abap.int1 ) as Priority,
       Finding.messagetitle       as MessageText,
 
       // TODO 확인 필요: contractperson 의 철자 (contactperson 일 가능성)

@@ -78,10 +78,11 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | `resultid` + `itemid` + `checkrunindex` | (키) | 런 단위. 예외의 영구 키로는 못 씀 |
 | `moduleid` | `CheckClass` | RAW16 체크 GUID. `SATC_AC_CHM.ci_id` 조인으로 클래스명(`CL_CI_TEST_DB`)을 얻는다 |
 | `module_msg_key` | `CheckCode` | CHAR25 메시지 키 → CHAR10 캐스트 (`DBREAD`, `UPDATE_SUC`) |
+| `priority` | `Priority` | **ENUMC3**. `ZI_AtcFinding` 에서 INT1 캐스트 |
 | `messagetitle` | `MessageText` | |
 | `packagename` | `Devclass` | **SSTRING(30)**. `ZI_AtcFinding` 에서 CHAR30 캐스트 |
 | `contractperson` | `ContactPerson` | ⬜ 철자 확인 필요 |
-| `checkvariant` / `objecttype` / `objectname` / `priority` / `responsible` / `checksum` | 동일 | |
+| `checkvariant` / `objecttype` / `objectname` / `responsible` / `checksum` | 동일 | |
 
 ### 체크 클래스/코드는 findings 뷰에 없다
 

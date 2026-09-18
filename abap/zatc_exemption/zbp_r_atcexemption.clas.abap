@@ -270,11 +270,6 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD setinitialvalues.
 
-    " 신청번호(exemptid)는 여기서 매기지 않는다. 이 determination 은 draft 를
-    " 만드는 순간 돌기 때문에, 사용자가 [Create] 를 눌렀다가 취소할 때마다
-    " 번호가 버려져 구멍이 생긴다. 사용자에게 보이는 번호라 구멍이 눈에 띈다.
-    " 저장이 확정되는 시점(saver 의 save_modified)에서 매긴다.
-
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         FIELDS ( validfrom rulescope )
@@ -755,7 +750,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       " 같은 범위·같은 규칙의 유효한 예외가 이미 있으면 중복이다.
       " 중복을 허용하면 어느 예외가 실제로 덮고 있는지 추적할 수 없게 된다.
-      SELECT SINGLE exemptid
+      SELECT SINGLE @abap_true
         FROM ztatcexempt
         WHERE exemptuuid <> @ls_exemption-exemptuuid
           AND scopetype   = @ls_exemption-scopetype
@@ -768,17 +763,26 @@ CLASS lhc_exemption IMPLEMENTATION.
                               @zif_atc_exemption=>status-approved )
           AND validto    >= @ls_exemption-validfrom
           AND validfrom  <= @ls_exemption-validto
-        INTO @DATA(lv_dup_id).
+        INTO @DATA(lv_duplicate).
 
-      IF sy-subrc <> 0.
+      IF lv_duplicate <> abap_true.
         CONTINUE.
       ENDIF.
 
       APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
       APPEND VALUE #( %tky        = ls_exemption-%tky
                       %state_area = 'VALIDATE_OVERLAP'
+                      " 중복 건은 WHERE 조건상 범위와 체크가 이 건과 같다.
+                      " 그래서 상대를 조회하지 않고 이 건의 값으로 메시지를 만든다.
                       %msg = new_error( iv_number = '013'
-                                        iv_v1     = lv_dup_id ) )
+                                        " devclass(CHAR30) 와 objectname(CHAR40) 은
+                                        " 길이가 달라 COND 의 공통 타입에서 잘린다.
+                                        " 문자열로 만들어 넘긴다.
+                                        iv_v1     = COND string(
+                                          WHEN ls_exemption-scopetype = zif_atc_exemption=>scope-pckg
+                                          THEN |{ ls_exemption-devclass }|
+                                          ELSE |{ ls_exemption-objectname }| )
+                                        iv_v2     = ls_exemption-checkclass ) )
              TO reported-exemption.
 
     ENDLOOP.
@@ -1372,49 +1376,12 @@ CLASS lsc_zr_atcexemption DEFINITION INHERITING FROM cl_abap_behavior_saver.
   PROTECTED SECTION.
     METHODS save_modified REDEFINITION.
 
-  PRIVATE SECTION.
-    "! 새로 저장된 신청서에 표시용 번호를 매긴다.
-    METHODS assign_request_ids
-      IMPORTING it_created TYPE REQUEST FOR CREATE zr_atcexemption.
-
 ENDCLASS.
 
 
 CLASS lsc_zr_atcexemption IMPLEMENTATION.
 
-  METHOD assign_request_ids.
-
-    " TODO 넘버레인지 오브젝트 ZATCEXEMP 를 생성할 것
-    "   (구간 01, 000000000001 ~ 999999999999).
-
-    LOOP AT it_created INTO DATA(ls_created).
-
-      TRY.
-          cl_numberrange_runtime=>number_get(
-            EXPORTING nr_range_nr = '01'
-                      object      = 'ZATCEXEMP'
-            IMPORTING number      = DATA(lv_number) ).
-
-          UPDATE ztatcexempt
-            SET exemptid = @( |EX{ lv_number+2 }| )
-            WHERE exemptuuid = @ls_created-exemptuuid
-              AND exemptid   = @space.
-
-        CATCH cx_nr_object_not_found cx_number_ranges.
-          " 번호를 못 받아도 저장 자체는 막지 않는다. 번호가 빈 건은
-          " 조회 화면에서 바로 눈에 띄고, 정합성 배치가 다시 채울 수 있다.
-      ENDTRY.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
   METHOD save_modified.
-
-    " 신청번호는 저장이 확정된 뒤에 매긴다. draft 생성 시점에 매기면
-    " 사용자가 취소할 때마다 번호가 버려져 구멍이 생긴다.
-    assign_request_ids( create-exemption ).
 
     DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
 

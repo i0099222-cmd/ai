@@ -16,9 +16,6 @@ define view entity ZI_AtcActiveExemption
       @EndUserText.label: 'Exemption Request UUID'
   key ExemptUuid,
 
-      @EndUserText.label: 'Exemption Request ID'
-      ExemptId,
-
       @EndUserText.label: 'Check Group'
       CheckGroup,
 

@@ -15,9 +15,6 @@ define view entity ZI_AtcExemption
       @EndUserText.label: 'Exemption Request UUID'
   key exemptuuid        as ExemptUuid,
 
-      @EndUserText.label: 'Exemption Request ID'
-      exemptid          as ExemptId,
-
       @EndUserText.label: 'Check Variant'
       checkvariant      as CheckVariant,
 
@@ -38,6 +35,14 @@ define view entity ZI_AtcExemption
 
       @EndUserText.label: 'Object Name'
       objectname        as ObjectName,
+
+      // 신청번호를 두지 않으므로, 이 신청서를 사람이 부르는 이름이 이 값이다.
+      // 적용범위가 패키지면 패키지가, 오브젝트면 오브젝트가 그 대상이다.
+      @EndUserText.label: 'Scope'
+      case scopetype
+        when 'PCKG' then cast( devclass   as abap.char( 40 ) )
+        else             cast( objectname as abap.char( 40 ) )
+      end               as ScopeText,
 
       @EndUserText.label: 'Check Class'
       checkclass        as CheckClass,

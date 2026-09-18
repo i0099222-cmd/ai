@@ -16,7 +16,7 @@ define root view entity ZR_AtcExemption
 {
   key ExemptUuid,
 
-      ExemptId,
+      ScopeText,
       CheckVariant,
       CheckGroup,
 

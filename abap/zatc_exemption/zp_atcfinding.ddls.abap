@@ -28,7 +28,6 @@ define view entity ZP_AtcFinding
       ContactPerson,
       Responsible,
 
-      ExemptId,
       ExemptScopeType,
       ExemptionStatus,
       ExemptValidTo

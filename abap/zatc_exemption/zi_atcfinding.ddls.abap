@@ -116,30 +116,24 @@ define view entity ZI_AtcFinding
       Finding.exemptionapproval  as StdExemptionApproval,
 
       // --- CBO 대장 기준 면제 여부 ---
-      // 면제 근거가 된 신청번호. 패키지 예외가 더 넓으므로 먼저 본다.
+      // 신청번호를 두지 않으므로, 어느 예외가 덮고 있는지는 범위로 말한다.
+      // 패키지 예외가 더 넓으므로 먼저 본다.
       case
-        when PkgExempt.ExemptId is not initial then PkgExempt.ExemptId
-        when ObjExempt.ExemptId is not initial then ObjExempt.ExemptId
-        else cast( '' as abap.char( 12 ) )
-      end                        as ExemptId,
-
-      // 어느 범위의 예외로 면제되었는지
-      case
-        when PkgExempt.ExemptId is not initial then cast( 'PCKG' as abap.char( 4 ) )
-        when ObjExempt.ExemptId is not initial then cast( 'OBJ' as abap.char( 4 ) )
+        when PkgExempt.ExemptUuid is not initial then cast( 'PCKG' as abap.char( 4 ) )
+        when ObjExempt.ExemptUuid is not initial then cast( 'OBJ' as abap.char( 4 ) )
         else cast( '' as abap.char( 4 ) )
       end                        as ExemptScopeType,
 
       // E 면제 / O 미처리. 조회 화면의 기본 필터축이다.
       case
-        when PkgExempt.ExemptId is not initial
-          or ObjExempt.ExemptId is not initial then cast( 'E' as abap.char( 1 ) )
+        when PkgExempt.ExemptUuid is not initial
+          or ObjExempt.ExemptUuid is not initial then cast( 'E' as abap.char( 1 ) )
         else cast( 'O' as abap.char( 1 ) )
       end                        as ExemptionStatus,
 
       case
-        when PkgExempt.ExemptId is not initial then PkgExempt.ValidTo
-        when ObjExempt.ExemptId is not initial then ObjExempt.ValidTo
+        when PkgExempt.ExemptUuid is not initial then PkgExempt.ValidTo
+        when ObjExempt.ExemptUuid is not initial then ObjExempt.ValidTo
         else cast( '00000000' as abap.dats )
       end                        as ExemptValidTo,
 
@@ -147,7 +141,7 @@ define view entity ZI_AtcFinding
       //   X : 대장에는 승인된 예외가 있는데 표준에는 예외가 없다
       //       -> 승인 시 표준 반영이 실패했다는 뜻. 실제로는 여전히 차단된다.
       case
-        when ( PkgExempt.ExemptId is not initial or ObjExempt.ExemptId is not initial )
+        when ( PkgExempt.ExemptUuid is not initial or ObjExempt.ExemptUuid is not initial )
          and Finding.exemptionkind is initial
         then cast( 'X' as abap.char( 1 ) )
         else cast( '' as abap.char( 1 ) )

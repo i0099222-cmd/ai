@@ -349,10 +349,7 @@ ADT 에서 `ZR_AtcExemption` BDEF 의 draft table 이름에 커서를 두고 qui
 ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 ```
 
-### 2. 넘버레인지 오브젝트 `ZATCEXEMP`
-구간 `01`, `000000000001` ~ `999999999999`
-
-### 3. 메시지 클래스 `ZATC_EXEMPT`
+### 2. 메시지 클래스 `ZATC_EXEMPT`
 
 시스템 언어가 EN 이므로 텍스트는 영어로 등록한다.
 
@@ -370,7 +367,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 010 | Valid-to date must be later than valid-from date |
 | 011 | Validity period must not exceed &1 months |
 | 012 | Enter a reason code and a justification of at least &1 characters |
-| 013 | A valid exemption for the same scope already exists (&1) |
+| 013 | A valid exemption for &1 / &2 already exists |
 | 014 | You cannot approve your own exemption request |
 | 015 | Enter a rejection reason |
 | 016 | New valid-to date must be later than the current one |
@@ -379,7 +376,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 019 | Check scope &1 is not allowed (use message or check) |
 | 020 | Action not allowed for status &1 |
 
-### 4. 권한 오브젝트 `Z_ATCEXEM`
+### 3. 권한 오브젝트 `Z_ATCEXEM`
 
 ```
 필드 : CHECKGRP / DEVCLASS / SCOPETYPE / ACTVT
@@ -391,10 +388,10 @@ ACTVT: 01 생성 / 02 변경 / 03 조회 / 43 승인
 > 보안팀 재승인과 감사 이슈가 따라온다. 이 프로젝트에서 나중으로 미뤘을 때
 > 비용이 가장 비대칭적으로 큰 항목이다.
 
-### 5. 배치 잡 1개
+### 4. 배치 잡 1개
 `zcl_atc_expiry_job` 의 `run( )` 을 일 1회 스케줄 (만료 전환 + D-30 알림 대상 추출).
 
-### 6. 런치패드 타일 2개 (앱은 1개)
+### 5. 런치패드 타일 2개 (앱은 1개)
 
 | 타일 | 필터 프리셋 | 배치 역할 |
 |---|---|---|
@@ -494,9 +491,11 @@ keys 로 다시 읽으면 거부된 건까지 성공한 것처럼 돌려주게 �
 오브젝트가 다른 패키지로 옮겨졌다고 승인된 패키지 예외의 적용 대상이 바뀌면
 결재를 거치지 않은 범위 변경이 된다. 신청 시점 값으로 고정한다.
 
-**신청번호는 determination 이 아니라 저장 시점(saver)에서 매긴다.**
-draft 생성 때 매기면 사용자가 [Create] 후 취소할 때마다 번호가 버려져 구멍이 생긴다.
-사용자에게 보이는 번호라 구멍이 눈에 띈다.
+**표시용 신청번호를 두지 않는다.** 키는 `ExemptUuid` 이고, 사람이 이 신청서를
+부르는 이름은 `ScopeText`(패키지 스코프면 패키지, 아니면 오브젝트) + `CheckClass` 다.
+일련번호를 두려면 넘버레인지 오브젝트를 만들고 구간을 시스템마다 따로 관리해야 하는데,
+검증 `validateOverlap` 이 같은 범위·같은 체크의 유효한 예외를 이미 막고 있어
+유효 건에 한해서는 범위+체크가 자연키다.
 
 ## Validation 구성
 

@@ -9,7 +9,7 @@ define root view entity ZP_AtcExemption
   key ExemptUuid,
 
       @Search.defaultSearchElement: true
-      ExemptId,
+      ScopeText,
 
       @Consumption.valueHelpDefinition: [{
         entity: { name: 'ZI_AtcVariantVH', element: 'CheckVariant' }

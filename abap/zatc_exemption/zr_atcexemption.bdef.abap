@@ -21,7 +21,7 @@ etag master LocalLastChangedAt
   field ( numbering : managed, readonly ) ExemptUuid;
 
   // 상태와 결재 정보는 액션으로만 바뀐다. 화면에서 직접 못 고친다.
-  field ( readonly ) ExemptId,
+  field ( readonly ) ScopeText,
                      CheckGroup,
                      ExemptStatus,
                      Requester,
@@ -109,7 +109,6 @@ etag master LocalLastChangedAt
   mapping for ztatcexempt
   {
     ExemptUuid         = exemptuuid;
-    ExemptId           = exemptid;
     CheckVariant       = checkvariant;
     CheckGroup         = checkgroup;
     ScopeType          = scopetype;

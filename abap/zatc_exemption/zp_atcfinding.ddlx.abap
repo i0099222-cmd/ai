@@ -51,12 +51,8 @@ annotate entity ZP_AtcFinding with
   @EndUserText.label: 'Priority'
   Priority;
 
-  // 면제 근거가 된 신청번호. 패키지 예외로 함께 풀린 건도 여기에 번호가 뜬다.
+  // 어느 범위의 예외로 풀렸는지. 패키지 예외로 함께 풀린 건은 PCKG 로 뜬다.
   @UI.lineItem: [{ position: 50, importance: #HIGH }]
-  @EndUserText.label: 'Exempted by Request'
-  ExemptId;
-
-  @UI.lineItem: [{ position: 60, importance: #HIGH }]
   @EndUserText.label: 'Exempted Scope'
   ExemptScopeType;
 

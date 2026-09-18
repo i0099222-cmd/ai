@@ -10,9 +10,6 @@ define table ztatcexempt {
   "! 신청서 GUID. RAP BO 키.
   key exemptuuid    : sysuuid_x16 not null;
 
-  "! 사용자 표시용 신청번호 (넘버레인지)
-  exemptid          : abap.char(12);
-
   "! 체크 변형. 이 신청에 어떤 정책(허용 범위, 유효기간 상한)이 적용되는지를
   "! 결정하는 키다. finding 에서 그대로 받아 보관한다.
   checkvariant      : abap.char(30);

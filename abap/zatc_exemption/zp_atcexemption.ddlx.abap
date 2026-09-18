@@ -3,10 +3,11 @@
   headerInfo: {
     typeName:       'Exemption Request',
     typeNamePlural: 'Exemption Requests',
-    title:          { type: #STANDARD, value: 'ExemptId' },
-    description:    { value: 'Devclass' }
+    title:          { type: #STANDARD, value: 'ScopeText' },
+    description:    { value: 'CheckClass' }
   },
-  presentationVariant: [{ sortOrder: [{ by: 'ExemptId', direction: #DESC }] }]
+  // 신청번호가 없으므로 생성 시각 역순이 곧 최신순이다.
+  presentationVariant: [{ sortOrder: [{ by: 'CreatedAt', direction: #DESC }] }]
 }
 annotate entity ZP_AtcExemption with
 {
@@ -31,8 +32,8 @@ annotate entity ZP_AtcExemption with
     identification: [{ position: 10 }],
     selectionField: [{ position: 10 }]
   }
-  @EndUserText.label: 'Request ID'
-  ExemptId;
+  @EndUserText.label: 'Scope'
+  ScopeText;
 
   @UI: {
     identification: [{ position: 15 }],

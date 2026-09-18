@@ -63,4 +63,21 @@ annotate entity ZP_AtcFinding with
   @UI.lineItem: [{ position: 70, importance: #MEDIUM }]
   @EndUserText.label: 'Exemption Valid To'
   ExemptValidTo;
+
+  // 표준이 들고 있는 예외 상태. 대장과 나란히 보면 반영 누락이 드러난다.
+  @UI.lineItem: [{ position: 75, importance: #MEDIUM }]
+  @EndUserText.label: 'Standard Exemption'
+  StdExemptionKind;
+
+  @UI.hidden: true
+  StdExemptionValidity;
+  @UI.hidden: true
+  StdExemptionApproval;
+
+  @UI: {
+    lineItem:       [{ position: 78, importance: #HIGH }],
+    selectionField: [{ position: 35 }]
+  }
+  @EndUserText.label: 'Not Applied to Standard'
+  ExemptionMismatch;
 }

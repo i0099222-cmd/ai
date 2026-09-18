@@ -18,6 +18,11 @@ define view entity ZP_AtcFinding
       CheckId,
       MessageId,
       Checksum,
+
+      StdExemptionKind,
+      StdExemptionValidity,
+      StdExemptionApproval,
+      ExemptionMismatch,
       CheckGroup,
       Priority,
       MessageText,

@@ -68,12 +68,44 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 표준 승인 로직은 결국 `SATC_CI_R_EXEMPTION` 의 `state` / `approver` 를 바꾸는 것이고,
 그 경로가 위 컨트롤러다. 우리 앱도 같은 경로를 쓴다.
 
+### `SATC_API_FINDINGS` 필드 매핑
+
+뷰의 필드명이 우리 도메인 용어와 다르다. **`zcl_atc_finding_reader` 의 SELECT 와
+`ZI_AtcFinding` 두 곳에서만** 맞추고, 그 위로는 우리 용어로 다닌다.
+
+| 뷰 필드 | 우리 이름 | 비고 |
+|---|---|---|
+| `resultid` + `itemid` + `checkrunindex` | (키) | 런 단위. 예외의 영구 키로는 못 씀 |
+| `moduleid` | `CheckId` | 체크 클래스 |
+| `module_msg_key` | `MessageId` | 메시지 코드 |
+| `messagetitle` | `MessageText` | |
+| `packagename` | `Devclass` | |
+| `contractperson` | `ContactPerson` | ⬜ 철자 확인 필요 |
+| `checkvariant` / `objecttype` / `objectname` / `priority` / `responsible` / `checksum` | 동일 | |
+
+### 표준이 이미 들고 있는 예외 상태
+
+뷰에 `exemptionkind` / `exemptionvalidity` / `exemptionapproval` 이 있다.
+**표준 기준의 면제 여부를 finding 이 직접 알려준다**는 뜻이다.
+
+우리 대장(`ZI_AtcActiveExemption`) 기준 판정과 나란히 두면 두 값의 차이가 곧
+정합성 문제다. `ZI_AtcFinding` 이 이를 `ExemptionMismatch` 로 계산한다.
+
+```
+대장에는 승인된 예외가 있는데  +  표준에는 예외가 없다
+  -> 승인 시 표준 반영이 실패한 건
+  -> 대장은 면제라고 하는데 실제로는 TR 릴리즈가 계속 막힌다
+  -> 조회 화면의 "Not Applied to Standard" 필터로 바로 찾는다
+```
+
+앞서 별도 배치로 만들려던 정합성 점검의 절반이 이 한 컬럼으로 해결된다.
+
 ### 남은 가정
 
 | # | 가정 | 확인 방법 | 틀리면 |
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
-| 2 | `SATC_API_FINDINGS` 의 `devclass` / `objecttype` / `objectname` / `lineno` / `checkid` / `messageid` / `msgtext` 필드명 | ADT 에서 뷰 열기 | `zcl_atc_finding_reader` 의 SELECT + `ZI_AtcFinding` 두 곳 |
+| 2 | `contractperson` 의 철자 (`contactperson` 일 가능성) | 뷰 필드 목록 | 리더 SELECT 2곳 + `ZI_AtcFinding` 1곳 |
 | 3 | **`approve_exemptions_by_id` 가 있는지** 🔴 (reject 에 `_by_id` 가 있으니 짝이 있을 것) | `controller->` + Ctrl+Space | 있으면 건별 호출로 끝. 없으면 `_by_if` 의 테이블 행 구조를 확인해야 한다 |
 | 4 | **`get_exemption_id( )` 의 반환 타입** 🔴 | 시그니처 | `extexemptid` 를 `char(32)` 로 잡았다. `checksum` 처럼 숫자형이면 컬럼을 고쳐야 한다 |
 | 5 | 승인된 예외에 `reject_exemptions_by_id` 를 걸면 면제가 풀리는지 | 테스트 1건 | 안 풀리면 `set_validity_date` 를 과거로 당기는 대안 |

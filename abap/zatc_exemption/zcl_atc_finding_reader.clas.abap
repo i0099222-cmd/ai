@@ -54,7 +54,9 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
 
   METHOD select.
 
-    " TODO 확인 필요: SATC_API_FINDINGS 의 실제 필드명과 API State.
+    " TODO 확인 필요: contractperson 의 철자.
+    "   ATC 는 담당자를 contact person 이라 부르므로 contactperson 일 가능성이 있다.
+    "   틀리면 이 SELECT 의 두 곳만 고치면 된다.
     "   - ADT 에서 Properties > API State 를 확인한다.
     "     "Released for Cloud Development" 가 아니면 이 클래스는 클래식 ABAP
     "     패키지에 두고 RAP 쪽에서는 래퍼로 호출해야 한다.
@@ -84,28 +86,33 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " 뷰의 필드명은 우리 도메인 용어와 다르다. 여기서 한 번만 맞춘다.
+    "   moduleid       -> 체크 클래스   checkid
+    "   module_msg_key -> 메시지 코드   messageid
+    "   messagetitle   -> 메시지 텍스트 msgtext
+    "   packagename    -> 패키지        devclass
     SELECT FROM satc_api_findings
       FIELDS checkvariant,
-             devclass,
+             packagename    AS devclass,
              objecttype,
              objectname,
              checksum,
-             checkid,
-             messageid,
+             moduleid       AS checkid,
+             module_msg_key AS messageid,
              priority,
-             msgtext,
-             contactperson,
+             messagetitle   AS msgtext,
+             contractperson AS contactperson,
              responsible
       WHERE checkvariant IN @lt_variant
-        AND ( devclass   IN @lt_devclass      OR @lt_devclass IS INITIAL )
-        AND ( objecttype  = @is_selection-objecttype OR @is_selection-objecttype IS INITIAL )
-        AND ( objectname  = @is_selection-objectname OR @is_selection-objectname IS INITIAL )
-        AND ( checkid     = @is_selection-checkid    OR @is_selection-checkid    IS INITIAL )
-        AND ( messageid   = @is_selection-messageid  OR @is_selection-messageid  IS INITIAL )
+        AND ( packagename    IN @lt_devclass      OR @lt_devclass IS INITIAL )
+        AND ( objecttype      = @is_selection-objecttype OR @is_selection-objecttype IS INITIAL )
+        AND ( objectname      = @is_selection-objectname OR @is_selection-objectname IS INITIAL )
+        AND ( moduleid        = @is_selection-checkid    OR @is_selection-checkid    IS INITIAL )
+        AND ( module_msg_key  = @is_selection-messageid  OR @is_selection-messageid  IS INITIAL )
         " 경로 1 : 담당자 본인 건만. 경로 2 : 조건 자체를 무력화한다.
         AND ( @is_selection-only_mine = @abap_false
-              OR contactperson = @sy-uname
-              OR responsible   = @sy-uname )
+              OR contractperson = @sy-uname
+              OR responsible    = @sy-uname )
       INTO CORRESPONDING FIELDS OF TABLE @rt_finding
       UP TO @iv_max_rows ROWS.
 

@@ -34,7 +34,13 @@ define view entity ZR_AtcExemptionItem
       @EndUserText.label: 'Finding Checksum'
       checksum       as Checksum,
 
-      @EndUserText.label: 'Check'
+      @EndUserText.label: 'Check Module'
+      moduleid       as ModuleId,
+
+      @EndUserText.label: 'Check Module Message Key'
+      modulemsgkey   as ModuleMsgKey,
+
+      @EndUserText.label: 'Check Class'
       checkid        as CheckId,
 
       @EndUserText.label: 'Check Message Code'

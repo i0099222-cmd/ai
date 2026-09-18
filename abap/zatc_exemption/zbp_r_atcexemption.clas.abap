@@ -772,9 +772,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                           iv_devclass   = ls_exemption-devclass
                           iv_inclsubpkg = ls_exemption-inclsubpkg
                           iv_objecttype = ls_exemption-objecttype
-                          iv_objectname = ls_exemption-objectname
-                          iv_checkid    = ls_exemption-checkid
-                          iv_messageid  = ls_exemption-messageid ).
+                          iv_objectname = ls_exemption-objectname ).
 
       DATA(lv_reason) = ls_exemption-reasontext.
       lv_reason = |{ lv_reason }\n---\n| &&
@@ -1135,9 +1133,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                           iv_devclass   = ls_exemption-devclass
                           iv_inclsubpkg = ls_exemption-inclsubpkg
                           iv_objecttype = ls_exemption-objecttype
-                          iv_objectname = ls_exemption-objectname
-                          iv_checkid    = ls_exemption-checkid
-                          iv_messageid  = ls_exemption-messageid ).
+                          iv_objectname = ls_exemption-objectname ).
 
       DATA(lv_text) = |이 예외 승인 시 면제되는 현재 위반: { lines( lt_impact ) }건|.
 
@@ -1179,8 +1175,8 @@ CLASS lhc_exemption IMPLEMENTATION.
                            devclass     = ls_param-devclass
                            objecttype   = ls_param-objecttype
                            objectname   = ls_param-objectname
-                           checkid      = ls_param-checkid
-                           messageid    = ls_param-messageid
+                           moduleid     = ls_param-moduleid
+                           modulemsgkey = ls_param-modulemsgkey
                            only_mine    = abap_false ) ).
 
       IF lt_finding IS INITIAL.
@@ -1200,8 +1196,9 @@ CLASS lhc_exemption IMPLEMENTATION.
         " 출발점 오브젝트가 없으면 표준에 반영할 수 없다.
         objecttype = ls_param-objecttype
         objectname = ls_param-objectname
-        checkid    = ls_param-checkid
-        messageid  = ls_param-messageid
+        " 🔴 TODO 표준 예외 API 에 넘길 체크 클래스(CSEQUENCE)와 코드(CHAR10)를
+        "   findings 뷰에서 얻는 경로가 아직 확인되지 않았다. 여기서 채워야 한다.
+        "   채워지기 전에는 CheckId / MessageId 가 비어 저장이 거부된다(필수 필드).
         rulescope  = zif_atc_exemption=>rulescope-message
         validfrom  = sy-datum
         preregflag = abap_false ) TO lt_create.
@@ -1220,8 +1217,8 @@ CLASS lhc_exemption IMPLEMENTATION.
                         objecttype  = ls_finding-objecttype
                         objectname  = ls_finding-objectname
                         checksum    = ls_finding-checksum
-                        checkid     = ls_finding-checkid
-                        messageid   = ls_finding-messageid
+                        moduleid     = ls_finding-moduleid
+                        modulemsgkey = ls_finding-modulemsgkey
                         priority    = ls_finding-priority
                         messagetext = ls_finding-msgtext )
                TO ls_item-%target.
@@ -1234,12 +1231,12 @@ CLASS lhc_exemption IMPLEMENTATION.
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         CREATE FIELDS ( checkvariant scopetype devclass objecttype objectname
-                        checkid messageid rulescope validfrom preregflag )
+                        rulescope validfrom preregflag )
         WITH lt_create
       ENTITY exemption
         CREATE BY \_Item
         FIELDS ( itemno objecttype objectname
-                 checksum checkid messageid priority messagetext )
+                 checksum moduleid modulemsgkey priority messagetext )
         WITH lt_item
       MAPPED DATA(lt_mapped)
       FAILED DATA(lt_failed)

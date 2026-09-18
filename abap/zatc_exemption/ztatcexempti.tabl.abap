@@ -32,10 +32,14 @@ define table ztatcexempti {
   checksum       : abap.int4;
 
   "! 한 변형 안에서도 체크와 메시지는 아이템마다 다를 수 있어 여기 둔다.
-  "! SATC_API_FINDINGS-MODULEID 와 같은 타입 (체크 GUID)
-  checkid        : abap.raw(16);
-  "! SATC_API_FINDINGS-MODULE_MSG_KEY 와 같은 타입
-  messageid      : abap.char(25);
+  "! findings 뷰가 준 체크 식별자. 표준 API 가 받는 값과는 다르므로 따로 보관한다.
+  moduleid       : abap.raw(16);
+  modulemsgkey   : abap.char(25);
+
+  "! 체크 클래스 (표준 create_exemption 의 i_check_class 와 같은 성격)
+  checkid        : abap.char(30);
+  "! 메시지 코드 (표준 create_exemption 의 i_check_code 와 같은 타입)
+  messageid      : abap.char(10);
   priority       : abap.int1;
   msgtext        : abap.char(255);
 

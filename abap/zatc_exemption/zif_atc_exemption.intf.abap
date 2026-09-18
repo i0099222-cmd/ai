@@ -89,10 +89,11 @@ INTERFACE zif_atc_exemption
       objectname    TYPE sobj_name,
       "! 코드가 바뀌어도 같은 위반이면 유지되는 finding 식별자
       checksum      TYPE i,
-      "! 체크 GUID (SATC_API_FINDINGS-MODULEID)
-      checkid       TYPE sysuuid_x16,
-      "! 메시지 코드 (SATC_API_FINDINGS-MODULE_MSG_KEY)
-      messageid     TYPE char25,
+      "! findings 뷰가 주는 체크 식별자. 표준 예외 API 가 받는 값과는 다르다.
+      "!   moduleid     RAW16  = 체크 GUID
+      "!   modulemsgkey CHAR25 = 메시지 키
+      moduleid      TYPE sysuuid_x16,
+      modulemsgkey  TYPE char25,
       priority      TYPE int1,
       msgtext       TYPE char255,
       contactperson TYPE syuname,
@@ -109,8 +110,8 @@ INTERFACE zif_atc_exemption
       inclsubpkg   TYPE abap_boolean,
       objecttype   TYPE trobjtype,
       objectname   TYPE sobj_name,
-      checkid      TYPE sysuuid_x16,
-      messageid    TYPE char25,
+      moduleid     TYPE sysuuid_x16,
+      modulemsgkey TYPE char25,
       "! X 이면 담당자 필터(경로 1). 공란이면 전체(경로 2, 승인자/조회용).
       only_mine    TYPE abap_boolean,
     END OF ty_selection.

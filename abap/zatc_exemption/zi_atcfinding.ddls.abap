@@ -12,8 +12,6 @@
 // 배치, 보관 정책을 만들 이유가 없다.
 //
 // 뷰의 필드명은 우리 도메인 용어와 다르다. 여기서 한 번만 맞춘다.
-//   moduleid       -> 체크 (GUID)   CheckId
-//   module_msg_key -> 메시지 코드   MessageId
 //   messagetitle   -> 메시지 텍스트 MessageText
 //   packagename    -> 패키지        Devclass  (SSTRING -> CHAR30 캐스트)
 //
@@ -40,16 +38,16 @@ define view entity ZI_AtcFinding
   left outer join ZI_AtcActiveExemption as PkgExempt
     on  PkgExempt.ScopeType  = 'PCKG'
     and PkgExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
-    and ( PkgExempt.CheckId   = Finding.moduleid       or PkgExempt.CheckId   = '' )
-    and ( PkgExempt.MessageId = Finding.module_msg_key or PkgExempt.MessageId = '' )
+    // 🔴 TODO 대장의 CheckId/MessageId 는 표준 API 용 값이고, finding 은 모듈
+    //   식별자를 준다. 둘을 잇는 경로가 확인되면 여기에 조건을 넣는다.
+    //   그때까지는 체크를 구분하지 않고 오브젝트/패키지 단위로만 매칭한다.
 
   left outer join ZI_AtcActiveExemption as ObjExempt
     on  ObjExempt.ScopeType  = 'OBJ'
     and ObjExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
     and ObjExempt.ObjectType = Finding.objecttype
     and ObjExempt.ObjectName = Finding.objectname
-    and ( ObjExempt.CheckId   = Finding.moduleid       or ObjExempt.CheckId   = '' )
-    and ( ObjExempt.MessageId = Finding.module_msg_key or ObjExempt.MessageId = '' )
+
 
 {
   // 스냅샷 테이블이 없으므로 SATC_API_FINDINGS 의 키를 그대로 엔터티 키로 쓴다.
@@ -65,8 +63,9 @@ define view entity ZI_AtcFinding
       cast( Finding.packagename as abap.char( 30 ) ) as Devclass,
       Finding.objecttype         as ObjectType,
       Finding.objectname         as ObjectName,
-      Finding.moduleid           as CheckId,
-      Finding.module_msg_key     as MessageId,
+      // 표준 예외 API 가 받는 체크 클래스/코드와는 다른 값이다. 같은 것으로 다루지 않는다.
+      Finding.moduleid           as ModuleId,
+      Finding.module_msg_key     as ModuleMsgKey,
 
       // 코드가 바뀌어도 유지되는 finding 식별자
       Finding.checksum           as Checksum,

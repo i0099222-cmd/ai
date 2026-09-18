@@ -19,12 +19,12 @@ define abstract entity ZD_AtcCreateFromFinding
   @EndUserText.label: 'Object Name'
   ObjectName : sobj_name;
 
-  // 체크 GUID (SATC_API_FINDINGS-MODULEID 와 같은 타입)
-  @EndUserText.label: 'Check'
-  CheckId    : abap.raw(16);
+  // findings 뷰가 주는 체크 식별자. 표준 예외 API 가 받는 값과는 다르다.
+  @EndUserText.label: 'Check Module'
+  ModuleId     : abap.raw(16);
 
-  @EndUserText.label: 'Check Message Code'
-  MessageId  : abap.char(25);
+  @EndUserText.label: 'Check Module Message Key'
+  ModuleMsgKey : abap.char(25);
 
   // 적용 범위. 선택 가능한 값은 컨트롤 테이블이 정한다.
   @EndUserText.label: 'Object Scope'

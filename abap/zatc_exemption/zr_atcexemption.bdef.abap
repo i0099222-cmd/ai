@@ -157,6 +157,8 @@ etag master LocalLastChangedAt
     ObjectType         = objecttype;
     ObjectName         = objectname;
     Checksum           = checksum;
+    ModuleId           = moduleid;
+    ModuleMsgKey       = modulemsgkey;
     CheckId            = checkid;
     MessageId          = messageid;
     Priority           = priority;

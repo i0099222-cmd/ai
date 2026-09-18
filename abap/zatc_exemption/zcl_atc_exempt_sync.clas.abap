@@ -113,11 +113,16 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
     TRY.
 
-        " TODO 확인 필요: i_check_class / i_check_code 의 타입.
-        "   findings 뷰의 moduleid 가 RAW16 이므로 ATC 는 체크를 GUID 로 식별한다.
-        "   i_check_class 도 같은 GUID 를 받는다면 아래처럼 그대로 넘기면 되고,
-        "   사람이 읽는 클래스명(CHAR30)을 받는다면 GUID -> 이름 변환이 필요하다.
-        "   그 경우 findings 뷰에 이름을 담은 필드가 따로 있는지도 함께 확인한다.
+        " 타입은 확정되었다. i_check_class 는 CSEQUENCE(문자열 클래스명),
+        " i_check_code 는 CHAR10 이다. 따라서 신청서의 checkid(CHAR30) /
+        " messageid(CHAR10) 를 그대로 넘긴다.
+        "
+        " 🔴 단, findings 뷰는 이 두 값을 주지 않는다. 그 뷰가 주는 것은
+        "   moduleid(RAW16) 와 module_msg_key(CHAR25) 라 둘 다 타입이 맞지 않는다.
+        "   그래서 현재는 finding 에서 신청서를 만들어도 checkid / messageid 가
+        "   비어 있고, 그 상태로는 이 메서드까지 오지 못한다(필수 필드 검증에서 막힘).
+        "   moduleid -> 클래스명 변환 경로를 찾기 전까지는 사용자가 체크 클래스와
+        "   코드를 직접 입력해야 한다.
         DATA(lo_exemption) = lo_controller->create_exemption(
           i_object_type    = is_exemption-objecttype
           i_object_name    = is_exemption-objectname

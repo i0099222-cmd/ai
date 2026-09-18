@@ -41,15 +41,14 @@ define table ztatcexempt {
   "! FND 스코프의 대상 finding 은 아이템 1건이다. 식별자(checksum)는 아이템에만 둔다.
   "! 헤더에 또 두면 두 값이 어긋났을 때 어느 쪽이 맞는지 알 수 없게 된다.
 
-  "! 대상 체크. 예외가 적용될 규칙이다 (정책 조회용 변형과는 별개).
-  "! SATC_API_FINDINGS-MODULEID 와 같은 타입이다. ATC 는 체크를 이름이 아니라
-  "! GUID 로 식별하므로 사람이 읽을 수 있는 값이 아니다. 화면에는 메시지
-  "! 텍스트를 보여주고, 이 값은 표준 API 에 넘기는 용도로만 쓴다.
-  checkid           : abap.raw(16);
+  "! 대상 체크 클래스. 표준 create_exemption( i_check_class ) 에 넘기는 값이다.
+  "! 그 파라미터가 CSEQUENCE 이므로 문자열이다 (findings 뷰의 moduleid 는
+  "! RAW16 GUID 라 여기에 쓸 수 없다).
+  checkid           : abap.char(30);
 
-  "! 대상 메시지 코드. 공란이면 체크의 모든 메시지.
-  "! SATC_API_FINDINGS-MODULE_MSG_KEY 와 같은 타입.
-  messageid         : abap.char(25);
+  "! 대상 메시지 코드. 표준 create_exemption( i_check_code ) 에 넘기는 값이다.
+  "! 그 파라미터가 CHAR10 이다 (findings 뷰의 module_msg_key 는 CHAR25 라 다르다).
+  messageid         : abap.char(10);
 
   "! 규칙 적용 축. MSG(메시지 1개) / CHK(체크 전체)
   rulescope         : abap.char(3);

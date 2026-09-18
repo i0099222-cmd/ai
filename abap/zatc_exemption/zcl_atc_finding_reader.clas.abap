@@ -35,8 +35,8 @@ CLASS zcl_atc_finding_reader DEFINITION
                 iv_inclsubpkg     TYPE abap_boolean DEFAULT abap_false
                 iv_objecttype     TYPE trobjtype OPTIONAL
                 iv_objectname     TYPE sobj_name OPTIONAL
-                iv_checkid        TYPE sysuuid_x16 OPTIONAL
-                iv_messageid      TYPE char25 OPTIONAL
+                iv_moduleid       TYPE sysuuid_x16 OPTIONAL
+                iv_modulemsgkey   TYPE char25 OPTIONAL
       RETURNING VALUE(rt_finding) TYPE zif_atc_exemption=>tt_finding.
 
   PRIVATE SECTION.
@@ -54,17 +54,25 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
 
   METHOD select.
 
+    " 🔴 TODO 미해결: 표준 예외 API 에 넘길 체크 클래스와 코드를 어디서 얻는가.
+    "   create_exemption( i_check_class = CSEQUENCE, i_check_code = CHAR10 ) 인데,
+    "   이 뷰가 주는 값은 moduleid(RAW16) 와 module_msg_key(CHAR25) 라 둘 다 맞지 않는다.
+    "   findings 뷰에 체크 클래스명을 담은 문자 필드와 CHAR10 코드 필드가 따로
+    "   있는지 찾거나, moduleid -> 클래스명 변환 경로를 확인해야 한다.
+    "   그때까지 신청서의 CheckId / MessageId 를 채울 수 없다.
+    "
     " TODO 확인 필요: contractperson 의 철자.
     "   ATC 는 담당자를 contact person 이라 부르므로 contactperson 일 가능성이 있다.
     "   틀리면 이 SELECT 의 두 곳만 고치면 된다.
-    "   - ADT 에서 Properties > API State 를 확인한다.
-    "     "Released for Cloud Development" 가 아니면 이 클래스는 클래식 ABAP
-    "     패키지에 두고 RAP 쪽에서는 래퍼로 호출해야 한다.
-    "   - TODO 확인 필요: checksum 필드의 존재와 이름.
-    "     뷰의 키(resultid/itemid/checkrunindex)는 ATC 실행 단위라 런마다 바뀌어
-    "     예외의 영구 키로 쓸 수 없다. 기존 샘플 프로그램이 아이템에 checksum 을
-    "     보관하고 있으므로 이 뷰에도 같은 값이 있을 것으로 보고 읽는다.
-    "   아래 SELECT 는 필드명을 확인한 뒤 그대로 채우면 되도록 구조만 잡아 둔 것이다.
+    "
+    " TODO 확인 필요: satc_api_findings 의 API State.
+    "   ADT 에서 Properties > API State 가 "Released for Cloud Development" 가
+    "   아니면 이 클래스는 클래식 ABAP 패키지에 두고 RAP 쪽에서는 래퍼로
+    "   호출해야 한다.
+    "
+    " checksum 을 읽는 이유: 뷰의 키(resultid/itemid/checkrunindex)는 ATC 실행
+    "   단위라 런마다 바뀌어 예외의 영구 키로 쓸 수 없다. 기존 샘플 프로그램도
+    "   아이템에 checksum 을 보관하고 있어 같은 값을 증빙으로 들고 다닌다.
 
     " 패키지 목록은 ABAP SQL 의 IN 에 그대로 넘길 수 없다. range 로 옮긴다.
     DATA(lt_devclass) = expand_packages( iv_devclass   = is_selection-devclass
@@ -92,18 +100,20 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
     ENDIF.
 
     " 뷰의 필드명은 우리 도메인 용어와 다르다. 여기서 한 번만 맞춘다.
-    "   moduleid       -> 체크 (GUID)   checkid
-    "   module_msg_key -> 메시지 코드   messageid
     "   messagetitle   -> 메시지 텍스트 msgtext
     "   packagename    -> 패키지        devclass (SSTRING -> DEVCLASS)
+    "
+    " moduleid / module_msg_key 는 이름만 맞추지 않고 그대로 들고 다닌다.
+    " 표준 create_exemption 이 받는 값과 타입이 달라(아래 TODO) 같은 것으로
+    " 취급하면 안 되기 때문이다.
     SELECT FROM satc_api_findings
       FIELDS checkvariant,
              packagename    AS devclass,
              objecttype,
              objectname,
              checksum,
-             moduleid       AS checkid,
-             module_msg_key AS messageid,
+             moduleid,
+             module_msg_key AS modulemsgkey,
              priority,
              messagetitle   AS msgtext,
              contractperson AS contactperson,
@@ -112,8 +122,8 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
         AND ( packagename    IN @lr_devclass      OR @lr_devclass IS INITIAL )
         AND ( objecttype      = @is_selection-objecttype OR @is_selection-objecttype IS INITIAL )
         AND ( objectname      = @is_selection-objectname OR @is_selection-objectname IS INITIAL )
-        AND ( moduleid        = @is_selection-checkid    OR @is_selection-checkid    IS INITIAL )
-        AND ( module_msg_key  = @is_selection-messageid  OR @is_selection-messageid  IS INITIAL )
+        AND ( moduleid        = @is_selection-moduleid     OR @is_selection-moduleid     IS INITIAL )
+        AND ( module_msg_key  = @is_selection-modulemsgkey OR @is_selection-modulemsgkey IS INITIAL )
         " 경로 1 : 담당자 본인 건만. 경로 2 : 조건 자체를 무력화한다.
         AND ( @is_selection-only_mine = @abap_false
               OR contractperson = @sy-uname
@@ -130,8 +140,8 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
 
     " 영향도는 담당자와 무관하게 범위 전체를 봐야 하므로 항상 경로 2 로 읽는다.
     ls_selection = VALUE #( checkvariant = iv_checkvariant
-                            checkid      = iv_checkid
-                            messageid    = iv_messageid
+                            moduleid     = iv_moduleid
+                            modulemsgkey = iv_modulemsgkey
                             only_mine    = abap_false ).
 
     CASE iv_scopetype.

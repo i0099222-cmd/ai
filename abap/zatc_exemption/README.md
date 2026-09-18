@@ -127,6 +127,7 @@ GUID 와 인덱스이므로 클래스명은 `ci_id` 다.
 | # | 가정 | 확인 방법 | 틀리면 |
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
+| 2 | **`set_reason( i_reason )` 의 타입과 고정값 목록** 🔴 | 메소드 시그니처 + 도메인 | 값이 확인되면 `reasoncode` 도메인 고정값으로 등록 |
 | 2 | `contractperson` 의 철자 (`contactperson` 일 가능성) | 뷰 필드 목록 | `ZI_AtcFinding` 1곳 |
 | 4 | `module_msg_key` 가 곧 체크 코드인지 | 예외 1건 등록 후 `SATC_CI_R_EXEMPTION` 의 `checkcode` 와 비교 | `ZI_AtcFinding` 캐스트 1줄 |
 

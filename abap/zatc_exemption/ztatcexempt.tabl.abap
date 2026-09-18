@@ -49,7 +49,9 @@ define table ztatcexempt {
   "! 규칙 적용 축. MSG(메시지 1개) / CHK(체크 전체)
   rulescope         : abap.char(3);
 
-  "! 사유 코드
+  "! 사유 코드. 표준 set_reason( i_reason ) 으로 그대로 넘어간다.
+  "! 🔴 확인 필요: 표준 i_reason 의 고정값 목록. 확인되면 그 값을 이 필드의
+  "!   도메인 고정값으로 등록한다 (자체 값 도움 뷰를 만들지 않아도 된다).
   reasoncode        : abap.char(4);
 
   "! 근거 텍스트. 감사 대응 시 유일한 서술 근거이므로 최소 길이를 검증한다.

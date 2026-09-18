@@ -15,7 +15,7 @@
 "!     -> 예외 오브젝트를 돌려주고, 나머지는 setter 로 채운다
 "!          set_object_scope( )       SATC_CI_OBJ_SCOPE. FND / OBJ / PCKG
 "!          set_check_scope( )        MSG / CHK / ALL / FND
-"!          set_reason( )
+"!          set_reason( )            i_reason(코드, 필수) / i_comment(서술)
 "!          set_validity_date( )
 "!          set_approver( )
 "!          set_notification_type( )  REJ / ALWS / NEVR
@@ -134,7 +134,18 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         " 체크 축은 MSG / CHK / ALL / FND 중 하나다. 신청서는 MSG / CHK 만 쓴다.
         lo_exemption->set_check_scope( CONV #( is_exemption-rulescope ) ).
 
-        lo_exemption->set_reason( is_exemption-reasontext ).
+        " set_reason 은 코드와 서술을 따로 받는다.
+        "   i_reason  (필수) 사유 코드
+        "   i_comment        자유 서술
+        " 위치 인자로 넘기면 서술이 코드 자리로 들어간다. 이름으로 넘긴다.
+        "
+        " 🔴 확인 필요: i_reason 의 타입과 고정값 목록.
+        "   우리 reasoncode 는 CHAR4 이지만 값 목록을 정한 곳이 없다.
+        "   표준에 고정값이 있으면 그 값을 그대로 ztatcexempt-reasoncode 의
+        "   도메인 고정값으로 삼는다. 그래야 매핑 없이 양쪽이 같은 값을 쓰고,
+        "   Fiori 화면에도 별도 값 도움 뷰 없이 드롭다운이 생긴다.
+        lo_exemption->set_reason( i_reason  = CONV #( is_exemption-reasoncode )
+                                  i_comment = is_exemption-reasontext ).
         lo_exemption->set_validity_date( is_exemption-validto ).
         lo_exemption->set_approver( i_approver = is_exemption-approver ).
 

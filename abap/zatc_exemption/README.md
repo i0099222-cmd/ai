@@ -76,7 +76,7 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | 뷰 필드 | 우리 이름 | 비고 |
 |---|---|---|
 | `resultid` + `itemid` + `checkrunindex` | (키) | 런 단위. 예외의 영구 키로는 못 씀 |
-| `moduleid` | `CheckClass` | RAW16 체크 GUID. `SATC_AC_CHM` 조인으로 클래스명(`CL_CI_TEST_DB`)을 얻는다 |
+| `moduleid` | `CheckClass` | RAW16 체크 GUID. `SATC_AC_CHM.ci_id` 조인으로 클래스명(`CL_CI_TEST_DB`)을 얻는다 |
 | `module_msg_key` | `CheckCode` | CHAR25 메시지 키 → CHAR10 캐스트 (`DBREAD`, `UPDATE_SUC`) |
 | `messagetitle` | `MessageText` | |
 | `packagename` | `Devclass` | **SSTRING(30)**. `ZI_AtcFinding` 에서 CHAR30 캐스트 |
@@ -91,14 +91,15 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 그래서 환산이 필요하며, 그 환산은 `ZI_AtcFinding` 의 조인 한 곳에만 있다.
 
 ```
-SATC_API_FINDINGS.moduleid  ──┐
-                              ├─ SATC_AC_CHM.module_id ─→ CheckClass
-SATC_API_FINDINGS.module_msg_key ─ CHAR10 캐스트 ───────→ CheckCode
+SATC_API_FINDINGS.moduleid ─→ SATC_AC_CHM.module_id ─→ .ci_id ─→ CheckClass
+SATC_API_FINDINGS.module_msg_key ─── CHAR10 캐스트 ─────────────→ CheckCode
 ```
 
-🔴 **가정 2개**. 둘 다 `ZI_AtcFinding` 한 줄씩이다.
-1. `SATC_AC_CHM` 의 클래스명 컬럼이 `chkclass` 다
-2. `module_msg_key` 가 곧 체크 코드다 (11자 이상인 키가 있으면 틀린 가정)
+`SATC_AC_CHM` 의 컬럼은 `module_id` / `module_ix` / `ci_id` 셋뿐이고, 앞의 둘은
+GUID 와 인덱스이므로 클래스명은 `ci_id` 다.
+
+🔴 **남은 가정 1개** — `module_msg_key` 가 곧 체크 코드다. `ZI_AtcFinding` 의
+캐스트 한 줄이며, 11자 이상인 메시지 키가 있으면 틀린 가정이다.
 
 사용자는 finding 을 골라 신청하므로 이 값들을 직접 입력할 일이 없고, 목록에는
 `MessageText`(`messagetitle`)를 보여준다.
@@ -126,7 +127,6 @@ SATC_API_FINDINGS.module_msg_key ─ CHAR10 캐스트 ───────→ C
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
 | 2 | `contractperson` 의 철자 (`contactperson` 일 가능성) | 뷰 필드 목록 | `ZI_AtcFinding` 1곳 |
-| 3 | **`SATC_AC_CHM` 의 클래스명 컬럼이 `chkclass` 인지** 🔴 | SE11 / ADT | `ZI_AtcFinding` 셀렉트 리스트 1줄 |
 | 4 | `module_msg_key` 가 곧 체크 코드인지 | 예외 1건 등록 후 `SATC_CI_R_EXEMPTION` 의 `checkcode` 와 비교 | `ZI_AtcFinding` 캐스트 1줄 |
 
 > 타입 추측이 여러 번 빗나갔다: `checksum`(→`int4`), 적용범위(→`char4`),

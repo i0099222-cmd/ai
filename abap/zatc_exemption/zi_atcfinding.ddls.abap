@@ -14,7 +14,7 @@
 // 뷰의 필드명은 우리 도메인 용어와 다르다. 여기서 한 번만 맞춘다.
 //   messagetitle   -> 메시지 텍스트 MessageText
 //   packagename    -> 패키지        Devclass  (SSTRING -> CHAR30 캐스트)
-//   moduleid       -> 체크 클래스   CheckClass (SATC_AC_CHM 조인)
+//   moduleid       -> 체크 클래스   CheckClass (SATC_AC_CHM.ci_id 조인)
 //   module_msg_key -> 체크 코드     CheckCode  (CHAR25 -> CHAR10 캐스트)
 //
 // 면제 판정에 소스 라인이 들어가지 않는 것이 요건의 기술적 실체다.
@@ -41,9 +41,9 @@ define view entity ZI_AtcFinding
   // 받는 것은 문자 클래스명(CL_CI_TEST_DB)이므로 체크 모듈 테이블에서 가져온다.
   // 이 조인이 앱에서 유일하게 그 환산을 하는 곳이다.
   //
-  // 🔴 가정 1: SATC_AC_CHM 의 클래스명 컬럼이 chkclass 다.
-  //   ADT 에서 SATC_AC_CHM 을 열어 확인하고 다르면 아래 셀렉트 리스트의
-  //   Chm.chkclass 한 줄만 고친다.
+  // SATC_AC_CHM 의 컬럼은 module_id / module_ix / ci_id 셋뿐이다.
+  // 앞의 둘은 GUID 와 인덱스이므로 체크를 사람이 읽는 이름으로 부르는 것은
+  // ci_id(Code Inspector 체크 ID = 체크 클래스명) 하나다.
   //
   // left outer 인 이유: 모듈 행이 없다고 finding 이 목록에서 사라지면 안 된다.
   // 그 경우 CheckClass 가 비고, 신청 시 표준 반영이 막히는 것으로 드러난다.
@@ -55,7 +55,7 @@ define view entity ZI_AtcFinding
     and PkgExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
     // 체크까지 맞춰야 "다른 체크의 예외" 를 이 건의 예외로 잘못 읽지 않는다.
     // CHK 스코프는 체크 전체가 대상이므로 코드는 비교하지 않는다.
-    and PkgExempt.CheckClass = Chm.chkclass
+    and PkgExempt.CheckClass = cast( Chm.ci_id as abap.char( 30 ) )
     and (   PkgExempt.RuleScope = 'CHK'
          or PkgExempt.CheckCode = cast( Finding.module_msg_key as abap.char( 10 ) ) )
 
@@ -64,7 +64,7 @@ define view entity ZI_AtcFinding
     and ObjExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
     and ObjExempt.ObjectType = Finding.objecttype
     and ObjExempt.ObjectName = Finding.objectname
-    and ObjExempt.CheckClass = Chm.chkclass
+    and ObjExempt.CheckClass = cast( Chm.ci_id as abap.char( 30 ) )
     and (   ObjExempt.RuleScope = 'CHK'
          or ObjExempt.CheckCode = cast( Finding.module_msg_key as abap.char( 10 ) ) )
 
@@ -84,8 +84,10 @@ define view entity ZI_AtcFinding
       Finding.objecttype         as ObjectType,
       Finding.objectname         as ObjectName,
       // 표준 예외 API 의 i_check_class / i_check_code 로 그대로 넘어가는 값.
-      Chm.chkclass               as CheckClass,
-      // 🔴 가정 2: module_msg_key 가 곧 체크 코드다.
+      // ABAP 클래스명은 30자가 최대이므로 대장 컬럼과 같은 CHAR30 으로 고정한다.
+      // ci_id 의 실제 타입이 무엇이든 조인과 저장이 같은 타입으로 맞는다.
+      cast( Chm.ci_id as abap.char( 30 ) ) as CheckClass,
+      // 🔴 가정: module_msg_key 가 곧 체크 코드다.
       //   표준 예외 뷰의 checkcode 값(DBREAD, UPDATE_SUC)이 메시지 키의 성격이고
       //   타입만 CHAR25 로 넓다. 11자 이상인 키가 있으면 이 캐스트가 잘라내므로
       //   그때는 가정이 틀린 것이다.

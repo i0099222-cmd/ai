@@ -273,40 +273,51 @@ ATC finding 은 별도 테이블에 적재하지 않고 `SATC_API_FINDINGS` 에�
 
 ### CDS
 
-트랜잭션 뷰는 **I → R → P** 3계층으로 둔다.
+전체 16개다. **I 계층은 BO 밖에서 재사용되는 것에만 둔다.** 이름만 바꿔 넘기는
+뷰는 활성화 오브젝트와 유지보수 지점만 늘리고, 구분되는 내용이 없어 오류도
+걸러내지 못한다.
 
 ```
-ztatcexempt / ztatcexempti / ztatcexemptlog
-     │
-     ▼  I  재사용 계층. 테이블을 그대로 노출, BO 구조 없음. 필드 레이블(EN)을 여기서 준다
-ZI_AtcExemption      ZI_AtcExemptionItem      ZI_AtcExemptionLog
-     │                                                 
-     ├─────────────────► ZI_AtcActiveExemption   승인 + 유효기간 내 예외만
-     │
-     ▼  R  BO 루트. composition + behavior definition
-ZR_AtcExemption ─ composition ─► ZR_AtcExemptionItem
+ztatcexempt                     ztatcexempti        ztatcexemptlog
+     │                               │                    │
+     ▼  I  헤더만 I 계층을 둔다       │  아이템·이력은 BO   │  밖에서 쓰는 곳이
+ZI_AtcExemption                  │  없으므로 R 이 테이블을 직접 읽는다
+     │                               │                    │
+     ├──► ZI_AtcActiveExemption   승인 + 유효기간 내 예외만 (만료배치·finding 조인이 사용)
+     │                               │                    │
+     ▼  R  BO 루트 + behavior definition                   │
+ZR_AtcExemption ─ composition ─► ZR_AtcExemptionItem ◄─────┘
                 └ composition ─► ZR_AtcExemptionLog
      │
      ▼  P  서비스 노출 + UI 어노테이션(ddlx)
 ZP_AtcExemption      ZP_AtcExemptionItem      ZP_AtcExemptionLog
 ```
 
-읽기 전용 뷰는 R 계층이 필요 없어 I → P 2계층으로 둔다.
+읽기 전용 뷰는 R 계층이 필요 없어 I → P 2계층이다.
 
 ```
-SATC_API_FINDINGS ⋈ ztatccfg(활성 변형) × ZI_AtcActiveExemption
+SATC_API_FINDINGS ⋈ SATC_AC_CHM(체크 클래스) ⋈ ztatccfg(활성 변형)
+                  ⋈ ZI_AtcActiveExemption ×2 (PCKG / OBJ)
      ▼  I
-ZI_AtcFinding      면제 여부 계산
+ZI_AtcFinding      표준 스키마를 아는 유일한 오브젝트. 면제 여부 계산
      ▼  P
-ZP_AtcFinding      키 = SATC_API_FINDINGS 의 키 (ResultId/ItemId/CheckRunIndex)
+ZP_AtcFinding      키 = ATC 결과의 키 (ResultId/ItemId/CheckRunIndex)
 
 ZI_AtcScopeVH     ztatccfg 의 허용 플래그를 union 으로 행으로 펼친 값 도움
 ZI_AtcVariantVH   활성 체크 변형 목록
 ZI_AtcPackageVH   패키지 값 도움
-ZD_AtcCreateFromFinding / ZD_AtcReject / ZD_AtcExtend   액션 파라미터
+ZD_AtcCreateFromFinding / ZD_AtcReject / ZD_AtcExtend   액션 파라미터(추상 엔터티)
 ```
 
-**필드 레이블은 I 계층에만 둔다.** R / P 는 그대로 물려받으므로 한 곳만 고치면 되고,
+| 분류 | 개수 |
+|---|---|
+| 트랜잭션 BO (I 1 + R 3 + P 3) | 7 |
+| 조회 (ZI/ZP_AtcFinding + ZI_AtcActiveExemption) | 3 |
+| 값 도움 | 3 |
+| 액션 파라미터 (추상 엔터티, 뷰 아님) | 3 |
+
+**필드 레이블은 테이블을 직접 읽는 뷰에 둔다.** 헤더는 `ZI_AtcExemption`,
+아이템·이력은 `ZR_*` 다. 위 계층은 그대로 물려받으므로 한 곳만 고치면 되고,
 P 의 ddlx 는 화면 배치(위치·중요도·facet)만 담당한다.
 
 ### 클래스

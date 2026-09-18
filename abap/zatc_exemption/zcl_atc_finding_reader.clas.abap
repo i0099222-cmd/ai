@@ -35,7 +35,7 @@ CLASS zcl_atc_finding_reader DEFINITION
                 iv_inclsubpkg     TYPE abap_boolean DEFAULT abap_false
                 iv_objecttype     TYPE trobjtype OPTIONAL
                 iv_objectname     TYPE sobj_name OPTIONAL
-                iv_checkid        TYPE char30 OPTIONAL
+                iv_checkid        TYPE sysuuid_x16 OPTIONAL
                 iv_messageid      TYPE char30 OPTIONAL
       RETURNING VALUE(rt_finding) TYPE zif_atc_exemption=>tt_finding.
 
@@ -92,7 +92,7 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
     ENDIF.
 
     " 뷰의 필드명은 우리 도메인 용어와 다르다. 여기서 한 번만 맞춘다.
-    "   moduleid       -> 체크 클래스   checkid
+    "   moduleid       -> 체크 (GUID)   checkid
     "   module_msg_key -> 메시지 코드   messageid
     "   messagetitle   -> 메시지 텍스트 msgtext
     "   packagename    -> 패키지        devclass

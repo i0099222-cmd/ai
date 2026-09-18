@@ -41,9 +41,11 @@ define table ztatcexempt {
   "! FND 스코프의 대상 finding 은 아이템 1건이다. 식별자(checksum)는 아이템에만 둔다.
   "! 헤더에 또 두면 두 값이 어긋났을 때 어느 쪽이 맞는지 알 수 없게 된다.
 
-  "! 대상 체크 ID. 예외가 적용될 규칙이다 (정책 조회용 변형과는 별개).
-  "! 공란이면 변형에 속한 모든 체크.
-  checkid           : abap.char(30);
+  "! 대상 체크. 예외가 적용될 규칙이다 (정책 조회용 변형과는 별개).
+  "! SATC_API_FINDINGS-MODULEID 와 같은 타입이다. ATC 는 체크를 이름이 아니라
+  "! GUID 로 식별하므로 사람이 읽을 수 있는 값이 아니다. 화면에는 메시지
+  "! 텍스트를 보여주고, 이 값은 표준 API 에 넘기는 용도로만 쓴다.
+  checkid           : abap.raw(16);
 
   "! 대상 메시지 ID. 공란이면 체크의 모든 메시지.
   messageid         : abap.char(30);

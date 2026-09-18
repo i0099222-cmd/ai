@@ -39,7 +39,7 @@ define view entity ZI_AtcExemption
       @EndUserText.label: 'Object Name'
       objectname        as ObjectName,
 
-      @EndUserText.label: 'Check Class'
+      @EndUserText.label: 'Check'
       checkid           as CheckId,
 
       @EndUserText.label: 'Check Message Code'

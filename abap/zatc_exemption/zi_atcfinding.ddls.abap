@@ -12,7 +12,7 @@
 // 배치, 보관 정책을 만들 이유가 없다.
 //
 // 뷰의 필드명은 우리 도메인 용어와 다르다. 여기서 한 번만 맞춘다.
-//   moduleid       -> 체크 클래스   CheckId
+//   moduleid       -> 체크 (GUID)   CheckId
 //   module_msg_key -> 메시지 코드   MessageId
 //   messagetitle   -> 메시지 텍스트 MessageText
 //   packagename    -> 패키지        Devclass

@@ -113,6 +113,11 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
     TRY.
 
+        " TODO 확인 필요: i_check_class / i_check_code 의 타입.
+        "   findings 뷰의 moduleid 가 RAW16 이므로 ATC 는 체크를 GUID 로 식별한다.
+        "   i_check_class 도 같은 GUID 를 받는다면 아래처럼 그대로 넘기면 되고,
+        "   사람이 읽는 클래스명(CHAR30)을 받는다면 GUID -> 이름 변환이 필요하다.
+        "   그 경우 findings 뷰에 이름을 담은 필드가 따로 있는지도 함께 확인한다.
         DATA(lo_exemption) = lo_controller->create_exemption(
           i_object_type    = is_exemption-objecttype
           i_object_name    = is_exemption-objectname

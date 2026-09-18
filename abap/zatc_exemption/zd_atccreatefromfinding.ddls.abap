@@ -19,8 +19,9 @@ define abstract entity ZD_AtcCreateFromFinding
   @EndUserText.label: 'Object Name'
   ObjectName : sobj_name;
 
-  @EndUserText.label: 'Check Class'
-  CheckId    : abap.char(30);
+  // 체크 GUID (SATC_API_FINDINGS-MODULEID 와 같은 타입)
+  @EndUserText.label: 'Check'
+  CheckId    : abap.raw(16);
 
   @EndUserText.label: 'Check Message Code'
   MessageId  : abap.char(30);

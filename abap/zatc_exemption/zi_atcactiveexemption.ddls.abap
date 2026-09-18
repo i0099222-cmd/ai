@@ -40,6 +40,11 @@ define view entity ZI_AtcActiveExemption
       @EndUserText.label: 'Check Message Code'
       CheckCode,
 
+      // CHK 스코프는 체크 전체가 대상이라 코드를 비교하면 안 된다.
+      // 조인 조건에서 이 값을 보고 코드 비교 여부를 정한다.
+      @EndUserText.label: 'Check Scope'
+      RuleScope,
+
       @EndUserText.label: 'Valid From'
       ValidFrom,
 

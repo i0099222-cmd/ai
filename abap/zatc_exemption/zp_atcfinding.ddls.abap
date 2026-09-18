@@ -15,8 +15,6 @@ define view entity ZP_AtcFinding
       Devclass,
       ObjectType,
       ObjectName,
-      ModuleId,
-      ModuleMsgKey,
       Checksum,
 
       StdExemptionKind,

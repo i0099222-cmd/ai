@@ -35,8 +35,8 @@ CLASS zcl_atc_finding_reader DEFINITION
                 iv_inclsubpkg     TYPE abap_boolean DEFAULT abap_false
                 iv_objecttype     TYPE trobjtype OPTIONAL
                 iv_objectname     TYPE sobj_name OPTIONAL
-                iv_moduleid       TYPE sysuuid_x16 OPTIONAL
-                iv_modulemsgkey   TYPE char25 OPTIONAL
+                iv_checkclass     TYPE char30 OPTIONAL
+                iv_checkcode      TYPE char10 OPTIONAL
       RETURNING VALUE(rt_finding) TYPE zif_atc_exemption=>tt_finding.
 
   PRIVATE SECTION.
@@ -53,11 +53,6 @@ ENDCLASS.
 CLASS zcl_atc_finding_reader IMPLEMENTATION.
 
   METHOD select.
-
-    " 이 뷰는 표준 예외 API 가 받는 체크 클래스/코드를 주지 않는다.
-    "   (check 가 들어간 필드는 checkrunindex / checkvariant / checksumversion 뿐)
-    "   환산은 ZCL_ATC_CHECK_RESOLVER 가 맡는다. 이 클래스는 뷰가 주는 값을
-    "   그대로 읽어 넘기기만 한다.
 
     " TODO 확인 필요: contractperson 의 철자.
     "   ATC 는 담당자를 contact person 이라 부르므로 contactperson 일 가능성이 있다.
@@ -101,17 +96,18 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
     "   messagetitle   -> 메시지 텍스트 msgtext
     "   packagename    -> 패키지        devclass (SSTRING -> DEVCLASS)
     "
-    " moduleid / module_msg_key 는 이름만 맞추지 않고 그대로 들고 다닌다.
-    " 표준 create_exemption 이 받는 값과 타입이 달라(아래 TODO) 같은 것으로
-    " 취급하면 안 되기 때문이다.
+    " 🔴 TODO 확인 필요: 체크 클래스/코드의 뷰상 필드명.
+    "   샘플 프로그램이 아이템에 chkclass / chkcode 를 담고 있고 그 원천이 이
+    "   뷰이므로 같은 이름으로 읽는다. ADT 에서 샘플의 SELECT 문을 열어
+    "   실제 필드명을 확인하고 다르면 아래 두 줄만 고친다.
     SELECT FROM satc_api_findings
       FIELDS checkvariant,
              packagename    AS devclass,
              objecttype,
              objectname,
              checksum,
-             moduleid,
-             module_msg_key AS modulemsgkey,
+             chkclass       AS checkclass,
+             chkcode        AS checkcode,
              priority,
              messagetitle   AS msgtext,
              contractperson AS contactperson,
@@ -120,8 +116,8 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
         AND ( packagename    IN @lr_devclass      OR @lr_devclass IS INITIAL )
         AND ( objecttype      = @is_selection-objecttype OR @is_selection-objecttype IS INITIAL )
         AND ( objectname      = @is_selection-objectname OR @is_selection-objectname IS INITIAL )
-        AND ( moduleid        = @is_selection-moduleid     OR @is_selection-moduleid     IS INITIAL )
-        AND ( module_msg_key  = @is_selection-modulemsgkey OR @is_selection-modulemsgkey IS INITIAL )
+        AND ( chkclass        = @is_selection-checkclass OR @is_selection-checkclass IS INITIAL )
+        AND ( chkcode         = @is_selection-checkcode  OR @is_selection-checkcode  IS INITIAL )
         " 경로 1 : 담당자 본인 건만. 경로 2 : 조건 자체를 무력화한다.
         AND ( @is_selection-only_mine = @abap_false
               OR contractperson = @sy-uname
@@ -138,8 +134,8 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
 
     " 영향도는 담당자와 무관하게 범위 전체를 봐야 하므로 항상 경로 2 로 읽는다.
     ls_selection = VALUE #( checkvariant = iv_checkvariant
-                            moduleid     = iv_moduleid
-                            modulemsgkey = iv_modulemsgkey
+                            checkclass   = iv_checkclass
+                            checkcode    = iv_checkcode
                             only_mine    = abap_false ).
 
     CASE iv_scopetype.

@@ -76,26 +76,23 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | 뷰 필드 | 우리 이름 | 비고 |
 |---|---|---|
 | `resultid` + `itemid` + `checkrunindex` | (키) | 런 단위. 예외의 영구 키로는 못 씀 |
-| `moduleid` | `CheckId` | **RAW16 (체크 GUID)**. ATC 는 체크를 이름이 아니라 GUID 로 식별한다 |
-| `module_msg_key` | `MessageId` | 메시지 코드. **CHAR25** |
+| `chkclass` | `CheckClass` | 체크 클래스명 (예: `CL_CI_TEST_DB`). ⬜ 뷰상 필드명 확인 필요 |
+| `chkcode` | `CheckCode` | 체크 코드 (예: `DBREAD`, `UPDATE_SUC`). ⬜ 뷰상 필드명 확인 필요 |
 | `messagetitle` | `MessageText` | |
 | `packagename` | `Devclass` | **SSTRING(30)**. 우리 `DEVCLASS`(CHAR30)와 타입이 달라 `ZI_AtcFinding` 에서 캐스트 |
 | `contractperson` | `ContactPerson` | ⬜ 철자 확인 필요 |
 | `checkvariant` / `objecttype` / `objectname` / `priority` / `responsible` / `checksum` | 동일 | |
 
-### 체크는 이름이 아니라 GUID 로 식별된다
+### 체크 클래스/코드는 그대로 흘러간다
 
-`moduleid` 가 RAW16 이다. ATC 는 체크를 사람이 읽는 클래스명이 아니라 **GUID** 로
-다룬다. 그래서 신청서의 `CheckId` 도 `RAW(16)` 이다.
+표준 `create_exemption( i_check_class, i_check_code )` 가 받는 값과 표준 예외 뷰
+`SATC_CI_R_EXEMPTION` 의 `checkclass` / `checkcode` 가 같은 값이다. findings 뷰도
+같은 값을 주므로 **환산하지 않는다.** 사용자는 finding 을 골라서 신청하므로 체크를
+직접 입력할 일이 없고, 목록에는 `MessageText`(`messagetitle`)를 보여준다.
 
-```
-화면에는 GUID 를 보여주지 않는다. 사용자는 finding 을 골라서 신청하므로
-체크를 직접 입력할 일이 없고, 목록에는 MessageText(messagetitle)를 보여준다.
-```
-
-🔴 **아직 확인이 필요하다**: `create_exemption( i_check_class = ... )` 이 이 GUID 를
-받는지, 아니면 사람이 읽는 클래스명을 받는지. 후자라면 GUID → 이름 변환이 필요하고,
-findings 뷰에 이름을 담은 필드가 따로 있는지도 찾아야 한다.
+⬜ 남은 확인: 뷰에서 이 두 값의 **필드명**. 샘플 프로그램이 아이템에 `chkclass` /
+`chkcode` 를 담고 그 원천이 이 뷰이므로 같은 이름으로 읽고 있다. 샘플의 SELECT 문을
+열어 확인하고 다르면 리더 SELECT 2곳과 `ZI_AtcFinding` 1곳만 고치면 된다.
 
 ### 표준이 이미 들고 있는 예외 상태
 
@@ -120,12 +117,12 @@ findings 뷰에 이름을 담은 필드가 따로 있는지도 찾아야 한다.
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
 | 2 | `contractperson` 의 철자 (`contactperson` 일 가능성) | 뷰 필드 목록 | 리더 SELECT 2곳 + `ZI_AtcFinding` 1곳 |
-| 3 | **`create_exemption` 의 `i_check_class` / `i_check_code` 타입** 🔴 | 메소드 시그니처 | GUID 를 받으면 그대로. 클래스명(CHAR)을 받으면 변환 필요 |
+| 3 | **findings 뷰의 체크 클래스/코드 필드명** 🔴 (`chkclass` / `chkcode` 로 가정) | 샘플 프로그램의 SELECT 문 | 리더 SELECT 2곳 + `ZI_AtcFinding` 1곳 |
 | 4 | 리더 SELECT 의 `packagename IN @lr_devclass` 가 SSTRING 컬럼에서 동작하는지 | 활성화 | 안 되면 SELECT 에도 캐스트를 넣는다 |
 
-> 지금까지 `checksum`(→`int4`), 적용범위(→`char4`), `moduleid`(→`raw16`),
-> `module_msg_key`(→`char25`), `packagename`(→`SSTRING`) 다섯 번 타입 추측이
-> 빗나갔다. `checkvariant`(`char30`)만 맞았다.
+> 타입 추측이 여러 번 빗나갔다: `checksum`(→`int4`), 적용범위(→`char4`),
+> `packagename`(→`SSTRING`). 체크 식별자는 한동안 `moduleid`/`module_msg_key` 로
+> 잘못 잡고 있었다 — 그 두 필드는 표준 예외 API 와 무관하며, 지금은 쓰지 않는다.
 | 3 | **`approve_exemptions_by_id` 가 있는지** 🔴 (reject 에 `_by_id` 가 있으니 짝이 있을 것) | `controller->` + Ctrl+Space | 있으면 건별 호출로 끝. 없으면 `_by_if` 의 테이블 행 구조를 확인해야 한다 |
 | 4 | **`get_exemption_id( )` 의 반환 타입** 🔴 | 시그니처 | `extexemptid` 를 `char(32)` 로 잡았다. `checksum` 처럼 숫자형이면 컬럼을 고쳐야 한다 |
 | 5 | 승인된 예외에 `reject_exemptions_by_id` 를 걸면 면제가 풀리는지 | 테스트 1건 | 안 풀리면 `set_validity_date` 를 과거로 당기는 대안 |
@@ -309,7 +306,6 @@ P 의 ddlx 는 화면 배치(위치·중요도·facet)만 담당한다.
 | `zbp_r_atcexemption` | behavior pool. 판정·상태전이·이력 |
 | `zcl_atc_config` | 컨트롤 테이블 조회 (세션 버퍼링). 정책값의 단일 창구 |
 | `zcl_atc_finding_reader` | ATC 표준 의존 격리. finding 조회 + 영향도 시뮬레이션 |
-| `zcl_atc_check_resolver` | finding 의 모듈 식별자 → 표준 API 의 체크 클래스/코드 환산 **(클래스명 경로 미확정)** |
 | `zcl_atc_exempt_sync` | 표준 예외 저장소 반영 **(스텁 — 확인 과제 5)** |
 | `zcl_atc_expiry_job` | 만료 전환 + D-30 알림 대상 추출 |
 | `zif_atc_exemption` | 상수/타입. 코드값 리터럴의 유일한 위치 |
@@ -360,7 +356,6 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 018 | Priority &1 findings cannot be exempted (allowed from &2) |
 | 019 | Check scope &1 is not allowed (use message or check) |
 | 020 | Action not allowed for status &1 |
-| 021 | Check class or check code could not be derived - enter them manually |
 
 ### 4. 권한 오브젝트 `Z_ATCEXEM`
 

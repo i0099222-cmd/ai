@@ -107,13 +107,6 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
                 iv_v2            TYPE any OPTIONAL
       RETURNING VALUE(ro_msg)    TYPE REF TO if_abap_behv_message.
 
-    "! 저장을 막지 않는 안내. 사용자가 무엇을 직접 채워야 하는지 알릴 때 쓴다.
-    METHODS new_warning
-      IMPORTING iv_number        TYPE symsgno
-                iv_v1            TYPE any OPTIONAL
-                iv_v2            TYPE any OPTIONAL
-      RETURNING VALUE(ro_msg)    TYPE REF TO if_abap_behv_message.
-
 ENDCLASS.
 
 
@@ -779,7 +772,14 @@ CLASS lhc_exemption IMPLEMENTATION.
                           iv_devclass   = ls_exemption-devclass
                           iv_inclsubpkg = ls_exemption-inclsubpkg
                           iv_objecttype = ls_exemption-objecttype
-                          iv_objectname = ls_exemption-objectname ).
+                          iv_objectname = ls_exemption-objectname
+                          " 체크까지 좁히지 않으면 다른 체크의 위반까지 세어
+                          " 승인자에게 부풀려진 영향도를 보이게 된다.
+                          iv_checkclass = ls_exemption-checkclass
+                          iv_checkcode  = COND #( WHEN ls_exemption-rulescope =
+                                                       zif_atc_exemption=>rulescope-check
+                                                  THEN space
+                                                  ELSE ls_exemption-checkcode ) ).
 
       DATA(lv_reason) = ls_exemption-reasontext.
       lv_reason = |{ lv_reason }\n---\n| &&
@@ -1140,7 +1140,14 @@ CLASS lhc_exemption IMPLEMENTATION.
                           iv_devclass   = ls_exemption-devclass
                           iv_inclsubpkg = ls_exemption-inclsubpkg
                           iv_objecttype = ls_exemption-objecttype
-                          iv_objectname = ls_exemption-objectname ).
+                          iv_objectname = ls_exemption-objectname
+                          " 체크까지 좁히지 않으면 다른 체크의 위반까지 세어
+                          " 승인자에게 부풀려진 영향도를 보이게 된다.
+                          iv_checkclass = ls_exemption-checkclass
+                          iv_checkcode  = COND #( WHEN ls_exemption-rulescope =
+                                                       zif_atc_exemption=>rulescope-check
+                                                  THEN space
+                                                  ELSE ls_exemption-checkcode ) ).
 
       DATA(lv_text) = |이 예외 승인 시 면제되는 현재 위반: { lines( lt_impact ) }건|.
 
@@ -1167,8 +1174,7 @@ CLASS lhc_exemption IMPLEMENTATION.
     DATA lt_item   TYPE TABLE FOR CREATE zr_atcexemption\_Item.
     DATA ls_item   LIKE LINE OF lt_item.
 
-    DATA(lo_reader)   = NEW zcl_atc_finding_reader( ).
-    DATA(lo_resolver) = zcl_atc_check_resolver=>get( ).
+    DATA(lo_reader) = NEW zcl_atc_finding_reader( ).
 
     LOOP AT keys INTO DATA(ls_key).
 
@@ -1183,8 +1189,8 @@ CLASS lhc_exemption IMPLEMENTATION.
                            devclass     = ls_param-devclass
                            objecttype   = ls_param-objecttype
                            objectname   = ls_param-objectname
-                           moduleid     = ls_param-moduleid
-                           modulemsgkey = ls_param-modulemsgkey
+                           checkclass   = ls_param-checkclass
+                           checkcode    = ls_param-checkcode
                            only_mine    = abap_false ) ).
 
       IF lt_finding IS INITIAL.
@@ -1192,16 +1198,6 @@ CLASS lhc_exemption IMPLEMENTATION.
         APPEND VALUE #( %cid = ls_key-%cid
                         %msg = new_error( iv_number = '017' ) ) TO reported-exemption.
         CONTINUE.
-      ENDIF.
-
-      " 체크 클래스/코드 환산. 실패해도 신청서는 만들고 경고만 남긴다.
-      " 막아버리면 환산 경로가 확정되기 전까지 앱을 쓸 수 없기 때문이다.
-      DATA(ls_check) = lo_resolver->resolve( iv_moduleid     = ls_param-moduleid
-                                             iv_modulemsgkey = ls_param-modulemsgkey ).
-
-      IF lo_resolver->is_complete( ls_check ) = abap_false.
-        APPEND VALUE #( %cid = ls_key-%cid
-                        %msg = new_warning( iv_number = '021' ) ) TO reported-exemption.
       ENDIF.
 
       APPEND VALUE #(
@@ -1214,12 +1210,9 @@ CLASS lhc_exemption IMPLEMENTATION.
         " 출발점 오브젝트가 없으면 표준에 반영할 수 없다.
         objecttype = ls_param-objecttype
         objectname = ls_param-objectname
-        " findings 뷰는 표준 API 가 받는 체크 클래스/코드를 주지 않는다.
-        " 환산은 resolver 가 한다. 환산되지 않은 필드는 비어서 가고,
-        " 사용자가 초안 화면에서 직접 채운다. 저장 시점의 필수 검증이 빈 채로
-        " 넘어가는 것을 막아 준다.
-        checkclass = ls_check-checkclass
-        checkcode  = ls_check-checkcode
+        " 뷰가 주는 값을 그대로 옮긴다. 표준 create_exemption 이 받는 값과 같다.
+        checkclass = ls_param-checkclass
+        checkcode  = ls_param-checkcode
         rulescope  = zif_atc_exemption=>rulescope-message
         validfrom  = sy-datum
         preregflag = abap_false ) TO lt_create.
@@ -1238,10 +1231,8 @@ CLASS lhc_exemption IMPLEMENTATION.
                         objecttype  = ls_finding-objecttype
                         objectname  = ls_finding-objectname
                         checksum    = ls_finding-checksum
-                        moduleid     = ls_finding-moduleid
-                        modulemsgkey = ls_finding-modulemsgkey
-                        checkclass   = ls_check-checkclass
-                        checkcode    = ls_check-checkcode
+                        checkclass   = ls_finding-checkclass
+                        checkcode    = ls_finding-checkcode
                         priority    = ls_finding-priority
                         messagetext = ls_finding-msgtext )
                TO ls_item-%target.
@@ -1259,8 +1250,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       ENTITY exemption
         CREATE BY \_Item
         FIELDS ( itemno objecttype objectname checksum
-                 moduleid modulemsgkey checkclass checkcode
-                 priority messagetext )
+                 checkclass checkcode priority messagetext )
         WITH lt_item
       MAPPED DATA(lt_mapped)
       FAILED DATA(lt_failed)
@@ -1313,17 +1303,6 @@ CLASS lhc_exemption IMPLEMENTATION.
     ro_msg = new_message( id       = c_msgclass
                           number   = iv_number
                           severity = if_abap_behv_message=>severity-error
-                          v1       = iv_v1
-                          v2       = iv_v2 ).
-
-  ENDMETHOD.
-
-
-  METHOD new_warning.
-
-    ro_msg = new_message( id       = c_msgclass
-                          number   = iv_number
-                          severity = if_abap_behv_message=>severity-warning
                           v1       = iv_v1
                           v2       = iv_v2 ).
 

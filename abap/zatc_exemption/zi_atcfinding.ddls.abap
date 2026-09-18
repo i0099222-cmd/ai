@@ -38,17 +38,20 @@ define view entity ZI_AtcFinding
   left outer join ZI_AtcActiveExemption as PkgExempt
     on  PkgExempt.ScopeType  = 'PCKG'
     and PkgExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
-    // 체크 축은 조인 조건에 넣지 않는다. 대장은 CheckClass/CheckCode 로,
-    //   finding 은 moduleid/module_msg_key 로 체크를 부르는데 두 값을 잇는
-    //   경로가 아직 없기 때문이다(ZCL_ATC_CHECK_RESOLVER 참고).
-    //   그래서 이 조인은 오브젝트/패키지 단위로만 맞춘다. 같은 오브젝트에
-    //   다른 체크의 예외가 걸려 있으면 ExemptionMismatch 가 뜰 수 있다.
+    // 체크까지 맞춰야 "다른 체크의 예외" 를 이 건의 예외로 잘못 읽지 않는다.
+    // CHK 스코프는 체크 전체가 대상이므로 코드는 비교하지 않는다.
+    and PkgExempt.CheckClass = Finding.chkclass
+    and (   PkgExempt.RuleScope = 'CHK'
+         or PkgExempt.CheckCode = Finding.chkcode )
 
   left outer join ZI_AtcActiveExemption as ObjExempt
     on  ObjExempt.ScopeType  = 'OBJ'
     and ObjExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
     and ObjExempt.ObjectType = Finding.objecttype
     and ObjExempt.ObjectName = Finding.objectname
+    and ObjExempt.CheckClass = Finding.chkclass
+    and (   ObjExempt.RuleScope = 'CHK'
+         or ObjExempt.CheckCode = Finding.chkcode )
 
 
 {
@@ -65,9 +68,9 @@ define view entity ZI_AtcFinding
       cast( Finding.packagename as abap.char( 30 ) ) as Devclass,
       Finding.objecttype         as ObjectType,
       Finding.objectname         as ObjectName,
-      // 표준 예외 API 가 받는 체크 클래스/코드와는 다른 값이다. 같은 것으로 다루지 않는다.
-      Finding.moduleid           as ModuleId,
-      Finding.module_msg_key     as ModuleMsgKey,
+      // 표준 예외 API 가 그대로 받는 값이다. 환산하지 않는다.
+      Finding.chkclass           as CheckClass,
+      Finding.chkcode            as CheckCode,
 
       // 코드가 바뀌어도 유지되는 finding 식별자
       Finding.checksum           as Checksum,

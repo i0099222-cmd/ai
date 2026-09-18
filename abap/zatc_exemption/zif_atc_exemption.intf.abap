@@ -89,28 +89,17 @@ INTERFACE zif_atc_exemption
       objectname    TYPE sobj_name,
       "! 코드가 바뀌어도 같은 위반이면 유지되는 finding 식별자
       checksum      TYPE i,
-      "! findings 뷰가 주는 체크 식별자. 표준 예외 API 가 받는 값과는 다르다.
-      "!   moduleid     RAW16  = 체크 GUID
-      "!   modulemsgkey CHAR25 = 메시지 키
-      moduleid      TYPE sysuuid_x16,
-      modulemsgkey  TYPE char25,
+      "! 대상 체크. 표준 예외 API 와 표준 예외 뷰가 쓰는 값 그대로다.
+      "!   checkclass  예: CL_CI_TEST_DB
+      "!   checkcode   예: DBREAD, UPDATE_SUC
+      checkclass    TYPE char30,
+      checkcode     TYPE char10,
       priority      TYPE int1,
       msgtext       TYPE char255,
       contactperson TYPE syuname,
       responsible   TYPE syuname,
     END OF ty_finding,
     tt_finding TYPE STANDARD TABLE OF ty_finding WITH EMPTY KEY.
-
-  "! 표준 예외 API 가 체크를 식별하는 방식. SATC_CI_R_EXEMPTION 과 같은 형태다.
-  "! findings 뷰의 moduleid / modulemsgkey 와는 다른 값이며,
-  "! 둘 사이의 환산은 ZCL_ATC_CHECK_RESOLVER 한 곳에서만 한다.
-  TYPES:
-    BEGIN OF ty_check,
-      "! create_exemption( i_check_class ) 예: CL_CI_TEST_DB
-      checkclass TYPE char30,
-      "! create_exemption( i_check_code ) 예: DBREAD, UPDATE_SUC
-      checkcode  TYPE char10,
-    END OF ty_check.
 
   "! finding 조회 조건
   TYPES:
@@ -121,8 +110,8 @@ INTERFACE zif_atc_exemption
       inclsubpkg   TYPE abap_boolean,
       objecttype   TYPE trobjtype,
       objectname   TYPE sobj_name,
-      moduleid     TYPE sysuuid_x16,
-      modulemsgkey TYPE char25,
+      checkclass   TYPE char30,
+      checkcode    TYPE char10,
       "! X 이면 담당자 필터(경로 1). 공란이면 전체(경로 2, 승인자/조회용).
       only_mine    TYPE abap_boolean,
     END OF ty_selection.

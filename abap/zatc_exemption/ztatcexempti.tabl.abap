@@ -32,11 +32,6 @@ define table ztatcexempti {
   checksum       : abap.int4;
 
   "! 한 변형 안에서도 체크와 메시지는 아이템마다 다를 수 있어 여기 둔다.
-  "! findings 뷰가 준 체크 식별자. 표준 API 가 받는 값과는 다르므로 따로 보관한다.
-  moduleid       : abap.raw(16);
-  modulemsgkey   : abap.char(25);
-
-  "! 표준 예외 뷰와 같은 형태로 환산한 값. 헤더로 올라가는 값이기도 하다.
   checkclass     : abap.char(30);
   checkcode      : abap.char(10);
   priority       : abap.int1;

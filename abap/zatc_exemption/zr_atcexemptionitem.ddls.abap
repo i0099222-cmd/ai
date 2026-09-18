@@ -20,8 +20,6 @@ define view entity ZR_AtcExemptionItem
       ObjectType,
       ObjectName,
       Checksum,
-      ModuleId,
-      ModuleMsgKey,
       CheckClass,
       CheckCode,
       Priority,

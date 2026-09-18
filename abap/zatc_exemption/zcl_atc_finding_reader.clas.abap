@@ -95,7 +95,7 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
     "   moduleid       -> 체크 (GUID)   checkid
     "   module_msg_key -> 메시지 코드   messageid
     "   messagetitle   -> 메시지 텍스트 msgtext
-    "   packagename    -> 패키지        devclass
+    "   packagename    -> 패키지        devclass (SSTRING -> DEVCLASS)
     SELECT FROM satc_api_findings
       FIELDS checkvariant,
              packagename    AS devclass,

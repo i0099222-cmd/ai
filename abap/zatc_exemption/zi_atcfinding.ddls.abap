@@ -15,7 +15,7 @@
 //   moduleid       -> 체크 (GUID)   CheckId
 //   module_msg_key -> 메시지 코드   MessageId
 //   messagetitle   -> 메시지 텍스트 MessageText
-//   packagename    -> 패키지        Devclass
+//   packagename    -> 패키지        Devclass  (SSTRING -> CHAR30 캐스트)
 //
 // 면제 판정에 소스 라인이 들어가지 않는 것이 요건의 기술적 실체다.
 // 그래서 코드를 수정해도 OBJ/PCKG 예외는 그대로 유지된다.
@@ -39,13 +39,13 @@ define view entity ZI_AtcFinding
 
   left outer join ZI_AtcActiveExemption as PkgExempt
     on  PkgExempt.ScopeType  = 'PCKG'
-    and PkgExempt.Devclass   = Finding.packagename
+    and PkgExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
     and ( PkgExempt.CheckId   = Finding.moduleid       or PkgExempt.CheckId   = '' )
     and ( PkgExempt.MessageId = Finding.module_msg_key or PkgExempt.MessageId = '' )
 
   left outer join ZI_AtcActiveExemption as ObjExempt
     on  ObjExempt.ScopeType  = 'OBJ'
-    and ObjExempt.Devclass   = Finding.packagename
+    and ObjExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
     and ObjExempt.ObjectType = Finding.objecttype
     and ObjExempt.ObjectName = Finding.objectname
     and ( ObjExempt.CheckId   = Finding.moduleid       or ObjExempt.CheckId   = '' )
@@ -60,7 +60,9 @@ define view entity ZI_AtcFinding
   key Finding.checkrunindex      as CheckRunIndex,
 
       Finding.checkvariant       as CheckVariant,
-      Finding.packagename        as Devclass,
+      // packagename 은 SSTRING 이라 우리 DEVCLASS(CHAR30)와 타입이 다르다.
+      // 경계에서 한 번만 맞춘다.
+      cast( Finding.packagename as abap.char( 30 ) ) as Devclass,
       Finding.objecttype         as ObjectType,
       Finding.objectname         as ObjectName,
       Finding.moduleid           as CheckId,

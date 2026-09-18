@@ -79,7 +79,7 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | `moduleid` | `CheckId` | **RAW16 (체크 GUID)**. ATC 는 체크를 이름이 아니라 GUID 로 식별한다 |
 | `module_msg_key` | `MessageId` | 메시지 코드. **CHAR25** |
 | `messagetitle` | `MessageText` | |
-| `packagename` | `Devclass` | |
+| `packagename` | `Devclass` | **SSTRING(30)**. 우리 `DEVCLASS`(CHAR30)와 타입이 달라 `ZI_AtcFinding` 에서 캐스트 |
 | `contractperson` | `ContactPerson` | ⬜ 철자 확인 필요 |
 | `checkvariant` / `objecttype` / `objectname` / `priority` / `responsible` / `checksum` | 동일 | |
 
@@ -121,12 +121,11 @@ findings 뷰에 이름을 담은 필드가 따로 있는지도 찾아야 한다.
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
 | 2 | `contractperson` 의 철자 (`contactperson` 일 가능성) | 뷰 필드 목록 | 리더 SELECT 2곳 + `ZI_AtcFinding` 1곳 |
 | 3 | **`create_exemption` 의 `i_check_class` / `i_check_code` 타입** 🔴 | 메소드 시그니처 | GUID 를 받으면 그대로. 클래스명(CHAR)을 받으면 변환 필요 |
-| 4 | `checkvariant` 의 타입 (현재 `char30` 가정) | 뷰 필드 목록 | 컨트롤 테이블 키 + 테이블 2곳 + 인터페이스 3곳 |
-| 5 | `packagename` 의 타입 (현재 `DEVCLASS` 가정) | 뷰 필드 목록 | 테이블 2곳 + 리더 |
+| 4 | 리더 SELECT 의 `packagename IN @lr_devclass` 가 SSTRING 컬럼에서 동작하는지 | 활성화 | 안 되면 SELECT 에도 캐스트를 넣는다 |
 
 > 지금까지 `checksum`(→`int4`), 적용범위(→`char4`), `moduleid`(→`raw16`),
-> `module_msg_key`(→`char25`) 네 번 타입 추측이 빗나갔다. 남은 4·5번도 같은
-> 위험이 있으니, 활성화 전에 뷰의 필드 타입을 한 번에 확인해 두는 편이 빠르다.
+> `module_msg_key`(→`char25`), `packagename`(→`SSTRING`) 다섯 번 타입 추측이
+> 빗나갔다. `checkvariant`(`char30`)만 맞았다.
 | 3 | **`approve_exemptions_by_id` 가 있는지** 🔴 (reject 에 `_by_id` 가 있으니 짝이 있을 것) | `controller->` + Ctrl+Space | 있으면 건별 호출로 끝. 없으면 `_by_if` 의 테이블 행 구조를 확인해야 한다 |
 | 4 | **`get_exemption_id( )` 의 반환 타입** 🔴 | 시그니처 | `extexemptid` 를 `char(32)` 로 잡았다. `checksum` 처럼 숫자형이면 컬럼을 고쳐야 한다 |
 | 5 | 승인된 예외에 `reject_exemptions_by_id` 를 걸면 면제가 풀리는지 | 테스트 1건 | 안 풀리면 `set_validity_date` 를 과거로 당기는 대안 |

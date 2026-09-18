@@ -42,13 +42,12 @@ define table ztatcexempt {
   "! 헤더에 또 두면 두 값이 어긋났을 때 어느 쪽이 맞는지 알 수 없게 된다.
 
   "! 대상 체크 클래스. 표준 create_exemption( i_check_class ) 에 넘기는 값이다.
-  "! 그 파라미터가 CSEQUENCE 이므로 문자열이다 (findings 뷰의 moduleid 는
-  "! RAW16 GUID 라 여기에 쓸 수 없다).
-  checkid           : abap.char(30);
+  "! 표준 예외 뷰 SATC_CI_R_EXEMPTION 의 checkclass 와 같은 값이다 (예: CL_CI_TEST_DB).
+  checkclass        : abap.char(30);
 
   "! 대상 메시지 코드. 표준 create_exemption( i_check_code ) 에 넘기는 값이다.
-  "! 그 파라미터가 CHAR10 이다 (findings 뷰의 module_msg_key 는 CHAR25 라 다르다).
-  messageid         : abap.char(10);
+  "! 표준 예외 뷰의 checkcode 와 같은 값이다 (예: DBREAD, UPDATE_SUC).
+  checkcode         : abap.char(10);
 
   "! 규칙 적용 축. MSG(메시지 1개) / CHK(체크 전체)
   rulescope         : abap.char(3);

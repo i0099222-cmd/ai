@@ -40,10 +40,10 @@ define view entity ZI_AtcExemption
       objectname        as ObjectName,
 
       @EndUserText.label: 'Check Class'
-      checkid           as CheckId,
+      checkclass        as CheckClass,
 
       @EndUserText.label: 'Check Message Code'
-      messageid         as MessageId,
+      checkcode         as CheckCode,
 
       @EndUserText.label: 'Check Scope'
       rulescope         as RuleScope,

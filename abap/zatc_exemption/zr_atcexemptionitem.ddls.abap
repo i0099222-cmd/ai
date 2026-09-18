@@ -22,8 +22,8 @@ define view entity ZR_AtcExemptionItem
       Checksum,
       ModuleId,
       ModuleMsgKey,
-      CheckId,
-      MessageId,
+      CheckClass,
+      CheckCode,
       Priority,
       MessageText,
 

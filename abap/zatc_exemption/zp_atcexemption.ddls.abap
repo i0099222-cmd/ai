@@ -46,8 +46,8 @@ define root view entity ZP_AtcExemption
 
       // 체크 ID / 메시지 ID 는 finding 에서 프리필된다. 체크의 마스터는 표준이
       // 갖고 있으므로 우리 쪽 값 도움을 만들지 않는다.
-      CheckId,
-      MessageId,
+      CheckClass,
+      CheckCode,
 
       RuleScope,
 

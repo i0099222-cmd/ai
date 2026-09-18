@@ -107,6 +107,13 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
                 iv_v2            TYPE any OPTIONAL
       RETURNING VALUE(ro_msg)    TYPE REF TO if_abap_behv_message.
 
+    "! 저장을 막지 않는 안내. 사용자가 무엇을 직접 채워야 하는지 알릴 때 쓴다.
+    METHODS new_warning
+      IMPORTING iv_number        TYPE symsgno
+                iv_v1            TYPE any OPTIONAL
+                iv_v2            TYPE any OPTIONAL
+      RETURNING VALUE(ro_msg)    TYPE REF TO if_abap_behv_message.
+
 ENDCLASS.
 
 
@@ -714,8 +721,8 @@ CLASS lhc_exemption IMPLEMENTATION.
           AND devclass    = @ls_exemption-devclass
           AND objecttype  = @ls_exemption-objecttype
           AND objectname  = @ls_exemption-objectname
-          AND checkid     = @ls_exemption-checkid
-          AND messageid   = @ls_exemption-messageid
+          AND checkclass     = @ls_exemption-checkclass
+          AND checkcode   = @ls_exemption-checkcode
           AND exemptstat IN ( @zif_atc_exemption=>status-pending,
                               @zif_atc_exemption=>status-approved )
           AND validto    >= @ls_exemption-validfrom
@@ -1160,7 +1167,8 @@ CLASS lhc_exemption IMPLEMENTATION.
     DATA lt_item   TYPE TABLE FOR CREATE zr_atcexemption\_Item.
     DATA ls_item   LIKE LINE OF lt_item.
 
-    DATA(lo_reader) = NEW zcl_atc_finding_reader( ).
+    DATA(lo_reader)   = NEW zcl_atc_finding_reader( ).
+    DATA(lo_resolver) = zcl_atc_check_resolver=>get( ).
 
     LOOP AT keys INTO DATA(ls_key).
 
@@ -1186,6 +1194,16 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      " 체크 클래스/코드 환산. 실패해도 신청서는 만들고 경고만 남긴다.
+      " 막아버리면 환산 경로가 확정되기 전까지 앱을 쓸 수 없기 때문이다.
+      DATA(ls_check) = lo_resolver->resolve( iv_moduleid     = ls_param-moduleid
+                                             iv_modulemsgkey = ls_param-modulemsgkey ).
+
+      IF lo_resolver->is_complete( ls_check ) = abap_false.
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %msg = new_warning( iv_number = '021' ) ) TO reported-exemption.
+      ENDIF.
+
       APPEND VALUE #(
         %cid         = ls_key-%cid
         checkvariant = ls_param-checkvariant
@@ -1196,9 +1214,12 @@ CLASS lhc_exemption IMPLEMENTATION.
         " 출발점 오브젝트가 없으면 표준에 반영할 수 없다.
         objecttype = ls_param-objecttype
         objectname = ls_param-objectname
-        " 🔴 TODO 표준 예외 API 에 넘길 체크 클래스(CSEQUENCE)와 코드(CHAR10)를
-        "   findings 뷰에서 얻는 경로가 아직 확인되지 않았다. 여기서 채워야 한다.
-        "   채워지기 전에는 CheckId / MessageId 가 비어 저장이 거부된다(필수 필드).
+        " findings 뷰는 표준 API 가 받는 체크 클래스/코드를 주지 않는다.
+        " 환산은 resolver 가 한다. 환산되지 않은 필드는 비어서 가고,
+        " 사용자가 초안 화면에서 직접 채운다. 저장 시점의 필수 검증이 빈 채로
+        " 넘어가는 것을 막아 준다.
+        checkclass = ls_check-checkclass
+        checkcode  = ls_check-checkcode
         rulescope  = zif_atc_exemption=>rulescope-message
         validfrom  = sy-datum
         preregflag = abap_false ) TO lt_create.
@@ -1219,6 +1240,8 @@ CLASS lhc_exemption IMPLEMENTATION.
                         checksum    = ls_finding-checksum
                         moduleid     = ls_finding-moduleid
                         modulemsgkey = ls_finding-modulemsgkey
+                        checkclass   = ls_check-checkclass
+                        checkcode    = ls_check-checkcode
                         priority    = ls_finding-priority
                         messagetext = ls_finding-msgtext )
                TO ls_item-%target.
@@ -1231,12 +1254,13 @@ CLASS lhc_exemption IMPLEMENTATION.
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         CREATE FIELDS ( checkvariant scopetype devclass objecttype objectname
-                        rulescope validfrom preregflag )
+                        checkclass checkcode rulescope validfrom preregflag )
         WITH lt_create
       ENTITY exemption
         CREATE BY \_Item
-        FIELDS ( itemno objecttype objectname
-                 checksum moduleid modulemsgkey priority messagetext )
+        FIELDS ( itemno objecttype objectname checksum
+                 moduleid modulemsgkey checkclass checkcode
+                 priority messagetext )
         WITH lt_item
       MAPPED DATA(lt_mapped)
       FAILED DATA(lt_failed)
@@ -1289,6 +1313,17 @@ CLASS lhc_exemption IMPLEMENTATION.
     ro_msg = new_message( id       = c_msgclass
                           number   = iv_number
                           severity = if_abap_behv_message=>severity-error
+                          v1       = iv_v1
+                          v2       = iv_v2 ).
+
+  ENDMETHOD.
+
+
+  METHOD new_warning.
+
+    ro_msg = new_message( id       = c_msgclass
+                          number   = iv_number
+                          severity = if_abap_behv_message=>severity-warning
                           v1       = iv_v1
                           v2       = iv_v2 ).
 

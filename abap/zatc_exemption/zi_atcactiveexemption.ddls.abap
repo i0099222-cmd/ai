@@ -35,10 +35,10 @@ define view entity ZI_AtcActiveExemption
       ObjectName,
 
       @EndUserText.label: 'Check Class'
-      CheckId,
+      CheckClass,
 
       @EndUserText.label: 'Check Message Code'
-      MessageId,
+      CheckCode,
 
       @EndUserText.label: 'Valid From'
       ValidFrom,

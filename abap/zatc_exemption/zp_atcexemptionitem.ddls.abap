@@ -14,8 +14,8 @@ define view entity ZP_AtcExemptionItem
       Checksum,
       ModuleId,
       ModuleMsgKey,
-      CheckId,
-      MessageId,
+      CheckClass,
+      CheckCode,
       Priority,
       MessageText,
 

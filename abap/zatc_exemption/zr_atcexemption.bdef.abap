@@ -39,9 +39,9 @@ etag master LocalLastChangedAt
   // 열어 두면 화면 표시와 실제 판정이 어긋난다. 필드는 Phase 2 대비로 남긴다.
   field ( readonly ) InclSubPkg;
 
-  // CheckId / MessageId 가 필수인 이유: 표준 create_exemption 이
+  // CheckClass / CheckCode 가 필수인 이유: 표준 create_exemption 이
   // i_check_class 와 i_check_code 를 필수로 요구한다. 비워 두면 표준에 반영할 수 없다.
-  field ( mandatory ) CheckVariant, ScopeType, RuleScope, CheckId, MessageId, ValidTo;
+  field ( mandatory ) CheckVariant, ScopeType, RuleScope, CheckClass, CheckCode, ValidTo;
 
   create;
   update;
@@ -110,8 +110,8 @@ etag master LocalLastChangedAt
     InclSubPkg         = inclsubpkg;
     ObjectType         = objecttype;
     ObjectName         = objectname;
-    CheckId            = checkid;
-    MessageId          = messageid;
+    CheckClass            = checkclass;
+    CheckCode          = checkcode;
     RuleScope          = rulescope;
     ReasonCode         = reasoncode;
     ReasonText         = reasontext;
@@ -159,8 +159,8 @@ etag master LocalLastChangedAt
     Checksum           = checksum;
     ModuleId           = moduleid;
     ModuleMsgKey       = modulemsgkey;
-    CheckId            = checkid;
-    MessageId          = messageid;
+    CheckClass            = checkclass;
+    CheckCode          = checkcode;
     Priority           = priority;
     MessageText        = msgtext;
     CreatedBy          = createdby;

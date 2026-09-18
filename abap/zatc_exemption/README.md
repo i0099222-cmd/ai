@@ -309,6 +309,7 @@ P 의 ddlx 는 화면 배치(위치·중요도·facet)만 담당한다.
 | `zbp_r_atcexemption` | behavior pool. 판정·상태전이·이력 |
 | `zcl_atc_config` | 컨트롤 테이블 조회 (세션 버퍼링). 정책값의 단일 창구 |
 | `zcl_atc_finding_reader` | ATC 표준 의존 격리. finding 조회 + 영향도 시뮬레이션 |
+| `zcl_atc_check_resolver` | finding 의 모듈 식별자 → 표준 API 의 체크 클래스/코드 환산 **(클래스명 경로 미확정)** |
 | `zcl_atc_exempt_sync` | 표준 예외 저장소 반영 **(스텁 — 확인 과제 5)** |
 | `zcl_atc_expiry_job` | 만료 전환 + D-30 알림 대상 추출 |
 | `zif_atc_exemption` | 상수/타입. 코드값 리터럴의 유일한 위치 |
@@ -359,6 +360,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 018 | Priority &1 findings cannot be exempted (allowed from &2) |
 | 019 | Check scope &1 is not allowed (use message or check) |
 | 020 | Action not allowed for status &1 |
+| 021 | Check class or check code could not be derived - enter them manually |
 
 ### 4. 권한 오브젝트 `Z_ATCEXEM`
 

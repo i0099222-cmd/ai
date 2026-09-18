@@ -87,11 +87,11 @@ annotate entity ZP_AtcExemption with
 
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 60 }]
   @EndUserText.label: 'Check Class'
-  CheckId;
+  CheckClass;
 
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 70 }]
   @EndUserText.label: 'Check Message Code'
-  MessageId;
+  CheckCode;
 
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 80 }]
   @EndUserText.label: 'Check Scope'

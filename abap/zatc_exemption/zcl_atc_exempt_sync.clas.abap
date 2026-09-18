@@ -113,21 +113,18 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
     TRY.
 
-        " 타입은 확정되었다. i_check_class 는 CSEQUENCE(문자열 클래스명),
-        " i_check_code 는 CHAR10 이다. 따라서 신청서의 checkid(CHAR30) /
-        " messageid(CHAR10) 를 그대로 넘긴다.
+        " 신청서의 checkclass / checkcode 는 표준 예외 뷰
+        " SATC_CI_R_EXEMPTION 과 같은 형태의 값이다 (CL_CI_TEST_DB / DBREAD).
+        " 여기서는 그대로 넘긴다.
         "
-        " 🔴 단, findings 뷰는 이 두 값을 주지 않는다. 그 뷰가 주는 것은
-        "   moduleid(RAW16) 와 module_msg_key(CHAR25) 라 둘 다 타입이 맞지 않는다.
-        "   그래서 현재는 finding 에서 신청서를 만들어도 checkid / messageid 가
-        "   비어 있고, 그 상태로는 이 메서드까지 오지 못한다(필수 필드 검증에서 막힘).
-        "   moduleid -> 클래스명 변환 경로를 찾기 전까지는 사용자가 체크 클래스와
-        "   코드를 직접 입력해야 한다.
+        " 두 값은 findings 뷰에 없어서 ZCL_ATC_CHECK_RESOLVER 가 환산하거나,
+        " 환산되지 않으면 사용자가 신청 화면에서 직접 채운다. 어느 쪽이든
+        " 저장 시점의 필수 검증을 통과한 뒤에만 이 메서드에 도달한다.
         DATA(lo_exemption) = lo_controller->create_exemption(
           i_object_type    = is_exemption-objecttype
           i_object_name    = is_exemption-objectname
-          i_check_class    = is_exemption-checkid
-          i_check_code     = is_exemption-messageid
+          i_check_class    = is_exemption-checkclass
+          i_check_code     = is_exemption-checkcode
           i_contact_person = is_exemption-requester ).
 
         " SATC_CI_OBJ_SCOPE 의 고정값이 우리 scopetype( FND / OBJ / PCKG )과

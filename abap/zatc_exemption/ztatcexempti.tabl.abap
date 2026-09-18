@@ -36,10 +36,9 @@ define table ztatcexempti {
   moduleid       : abap.raw(16);
   modulemsgkey   : abap.char(25);
 
-  "! 체크 클래스 (표준 create_exemption 의 i_check_class 와 같은 성격)
-  checkid        : abap.char(30);
-  "! 메시지 코드 (표준 create_exemption 의 i_check_code 와 같은 타입)
-  messageid      : abap.char(10);
+  "! 표준 예외 뷰와 같은 형태로 환산한 값. 헤더로 올라가는 값이기도 하다.
+  checkclass     : abap.char(30);
+  checkcode      : abap.char(10);
   priority       : abap.int1;
   msgtext        : abap.char(255);
 

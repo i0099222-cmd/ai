@@ -54,13 +54,11 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
 
   METHOD select.
 
-    " 🔴 TODO 미해결: 표준 예외 API 에 넘길 체크 클래스와 코드를 어디서 얻는가.
-    "   create_exemption( i_check_class = CSEQUENCE, i_check_code = CHAR10 ) 인데,
-    "   이 뷰가 주는 값은 moduleid(RAW16) 와 module_msg_key(CHAR25) 라 둘 다 맞지 않는다.
-    "   findings 뷰에 체크 클래스명을 담은 문자 필드와 CHAR10 코드 필드가 따로
-    "   있는지 찾거나, moduleid -> 클래스명 변환 경로를 확인해야 한다.
-    "   그때까지 신청서의 CheckId / MessageId 를 채울 수 없다.
-    "
+    " 이 뷰는 표준 예외 API 가 받는 체크 클래스/코드를 주지 않는다.
+    "   (check 가 들어간 필드는 checkrunindex / checkvariant / checksumversion 뿐)
+    "   환산은 ZCL_ATC_CHECK_RESOLVER 가 맡는다. 이 클래스는 뷰가 주는 값을
+    "   그대로 읽어 넘기기만 한다.
+
     " TODO 확인 필요: contractperson 의 철자.
     "   ATC 는 담당자를 contact person 이라 부르므로 contactperson 일 가능성이 있다.
     "   틀리면 이 SELECT 의 두 곳만 고치면 된다.

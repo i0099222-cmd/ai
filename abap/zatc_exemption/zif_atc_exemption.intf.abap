@@ -101,6 +101,17 @@ INTERFACE zif_atc_exemption
     END OF ty_finding,
     tt_finding TYPE STANDARD TABLE OF ty_finding WITH EMPTY KEY.
 
+  "! 표준 예외 API 가 체크를 식별하는 방식. SATC_CI_R_EXEMPTION 과 같은 형태다.
+  "! findings 뷰의 moduleid / modulemsgkey 와는 다른 값이며,
+  "! 둘 사이의 환산은 ZCL_ATC_CHECK_RESOLVER 한 곳에서만 한다.
+  TYPES:
+    BEGIN OF ty_check,
+      "! create_exemption( i_check_class ) 예: CL_CI_TEST_DB
+      checkclass TYPE char30,
+      "! create_exemption( i_check_code ) 예: DBREAD, UPDATE_SUC
+      checkcode  TYPE char10,
+    END OF ty_check.
+
   "! finding 조회 조건
   TYPES:
     BEGIN OF ty_selection,

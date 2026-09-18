@@ -31,8 +31,8 @@ define root view entity ZR_AtcExemption
       ObjectType,
       ObjectName,
 
-      CheckId,
-      MessageId,
+      CheckClass,
+      CheckCode,
       RuleScope,
 
       ReasonCode,

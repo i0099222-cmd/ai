@@ -41,10 +41,10 @@ define view entity ZR_AtcExemptionItem
       modulemsgkey   as ModuleMsgKey,
 
       @EndUserText.label: 'Check Class'
-      checkid        as CheckId,
+      checkclass        as CheckClass,
 
       @EndUserText.label: 'Check Message Code'
-      messageid      as MessageId,
+      checkcode      as CheckCode,
 
       @EndUserText.label: 'Priority'
       priority       as Priority,

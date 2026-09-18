@@ -38,9 +38,11 @@ define view entity ZI_AtcFinding
   left outer join ZI_AtcActiveExemption as PkgExempt
     on  PkgExempt.ScopeType  = 'PCKG'
     and PkgExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
-    // 🔴 TODO 대장의 CheckId/MessageId 는 표준 API 용 값이고, finding 은 모듈
-    //   식별자를 준다. 둘을 잇는 경로가 확인되면 여기에 조건을 넣는다.
-    //   그때까지는 체크를 구분하지 않고 오브젝트/패키지 단위로만 매칭한다.
+    // 체크 축은 조인 조건에 넣지 않는다. 대장은 CheckClass/CheckCode 로,
+    //   finding 은 moduleid/module_msg_key 로 체크를 부르는데 두 값을 잇는
+    //   경로가 아직 없기 때문이다(ZCL_ATC_CHECK_RESOLVER 참고).
+    //   그래서 이 조인은 오브젝트/패키지 단위로만 맞춘다. 같은 오브젝트에
+    //   다른 체크의 예외가 걸려 있으면 ExemptionMismatch 가 뜰 수 있다.
 
   left outer join ZI_AtcActiveExemption as ObjExempt
     on  ObjExempt.ScopeType  = 'OBJ'

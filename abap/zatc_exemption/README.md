@@ -76,8 +76,8 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | 뷰 필드 | 우리 이름 | 비고 |
 |---|---|---|
 | `resultid` + `itemid` + `checkrunindex` | (키) | 런 단위. 예외의 영구 키로는 못 씀 |
-| `chkclass` | `CheckClass` | 체크 클래스명 (예: `CL_CI_TEST_DB`). ⬜ 뷰상 필드명 확인 필요 |
-| `chkcode` | `CheckCode` | 체크 코드 (예: `DBREAD`, `UPDATE_SUC`). ⬜ 뷰상 필드명 확인 필요 |
+| `chkclass` | `CheckClass` | 체크 클래스명 (예: `CL_CI_TEST_DB`) |
+| `chkcode` | `CheckCode` | 체크 코드 (예: `DBREAD`, `UPDATE_SUC`) |
 | `messagetitle` | `MessageText` | |
 | `packagename` | `Devclass` | **SSTRING(30)**. 우리 `DEVCLASS`(CHAR30)와 타입이 달라 `ZI_AtcFinding` 에서 캐스트 |
 | `contractperson` | `ContactPerson` | ⬜ 철자 확인 필요 |
@@ -89,10 +89,6 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 `SATC_CI_R_EXEMPTION` 의 `checkclass` / `checkcode` 가 같은 값이다. findings 뷰도
 같은 값을 주므로 **환산하지 않는다.** 사용자는 finding 을 골라서 신청하므로 체크를
 직접 입력할 일이 없고, 목록에는 `MessageText`(`messagetitle`)를 보여준다.
-
-⬜ 남은 확인: 뷰에서 이 두 값의 **필드명**. 샘플 프로그램이 아이템에 `chkclass` /
-`chkcode` 를 담고 그 원천이 이 뷰이므로 같은 이름으로 읽고 있다. 샘플의 SELECT 문을
-열어 확인하고 다르면 리더 SELECT 2곳과 `ZI_AtcFinding` 1곳만 고치면 된다.
 
 ### 표준이 이미 들고 있는 예외 상태
 
@@ -117,7 +113,6 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
 | 2 | `contractperson` 의 철자 (`contactperson` 일 가능성) | 뷰 필드 목록 | 리더 SELECT 2곳 + `ZI_AtcFinding` 1곳 |
-| 3 | **findings 뷰의 체크 클래스/코드 필드명** 🔴 (`chkclass` / `chkcode` 로 가정) | 샘플 프로그램의 SELECT 문 | 리더 SELECT 2곳 + `ZI_AtcFinding` 1곳 |
 | 4 | 리더 SELECT 의 `packagename IN @lr_devclass` 가 SSTRING 컬럼에서 동작하는지 | 활성화 | 안 되면 SELECT 에도 캐스트를 넣는다 |
 
 > 타입 추측이 여러 번 빗나갔다: `checksum`(→`int4`), 적용범위(→`char4`),

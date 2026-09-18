@@ -267,39 +267,22 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD setinitialvalues.
 
+    " 신청번호(exemptid)는 여기서 매기지 않는다. 이 determination 은 draft 를
+    " 만드는 순간 돌기 때문에, 사용자가 [Create] 를 눌렀다가 취소할 때마다
+    " 번호가 버려져 구멍이 생긴다. 사용자에게 보이는 번호라 구멍이 눈에 띈다.
+    " 저장이 확정되는 시점(saver 의 save_modified)에서 매긴다.
+
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( keys )
+        FIELDS ( validfrom rulescope )
+        WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
     DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
-
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
-      " 이미 값이 있으면 건드리지 않는다 (재실행 시 번호가 두 번 나가는 것을 막는다).
-      DATA(lv_exemptid) = ls_exemption-exemptid.
-
-      IF lv_exemptid IS INITIAL.
-        " TODO 넘버레인지 오브젝트 ZATCEXEMP 를 생성할 것 (구간 01, 000000000001~999999999999).
-        TRY.
-            cl_numberrange_runtime=>number_get(
-              EXPORTING nr_range_nr = '01'
-                        object      = 'ZATCEXEMP'
-              IMPORTING number      = DATA(lv_number) ).
-            lv_exemptid = |EX{ lv_number+2 }|.
-          CATCH cx_nr_object_not_found cx_number_ranges INTO DATA(lo_nr_error).
-            " 번호를 못 받아도 저장 자체를 막지는 않는다. 화면에서 확인할 수 있게 알린다.
-            APPEND VALUE #( %tky = ls_exemption-%tky
-                            %msg = new_message_with_text(
-                                     severity = if_abap_behv_message=>severity-warning
-                                     text     = lo_nr_error->get_text( ) ) )
-                   TO reported-exemption.
-        ENDTRY.
-      ENDIF.
-
       APPEND VALUE #( %tky         = ls_exemption-%tky
-                      exemptid     = lv_exemptid
                       exemptstatus = zif_atc_exemption=>status-draft
                       requester    = sy-uname
                       validfrom    = COND #( WHEN ls_exemption-validfrom IS INITIAL
@@ -318,11 +301,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptid exemptstatus requester validfrom rulescope )
+        UPDATE FIELDS ( exemptstatus requester validfrom rulescope )
         WITH lt_update
       REPORTED DATA(lt_reported).
 
-    reported = CORRESPONDING #( DEEP lt_reported ).
+    " 이미 담긴 메시지를 덮지 않도록 덧붙인다.
+    APPEND LINES OF lt_reported-exemption TO reported-exemption.
 
   ENDMETHOD.
 
@@ -359,7 +343,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( scopetype objecttype objectname devclass )
+        FIELDS ( objecttype objectname devclass )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -1200,9 +1184,10 @@ CLASS lhc_exemption IMPLEMENTATION.
       FAILED DATA(lt_failed)
       REPORTED DATA(lt_reported).
 
-    mapped   = CORRESPONDING #( DEEP lt_mapped ).
-    failed   = CORRESPONDING #( DEEP lt_failed ).
-    reported = CORRESPONDING #( DEEP lt_reported ).
+    " 앞서 담은 "finding 없음" 메시지를 덮지 않도록 덧붙인다.
+    mapped = CORRESPONDING #( DEEP lt_mapped ).
+    APPEND LINES OF lt_failed-exemption   TO failed-exemption.
+    APPEND LINES OF lt_reported-exemption TO reported-exemption.
 
     result = VALUE #( FOR ls_map IN lt_mapped-exemption
                       ( %cid = ls_map-%cid %tky = ls_map-%tky ) ).
@@ -1267,12 +1252,49 @@ CLASS lsc_zr_atcexemption DEFINITION INHERITING FROM cl_abap_behavior_saver.
   PROTECTED SECTION.
     METHODS save_modified REDEFINITION.
 
+  PRIVATE SECTION.
+    "! 새로 저장된 신청서에 표시용 번호를 매긴다.
+    METHODS assign_request_ids
+      IMPORTING it_created TYPE REQUEST FOR CREATE zr_atcexemption.
+
 ENDCLASS.
 
 
 CLASS lsc_zr_atcexemption IMPLEMENTATION.
 
+  METHOD assign_request_ids.
+
+    " TODO 넘버레인지 오브젝트 ZATCEXEMP 를 생성할 것
+    "   (구간 01, 000000000001 ~ 999999999999).
+
+    LOOP AT it_created INTO DATA(ls_created).
+
+      TRY.
+          cl_numberrange_runtime=>number_get(
+            EXPORTING nr_range_nr = '01'
+                      object      = 'ZATCEXEMP'
+            IMPORTING number      = DATA(lv_number) ).
+
+          UPDATE ztatcexempt
+            SET exemptid = @( |EX{ lv_number+2 }| )
+            WHERE exemptuuid = @ls_created-exemptuuid
+              AND exemptid   = @space.
+
+        CATCH cx_nr_object_not_found cx_number_ranges.
+          " 번호를 못 받아도 저장 자체는 막지 않는다. 번호가 빈 건은
+          " 조회 화면에서 바로 눈에 띄고, 정합성 배치가 다시 채울 수 있다.
+      ENDTRY.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
   METHOD save_modified.
+
+    " 신청번호는 저장이 확정된 뒤에 매긴다. draft 생성 시점에 매기면
+    " 사용자가 취소할 때마다 번호가 버려져 구멍이 생긴다.
+    assign_request_ids( create-exemption ).
 
     DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
 

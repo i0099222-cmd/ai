@@ -375,6 +375,26 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 `checkgroup` 을 별도로 둔 이유는 변형명이 버전과 함께 바뀔 수 있기 때문이다
 (`Z_NAMING_V1` → `V2`). 권한 역할에는 더 안정적인 분류값을 쓴다.
 
+## Determination 구성
+
+셋 다 트리거가 달라 합칠 것이 없다. 합치면 바뀌지 않은 필드 때문에 TADIR 조회가
+헛도는 쪽이 오히려 손해다.
+
+| Determination | 트리거 | 하는 일 |
+|---|---|---|
+| `setInitialValues` | create | 상태 = 초안, 신청자, 유효시작일, 규칙범위 기본값 |
+| `deriveCheckGroup` | CheckVariant | 컨트롤 테이블에서 체크그룹 파생 |
+| `derivePackage` | ObjectType, ObjectName | TADIR 에서 패키지 파생 |
+
+파생값(`CheckGroup` / `Devclass`)을 CDS 조인으로 계산하지 않고 **저장**하는 이유:
+승인된 예외의 범위가 나중에 마스터 데이터를 따라 조용히 바뀌면 안 된다.
+오브젝트가 다른 패키지로 옮겨졌다고 승인된 패키지 예외의 적용 대상이 바뀌면
+결재를 거치지 않은 범위 변경이 된다. 신청 시점 값으로 고정한다.
+
+**신청번호는 determination 이 아니라 저장 시점(saver)에서 매긴다.**
+draft 생성 때 매기면 사용자가 [Create] 후 취소할 때마다 번호가 버려져 구멍이 생긴다.
+사용자에게 보이는 번호라 구멍이 눈에 띈다.
+
 ## Validation 구성
 
 같은 필드에 걸리는 검증은 한 메소드로 묶었다. 나눠 두면 같은 인스턴스를 여러 번

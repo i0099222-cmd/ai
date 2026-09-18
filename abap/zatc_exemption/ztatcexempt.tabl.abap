@@ -47,8 +47,9 @@ define table ztatcexempt {
   "! 텍스트를 보여주고, 이 값은 표준 API 에 넘기는 용도로만 쓴다.
   checkid           : abap.raw(16);
 
-  "! 대상 메시지 ID. 공란이면 체크의 모든 메시지.
-  messageid         : abap.char(30);
+  "! 대상 메시지 코드. 공란이면 체크의 모든 메시지.
+  "! SATC_API_FINDINGS-MODULE_MSG_KEY 와 같은 타입.
+  messageid         : abap.char(25);
 
   "! 규칙 적용 축. MSG(메시지 1개) / CHK(체크 전체)
   rulescope         : abap.char(3);

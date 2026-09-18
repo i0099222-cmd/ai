@@ -24,7 +24,7 @@ define abstract entity ZD_AtcCreateFromFinding
   CheckId    : abap.raw(16);
 
   @EndUserText.label: 'Check Message Code'
-  MessageId  : abap.char(30);
+  MessageId  : abap.char(25);
 
   // 적용 범위. 선택 가능한 값은 컨트롤 테이블이 정한다.
   @EndUserText.label: 'Object Scope'

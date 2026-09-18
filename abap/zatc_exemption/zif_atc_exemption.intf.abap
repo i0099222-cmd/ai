@@ -91,7 +91,8 @@ INTERFACE zif_atc_exemption
       checksum      TYPE i,
       "! 체크 GUID (SATC_API_FINDINGS-MODULEID)
       checkid       TYPE sysuuid_x16,
-      messageid     TYPE char30,
+      "! 메시지 코드 (SATC_API_FINDINGS-MODULE_MSG_KEY)
+      messageid     TYPE char25,
       priority      TYPE int1,
       msgtext       TYPE char255,
       contactperson TYPE syuname,
@@ -109,7 +110,7 @@ INTERFACE zif_atc_exemption
       objecttype   TYPE trobjtype,
       objectname   TYPE sobj_name,
       checkid      TYPE sysuuid_x16,
-      messageid    TYPE char30,
+      messageid    TYPE char25,
       "! X 이면 담당자 필터(경로 1). 공란이면 전체(경로 2, 승인자/조회용).
       only_mine    TYPE abap_boolean,
     END OF ty_selection.

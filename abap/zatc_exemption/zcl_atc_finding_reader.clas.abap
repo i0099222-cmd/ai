@@ -36,7 +36,7 @@ CLASS zcl_atc_finding_reader DEFINITION
                 iv_objecttype     TYPE trobjtype OPTIONAL
                 iv_objectname     TYPE sobj_name OPTIONAL
                 iv_checkid        TYPE sysuuid_x16 OPTIONAL
-                iv_messageid      TYPE char30 OPTIONAL
+                iv_messageid      TYPE char25 OPTIONAL
       RETURNING VALUE(rt_finding) TYPE zif_atc_exemption=>tt_finding.
 
   PRIVATE SECTION.

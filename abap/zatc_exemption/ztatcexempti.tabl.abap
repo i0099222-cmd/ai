@@ -34,7 +34,8 @@ define table ztatcexempti {
   "! 한 변형 안에서도 체크와 메시지는 아이템마다 다를 수 있어 여기 둔다.
   "! SATC_API_FINDINGS-MODULEID 와 같은 타입 (체크 GUID)
   checkid        : abap.raw(16);
-  messageid      : abap.char(30);
+  "! SATC_API_FINDINGS-MODULE_MSG_KEY 와 같은 타입
+  messageid      : abap.char(25);
   priority       : abap.int1;
   msgtext        : abap.char(255);
 

@@ -1,8 +1,9 @@
 "! ATC finding 조회 어댑터.
 "!
-"! ATC 표준 오브젝트에 대한 의존을 이 클래스 하나로 격리한다. 표준 테이블/뷰의
-"! 필드명이나 릴리즈 상태가 바뀌어도 수정 지점은 여기뿐이다. 다른 클래스나
-"! behavior pool 은 SATC_* 를 직접 SELECT 하지 않는다.
+"! 표준 SATC_* 를 직접 읽지 않는다. ZI_AtcFinding 만 읽는다.
+"! ATC 스키마(필드명, 체크 클래스/코드 환산)를 아는 곳은 그 뷰 하나이고,
+"! 이 클래스는 조회 조건과 두 읽기 경로만 책임진다. 다른 클래스나 behavior
+"! pool 은 SATC_* 도 그 뷰도 직접 SELECT 하지 않는다.
 "!
 "! 대상 범위는 컨트롤 테이블의 활성 체크 변형이 정한다. 체크 ID 를 코드에
 "! 열거하지 않는다.
@@ -54,16 +55,7 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
 
   METHOD select.
 
-    " TODO 확인 필요: contractperson 의 철자.
-    "   ATC 는 담당자를 contact person 이라 부르므로 contactperson 일 가능성이 있다.
-    "   틀리면 이 SELECT 의 두 곳만 고치면 된다.
-    "
-    " TODO 확인 필요: satc_api_findings 의 API State.
-    "   ADT 에서 Properties > API State 가 "Released for Cloud Development" 가
-    "   아니면 이 클래스는 클래식 ABAP 패키지에 두고 RAP 쪽에서는 래퍼로
-    "   호출해야 한다.
-    "
-    " checksum 을 읽는 이유: 뷰의 키(resultid/itemid/checkrunindex)는 ATC 실행
+    " checksum 을 읽는 이유: ATC 결과의 키(resultid/itemid/checkrunindex)는 실행
     "   단위라 런마다 바뀌어 예외의 영구 키로 쓸 수 없다. 기존 샘플 프로그램도
     "   아이템에 checksum 을 보관하고 있어 같은 값을 증빙으로 들고 다닌다.
 
@@ -77,50 +69,40 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
 
     " 대상 변형은 컨트롤 테이블이 정한다. 체크 ID 를 코드에 박지 않는 이유가
     " 이것이다 - 무엇을 볼지는 표준의 체크 변형이, 그 변형을 쓸지는 설정이 정한다.
+    " 활성 변형만 보는 것은 ZI_AtcFinding 이 ztatccfg 를 inner join 하며 이미
+    " 하므로, 여기서는 특정 변형으로 좁힐 때만 조건을 건다.
     DATA lr_variant TYPE zif_atc_exemption=>tt_variant_range.
 
     IF is_selection-checkvariant IS NOT INITIAL.
       lr_variant = VALUE #( ( sign = 'I' option = 'EQ'
                               low  = is_selection-checkvariant ) ).
-    ELSE.
-      lr_variant = VALUE #( FOR ls_cfg IN zcl_atc_config=>get( )->get_active_variants( )
-                            ( sign = 'I' option = 'EQ' low = ls_cfg-checkvariant ) ).
     ENDIF.
 
-    " 활성 변형이 하나도 없으면 대상이 없다는 뜻이다. 조건 없이 전체를 읽지 않는다.
-    IF lr_variant IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    " 뷰의 필드명은 우리 도메인 용어와 다르다. 여기서 한 번만 맞춘다.
-    "   messagetitle   -> 메시지 텍스트 msgtext
-    "   packagename    -> 패키지        devclass (SSTRING -> DEVCLASS)
-    "
-    " 체크 클래스/코드는 뷰가 chkclass / chkcode 로 준다. 표준 예외 API 가
-    " 받는 값, 표준 예외 뷰 SATC_CI_R_EXEMPTION 의 값과 같은 것이라 환산하지
-    " 않고 이름만 우리 쪽으로 맞춘다.
-    SELECT FROM satc_api_findings
+    " ATC 스키마를 아는 곳은 ZI_AtcFinding 하나다. 이 클래스는 그 뷰만 읽는다.
+    " 체크 클래스/코드 환산(SATC_AC_CHM 조인, module_msg_key 캐스트)도 거기
+    " 한 곳에 있으므로, 표준 필드명이 달라져도 고칠 곳은 뷰뿐이다.
+    SELECT FROM zi_atcfinding
       FIELDS checkvariant,
-             packagename    AS devclass,
+             devclass,
              objecttype,
              objectname,
              checksum,
-             chkclass       AS checkclass,
-             chkcode        AS checkcode,
+             checkclass,
+             checkcode,
              priority,
-             messagetitle   AS msgtext,
-             contractperson AS contactperson,
+             messagetext   AS msgtext,
+             contactperson,
              responsible
-      WHERE checkvariant IN @lr_variant
-        AND ( packagename    IN @lr_devclass      OR @lr_devclass IS INITIAL )
-        AND ( objecttype      = @is_selection-objecttype OR @is_selection-objecttype IS INITIAL )
-        AND ( objectname      = @is_selection-objectname OR @is_selection-objectname IS INITIAL )
-        AND ( chkclass        = @is_selection-checkclass OR @is_selection-checkclass IS INITIAL )
-        AND ( chkcode         = @is_selection-checkcode  OR @is_selection-checkcode  IS INITIAL )
+      WHERE ( checkvariant IN @lr_variant OR @lr_variant IS INITIAL )
+        AND ( devclass     IN @lr_devclass OR @lr_devclass IS INITIAL )
+        AND ( objecttype    = @is_selection-objecttype OR @is_selection-objecttype IS INITIAL )
+        AND ( objectname    = @is_selection-objectname OR @is_selection-objectname IS INITIAL )
+        AND ( checkclass    = @is_selection-checkclass OR @is_selection-checkclass IS INITIAL )
+        AND ( checkcode     = @is_selection-checkcode  OR @is_selection-checkcode  IS INITIAL )
         " 경로 1 : 담당자 본인 건만. 경로 2 : 조건 자체를 무력화한다.
         AND ( @is_selection-only_mine = @abap_false
-              OR contractperson = @sy-uname
-              OR responsible    = @sy-uname )
+              OR contactperson = @sy-uname
+              OR responsible   = @sy-uname )
       INTO CORRESPONDING FIELDS OF TABLE @rt_finding
       UP TO @iv_max_rows ROWS.
 

@@ -70,25 +70,38 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 
 ### `SATC_API_FINDINGS` 필드 매핑
 
-뷰의 필드명이 우리 도메인 용어와 다르다. **`zcl_atc_finding_reader` 의 SELECT 와
-`ZI_AtcFinding` 두 곳에서만** 맞추고, 그 위로는 우리 용어로 다닌다.
+뷰의 필드명이 우리 도메인 용어와 다르다. **`ZI_AtcFinding` 한 곳에서만** 맞춘다.
+`zcl_atc_finding_reader` 도 `SATC_*` 를 직접 읽지 않고 이 뷰를 읽는다.
 
 | 뷰 필드 | 우리 이름 | 비고 |
 |---|---|---|
 | `resultid` + `itemid` + `checkrunindex` | (키) | 런 단위. 예외의 영구 키로는 못 씀 |
-| `chkclass` | `CheckClass` | 체크 클래스명 (예: `CL_CI_TEST_DB`) |
-| `chkcode` | `CheckCode` | 체크 코드 (예: `DBREAD`, `UPDATE_SUC`) |
+| `moduleid` | `CheckClass` | RAW16 체크 GUID. `SATC_AC_CHM` 조인으로 클래스명(`CL_CI_TEST_DB`)을 얻는다 |
+| `module_msg_key` | `CheckCode` | CHAR25 메시지 키 → CHAR10 캐스트 (`DBREAD`, `UPDATE_SUC`) |
 | `messagetitle` | `MessageText` | |
-| `packagename` | `Devclass` | **SSTRING(30)**. 우리 `DEVCLASS`(CHAR30)와 타입이 달라 `ZI_AtcFinding` 에서 캐스트 |
+| `packagename` | `Devclass` | **SSTRING(30)**. `ZI_AtcFinding` 에서 CHAR30 캐스트 |
 | `contractperson` | `ContactPerson` | ⬜ 철자 확인 필요 |
 | `checkvariant` / `objecttype` / `objectname` / `priority` / `responsible` / `checksum` | 동일 | |
 
-### 체크 클래스/코드는 그대로 흘러간다
+### 체크 클래스/코드는 findings 뷰에 없다
 
-표준 `create_exemption( i_check_class, i_check_code )` 가 받는 값과 표준 예외 뷰
-`SATC_CI_R_EXEMPTION` 의 `checkclass` / `checkcode` 가 같은 값이다. findings 뷰도
-같은 값을 주므로 **환산하지 않는다.** 사용자는 finding 을 골라서 신청하므로 체크를
-직접 입력할 일이 없고, 목록에는 `MessageText`(`messagetitle`)를 보여준다.
+`SATC_API_FINDINGS` 는 체크를 `moduleid`(RAW16) 로만 식별한다. 표준
+`create_exemption( i_check_class )` 가 받는 것은 문자 클래스명이고, 표준 예외 뷰
+`SATC_CI_R_EXEMPTION` 도 `checkclass` / `checkcode` 를 문자로 들고 있다.
+그래서 환산이 필요하며, 그 환산은 `ZI_AtcFinding` 의 조인 한 곳에만 있다.
+
+```
+SATC_API_FINDINGS.moduleid  ──┐
+                              ├─ SATC_AC_CHM.module_id ─→ CheckClass
+SATC_API_FINDINGS.module_msg_key ─ CHAR10 캐스트 ───────→ CheckCode
+```
+
+🔴 **가정 2개**. 둘 다 `ZI_AtcFinding` 한 줄씩이다.
+1. `SATC_AC_CHM` 의 클래스명 컬럼이 `chkclass` 다
+2. `module_msg_key` 가 곧 체크 코드다 (11자 이상인 키가 있으면 틀린 가정)
+
+사용자는 finding 을 골라 신청하므로 이 값들을 직접 입력할 일이 없고, 목록에는
+`MessageText`(`messagetitle`)를 보여준다.
 
 ### 표준이 이미 들고 있는 예외 상태
 
@@ -112,12 +125,14 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | # | 가정 | 확인 방법 | 틀리면 |
 |---|---|---|---|
 | 1 | `ZSCM00010` 의 **변경자/변경일시** 필드명이 `changedby` / `changedat` | ADT 에서 ZSCM00010 열기 | CDS 2개 × 2줄 + BDEF mapping 2줄 |
-| 2 | `contractperson` 의 철자 (`contactperson` 일 가능성) | 뷰 필드 목록 | 리더 SELECT 2곳 + `ZI_AtcFinding` 1곳 |
-| 4 | 리더 SELECT 의 `packagename IN @lr_devclass` 가 SSTRING 컬럼에서 동작하는지 | 활성화 | 안 되면 SELECT 에도 캐스트를 넣는다 |
+| 2 | `contractperson` 의 철자 (`contactperson` 일 가능성) | 뷰 필드 목록 | `ZI_AtcFinding` 1곳 |
+| 3 | **`SATC_AC_CHM` 의 클래스명 컬럼이 `chkclass` 인지** 🔴 | SE11 / ADT | `ZI_AtcFinding` 셀렉트 리스트 1줄 |
+| 4 | `module_msg_key` 가 곧 체크 코드인지 | 예외 1건 등록 후 `SATC_CI_R_EXEMPTION` 의 `checkcode` 와 비교 | `ZI_AtcFinding` 캐스트 1줄 |
 
 > 타입 추측이 여러 번 빗나갔다: `checksum`(→`int4`), 적용범위(→`char4`),
-> `packagename`(→`SSTRING`). 체크 식별자는 한동안 `moduleid`/`module_msg_key` 로
-> 잘못 잡고 있었다 — 그 두 필드는 표준 예외 API 와 무관하며, 지금은 쓰지 않는다.
+> `packagename`(→`SSTRING`). 체크 식별자도 `chkclass`/`chkcode` 가 findings 뷰에
+> 있는 줄 알고 한 번 틀렸다 — 그 두 필드는 샘플 프로그램의 **자체 뷰**에 있는
+> 것이고, `SATC_API_FINDINGS` 에는 없다.
 | 3 | **`approve_exemptions_by_id` 가 있는지** 🔴 (reject 에 `_by_id` 가 있으니 짝이 있을 것) | `controller->` + Ctrl+Space | 있으면 건별 호출로 끝. 없으면 `_by_if` 의 테이블 행 구조를 확인해야 한다 |
 | 4 | **`get_exemption_id( )` 의 반환 타입** 🔴 | 시그니처 | `extexemptid` 를 `char(32)` 로 잡았다. `checksum` 처럼 숫자형이면 컬럼을 고쳐야 한다 |
 | 5 | 승인된 예외에 `reject_exemptions_by_id` 를 걸면 면제가 풀리는지 | 테스트 1건 | 안 풀리면 `set_validity_date` 를 과거로 당기는 대안 |

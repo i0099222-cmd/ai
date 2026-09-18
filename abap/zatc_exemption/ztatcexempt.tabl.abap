@@ -77,6 +77,8 @@ define table ztatcexempt {
   extexemptid       : sysuuid_c32;
 
   "! 사전등록 여부. finding 없이 선제적으로 등록한 건이면 X.
+  "! 사용자가 고르는 값이 아니라 저장 시점에 증빙 아이템 유무로 판정한다
+  "! (behavior pool 의 derivePreReg).
   preregflag        : abap_boolean;
 
   "! CBO 공통 이력 구조. createdby / createdat / 변경자 / 변경일시를 제공한다.

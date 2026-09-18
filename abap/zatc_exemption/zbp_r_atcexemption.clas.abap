@@ -43,6 +43,9 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS derivepackage FOR DETERMINE ON MODIFY
       IMPORTING keys FOR exemption~derivepackage.
 
+    METHODS deriveprereg FOR DETERMINE ON SAVE
+      IMPORTING keys FOR exemption~deriveprereg.
+
     METHODS validatescope FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatescope.
 
@@ -372,6 +375,51 @@ CLASS lhc_exemption IMPLEMENTATION.
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( devclass )
+        WITH lt_update.
+
+  ENDMETHOD.
+
+
+  METHOD deriveprereg.
+
+    " 선등록(pre-registration) = finding 없이 등록된 예외.
+    "
+    " 패키지 스코프는 본래 앞을 보는 등록이다. "앞으로 이 패키지에 만들 것은
+    " 네이밍 체크를 건너뛴다" 는 신청에는 아직 위반이 없다. 반대로 finding 에서
+    " 만든 신청은 실재하는 위반을 증빙으로 달고 온다. 감사 관점에서 이 둘은
+    " 전혀 다른 건이라 구분해 둬야 한다.
+    "
+    " 플래그를 사용자나 액션이 직접 넣게 하면 두 경로가 늘 때마다 빠뜨릴 수
+    " 있다. 증빙 아이템 유무라는 사실에서 판정하면 경로가 몇 개든 맞는다.
+    " 아이템이 다 붙은 뒤여야 하므로 on save 다.
+
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption BY \_Item
+        FIELDS ( itemno )
+        WITH CORRESPONDING #( keys )
+      LINK DATA(lt_link).
+
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
+
+    LOOP AT keys INTO DATA(ls_key).
+
+      DATA(lv_hasitem) = abap_false.
+
+      LOOP AT lt_link INTO DATA(ls_link).
+        IF ls_link-source-%tky = ls_key-%tky.
+          lv_hasitem = abap_true.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+
+      APPEND VALUE #( %tky       = ls_key-%tky
+                      preregflag = xsdbool( lv_hasitem = abap_false ) ) TO lt_update.
+
+    ENDLOOP.
+
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        UPDATE FIELDS ( preregflag )
         WITH lt_update.
 
   ENDMETHOD.
@@ -1214,8 +1262,8 @@ CLASS lhc_exemption IMPLEMENTATION.
         checkclass = ls_param-checkclass
         checkcode  = ls_param-checkcode
         rulescope  = zif_atc_exemption=>rulescope-message
-        validfrom  = sy-datum
-        preregflag = abap_false ) TO lt_create.
+        " preregflag 는 넣지 않는다. derivePreReg 가 증빙 유무로 판정한다.
+        validfrom  = sy-datum ) TO lt_create.
 
       " 선택한 오브젝트의 위반 건을 증빙으로 붙인다.
       " PKG 스코프라도 증빙은 출발점이 된 오브젝트의 것만 담는다. 효력 범위와
@@ -1245,7 +1293,7 @@ CLASS lhc_exemption IMPLEMENTATION.
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         CREATE FIELDS ( checkvariant scopetype devclass objecttype objectname
-                        checkclass checkcode rulescope validfrom preregflag )
+                        checkclass checkcode rulescope validfrom )
         WITH lt_create
       ENTITY exemption
         CREATE BY \_Item

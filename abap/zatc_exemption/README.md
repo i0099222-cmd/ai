@@ -460,6 +460,7 @@ keys 로 다시 읽으면 거부된 건까지 성공한 것처럼 돌려주게 �
 | `setInitialValues` | create | 상태 = 초안, 신청자, 유효시작일, 규칙범위 기본값 |
 | `deriveCheckGroup` | CheckVariant | 컨트롤 테이블에서 체크그룹 파생 |
 | `derivePackage` | ObjectType, ObjectName | TADIR 에서 패키지 파생 |
+| `derivePreReg` | create (on save) | 증빙 아이템이 없으면 선등록(`PreRegFlag`)으로 판정 |
 
 파생값(`CheckGroup` / `Devclass`)을 CDS 조인으로 계산하지 않고 **저장**하는 이유:
 승인된 예외의 범위가 나중에 마스터 데이터를 따라 조용히 바뀌면 안 된다.

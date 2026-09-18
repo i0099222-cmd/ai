@@ -28,6 +28,8 @@ etag master LocalLastChangedAt
                      Approver,
                      ApprovedAt,
                      ExtExemptId,
+                     // derivePreReg 가 증빙 유무로 판정한다. 손으로 못 바꾼다.
+                     PreRegFlag,
                      CreatedBy,
                      CreatedAt,
                      LastChangedBy,
@@ -88,6 +90,11 @@ etag master LocalLastChangedAt
   determination setInitialValues on modify { create; }
   determination deriveCheckGroup on modify { field CheckVariant; }
   determination derivePackage    on modify { field ObjectType, ObjectName; }
+
+  // 선등록 여부는 사용자가 고르는 값이 아니라 등록 시점의 사실이다.
+  // 증빙 아이템이 모두 붙은 뒤에 판정해야 하므로 on save 이고,
+  // 등록 시점의 사실이므로 create 에서만 정한다.
+  determination derivePreReg     on save { create; }
 
   // 같은 필드에 걸리는 검증은 한 메소드로 묶었다. 나눠 두면 같은 인스턴스를
   // 여러 번 읽을 뿐이고, 트리거가 다른 것만 따로 두면 바뀐 필드에 걸린 검증만 돈다.

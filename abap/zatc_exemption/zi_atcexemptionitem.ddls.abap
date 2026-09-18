@@ -31,9 +31,6 @@ define view entity ZR_AtcExemptionItem
       @EndUserText.label: 'Object Name'
       objectname     as ObjectName,
 
-      @EndUserText.label: 'Line Number'
-      lineno         as LineNo,
-
       @EndUserText.label: 'Finding Checksum'
       checksum       as Checksum,
 

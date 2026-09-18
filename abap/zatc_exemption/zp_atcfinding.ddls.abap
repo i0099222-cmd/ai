@@ -7,14 +7,16 @@
 define view entity ZP_AtcFinding
   as projection on ZI_AtcFinding
 {
-  key CheckVariant,
-  key Devclass,
-  key ObjectType,
-  key ObjectName,
-  key LineNo,
-  key CheckId,
-  key MessageId,
+  key ResultId,
+  key ItemId,
+  key CheckRunIndex,
 
+      CheckVariant,
+      Devclass,
+      ObjectType,
+      ObjectName,
+      CheckId,
+      MessageId,
       Checksum,
       CheckGroup,
       Priority,

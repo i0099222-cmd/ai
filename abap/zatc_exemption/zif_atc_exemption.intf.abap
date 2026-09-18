@@ -87,7 +87,6 @@ INTERFACE zif_atc_exemption
       devclass      TYPE devclass,
       objecttype    TYPE trobjtype,
       objectname    TYPE sobj_name,
-      lineno        TYPE i,
       "! 코드가 바뀌어도 같은 위반이면 유지되는 finding 식별자
       checksum      TYPE i,
       checkid       TYPE char30,

@@ -13,8 +13,8 @@
 //
 // TODO 확인 필요: SATC_API_FINDINGS 의 나머지 필드명과 API State.
 //   checkvariant / priority / contactperson / responsible 은 존재가 확인되었다.
-//   checksum / devclass / objecttype / objectname / lineno / checkid / messageid /
-//   msgtext 는 아직 가정이며,
+//   checksum / devclass / objecttype / objectname / checkid / messageid / msgtext 는
+//   아직 가정이며,
 //   zcl_atc_finding_reader 의 SELECT 와 같은 가정을 쓴다.
 //
 // 면제 판정에 소스 라인이 들어가지 않는 것이 요건의 기술적 실체다.
@@ -48,14 +48,19 @@ define view entity ZI_AtcFinding
     and ( ObjExempt.MessageId = Finding.messageid or ObjExempt.MessageId = '' )
 
 {
-  // 스냅샷 테이블이 없으므로 finding 의 자연키가 그대로 엔터티 키가 된다.
-  key Finding.checkvariant  as CheckVariant,
-  key Finding.devclass      as Devclass,
-  key Finding.objecttype    as ObjectType,
-  key Finding.objectname    as ObjectName,
-  key Finding.lineno        as LineNo,
-  key Finding.checkid       as CheckId,
-  key Finding.messageid     as MessageId,
+  // 스냅샷 테이블이 없으므로 SATC_API_FINDINGS 의 키를 그대로 엔터티 키로 쓴다.
+  // 한 오브젝트에 같은 체크·메시지 위반이 여러 건일 수 있어, 오브젝트 단위
+  // 필드만으로는 키가 성립하지 않는다.
+  key Finding.resultid      as ResultId,
+  key Finding.itemid        as ItemId,
+  key Finding.checkrunindex as CheckRunIndex,
+
+      Finding.checkvariant  as CheckVariant,
+      Finding.devclass      as Devclass,
+      Finding.objecttype    as ObjectType,
+      Finding.objectname    as ObjectName,
+      Finding.checkid       as CheckId,
+      Finding.messageid     as MessageId,
 
       // 코드가 바뀌어도 유지되는 finding 식별자
       Finding.checksum      as Checksum,

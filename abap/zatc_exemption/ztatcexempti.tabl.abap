@@ -24,7 +24,6 @@ define table ztatcexempti {
   "! 나오고 같은 패키지에 속하므로, 아이템에 또 두면 어긋날 여지만 생긴다.
   objecttype     : trobjtype;
   objectname     : sobj_name;
-  lineno         : abap.int4;
 
   "! ATC finding 의 식별자. 코드가 바뀌어도 같은 위반이면 유지되는 값이다.
   "! SATC_API_FINDINGS 의 키(resultid/itemid/checkrunindex)는 ATC 실행 단위라

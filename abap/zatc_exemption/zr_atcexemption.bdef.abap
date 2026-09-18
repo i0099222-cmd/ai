@@ -156,7 +156,6 @@ etag master LocalLastChangedAt
     ItemNo             = itemno;
     ObjectType         = objecttype;
     ObjectName         = objectname;
-    LineNo             = lineno;
     Checksum           = checksum;
     CheckId            = checkid;
     MessageId          = messageid;

@@ -239,7 +239,7 @@ SATC_API_FINDINGS ⋈ ztatccfg(활성 변형) × ZI_AtcActiveExemption
      ▼  I
 ZI_AtcFinding      면제 여부 계산
      ▼  P
-ZP_AtcFinding      키 = finding 자연키
+ZP_AtcFinding      키 = SATC_API_FINDINGS 의 키 (ResultId/ItemId/CheckRunIndex)
 
 ZI_AtcScopeVH     ztatccfg 의 허용 플래그를 union 으로 행으로 펼친 값 도움
 ZI_AtcVariantVH   활성 체크 변형 목록
@@ -306,6 +306,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 017 | Finding not found |
 | 018 | Priority &1 findings cannot be exempted (allowed from &2) |
 | 019 | Check scope &1 is not allowed (use message or check) |
+| 020 | Action not allowed for status &1 |
 
 ### 4. 권한 오브젝트 `Z_ATCEXEM`
 
@@ -374,6 +375,36 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 
 `checkgroup` 을 별도로 둔 이유는 변형명이 버전과 함께 바뀔 수 있기 때문이다
 (`Z_NAMING_V1` → `V2`). 권한 역할에는 더 안정적인 분류값을 쓴다.
+
+## Action 구성
+
+8개이며 상태 전이가 각각 달라 합칠 것이 없다. 공통으로 지키는 두 가지가 있다.
+
+**① 상태가 맞지 않으면 거부한다 (조용히 건너뛰지 않는다)**
+
+```
+features 가 버튼을 비활성화하지만, OData 직접 호출이나 오래된 화면 상태로
+들어올 수 있다. 그냥 건너뛰면 액션이 성공한 것처럼 끝나서 사용자는
+왜 아무 일도 없었는지 알 수 없다. -> 메시지 020 으로 거부한다.
+```
+
+**② `result` 에는 성공한 건만 담는다**
+
+```
+keys 로 다시 읽으면 거부된 건까지 성공한 것처럼 돌려주게 된다.
+-> 실제로 변경된 목록(lt_update)으로 다시 읽는다.
+```
+
+| Action | 허용 상태 | 추가 검증 |
+|---|---|---|
+| `submit` | 초안 | 상신 시 영향 건수를 근거 텍스트에 자동 기입 |
+| `withdraw` | 승인대기 | |
+| `approve` | 승인대기 | 자기승인 금지 (014) |
+| `reject` | 승인대기 | 반려 사유 필수 (015) |
+| `revoke` | 승인 | 표준 무효화는 saver 에서 |
+| `extendValidity` | 승인 | 연장일이 현재보다 뒤여야 함 (016). 승인대기로 되돌려 재승인 |
+| `simulateImpact` | (제한 없음) | 승인 판단 근거라 누구나 확인 가능 |
+| `createFromFinding` | (static factory) | 대상 finding 없으면 거부 (017) |
 
 ## Determination 구성
 

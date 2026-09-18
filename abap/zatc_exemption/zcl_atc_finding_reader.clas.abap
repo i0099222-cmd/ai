@@ -89,7 +89,6 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
              devclass,
              objecttype,
              objectname,
-             lineno,
              checksum,
              checkid,
              messageid,

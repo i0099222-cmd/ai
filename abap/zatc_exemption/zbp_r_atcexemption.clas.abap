@@ -750,8 +750,18 @@ CLASS lhc_exemption IMPLEMENTATION.
     DATA(lo_reader) = NEW zcl_atc_finding_reader( ).
 
 
-    LOOP AT lt_exemption INTO DATA(ls_exemption)
-         WHERE exemptstatus = zif_atc_exemption=>status-draft.
+    LOOP AT lt_exemption INTO DATA(ls_exemption).
+
+      " 상태가 맞지 않으면 조용히 건너뛰지 않고 거부한다. 그냥 넘기면 액션이
+      " 성공한 것처럼 끝나서 사용자는 왜 아무 일도 없었는지 알 수 없다.
+      IF ls_exemption-exemptstatus <> zif_atc_exemption=>status-draft.
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_exemption-%tky
+                        %msg = new_error( iv_number = '020'
+                                          iv_v1     = ls_exemption-exemptstatus ) )
+               TO reported-exemption.
+        CONTINUE.
+      ENDIF.
 
       " 승인은 표준 Fiori 앱에서도 이뤄질 수 있고, 거기에는 영향도 화면이 없다.
       " 그래서 상신 시점에 영향 건수를 계산해 근거 텍스트에 붙여 둔다.
@@ -794,9 +804,11 @@ CLASS lhc_exemption IMPLEMENTATION.
         UPDATE FIELDS ( exemptstatus reasontext )
         WITH lt_update.
 
+    " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
+    " 성공한 것처럼 돌려주게 된다.
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( keys )
+        ALL FIELDS WITH CORRESPONDING #( lt_update )
       RESULT DATA(lt_result).
 
     result = VALUE #( FOR ls_res IN lt_result
@@ -815,8 +827,18 @@ CLASS lhc_exemption IMPLEMENTATION.
     DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
 
-    LOOP AT lt_exemption INTO DATA(ls_exemption)
-         WHERE exemptstatus = zif_atc_exemption=>status-pending.
+    LOOP AT lt_exemption INTO DATA(ls_exemption).
+
+      " 상태가 맞지 않으면 조용히 건너뛰지 않고 거부한다. 그냥 넘기면 액션이
+      " 성공한 것처럼 끝나서 사용자는 왜 아무 일도 없었는지 알 수 없다.
+      IF ls_exemption-exemptstatus <> zif_atc_exemption=>status-pending.
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_exemption-%tky
+                        %msg = new_error( iv_number = '020'
+                                          iv_v1     = ls_exemption-exemptstatus ) )
+               TO reported-exemption.
+        CONTINUE.
+      ENDIF.
 
       " 철회는 상신 취소다. 레코드는 남고 상태만 초안으로 돌아간다.
       " 삭제와 구분된다 - 삭제는 이력까지 사라지므로 초안에서만 허용한다.
@@ -835,9 +857,11 @@ CLASS lhc_exemption IMPLEMENTATION.
         UPDATE FIELDS ( exemptstatus )
         WITH lt_update.
 
+    " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
+    " 성공한 것처럼 돌려주게 된다.
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( keys )
+        ALL FIELDS WITH CORRESPONDING #( lt_update )
       RESULT DATA(lt_result).
 
     result = VALUE #( FOR ls_res IN lt_result
@@ -857,8 +881,18 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     GET TIME STAMP FIELD DATA(lv_now).
 
-    LOOP AT lt_exemption INTO DATA(ls_exemption)
-         WHERE exemptstatus = zif_atc_exemption=>status-pending.
+    LOOP AT lt_exemption INTO DATA(ls_exemption).
+
+      " 상태가 맞지 않으면 조용히 건너뛰지 않고 거부한다. 그냥 넘기면 액션이
+      " 성공한 것처럼 끝나서 사용자는 왜 아무 일도 없었는지 알 수 없다.
+      IF ls_exemption-exemptstatus <> zif_atc_exemption=>status-pending.
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_exemption-%tky
+                        %msg = new_error( iv_number = '020'
+                                          iv_v1     = ls_exemption-exemptstatus ) )
+               TO reported-exemption.
+        CONTINUE.
+      ENDIF.
 
       " 자기승인 금지. features 에서도 막지만, OData 를 직접 호출하는 경로가
       " 있으므로 액션에서 한 번 더 본다.
@@ -890,9 +924,11 @@ CLASS lhc_exemption IMPLEMENTATION.
         UPDATE FIELDS ( exemptstatus approver approvedat )
         WITH lt_update.
 
+    " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
+    " 성공한 것처럼 돌려주게 된다.
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( keys )
+        ALL FIELDS WITH CORRESPONDING #( lt_update )
       RESULT DATA(lt_result).
 
     result = VALUE #( FOR ls_res IN lt_result
@@ -917,6 +953,11 @@ CLASS lhc_exemption IMPLEMENTATION.
       DATA(ls_exemption) = VALUE #( lt_exemption[ %tky = ls_key-%tky ] OPTIONAL ).
 
       IF ls_exemption-exemptstatus <> zif_atc_exemption=>status-pending.
+        APPEND VALUE #( %tky = ls_key-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_key-%tky
+                        %msg = new_error( iv_number = '020'
+                                          iv_v1     = ls_exemption-exemptstatus ) )
+               TO reported-exemption.
         CONTINUE.
       ENDIF.
 
@@ -946,9 +987,11 @@ CLASS lhc_exemption IMPLEMENTATION.
         UPDATE FIELDS ( exemptstatus approver approvedat )
         WITH lt_update.
 
+    " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
+    " 성공한 것처럼 돌려주게 된다.
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( keys )
+        ALL FIELDS WITH CORRESPONDING #( lt_update )
       RESULT DATA(lt_result).
 
     result = VALUE #( FOR ls_res IN lt_result
@@ -966,8 +1009,18 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
 
-    LOOP AT lt_exemption INTO DATA(ls_exemption)
-         WHERE exemptstatus = zif_atc_exemption=>status-approved.
+    LOOP AT lt_exemption INTO DATA(ls_exemption).
+
+      " 상태가 맞지 않으면 조용히 건너뛰지 않고 거부한다. 그냥 넘기면 액션이
+      " 성공한 것처럼 끝나서 사용자는 왜 아무 일도 없었는지 알 수 없다.
+      IF ls_exemption-exemptstatus <> zif_atc_exemption=>status-approved.
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_exemption-%tky
+                        %msg = new_error( iv_number = '020'
+                                          iv_v1     = ls_exemption-exemptstatus ) )
+               TO reported-exemption.
+        CONTINUE.
+      ENDIF.
 
       " 표준 쪽 무효화도 저장 시퀀스에서 한다 (승인과 같은 이유).
       APPEND VALUE #( %tky               = ls_exemption-%tky
@@ -985,9 +1038,11 @@ CLASS lhc_exemption IMPLEMENTATION.
         UPDATE FIELDS ( exemptstatus )
         WITH lt_update.
 
+    " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
+    " 성공한 것처럼 돌려주게 된다.
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( keys )
+        ALL FIELDS WITH CORRESPONDING #( lt_update )
       RESULT DATA(lt_result).
 
     result = VALUE #( FOR ls_res IN lt_result
@@ -1011,6 +1066,11 @@ CLASS lhc_exemption IMPLEMENTATION.
       DATA(ls_exemption) = VALUE #( lt_exemption[ %tky = ls_key-%tky ] OPTIONAL ).
 
       IF ls_exemption-exemptstatus <> zif_atc_exemption=>status-approved.
+        APPEND VALUE #( %tky = ls_key-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_key-%tky
+                        %msg = new_error( iv_number = '020'
+                                          iv_v1     = ls_exemption-exemptstatus ) )
+               TO reported-exemption.
         CONTINUE.
       ENDIF.
 
@@ -1043,9 +1103,11 @@ CLASS lhc_exemption IMPLEMENTATION.
         UPDATE FIELDS ( validto exemptstatus approver approvedat )
         WITH lt_update.
 
+    " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
+    " 성공한 것처럼 돌려주게 된다.
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( keys )
+        ALL FIELDS WITH CORRESPONDING #( lt_update )
       RESULT DATA(lt_result).
 
     result = VALUE #( FOR ls_res IN lt_result
@@ -1157,7 +1219,6 @@ CLASS lhc_exemption IMPLEMENTATION.
                         itemno      = lv_itemno
                         objecttype  = ls_finding-objecttype
                         objectname  = ls_finding-objectname
-                        lineno      = ls_finding-lineno
                         checksum    = ls_finding-checksum
                         checkid     = ls_finding-checkid
                         messageid   = ls_finding-messageid
@@ -1177,7 +1238,7 @@ CLASS lhc_exemption IMPLEMENTATION.
         WITH lt_create
       ENTITY exemption
         CREATE BY \_Item
-        FIELDS ( itemno objecttype objectname lineno
+        FIELDS ( itemno objecttype objectname
                  checksum checkid messageid priority messagetext )
         WITH lt_item
       MAPPED DATA(lt_mapped)

@@ -132,6 +132,10 @@ INTERFACE zif_atc_exemption
 
   TYPES tt_devclass TYPE STANDARD TABLE OF devclass WITH EMPTY KEY.
 
+  "! ABAP SQL 의 IN 은 range 테이블만 받는다.
+  TYPES tt_devclass_range TYPE RANGE OF devclass.
+  TYPES tt_variant_range  TYPE RANGE OF char30.
+
   TYPES tt_exempt TYPE STANDARD TABLE OF ztatcexempt WITH EMPTY KEY.
 
 ENDINTERFACE.

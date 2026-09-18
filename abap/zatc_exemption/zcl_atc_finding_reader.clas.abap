@@ -66,23 +66,28 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
     "     보관하고 있으므로 이 뷰에도 같은 값이 있을 것으로 보고 읽는다.
     "   아래 SELECT 는 필드명을 확인한 뒤 그대로 채우면 되도록 구조만 잡아 둔 것이다.
 
+    " 패키지 목록은 ABAP SQL 의 IN 에 그대로 넘길 수 없다. range 로 옮긴다.
     DATA(lt_devclass) = expand_packages( iv_devclass   = is_selection-devclass
                                          iv_inclsubpkg = is_selection-inclsubpkg ).
 
+    DATA lr_devclass TYPE zif_atc_exemption=>tt_devclass_range.
+    lr_devclass = VALUE #( FOR lv_devclass IN lt_devclass
+                           ( sign = 'I' option = 'EQ' low = lv_devclass ) ).
+
     " 대상 변형은 컨트롤 테이블이 정한다. 체크 ID 를 코드에 박지 않는 이유가
     " 이것이다 - 무엇을 볼지는 표준의 체크 변형이, 그 변형을 쓸지는 설정이 정한다.
-    DATA lt_variant TYPE RANGE OF char30.
+    DATA lr_variant TYPE zif_atc_exemption=>tt_variant_range.
 
     IF is_selection-checkvariant IS NOT INITIAL.
-      lt_variant = VALUE #( ( sign = 'I' option = 'EQ'
+      lr_variant = VALUE #( ( sign = 'I' option = 'EQ'
                               low  = is_selection-checkvariant ) ).
     ELSE.
-      lt_variant = VALUE #( FOR ls_cfg IN zcl_atc_config=>get( )->get_active_variants( )
+      lr_variant = VALUE #( FOR ls_cfg IN zcl_atc_config=>get( )->get_active_variants( )
                             ( sign = 'I' option = 'EQ' low = ls_cfg-checkvariant ) ).
     ENDIF.
 
     " 활성 변형이 하나도 없으면 대상이 없다는 뜻이다. 조건 없이 전체를 읽지 않는다.
-    IF lt_variant IS INITIAL.
+    IF lr_variant IS INITIAL.
       RETURN.
     ENDIF.
 
@@ -103,8 +108,8 @@ CLASS zcl_atc_finding_reader IMPLEMENTATION.
              messagetitle   AS msgtext,
              contractperson AS contactperson,
              responsible
-      WHERE checkvariant IN @lt_variant
-        AND ( packagename    IN @lt_devclass      OR @lt_devclass IS INITIAL )
+      WHERE checkvariant IN @lr_variant
+        AND ( packagename    IN @lr_devclass      OR @lr_devclass IS INITIAL )
         AND ( objecttype      = @is_selection-objecttype OR @is_selection-objecttype IS INITIAL )
         AND ( objectname      = @is_selection-objectname OR @is_selection-objectname IS INITIAL )
         AND ( moduleid        = @is_selection-checkid    OR @is_selection-checkid    IS INITIAL )

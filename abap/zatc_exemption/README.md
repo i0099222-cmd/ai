@@ -332,11 +332,52 @@ P 의 ddlx 는 화면 배치(위치·중요도·facet)만 담당한다.
 | `zcl_atc_exempt_sync` | 표준 예외 저장소 반영 **(스텁 — 확인 과제 5)** |
 | `zcl_atc_expiry_job` | 만료 전환 + D-30 알림 대상 추출 |
 | `zif_atc_exemption` | 상수/타입. 코드값 리터럴의 유일한 위치 |
+| `zcl_atc_exempt_testdata` | 테스트 데이터 생성/삭제 **(운영 이송 대상 아님)** |
 
 ### 서비스
 
 `ZUI_AtcExemption` (OData V4 UI) → Fiori Elements List Report + Object Page.
 P 계층(`ZP_*`)만 노출하고 값 도움은 I 계층을 그대로 쓴다.
+
+---
+
+## 테스트 데이터
+
+`zcl_atc_exempt_testdata` 로 대장 데이터를 만든다. 개발/품질 시스템 전용이다.
+
+```abap
+" 1. 컨트롤 테이블 1행. 이게 없으면 조회 화면이 빈 채로 뜬다.
+zcl_atc_exempt_testdata=>setup_config( 'YOUR_NAMING_VARIANT' ).
+
+" 2. 상태별 신청서 7건 + 증빙 + 이력
+DATA(lv_n) = zcl_atc_exempt_testdata=>create_requests(
+               iv_checkvariant = 'YOUR_NAMING_VARIANT'
+               iv_devclass     = 'YOUR_PACKAGE' ).
+
+" 3. 정리 (reasoncode = 'TEST' 인 행만 지운다)
+zcl_atc_exempt_testdata=>cleanup( ).
+```
+
+만들어지는 7건:
+
+| # | 상태 | 적용범위 | 확인 포인트 |
+|---|---|---|---|
+| 1 | 초안 | PCKG | 증빙 없음 → `PreRegFlag` = X |
+| 2 | 승인대기 | OBJ | 승인/반려 버튼이 보여야 함 |
+| 3 | 승인 | PCKG | `ExtExemptId` 채워짐 = 정상 |
+| 4 | 승인 | OBJ | `ExtExemptId` 비어 있음 → **`ExemptionMismatch` = X** |
+| 5 | 반려 | OBJ | 반려 사유가 이력에 남음 |
+| 6 | 철회 | OBJ | |
+| 7 | 만료 | PCKG | `ValidTo` 가 과거 |
+
+**대상 오브젝트는 지어내지 않고 `TADIR` 에서 실제로 읽는다.** 지어낸 이름을 쓰면
+화면에서 승인을 눌렀을 때 `validateScope` 가 "오브젝트 없음"으로 막아, 정작
+확인하려던 상태 전이를 볼 수 없다. 그래서 `iv_devclass` 는 오브젝트가 들어 있는
+실재 패키지여야 하고, 비어 있으면 아무것도 만들지 않는다.
+
+**ATC finding 은 만들 수 없다.** 그건 실제 ATC 실행 결과다. finding 목록 화면을
+보려면 대상 패키지에 ATC 를 한 번 돌려야 한다. 위 데이터로 확인되는 것은 신청
+목록, 오브젝트 페이지, 상태별 버튼, 증빙/이력 탭, 정합성 지표다.
 
 ---
 

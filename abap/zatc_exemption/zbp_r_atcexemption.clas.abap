@@ -290,11 +290,6 @@ CLASS lhc_exemption IMPLEMENTATION.
                                              ELSE ls_exemption-rulescope ) )
              TO lt_update.
 
-      write_log( is_row    = ls_exemption
-                 iv_action = zif_atc_exemption=>logaction-create
-                 iv_from   = space
-                 iv_to     = zif_atc_exemption=>status-draft ).
-
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
@@ -1387,12 +1382,60 @@ CLASS lsc_zr_atcexemption DEFINITION INHERITING FROM cl_abap_behavior_saver.
   PROTECTED SECTION.
     METHODS save_modified REDEFINITION.
 
+  PRIVATE SECTION.
+    "! 저장 단계의 이력 기록. 여기는 save 단계라 DB 직접 쓰기가 허용된다.
+    "! 순번과 시각을 한 곳에서 채워, 호출부마다 빠뜨리는 일이 없게 한다.
+    METHODS append_log
+      IMPORTING iv_exemptuuid TYPE sysuuid_x16
+                iv_action     TYPE c
+                iv_from       TYPE c OPTIONAL
+                iv_to         TYPE c
+                iv_comment    TYPE string OPTIONAL.
+
 ENDCLASS.
 
 
 CLASS lsc_zr_atcexemption IMPLEMENTATION.
 
+  METHOD append_log.
+
+    GET TIME STAMP FIELD DATA(lv_now).
+
+    " 순번은 기존 건수 다음이다. 0 으로 고정하면 이력 탭의 정렬이 무너지고
+    " 같은 신청서에 두 건이 생겼을 때 순서를 알 수 없게 된다.
+    SELECT MAX( seqnr )
+      FROM ztatcexemptlog
+      WHERE exemptuuid = @iv_exemptuuid
+      INTO @DATA(lv_max).
+
+    INSERT ztatcexemptlog FROM @( VALUE #(
+      loguuid    = cl_system_uuid=>create_uuid_x16_static( )
+      exemptuuid = iv_exemptuuid
+      seqnr      = lv_max + 1
+      actioncode = iv_action
+      fromstat   = iv_from
+      tostat     = iv_to
+      commenttxt = iv_comment
+      actionby   = sy-uname
+      actionat   = lv_now ) ).
+
+  ENDMETHOD.
+
+
   METHOD save_modified.
+
+    " 생성 이력은 저장이 확정된 뒤에 남긴다.
+    " draft 생성 시점(determination)에 남기지 않는 이유가 둘이다.
+    "   - 사용자가 Create 를 눌렀다가 취소하면 신청서는 없는데 이력만 남는다.
+    "     저장이 곧 신청의 성립이다.
+    "   - determination 안에서 EML 로 자식을 만드는 것은 draft 생성 시점에
+    "     성립하지 않는다. 여기는 save 단계라 DB 직접 쓰기가 정상 경로다.
+    LOOP AT create-exemption INTO DATA(ls_new).
+      append_log( iv_exemptuuid = ls_new-exemptuuid
+                  iv_action     = zif_atc_exemption=>logaction-create
+                  iv_from       = space
+                  iv_to         = zif_atc_exemption=>status-draft ).
+    ENDLOOP.
 
     DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
 
@@ -1416,15 +1459,11 @@ CLASS lsc_zr_atcexemption IMPLEMENTATION.
           SET extexemptid = @ls_created-extexemptid
           WHERE exemptuuid = @ls_exemption-exemptuuid.
 
-        INSERT ztatcexemptlog FROM @( VALUE #(
-          loguuid    = cl_system_uuid=>create_uuid_x16_static( )
-          exemptuuid = ls_exemption-exemptuuid
-          seqnr      = 0
-          actioncode = zif_atc_exemption=>logaction-sync
-          fromstat   = zif_atc_exemption=>status-approved
-          tostat     = zif_atc_exemption=>status-approved
-          commenttxt = ls_created-message
-          actionby   = sy-uname ) ).
+        append_log( iv_exemptuuid = ls_exemption-exemptuuid
+                    iv_action     = zif_atc_exemption=>logaction-sync
+                    iv_from       = zif_atc_exemption=>status-approved
+                    iv_to         = zif_atc_exemption=>status-approved
+                    iv_comment    = ls_created-message ).
 
       ENDIF.
 
@@ -1440,15 +1479,11 @@ CLASS lsc_zr_atcexemption IMPLEMENTATION.
                                THEN |유효기간 경과로 자동 만료|
                                ELSE |CBO 대장에서 철회| ) ).
 
-        INSERT ztatcexemptlog FROM @( VALUE #(
-          loguuid    = cl_system_uuid=>create_uuid_x16_static( )
-          exemptuuid = ls_exemption-exemptuuid
-          seqnr      = 0
-          actioncode = zif_atc_exemption=>logaction-sync
-          fromstat   = zif_atc_exemption=>status-approved
-          tostat     = ls_exemption-exemptstatus
-          commenttxt = ls_revoked-message
-          actionby   = sy-uname ) ).
+        append_log( iv_exemptuuid = ls_exemption-exemptuuid
+                    iv_action     = zif_atc_exemption=>logaction-sync
+                    iv_from       = zif_atc_exemption=>status-approved
+                    iv_to         = ls_exemption-exemptstatus
+                    iv_comment    = ls_revoked-message ).
 
       ENDIF.
 

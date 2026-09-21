@@ -301,10 +301,13 @@ CLASS lhc_exemption IMPLEMENTATION.
       ENTITY exemption
         UPDATE FIELDS ( exemptstatus requester validfrom rulescope )
         WITH lt_update
-      REPORTED DATA(lt_reported).
+      FAILED DATA(lt_init_failed).
 
-    " 이미 담긴 메시지를 덮지 않도록 덧붙인다.
-    APPEND LINES OF lt_reported-exemption TO reported-exemption.
+    " 이 MODIFY 의 메시지를 reported 로 넘기지 않는다.
+    " determination 의 reported 는 EARLY 타입이고 MODIFY 가 돌려주는 것은 LATE
+    " 타입이라 행 구조가 다르다. 게다가 여기서 쓰는 값은 방금 우리가 계산한
+    " 것이라, 실패한다면 사용자에게 보여줄 메시지가 아니라 결함이다.
+    ASSERT lt_init_failed IS INITIAL.
 
   ENDMETHOD.
 
@@ -1348,8 +1351,7 @@ CLASS lhc_exemption IMPLEMENTATION.
         CREATE BY \_Log
         FIELDS ( seqnr actioncode fromstatus tostatus commenttext actionby actionat )
         WITH lt_log
-      FAILED   DATA(lt_log_failed)
-      REPORTED DATA(lt_log_reported).
+      FAILED DATA(lt_log_failed).
 
     " 여기가 실패하면 감사 이력 한 줄이 사라진다. 호출자가 determination 이라
     " 트랜잭션을 되돌릴 수단이 없어 진행은 시키지만, 결과를 버리지는 않는다.

@@ -63,10 +63,15 @@ CLASS zcl_atc_expiry_job IMPLEMENTATION.
 
   METHOD expire_overdue.
 
-    " 상태 전환은 면제 판정에 영향을 주지 않는다. ZI_AtcActiveExemption 이
-    " 이미 유효기간으로 거르므로 만료일 다음 날부터 자동으로 면제가 풀린다.
-    " 이 배치는 대장의 상태 값을 실제와 맞추고 알림 대상을 만들기 위한 것이다.
-    SELECT exemptuuid, exemptstat
+    " 면제 판정 자체는 이 배치가 없어도 풀린다. ZI_AtcActiveExemption 이
+    " 유효기간으로 거르고, 표준 예외에도 create 시 같은 validto 를 넘겨 두었다.
+    " 이 배치가 하는 일은 셋이다.
+    "   - 대장의 상태 값을 실제와 맞춘다
+    "   - 표준 예외를 명시적으로 무효화한다. 유효기간에만 기대지 않는 이유는,
+    "     set_validity_date 가 반영되지 않았을 때 두 저장소가 조용히 어긋나기
+    "     때문이다. 이 앱의 존재 이유가 그 어긋남을 없애는 것이다
+    "   - 알림 대상을 만든다
+    SELECT exemptuuid, exemptstat, extexemptid
       FROM ztatcexempt
       WHERE exemptstat = @zif_atc_exemption=>status-approved
         AND validto    < @sy-datum
@@ -80,7 +85,20 @@ CLASS zcl_atc_expiry_job IMPLEMENTATION.
 
     DATA lt_log TYPE STANDARD TABLE OF ztatcexemptlog WITH EMPTY KEY.
 
+    DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
+
     LOOP AT lt_overdue INTO DATA(ls_overdue).
+
+      DATA(lv_note) = |유효기간 경과로 자동 만료|.
+
+      " 표준 예외도 함께 닫는다. 배치는 RAP 의 interaction phase 가 아니므로
+      " 여기서 외부 호출을 해도 된다 (saver 를 거치지 않는 경로다).
+      IF ls_overdue-extexemptid IS NOT INITIAL.
+        DATA(ls_revoked) = lo_sync->revoke_exemption(
+                             iv_extexemptid = ls_overdue-extexemptid
+                             iv_reason      = lv_note ).
+        lv_note = |{ lv_note } / { ls_revoked-message }|.
+      ENDIF.
 
       UPDATE ztatcexempt
         SET exemptstat    = @zif_atc_exemption=>status-expired,
@@ -88,15 +106,20 @@ CLASS zcl_atc_expiry_job IMPLEMENTATION.
             loclastchgat  = @lv_now
         WHERE exemptuuid = @ls_overdue-exemptuuid.
 
+      " 순번은 기존 이력 다음이다. 0 으로 고정하면 이력 탭 정렬이 무너진다.
+      SELECT MAX( seqnr ) FROM ztatcexemptlog
+        WHERE exemptuuid = @ls_overdue-exemptuuid
+        INTO @DATA(lv_max).
+
       " 이력을 남겨야 "왜 갑자기 면제가 풀렸는지" 를 나중에 추적할 수 있다.
       APPEND VALUE #(
         loguuid    = cl_system_uuid=>create_uuid_x16_static( )
         exemptuuid = ls_overdue-exemptuuid
-        seqnr      = 0
+        seqnr      = lv_max + 1
         actioncode = zif_atc_exemption=>logaction-expire
         fromstat   = ls_overdue-exemptstat
         tostat     = zif_atc_exemption=>status-expired
-        commenttxt = |유효기간 경과로 자동 만료|
+        commenttxt = lv_note
         actionby   = sy-uname
         actionat   = lv_now ) TO lt_log.
 

@@ -54,9 +54,18 @@ CLASS zcl_atc_exempt_sync DEFINITION
         message     TYPE string,
       END OF ty_result.
 
-    "! 승인된 예외를 표준 저장소에 생성한다.
+    "! 상신된 예외를 표준 저장소에 **승인대기 상태로** 생성한다.
+    "! 표준의 모델이 "신청 시점에 행이 생기고 승인은 그 행의 상태를 바꾸는 것"
+    "! 이므로 우리도 같은 시점에 만든다. 그래야 승인자에게 표준 알림이 가고,
+    "! 개발자가 ADT/표준 앱에서도 자기 신청 건을 볼 수 있다.
     METHODS create_exemption
       IMPORTING is_exemption     TYPE ztatcexempt
+      RETURNING VALUE(rs_result) TYPE ty_result.
+
+    "! 표준 저장소의 예외를 승인한다. 이 시점에 ATC 차단이 실제로 풀린다.
+    METHODS approve_exemption
+      IMPORTING iv_extexemptid   TYPE sysuuid_c32
+                iv_assessment    TYPE string OPTIONAL
       RETURNING VALUE(rs_result) TYPE ty_result.
 
     "! 철회/만료된 예외를 표준 저장소에서 무효화한다.
@@ -155,26 +164,46 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
                   THEN ls_config-notiftype
                   ELSE zif_atc_exemption=>notification-never ) ).
 
-        " 승인 요청까지 보낸 뒤 잠금을 푼다.
+        " 승인 요청을 보낸 뒤 잠금을 푼다. 여기서 끝이다 - 승인은 별도다.
+        " 결재가 끝나기 전에 승인해 버리면 표준의 알림도 승인 상태도 무의미해진다.
         lo_exemption->send_to_approver( ).
         lo_exemption->unlock( ).
 
         " SATC_CI_EXEMPTION_ID (SYSUUID_C32)
         DATA(lv_exemption_id) = lo_exemption->get_exemption_id( ).
 
-        " 이어서 바로 승인한다. 결재는 이미 이 앱에서 끝났고, 표준에 승인대기
-        " 상태로 남겨두면 표준 Fiori 앱에서 다른 사람이 먼저 결재할 수 있다.
-        lo_controller->approve_exemption_by_id(
-          exemption_id = lv_exemption_id
-          assessment   = is_exemption-reasontext ).
-
         rs_result = VALUE #( success     = abap_true
                              extexemptid = lv_exemption_id
-                             message     = |표준 예외 { lv_exemption_id } 생성| ).
+                             message     = |표준 예외 { lv_exemption_id } 생성(승인대기)| ).
 
       CATCH cx_root INTO DATA(lo_error).
         " 표준 반영이 실패해도 CBO 승인 기록은 남긴다. 대장이 원천이고
         " 표준 반영은 뒤따르는 구조이기 때문이다. 실패 사유는 이력에 적힌다.
+        rs_result = VALUE #( success = abap_false
+                             message = lo_error->get_text( ) ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD approve_exemption.
+
+    " 표준 예외를 승인한다. CBO 대장에서 결재가 끝난 뒤 그 결과를 표준에
+    " 반영하는 단계이고, ATC 가 실제로 이 건을 면제하기 시작하는 지점이다.
+
+    DATA(lo_controller) = get_controller( ).
+
+    TRY.
+
+        lo_controller->approve_exemption_by_id(
+          exemption_id = iv_extexemptid
+          assessment   = iv_assessment ).
+
+        rs_result = VALUE #( success     = abap_true
+                             extexemptid = iv_extexemptid
+                             message     = |표준 예외 { iv_extexemptid } 승인| ).
+
+      CATCH cx_root INTO DATA(lo_error).
         rs_result = VALUE #( success = abap_false
                              message = lo_error->get_text( ) ).
     ENDTRY.

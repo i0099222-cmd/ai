@@ -1439,11 +1439,21 @@ CLASS lsc_zr_atcexemption IMPLEMENTATION.
 
     DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
 
-    " 이번 저장에서 승인/철회로 바뀐 건만 표준에 반영한다.
+    " 표준 저장소와 상태를 맞춘다.
+    "
+    " 표준의 모델은 "신청 시점에 행이 생기고, 승인은 그 행의 상태를 바꾸는 것"
+    " 이다. 우리도 같은 시점에 맞춘다.
+    "   상신(20) -> create_exemption( )   표준에 승인대기로 생성
+    "   승인(30) -> approve_exemption( )  여기서 ATC 차단이 실제로 풀린다
+    "   반려/철회/만료 -> revoke_exemption( )
+    "   상신철회(10 복귀) -> 표준 행을 정리하고 ID 를 비운다
+    "
+    " 이 호출들이 액션이 아니라 여기 있는 이유: 남의 DB 를 바꾸고 잠금을 잡는
+    " 작업이라, 검증을 다 통과하고 트랜잭션이 확정된 뒤에만 나가야 한다.
     LOOP AT update-exemption INTO DATA(ls_exemption).
 
-      " 승인되었는데 아직 표준 예외가 없는 건 -> 생성
-      IF ls_exemption-exemptstatus = zif_atc_exemption=>status-approved
+      " --- 상신 -> 표준에 승인대기로 등록 ---
+      IF ls_exemption-exemptstatus = zif_atc_exemption=>status-pending
      AND ls_exemption-extexemptid IS INITIAL.
 
         SELECT SINGLE * FROM ztatcexempt
@@ -1452,31 +1462,76 @@ CLASS lsc_zr_atcexemption IMPLEMENTATION.
 
         DATA(ls_created) = lo_sync->create_exemption( ls_db ).
 
-        " 표준 반영이 실패해도 CBO 승인 기록은 되돌리지 않는다. 대장이 원천이고
-        " 표준 반영은 뒤따르는 구조다. 실패한 건은 extexemptid 가 비어 있으므로
-        " 정합성 점검 배치가 찾아낸다.
+        " 표준 반영이 실패해도 CBO 기록은 되돌리지 않는다. 대장이 원천이고
+        " 표준 반영은 뒤따르는 구조다. 실패한 건은 extexemptid 가 비어 있어
+        " 조회 화면의 ExemptionMismatch 와 정합성 배치가 찾아낸다.
         UPDATE ztatcexempt
           SET extexemptid = @ls_created-extexemptid
           WHERE exemptuuid = @ls_exemption-exemptuuid.
 
         append_log( iv_exemptuuid = ls_exemption-exemptuuid
                     iv_action     = zif_atc_exemption=>logaction-sync
-                    iv_from       = zif_atc_exemption=>status-approved
-                    iv_to         = zif_atc_exemption=>status-approved
+                    iv_from       = zif_atc_exemption=>status-draft
+                    iv_to         = zif_atc_exemption=>status-pending
                     iv_comment    = ls_created-message ).
 
       ENDIF.
 
-      " 철회/만료되었는데 표준 예외가 남아 있는 건 -> 무효화
-      IF ( ls_exemption-exemptstatus = zif_atc_exemption=>status-revoked
+      " --- 승인 -> 표준 승인 ---
+      IF ls_exemption-exemptstatus = zif_atc_exemption=>status-approved.
+
+        DATA(lv_extid) = ls_exemption-extexemptid.
+
+        " 상신 때 표준 등록이 실패했던 건이면 여기서 한 번 더 만든다.
+        " 이 보정이 없으면 승인은 됐는데 ATC 는 계속 막는 상태로 굳는다.
+        IF lv_extid IS INITIAL.
+
+          SELECT SINGLE * FROM ztatcexempt
+            WHERE exemptuuid = @ls_exemption-exemptuuid
+            INTO @ls_db.
+
+          DATA(ls_retry) = lo_sync->create_exemption( ls_db ).
+          lv_extid = ls_retry-extexemptid.
+
+          UPDATE ztatcexempt
+            SET extexemptid = @lv_extid
+            WHERE exemptuuid = @ls_exemption-exemptuuid.
+
+          append_log( iv_exemptuuid = ls_exemption-exemptuuid
+                      iv_action     = zif_atc_exemption=>logaction-sync
+                      iv_from       = zif_atc_exemption=>status-pending
+                      iv_to         = zif_atc_exemption=>status-pending
+                      iv_comment    = |상신 시 실패분 재생성: { ls_retry-message }| ).
+
+        ENDIF.
+
+        IF lv_extid IS NOT INITIAL.
+
+          DATA(ls_approved) = lo_sync->approve_exemption(
+                                iv_extexemptid = lv_extid
+                                iv_assessment  = ls_exemption-reasontext ).
+
+          append_log( iv_exemptuuid = ls_exemption-exemptuuid
+                      iv_action     = zif_atc_exemption=>logaction-sync
+                      iv_from       = zif_atc_exemption=>status-pending
+                      iv_to         = zif_atc_exemption=>status-approved
+                      iv_comment    = ls_approved-message ).
+
+        ENDIF.
+
+      ENDIF.
+
+      " --- 반려 / 철회 / 만료 -> 표준 무효화 ---
+      IF ( ls_exemption-exemptstatus = zif_atc_exemption=>status-rejected
+        OR ls_exemption-exemptstatus = zif_atc_exemption=>status-revoked
         OR ls_exemption-exemptstatus = zif_atc_exemption=>status-expired )
      AND ls_exemption-extexemptid IS NOT INITIAL.
 
         DATA(ls_revoked) = lo_sync->revoke_exemption(
                              iv_extexemptid = ls_exemption-extexemptid
-                             iv_reason      = COND #(
-                               WHEN ls_exemption-exemptstatus = zif_atc_exemption=>status-expired
-                               THEN |유효기간 경과로 자동 만료|
+                             iv_reason      = SWITCH string( ls_exemption-exemptstatus
+                               WHEN zif_atc_exemption=>status-rejected THEN |CBO 대장에서 반려|
+                               WHEN zif_atc_exemption=>status-expired  THEN |유효기간 경과로 자동 만료|
                                ELSE |CBO 대장에서 철회| ) ).
 
         append_log( iv_exemptuuid = ls_exemption-exemptuuid
@@ -1484,6 +1539,28 @@ CLASS lsc_zr_atcexemption IMPLEMENTATION.
                     iv_from       = zif_atc_exemption=>status-approved
                     iv_to         = ls_exemption-exemptstatus
                     iv_comment    = ls_revoked-message ).
+
+      ENDIF.
+
+      " --- 상신철회 -> 표준 행을 정리하고 ID 를 비운다 ---
+      " 비우지 않으면 다시 상신했을 때 "이미 등록됨"으로 판단해 건너뛰고,
+      " 표준에는 반려된 행만 남아 영원히 승인되지 않는다.
+      IF ls_exemption-exemptstatus = zif_atc_exemption=>status-draft
+     AND ls_exemption-extexemptid IS NOT INITIAL.
+
+        DATA(ls_withdrawn) = lo_sync->revoke_exemption(
+                               iv_extexemptid = ls_exemption-extexemptid
+                               iv_reason      = |신청자가 상신을 철회| ).
+
+        UPDATE ztatcexempt
+          SET extexemptid = @space
+          WHERE exemptuuid = @ls_exemption-exemptuuid.
+
+        append_log( iv_exemptuuid = ls_exemption-exemptuuid
+                    iv_action     = zif_atc_exemption=>logaction-sync
+                    iv_from       = zif_atc_exemption=>status-pending
+                    iv_to         = zif_atc_exemption=>status-draft
+                    iv_comment    = ls_withdrawn-message ).
 
       ENDIF.
 

@@ -69,6 +69,18 @@ define root view entity ZR_AtcExemption
         else 0
       end               as ScopeCriticality,
 
+      // 표준 반영 색. saver 는 사용자에게 메시지를 띄울 수 없으므로, 실패를
+      // 화면에서 보이게 하는 유일한 수단이다.
+      //   1 적 : 상신/승인인데 표준에 반영되지 않았다. ATC 는 계속 막는다
+      //   3 녹 : 반영됨
+      //   0    : 아직 반영할 단계가 아니다 (초안 등)
+      @EndUserText.label: 'Standard Sync Criticality'
+      case
+        when ExtExemptId is not initial then 3
+        when ExemptStatus = '20' or ExemptStatus = '30' then 1
+        else 0
+      end               as SyncCriticality,
+
       CreatedBy,
       CreatedAt,
       LastChangedBy,

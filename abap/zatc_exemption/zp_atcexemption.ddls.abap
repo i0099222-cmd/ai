@@ -71,6 +71,7 @@ define root view entity ZP_AtcExemption
       PreRegFlag,
 
       StatusCriticality,
+      SyncCriticality,
       ScopeCriticality,
 
       CreatedBy,

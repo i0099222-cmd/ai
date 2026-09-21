@@ -149,6 +149,13 @@ annotate entity ZP_AtcExemption with
   ApprovedAt;
 
   @UI.identification: [{ position: 70 }]
+  // 표준 반영 결과. saver 가 메시지를 띄울 수 없으므로 색으로 알린다.
+  // 상신/승인인데 비어 있으면 적색 - 대장은 진행됐는데 ATC 는 계속 막는다.
+  @UI: {
+    lineItem:       [{ position: 90, importance: #HIGH,
+                       criticality: 'SyncCriticality' }],
+    identification: [{ position: 70, criticality: 'SyncCriticality' }]
+  }
   @EndUserText.label: 'Standard Exemption ID'
   ExtExemptId;
 
@@ -156,6 +163,8 @@ annotate entity ZP_AtcExemption with
   @EndUserText.label: 'Pre-Registered'
   PreRegFlag;
 
+  @UI.hidden: true
+  SyncCriticality;
   @UI.hidden: true
   StatusCriticality;
   @UI.hidden: true

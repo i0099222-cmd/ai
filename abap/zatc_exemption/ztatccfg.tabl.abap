@@ -64,6 +64,13 @@ define table ztatccfg {
   "! 조직 정책이라 코드에 박지 않는다.
   notiftype       : abap.char(4);
 
+  "! 기본 승인자. 표준 예외를 승인대기로 올릴 때 send_to_approver( ) 가
+  "! 받는 사람이다. 표준은 승인자 1명을 필수로 요구한다.
+  "!
+  "! 우리 앱의 승인 권한 자체는 이 값이 아니라 권한 오브젝트 Z_ATCEXEM 이
+  "! 정한다. 이 필드는 "표준에 누구 앞으로 올릴 것인가" 만 정한다.
+  defapprover     : abap.char(12);
+
   "! 예외 신청을 허용하는 최대 Priority. 0 이면 제한 없음.
   "! Priority 는 1 이 가장 심각하다. 2 로 두면 Prio 1 위반은 신청 자체를 차단한다.
   maxpriority     : abap.int1;

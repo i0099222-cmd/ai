@@ -130,6 +130,8 @@ INTERFACE zif_atc_exemption
       reasonreq    TYPE abap_boolean,
       notiftype    TYPE char4,
       maxpriority  TYPE int1,
+      "! 표준 예외를 승인대기로 올릴 때 지정할 승인자
+      defapprover  TYPE syuname,
     END OF ty_config,
     tt_config TYPE STANDARD TABLE OF ty_config WITH EMPTY KEY.
 

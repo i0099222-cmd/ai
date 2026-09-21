@@ -816,6 +816,21 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 승인은 표준 Fiori 앱에서도 이뤄질 수 있고, 거기에는 영향도 화면이 없다.
       " 그래서 상신 시점에 영향 건수를 계산해 근거 텍스트에 붙여 둔다.
       " 어느 화면에서 결재하든 승인자가 파급 효과를 읽을 수 있게 하는 장치다.
+      " 표준은 승인자 1명이 지정되어야 승인대기로 올릴 수 있다. 저장 시점에
+      " 알면 늦다 - 상신은 성공하고 표준 등록만 조용히 실패해, 이력을 열어보기
+      " 전까지 아무도 모른다. 여기서 먼저 막는다.
+      IF zcl_atc_config=>get( )->get_config(
+           ls_exemption-checkvariant )-defapprover IS INITIAL.
+
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_exemption-%tky
+                        %msg = new_error( iv_number = '021'
+                                          iv_v1     = ls_exemption-checkvariant ) )
+               TO reported-exemption.
+        CONTINUE.
+
+      ENDIF.
+
       DATA(lt_impact) = lo_reader->simulate_impact(
                           iv_checkvariant = ls_exemption-checkvariant
                           iv_scopetype  = ls_exemption-scopetype

@@ -105,6 +105,8 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       maxvalidmon  = 12
       reasonreq    = abap_true
       notiftype    = 'REJ'
+      " 표준이 승인자 1명을 필수로 받는다. 비워 두면 상신이 막힌다.
+      defapprover  = sy-uname
       " priority 가 이 값보다 낮은(= 더 심각한) 건은 예외 신청을 막는다.
       " 2 로 두면 우선순위 1 은 거부되고 2, 3 은 허용된다.
       maxpriority  = 2 ) ).

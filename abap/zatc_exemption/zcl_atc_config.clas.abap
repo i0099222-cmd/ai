@@ -70,7 +70,7 @@ CLASS zcl_atc_config IMPLEMENTATION.
 
     SELECT checkvariant, checkgroup, activeflg,
            fndactive, objactive, pkgactive,
-           maxvalidmon, reasonreq, notiftype, maxpriority
+           maxvalidmon, reasonreq, notiftype, maxpriority, defapprover
       FROM ztatccfg
       INTO CORRESPONDING FIELDS OF TABLE @mt_config.
 

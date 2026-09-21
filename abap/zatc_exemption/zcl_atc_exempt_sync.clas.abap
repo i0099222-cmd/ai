@@ -156,7 +156,12 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         lo_exemption->set_reason( i_reason  = CONV #( is_exemption-reasoncode )
                                   i_comment = is_exemption-reasontext ).
         lo_exemption->set_validity_date( is_exemption-validto ).
-        lo_exemption->set_approver( i_approver = is_exemption-approver ).
+        " 표준은 승인자 1명을 필수로 요구한다. 상신 시점에는 아직 결재자가
+        " 정해지지 않았으므로(우리 앱은 권한으로 판정한다) 설정의 기본 승인자를
+        " 쓴다. 승인이 끝나면 approve_exemption_by_id( ) 가 실제 결재자를 남긴다.
+        lo_exemption->set_approver( i_approver = COND #(
+          WHEN is_exemption-approver IS NOT INITIAL THEN is_exemption-approver
+          ELSE ls_config-defapprover ) ).
 
         " 알림 유형은 조직 정책이므로 컨트롤 테이블에서 읽는다.
         lo_exemption->set_notification_type(

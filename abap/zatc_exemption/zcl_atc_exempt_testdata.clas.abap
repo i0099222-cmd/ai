@@ -91,25 +91,19 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
 
   METHOD setup_config.
 
-    DELETE FROM ztatccfg WHERE checkvariant = @iv_checkvariant.
+    " 설정을 쓰는 곳은 zcl_atc_config_setup 하나다. 여기서 또 INSERT 하면
+    " 검증을 우회하게 되고, 두 곳의 기본값이 갈라진다.
+    DATA(ls_result) = zcl_atc_config_setup=>set_variant(
+                        iv_checkvariant = iv_checkvariant
+                        " 표준이 승인자를 필수로 받는다. 테스트는 본인으로 둔다.
+                        " 단, 본인이 신청한 건은 자기승인 금지(014)에 걸리므로
+                        " 승인 단계까지 보려면 계정이 둘 필요하다.
+                        iv_defapprover  = sy-uname ).
 
-    INSERT ztatccfg FROM @( VALUE #(
-      checkvariant = iv_checkvariant
-      checkgroup   = 'NAMING'
-      activeflg    = abap_true
-      " Phase 1 요건: 패키지/오브젝트 단위만 허용한다.
-      " fndactive 를 켜면 finding 단위 신청이 열린다 (Phase 2).
-      fndactive    = abap_false
-      objactive    = abap_true
-      pkgactive    = abap_true
-      maxvalidmon  = 12
-      reasonreq    = abap_true
-      notiftype    = 'REJ'
-      " 표준이 승인자 1명을 필수로 받는다. 비워 두면 상신이 막힌다.
-      defapprover  = sy-uname
-      " priority 가 이 값보다 낮은(= 더 심각한) 건은 예외 신청을 막는다.
-      " 2 로 두면 우선순위 1 은 거부되고 2, 3 은 허용된다.
-      maxpriority  = 2 ) ).
+    IF ls_result-success = abap_false.
+      " 설정이 없으면 나머지 테스트가 전부 빈 화면으로 끝난다. 조용히 넘기지 않는다.
+      ASSERT 1 = 0.
+    ENDIF.
 
   ENDMETHOD.
 

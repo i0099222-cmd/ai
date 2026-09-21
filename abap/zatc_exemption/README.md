@@ -343,12 +343,53 @@ P 의 ddlx 는 화면 배치(위치·중요도·facet)만 담당한다.
 | `zcl_atc_exempt_sync` | 표준 예외 저장소 반영 **(스텁 — 확인 과제 5)** |
 | `zcl_atc_expiry_job` | 만료 전환 + D-30 알림 대상 추출 |
 | `zif_atc_exemption` | 상수/타입. 코드값 리터럴의 유일한 위치 |
+| `zcl_atc_config_setup` | 컨트롤 테이블 유지보수 (검증 포함). 설정을 쓰는 유일한 창구 |
 | `zcl_atc_exempt_testdata` | 테스트 데이터 생성/삭제 **(운영 이송 대상 아님)** |
 
 ### 서비스
 
 `ZUI_AtcExemption` (OData V4 UI) → Fiori Elements List Report + Object Page.
 P 계층(`ZP_*`)만 노출하고 값 도움은 I 계층을 그대로 쓴다.
+
+---
+
+## 설정 입력
+
+`zcl_atc_config_setup` 으로 넣는다. SE16 으로 직접 넣어도 되지만, 값이 서로
+맞물려 있어 하나만 틀려도 앱이 조용히 멈춘다.
+
+```abap
+DATA(ls) = zcl_atc_config_setup=>set_variant(
+             iv_checkvariant = 'ZNAMING_CHECK'
+             iv_defapprover  = 'ATC_APPROVER' ).   " 나머지는 Phase 1 기본값
+
+" 정책을 바꿀 때
+zcl_atc_config_setup=>set_variant(
+  iv_checkvariant = 'ZNAMING_CHECK'
+  iv_defapprover  = 'ATC_APPROVER'
+  iv_maxvalidmon  = 6            " 유효기간 상한을 6개월로
+  iv_notiftype    = 'ALWS' ).    " 승인·반려 모두 알림
+
+zcl_atc_config_setup=>deactivate( 'ZNAMING_CHECK' ).   " 끄기 (삭제 아님)
+zcl_atc_config_setup=>list( ).                          " 현재 설정 확인
+```
+
+저장 전에 막는 것들 — 전부 앱이 **조용히** 멈추는 조합이다.
+
+| 검증 | 안 막으면 |
+|---|---|
+| `defapprover` 필수 + `USR02` 존재 | 상신이 메시지 021 로 막힌다 |
+| 적용범위 최소 1개 | 어떤 범위로도 신청할 수 없다 |
+| `maxvalidmon` ≥ 1 | 기간 상한 검사를 건너뛰어 무제한 예외가 된다 |
+| `notiftype` ∈ REJ/ALWS/NEVR | 표준이 거부한다 |
+
+`delete_variant( )` 는 그 변형으로 신청된 건이 있으면 거부한다. 설정이 사라지면
+기존 신청서의 승인·철회가 기준을 잃는다. 그럴 땐 `deactivate( )` 를 쓴다.
+
+> ⚠️ `ztatccfg` 는 delivery class `C`(커스터마이징)다. 이 클래스의 직접 쓰기는
+> **이송 요청에 기록되지 않는다.** 다만 ATC 는 개발 시스템에서 돌므로 운영에
+> 이 앱이 필요할 일은 드물고, 대개 DEV 에서 이 클래스로 넣으면 충분하다.
+> 이송이 필요하면 유지보수 뷰를 만들어 SM30 으로 넣는다.
 
 ---
 

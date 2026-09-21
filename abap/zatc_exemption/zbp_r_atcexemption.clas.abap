@@ -717,9 +717,16 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      " 사유 코드는 표준이 값 목록을 가진다(SATC_CI_REASONS). 우리 목록을
+      " 따로 두지 않고 거기서 확인한다. not_selectable 인 값(QGOV)은
+      " ZI_AtcReasonVH 가 걸러내므로 여기 걸리면 화면을 거치지 않은 입력이다.
+      SELECT SINGLE @abap_true FROM zi_atcreasonvh
+        WHERE reasoncode = @ls_exemption-reasoncode
+        INTO @DATA(lv_reason_ok).
+
       " 근거 텍스트는 감사 대응 시 남는 유일한 서술이다. 한 단어짜리 형식적
       " 사유를 막기 위해 최소 길이를 본다.
-      IF ls_exemption-reasoncode IS NOT INITIAL
+      IF lv_reason_ok = abap_true
      AND strlen( ls_exemption-reasontext ) >= zif_atc_exemption=>min_reason_length.
         CONTINUE.
       ENDIF.

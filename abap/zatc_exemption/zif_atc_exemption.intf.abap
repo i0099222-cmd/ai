@@ -45,6 +45,16 @@ INTERFACE zif_atc_exemption
       expired  TYPE char2 VALUE '60',
     END OF status.
 
+  "! 사유 코드. 값 목록은 표준 테이블 SATC_CI_REASONS 가 가진다.
+  "! 여기에는 우리가 기본값으로 쓰는 것만 둔다. 전체 목록은 ZI_AtcReasonVH 다.
+  CONSTANTS:
+    BEGIN OF reason,
+      "! ATC 판정 자체가 틀렸을 때
+      false_positive TYPE char4 VALUE 'FPOS',
+      "! 규칙은 맞지만 지킬 수 없을 때. 우리 앱의 전형적인 사유다.
+      other          TYPE char4 VALUE 'OTHR',
+    END OF reason.
+
   "! 표준 예외의 이메일 알림 유형 (set_notification_type)
   CONSTANTS:
     BEGIN OF notification,

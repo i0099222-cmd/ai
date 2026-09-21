@@ -15,6 +15,7 @@ define service ZUI_AtcExemption {
   expose ZP_AtcFinding       as Finding;
 
   // 값 도움
+  expose ZI_AtcReasonVH      as ReasonVH;
   expose ZI_AtcScopeVH       as ScopeVH;
   expose ZI_AtcVariantVH     as VariantVH;
   expose ZI_AtcPackageVH     as PackageVH;

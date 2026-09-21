@@ -51,6 +51,10 @@ define root view entity ZP_AtcExemption
 
       RuleScope,
 
+      // 값 목록은 표준(SATC_CI_REASONS)이 가진다. 우리 도메인에 복사하지 않는다.
+      @Consumption.valueHelpDefinition: [{
+        entity: { name: 'ZI_AtcReasonVH', element: 'ReasonCode' }
+      }]
       ReasonCode,
       ReasonText,
 

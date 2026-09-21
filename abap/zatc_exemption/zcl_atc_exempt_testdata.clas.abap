@@ -12,7 +12,9 @@
 "! 화면에서 승인/반려를 눌렀을 때 validateScope 가 "오브젝트 없음"으로 막아
 "! 정작 테스트하려던 상태 전이를 볼 수 없다.
 "!
-"! 테스트 행은 reasoncode = 'TEST' 로 표시하고, cleanup( ) 은 그 값만 지운다.
+"! 테스트 행은 사유 텍스트가 '[TEST]' 로 시작하고, cleanup( ) 은 그것만 지운다.
+"! 표식을 reasoncode 에 둘 수 없는 이유: 그 필드는 표준이 값 목록을 가지며
+"! (SATC_CI_REASONS) 임의 값을 넣으면 표준 반영이 거부된다.
 CLASS zcl_atc_exempt_testdata DEFINITION
   PUBLIC
   FINAL
@@ -20,8 +22,8 @@ CLASS zcl_atc_exempt_testdata DEFINITION
 
   PUBLIC SECTION.
 
-    "! 테스트 행 표식. cleanup( ) 의 유일한 기준이다.
-    CONSTANTS c_marker TYPE c LENGTH 4 VALUE 'TEST'.
+    "! 테스트 행 표식. 사유 텍스트의 접두어이고 cleanup( ) 의 유일한 기준이다.
+    CONSTANTS c_marker TYPE string VALUE '[TEST]'.
 
     "! 컨트롤 테이블 1행. 이게 없으면 ZI_AtcFinding 이 inner join 에서 전부
     "! 걸러내므로 조회 화면이 빈 채로 뜬다. 가장 먼저 실행한다.
@@ -322,7 +324,8 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       checkclass   = iv_checkclass
       checkcode    = iv_checkcode
       rulescope    = zif_atc_exemption=>rulescope-message
-      reasoncode   = c_marker
+      " 표준이 받는 사유 코드다. c_marker 는 테스트 표식이라 여기 쓸 수 없다.
+      reasoncode   = zif_atc_exemption=>reason-other
       reasontext   = iv_reasontext
       validfrom    = sy-datum
       validto      = iv_validto
@@ -378,24 +381,34 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
 
   METHOD cleanup.
 
-    " 자식부터 지운다. 헤더를 먼저 지우면 어느 아이템이 테스트 것인지 알 수 없다.
-    SELECT exemptuuid
+    " 표식이 사유 텍스트 안에 있고 그 컬럼이 STRING 이라, SQL LIKE 대신
+    " 읽어서 거른다. 테스트 유틸리티이고 대상 건수가 작아 문제되지 않는다.
+    SELECT exemptuuid, reasontext
       FROM ztatcexempt
-      WHERE reasoncode = @c_marker
-      INTO TABLE @DATA(lt_uuid).
+      INTO TABLE @DATA(lt_all).
 
-    IF lt_uuid IS INITIAL.
+    DATA lr_uuid TYPE RANGE OF sysuuid_x16.
+
+    LOOP AT lt_all INTO DATA(ls_row).
+      IF ls_row-reasontext CS c_marker.
+        APPEND VALUE #( sign = 'I' option = 'EQ' low = ls_row-exemptuuid ) TO lr_uuid.
+      ENDIF.
+    ENDLOOP.
+
+    IF lr_uuid IS INITIAL.
       RETURN.
     ENDIF.
 
-    DELETE FROM ztatcexemptlog WHERE exemptuuid IN
-      ( SELECT exemptuuid FROM ztatcexempt WHERE reasoncode = @c_marker ).
-    DELETE FROM ztatcexempti  WHERE exemptuuid IN
-      ( SELECT exemptuuid FROM ztatcexempt WHERE reasoncode = @c_marker ).
-    DELETE FROM ztatcexempt   WHERE reasoncode = @c_marker.
+    " 자식부터 지운다. 헤더를 먼저 지우면 어느 아이템이 테스트 것인지 알 수 없다.
+    DELETE FROM ztatcexemptlog WHERE exemptuuid IN @lr_uuid.
+    DELETE FROM ztatcexempti   WHERE exemptuuid IN @lr_uuid.
+    DELETE FROM ztatcexempt    WHERE exemptuuid IN @lr_uuid.
 
-    rv_count = lines( lt_uuid ).
+    COMMIT WORK.
+
+    rv_count = lines( lr_uuid ).
 
   ENDMETHOD.
+
 
 ENDCLASS.

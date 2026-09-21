@@ -137,7 +137,11 @@ etag master LocalLastChangedAt
   }
 
   association _Item { create; with draft; }
-  association _Log  { with draft; }
+  // _Log 에도 create 가 필요하다. 이력을 쓰는 주체는 사용자가 아니라 behavior
+  // pool 이지만, EML 의 CREATE BY \_Log 는 이 선언이 있어야 성립한다.
+  // 사용자가 이력을 만들지 못하게 막는 것은 projection(ZP_AtcExemptionLog)이
+  // create 를 노출하지 않는 것으로 이미 되어 있다.
+  association _Log  { create; with draft; }
 }
 
 define behavior for ZR_AtcExemptionItem alias ExemptionItem

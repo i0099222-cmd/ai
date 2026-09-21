@@ -1341,11 +1341,20 @@ CLASS lhc_exemption IMPLEMENTATION.
                                              actionby    = sy-uname
                                              actionat    = lv_now ) ) ) ).
 
+    " 이력 필드는 전부 readonly 지만 IN LOCAL MODE 는 필드 제어를 우회하므로
+    " behavior pool 에서는 쓸 수 있다. 화면에서는 여전히 못 고친다.
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         CREATE BY \_Log
         FIELDS ( seqnr actioncode fromstatus tostatus commenttext actionby actionat )
-        WITH lt_log.
+        WITH lt_log
+      FAILED   DATA(lt_log_failed)
+      REPORTED DATA(lt_log_reported).
+
+    " 여기가 실패하면 감사 이력 한 줄이 사라진다. 호출자가 determination 이라
+    " 트랜잭션을 되돌릴 수단이 없어 진행은 시키지만, 결과를 버리지는 않는다.
+    " 조용히 버리는 바람에 _Log 에 create 가 없던 것을 한참 못 찾았다.
+    ASSERT lt_log_failed IS INITIAL.
 
   ENDMETHOD.
 

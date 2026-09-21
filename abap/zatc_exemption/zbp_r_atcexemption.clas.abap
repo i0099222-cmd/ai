@@ -104,6 +104,27 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING is_exemption     TYPE ztatcexempt
       RETURNING VALUE(rv_can)    TYPE abap_boolean.
 
+    "! 표준 저장소 반영을 별도 LUW 에서 수행하고 결과를 돌려준다.
+    "!
+    "! 액션에서 부르는 이유: RAP 저장 시퀀스(save_modified)는 COMMIT 도 RFC 도
+    "! 금지한다. 표준 API 는 내부에서 COMMIT 을 하고 cl_abap_parallel 은 aRFC 를
+    "! 쓰므로, 저장 시퀀스에서는 어떤 형태로도 부를 수 없다.
+    "!
+    "! 대가: 이 호출 뒤에 검증이 돌고 거기서 실패하면 우리 쪽은 롤백되는데
+    "! 표준에는 예외가 남는다. 별도 LUW 라 되돌릴 수 없다. 실제로 그럴 수 있는
+    "! 검증은 validateOverlap 하나뿐이라, 호출 직전에 같은 검사를 한 번 더 해
+    "! 창을 좁힌다. 그래도 남는 동시성 창은 고아 정리 배치가 맡는다.
+    METHODS sync_standard
+      IMPORTING is_row           TYPE ztatcexempt
+                iv_operation     TYPE char10
+                iv_reason        TYPE string OPTIONAL
+      RETURNING VALUE(rs_result) TYPE zcl_atc_exempt_sync=>ty_result.
+
+    "! 표준을 부르기 전 중복 확인. validateOverlap 과 같은 조건이다.
+    METHODS has_overlap
+      IMPORTING is_row          TYPE ztatcexempt
+      RETURNING VALUE(rv_found) TYPE abap_boolean.
+
     METHODS new_error
       IMPORTING iv_number        TYPE symsgno
                 iv_v1            TYPE any OPTIONAL
@@ -864,21 +885,52 @@ CLASS lhc_exemption IMPLEMENTATION.
                     |오브젝트도 자동 면제됩니다.\n|.
       ENDIF.
 
-      APPEND VALUE #( %tky               = ls_exemption-%tky
-                      exemptstatus       = zif_atc_exemption=>status-pending
-                      reasontext         = lv_reason ) TO lt_update.
+      " 표준 반영을 여기서 한다. 저장 시퀀스에서는 COMMIT 도 RFC 도 막혀
+      " 부를 수 없기 때문이다. 그 대가와 대응은 sync_standard( ) 주석 참고.
+      SELECT SINGLE * FROM ztatcexempt
+        WHERE exemptuuid = @ls_exemption-exemptuuid
+        INTO @DATA(ls_db).
+
+      ls_db-reasontext = lv_reason.
+
+      " 표준을 부르기 전에 중복을 확인한다. 부른 뒤 validateOverlap 이
+      " 실패하면 우리만 롤백되고 표준에는 예외가 남는다.
+      IF has_overlap( ls_db ) = abap_true.
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_exemption-%tky
+                        %msg = new_error( iv_number = '013'
+                                          iv_v1     = COND string(
+                                            WHEN ls_exemption-scopetype = zif_atc_exemption=>scope-pckg
+                                            THEN |{ ls_exemption-devclass }|
+                                            ELSE |{ ls_exemption-objectname }| )
+                                          iv_v2     = ls_exemption-checkclass ) )
+               TO reported-exemption.
+        CONTINUE.
+      ENDIF.
+
+      DATA(ls_sync) = sync_standard(
+                        is_row       = ls_db
+                        iv_operation = zcl_atc_exempt_parallel=>operation-register ).
+
+      " 표준 반영이 실패해도 상신은 진행한다. 대장이 원천이고 표준 반영은
+      " 뒤따르는 구조다. 실패한 건은 extexemptid 가 비어 화면에서 적색으로
+      " 표시되고(SyncCriticality), 정합성 배치가 다시 시도할 수 있다.
+      APPEND VALUE #( %tky         = ls_exemption-%tky
+                      exemptstatus = zif_atc_exemption=>status-pending
+                      extexemptid  = ls_sync-extexemptid
+                      reasontext   = lv_reason ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-submit
                  iv_from    = ls_exemption-exemptstatus
                  iv_to      = zif_atc_exemption=>status-pending
-                 iv_comment = |면제 대상 { lines( lt_impact ) }건| ).
+                 iv_comment = |면제 대상 { lines( lt_impact ) }건 / { ls_sync-message }| ).
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus reasontext )
+        UPDATE FIELDS ( exemptstatus extexemptid reasontext )
         WITH lt_update.
 
     " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
@@ -919,19 +971,32 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       " 철회는 상신 취소다. 레코드는 남고 상태만 초안으로 돌아간다.
       " 삭제와 구분된다 - 삭제는 이력까지 사라지므로 초안에서만 허용한다.
+      SELECT SINGLE * FROM ztatcexempt
+        WHERE exemptuuid = @ls_exemption-exemptuuid
+        INTO @DATA(ls_db).
+
+      DATA(ls_sync) = sync_standard(
+                        is_row       = ls_db
+                        iv_operation = zcl_atc_exempt_parallel=>operation-revoke
+                        iv_reason    = |신청자가 상신을 철회| ).
+
+      " ID 를 비운다. 안 비우면 재상신 때 "이미 등록됨" 으로 보고 건너뛰어,
+      " 표준에는 반려된 행만 남고 영영 승인되지 않는다.
       APPEND VALUE #( %tky               = ls_exemption-%tky
+                      extexemptid        = space
                       exemptstatus       = zif_atc_exemption=>status-draft ) TO lt_update.
 
-      write_log( is_row    = ls_exemption
-                 iv_action = zif_atc_exemption=>logaction-withdraw
-                 iv_from   = ls_exemption-exemptstatus
-                 iv_to     = zif_atc_exemption=>status-draft ).
+      write_log( is_row     = ls_exemption
+                 iv_action  = zif_atc_exemption=>logaction-withdraw
+                 iv_from    = ls_exemption-exemptstatus
+                 iv_to      = zif_atc_exemption=>status-draft
+                 iv_comment = ls_sync-message ).
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus )
+        UPDATE FIELDS ( exemptstatus extexemptid )
         WITH lt_update.
 
     " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
@@ -984,21 +1049,31 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 표준 예외 생성은 저장 시퀀스(saver 의 save_modified)에서 한다. 액션에서
       " 부르면 DB 를 바꾸고 잠금을 잡는 호출이 저장 전에 일어나므로, 사용자가
       " 초안을 버리거나 저장이 실패하면 CBO 기록 없는 표준 예외만 남는다.
+      SELECT SINGLE * FROM ztatcexempt
+        WHERE exemptuuid = @ls_exemption-exemptuuid
+        INTO @DATA(ls_db).
+
+      DATA(ls_sync) = sync_standard(
+                        is_row       = ls_db
+                        iv_operation = zcl_atc_exempt_parallel=>operation-approve ).
+
       APPEND VALUE #( %tky         = ls_exemption-%tky
                       exemptstatus = zif_atc_exemption=>status-approved
+                      extexemptid  = ls_sync-extexemptid
                       approver     = sy-uname
                       approvedat   = lv_now ) TO lt_update.
 
-      write_log( is_row    = ls_exemption
-                 iv_action = zif_atc_exemption=>logaction-approve
-                 iv_from   = ls_exemption-exemptstatus
-                 iv_to     = zif_atc_exemption=>status-approved ).
+      write_log( is_row     = ls_exemption
+                 iv_action  = zif_atc_exemption=>logaction-approve
+                 iv_from    = ls_exemption-exemptstatus
+                 iv_to      = zif_atc_exemption=>status-approved
+                 iv_comment = ls_sync-message ).
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus approver approvedat )
+        UPDATE FIELDS ( exemptstatus approver approvedat extexemptid )
         WITH lt_update.
 
     " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
@@ -1046,6 +1121,15 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      SELECT SINGLE * FROM ztatcexempt
+        WHERE exemptuuid = @ls_exemption-exemptuuid
+        INTO @DATA(ls_db).
+
+      DATA(ls_sync) = sync_standard(
+                        is_row       = ls_db
+                        iv_operation = zcl_atc_exempt_parallel=>operation-revoke
+                        iv_reason    = |CBO 대장에서 반려| ).
+
       APPEND VALUE #( %tky               = ls_key-%tky
                       exemptstatus       = zif_atc_exemption=>status-rejected
                       approver           = sy-uname
@@ -1055,13 +1139,13 @@ CLASS lhc_exemption IMPLEMENTATION.
                  iv_action  = zif_atc_exemption=>logaction-reject
                  iv_from    = ls_exemption-exemptstatus
                  iv_to      = zif_atc_exemption=>status-rejected
-                 iv_comment = ls_key-%param-rejectreason ).
+                 iv_comment = |{ ls_key-%param-rejectreason } / { ls_sync-message }| ).
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus approver approvedat )
+        UPDATE FIELDS ( exemptstatus approver approvedat extexemptid )
         WITH lt_update.
 
     " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
@@ -1100,19 +1184,29 @@ CLASS lhc_exemption IMPLEMENTATION.
       ENDIF.
 
       " 표준 쪽 무효화도 저장 시퀀스에서 한다 (승인과 같은 이유).
+      SELECT SINGLE * FROM ztatcexempt
+        WHERE exemptuuid = @ls_exemption-exemptuuid
+        INTO @DATA(ls_db).
+
+      DATA(ls_sync) = sync_standard(
+                        is_row       = ls_db
+                        iv_operation = zcl_atc_exempt_parallel=>operation-revoke
+                        iv_reason    = |CBO 대장에서 철회| ).
+
       APPEND VALUE #( %tky               = ls_exemption-%tky
                       exemptstatus       = zif_atc_exemption=>status-revoked ) TO lt_update.
 
-      write_log( is_row    = ls_exemption
-                 iv_action = zif_atc_exemption=>logaction-revoke
-                 iv_from   = ls_exemption-exemptstatus
-                 iv_to     = zif_atc_exemption=>status-revoked ).
+      write_log( is_row     = ls_exemption
+                 iv_action  = zif_atc_exemption=>logaction-revoke
+                 iv_from    = ls_exemption-exemptstatus
+                 iv_to      = zif_atc_exemption=>status-revoked
+                 iv_comment = ls_sync-message ).
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus )
+        UPDATE FIELDS ( exemptstatus extexemptid )
         WITH lt_update.
 
     " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
@@ -1378,6 +1472,46 @@ CLASS lhc_exemption IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD has_overlap.
+
+    SELECT SINGLE @abap_true FROM ztatcexempt
+      WHERE exemptuuid <> @is_row-exemptuuid
+        AND scopetype   = @is_row-scopetype
+        AND devclass    = @is_row-devclass
+        AND objecttype  = @is_row-objecttype
+        AND objectname  = @is_row-objectname
+        AND checkclass  = @is_row-checkclass
+        AND checkcode   = @is_row-checkcode
+        AND exemptstat IN ( @zif_atc_exemption=>status-pending,
+                            @zif_atc_exemption=>status-approved )
+        AND validto    >= @is_row-validfrom
+        AND validfrom  <= @is_row-validto
+      INTO @rv_found.
+
+  ENDMETHOD.
+
+
+  METHOD sync_standard.
+
+    DATA lt_task TYPE cl_abap_parallel=>t_in_inst.
+
+    APPEND NEW zcl_atc_exempt_parallel( is_exemption = is_row
+                                        iv_operation = iv_operation
+                                        iv_reason    = iv_reason ) TO lt_task.
+
+    " 🔴 확인 필요: cl_abap_parallel 의 생성자 파라미터와 run_inst( ) 의
+    "   파라미터명, out 테이블 행에서 인스턴스를 꺼내는 컴포넌트명.
+    "   ADT 에서 CL_ABAP_PARALLEL 을 열어 이 두 줄만 맞추면 된다.
+    NEW cl_abap_parallel( )->run_inst( EXPORTING p_in_tab  = lt_task
+                                       IMPORTING p_out_tab = DATA(lt_done) ).
+
+    LOOP AT lt_done INTO DATA(ls_done).
+      rs_result = CAST zcl_atc_exempt_parallel( ls_done-inst )->get_result( ).
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
   METHOD new_error.
 
     ro_msg = new_message( id       = c_msgclass
@@ -1391,14 +1525,14 @@ CLASS lhc_exemption IMPLEMENTATION.
 ENDCLASS.
 
 
-"! 저장 시퀀스. 표준 ATC 예외 저장소 반영을 여기서 수행한다.
+"! 저장 시퀀스. 생성 이력만 남긴다.
 "!
-"! 액션이 아니라 저장 시점인 이유: create_exemption 은 DB 를 바꾸고 잠금을 잡는다.
-"! RAP 에서 그런 호출은 저장 시퀀스 안에서만 해야 한다. 액션에서 부르면
-"! 사용자가 초안을 버리거나 저장이 실패했을 때 CBO 기록 없는 표준 예외가 남는다.
+"! 표준 예외 저장소 반영은 여기서 하지 않는다. RAP 저장 시퀀스는 COMMIT 도
+"! RFC 도 금지하는데, 표준 API 는 내부에서 COMMIT 을 하고 cl_abap_parallel 은
+"! aRFC 를 쓴다. 둘 다 여기서는 덤프로 끝난다.
 "!
-"! 기존 샘플은 같은 이유로 BGPF 를 썼지만, 우리는 백그라운드 처리가 필요 없으므로
-"! RAP 의 additional save 로 충분하다.
+"! 그래서 각 액션이 sync_standard( ) 로 직접 부른다. 그 대가와 대응(사전 중복
+"! 검사 + 고아 정리 배치)은 behavior pool 의 sync_standard( ) 주석에 있다.
 CLASS lsc_zr_atcexemption DEFINITION INHERITING FROM cl_abap_behavior_saver.
 
   PROTECTED SECTION.
@@ -1459,124 +1593,13 @@ CLASS lsc_zr_atcexemption IMPLEMENTATION.
                   iv_to         = zif_atc_exemption=>status-draft ).
     ENDLOOP.
 
-    " 표준 저장소와 상태를 맞춘다.
+    " 표준 저장소 반영은 여기서 하지 않는다.
+    " RAP 저장 시퀀스는 COMMIT 도 RFC 도 금지한다. 표준 API 는 내부에서
+    " COMMIT 을 하고 cl_abap_parallel 은 aRFC 를 쓰므로 둘 다 걸린다.
+    " 그래서 각 액션이 sync_standard( ) 로 직접 부른다.
     "
-    "   상신(20) -> 표준에 승인대기로 생성
-    "   승인(30) -> 표준 승인. 여기서 ATC 차단이 실제로 풀린다
-    "   반려/철회/만료 -> 무효화
-    "   상신철회(10 복귀) -> 무효화 + extexemptid 비움
-    "
-    " 호출을 여기서 직접 하지 않고 cl_abap_parallel 로 넘기는 이유:
-    " send_to_approver( ) 등 표준 API 가 내부에서 COMMIT 을 한다. RAP 저장
-    " 시퀀스 안에서는 COMMIT 이 금지라 덤프가 난다. 별도 워크프로세스에서
-    " 돌리면 그 COMMIT 이 우리 LUW 를 건드리지 않는다.
-    DATA lt_task TYPE cl_abap_parallel=>t_in_inst.
-
-    LOOP AT update-exemption INTO DATA(ls_exemption).
-
-      " 태스크는 다른 DB 세션이라 우리 미커밋 변경을 못 본다. 필요한 값을
-      " 전부 넘겨 주고, 태스크는 DB 를 읽지 않는다.
-      SELECT SINGLE * FROM ztatcexempt
-        WHERE exemptuuid = @ls_exemption-exemptuuid
-        INTO @DATA(ls_db).
-
-      " 버퍼의 새 상태가 DB 보다 앞선다. 방금 바뀐 값으로 덮는다.
-      ls_db-exemptstat  = ls_exemption-exemptstatus.
-      ls_db-approver    = ls_exemption-approver.
-      ls_db-extexemptid = ls_exemption-extexemptid.
-
-      IF ls_exemption-exemptstatus = zif_atc_exemption=>status-pending
-     AND ls_exemption-extexemptid IS INITIAL.
-
-        APPEND NEW zcl_atc_exempt_parallel(
-                     is_exemption = ls_db
-                     iv_operation = zcl_atc_exempt_parallel=>operation-register ) TO lt_task.
-
-      ELSEIF ls_exemption-exemptstatus = zif_atc_exemption=>status-approved.
-
-        APPEND NEW zcl_atc_exempt_parallel(
-                     is_exemption = ls_db
-                     iv_operation = zcl_atc_exempt_parallel=>operation-approve ) TO lt_task.
-
-      ELSEIF ( ls_exemption-exemptstatus = zif_atc_exemption=>status-rejected
-            OR ls_exemption-exemptstatus = zif_atc_exemption=>status-revoked
-            OR ls_exemption-exemptstatus = zif_atc_exemption=>status-expired
-            OR ls_exemption-exemptstatus = zif_atc_exemption=>status-draft )
-        AND ls_exemption-extexemptid IS NOT INITIAL.
-
-        APPEND NEW zcl_atc_exempt_parallel(
-                     is_exemption = ls_db
-                     iv_operation = zcl_atc_exempt_parallel=>operation-revoke
-                     iv_reason    = SWITCH string( ls_exemption-exemptstatus
-                       WHEN zif_atc_exemption=>status-rejected THEN |CBO 대장에서 반려|
-                       WHEN zif_atc_exemption=>status-expired  THEN |유효기간 경과로 자동 만료|
-                       WHEN zif_atc_exemption=>status-draft    THEN |신청자가 상신을 철회|
-                       ELSE |CBO 대장에서 철회| ) ) TO lt_task.
-
-      ENDIF.
-
-    ENDLOOP.
-
-    IF lt_task IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    " run_inst( ) 는 완료까지 기다린다. 결과를 이 LUW 에서 기록해야 하고,
-    " 실패도 사용자에게 바로 보여야 하므로 비동기로 던지고 잊지 않는다.
-    "
-    " 🔴 확인 필요: cl_abap_parallel 의 시그니처 두 가지.
-    "   - 생성자의 필수 파라미터 (p_num_processes / p_timeout 등)
-    "   - run_inst( ) 의 파라미터명과 out 테이블 행의 인스턴스 컴포넌트명
-    "   ADT 에서 CL_ABAP_PARALLEL 을 열어 확인하고 아래 두 줄만 맞추면 된다.
-    "   나머지 구조는 시그니처와 무관하다.
-    NEW cl_abap_parallel( )->run_inst( EXPORTING p_in_tab  = lt_task
-                                       IMPORTING p_out_tab = DATA(lt_done) ).
-
-    " 결과 기록은 우리 LUW 에서 한다. 태스크가 직접 쓰면 우리 커밋과 순서가
-    " 엉켜, 방금 쓴 extexemptid 가 덮이거나 사라질 수 있다.
-    LOOP AT lt_done INTO DATA(ls_done).
-
-      DATA(lo_task) = CAST zcl_atc_exempt_parallel( ls_done-inst ).
-      DATA(ls_result) = lo_task->get_result( ).
-      DATA(lv_uuid)   = lo_task->get_exemptuuid( ).
-
-      CASE lo_task->get_operation( ).
-
-        WHEN zcl_atc_exempt_parallel=>operation-register
-          OR zcl_atc_exempt_parallel=>operation-approve.
-
-          " 표준 반영이 실패해도 CBO 기록은 되돌리지 않는다. 대장이 원천이고
-          " 표준 반영은 뒤따르는 구조다. 실패한 건은 extexemptid 가 비어 있어
-          " 조회 화면의 ExemptionMismatch 가 찾아낸다.
-          IF ls_result-extexemptid IS NOT INITIAL.
-            UPDATE ztatcexempt
-              SET extexemptid = @ls_result-extexemptid
-              WHERE exemptuuid = @lv_uuid.
-          ENDIF.
-
-        WHEN zcl_atc_exempt_parallel=>operation-revoke.
-
-          " 상신철회는 ID 를 비운다. 안 비우면 재상신 때 "이미 등록됨" 으로
-          " 보고 건너뛰어, 표준에는 반려된 행만 남고 영영 승인되지 않는다.
-          SELECT SINGLE exemptstat FROM ztatcexempt
-            WHERE exemptuuid = @lv_uuid
-            INTO @DATA(lv_stat).
-
-          IF lv_stat = zif_atc_exemption=>status-draft.
-            UPDATE ztatcexempt
-              SET extexemptid = @space
-              WHERE exemptuuid = @lv_uuid.
-          ENDIF.
-
-      ENDCASE.
-
-      append_log( iv_exemptuuid = lv_uuid
-                  iv_action     = zif_atc_exemption=>logaction-sync
-                  iv_from       = zif_atc_exemption=>status-pending
-                  iv_to         = zif_atc_exemption=>status-pending
-                  iv_comment    = ls_result-message ).
-
-    ENDLOOP.
+    " 그 대가로 액션 뒤에 도는 검증이 실패하면 표준에만 예외가 남을 수 있다.
+    " 창을 좁히는 사전 검사는 액션에, 남는 창의 정리는 고아 정리 배치에 있다.
 
   ENDMETHOD.
 

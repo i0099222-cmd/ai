@@ -120,6 +120,12 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
     DATA(ls_config) = zcl_atc_config=>get( )->get_config( is_exemption-checkvariant ).
 
+    " 승인자를 TRY 밖에서 정한다. 안에서 정하면 그 줄 이전에 예외가 났을 때
+    " 실패 메시지가 "승인자 비어 있음" 으로 잘못 나온다.
+    DATA(lv_approver) = COND syuname(
+      WHEN is_exemption-approver IS NOT INITIAL THEN is_exemption-approver
+      ELSE ls_config-defapprover ).
+
     TRY.
 
         " 신청서의 checkclass / checkcode 는 표준 예외 뷰
@@ -159,9 +165,7 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         " 표준은 승인자 1명을 필수로 요구한다. 상신 시점에는 아직 결재자가
         " 정해지지 않았으므로(우리 앱은 권한으로 판정한다) 설정의 기본 승인자를
         " 쓴다. 승인이 끝나면 approve_exemption_by_id( ) 가 실제 결재자를 남긴다.
-        lo_exemption->set_approver( i_approver = COND #(
-          WHEN is_exemption-approver IS NOT INITIAL THEN is_exemption-approver
-          ELSE ls_config-defapprover ) ).
+        lo_exemption->set_approver( i_approver = lv_approver ).
 
         " 알림 유형은 조직 정책이므로 컨트롤 테이블에서 읽는다.
         lo_exemption->set_notification_type(
@@ -182,10 +186,17 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
                              message     = |표준 예외 { lv_exemption_id } 생성(승인대기)| ).
 
       CATCH cx_root INTO DATA(lo_error).
-        " 표준 반영이 실패해도 CBO 승인 기록은 남긴다. 대장이 원천이고
-        " 표준 반영은 뒤따르는 구조이기 때문이다. 실패 사유는 이력에 적힌다.
-        rs_result = VALUE #( success = abap_false
-                             message = lo_error->get_text( ) ).
+        " 표준 반영이 실패해도 CBO 기록은 남긴다. 대장이 원천이고 표준 반영은
+        " 뒤따르는 구조이기 때문이다. 실패 사유는 이력에 적힌다.
+        "
+        " 승인자를 메시지에 같이 남긴다. 표준 오류 대부분이 승인자 때문인데,
+        " 값이 안 넘어간 것인지 그 사용자에게 권한이 없는 것인지를 로그만
+        " 보고 구분할 수 없으면 매번 디버깅해야 한다.
+        rs_result = VALUE #(
+          success = abap_false
+          message = |{ lo_error->get_text( ) } | &&
+                    |[승인자: { COND string( WHEN lv_approver IS INITIAL
+                                             THEN '(비어 있음)' ELSE lv_approver ) }]| ).
     ENDTRY.
 
   ENDMETHOD.

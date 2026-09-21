@@ -198,7 +198,21 @@ ScopeType = PCKG  +  RuleScope = ALL
 ```
 
 기존 샘플은 같은 이유로 BGPF 를 썼지만, 우리는 백그라운드 처리가 필요 없으므로
-RAP 의 **`with additional save`** (saver 클래스의 `save_modified`) 로 충분하다.
+표준 API 가 내부에서 COMMIT 을 하므로 RAP 저장 시퀀스에서 직접 부르면 덤프가
+난다. `save_modified` 가 `cl_abap_parallel` 로 별도 워크프로세스에 넘기고,
+그 LUW 안에서 호출한다.
+
+```
+save_modified
+  → 상태별로 태스크를 만든다 (REGISTER / APPROVE / REVOKE)
+  → run_inst( )  ── 별도 LUW ──→ 표준 API (내부 COMMIT 허용)
+  ← 결과(extexemptid, 메시지)
+  → 우리 LUW 에서 extexemptid 기록 + 이력
+```
+
+**태스크는 DB 를 읽지 않는다.** 다른 DB 세션이라 우리 미커밋 변경이 안 보인다.
+필요한 값을 전부 인스턴스 속성으로 넘긴다. 결과도 태스크가 직접 쓰지 않는다 —
+우리 커밋과 순서가 엉켜 방금 쓴 `extexemptid` 가 덮일 수 있다.
 
 ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것과 같은 순서다.
 **그래서 패키지 스코프에서도 헤더에 오브젝트를 보관한다.** 효력은 패키지 전체이고,
@@ -340,7 +354,8 @@ P 의 ddlx 는 화면 배치(위치·중요도·facet)만 담당한다.
 | `zbp_r_atcexemption` | behavior pool. 판정·상태전이·이력 |
 | `zcl_atc_config` | 컨트롤 테이블 조회 (세션 버퍼링). 정책값의 단일 창구 |
 | `zcl_atc_finding_reader` | ATC 표준 의존 격리. finding 조회 + 영향도 시뮬레이션 |
-| `zcl_atc_exempt_sync` | 표준 예외 저장소 반영 **(스텁 — 확인 과제 5)** |
+| `zcl_atc_exempt_sync` | 표준 예외 저장소 반영 (표준 API 호출) |
+| `zcl_atc_exempt_parallel` | 그 호출을 **별도 LUW** 에서 수행. 표준이 내부 COMMIT 을 하기 때문 |
 | `zcl_atc_expiry_job` | 만료 전환 + D-30 알림 대상 추출 |
 | `zif_atc_exemption` | 상수/타입. 코드값 리터럴의 유일한 위치 |
 | `zcl_atc_config_setup` | 컨트롤 테이블 유지보수 (검증 포함). 설정을 쓰는 유일한 창구 |

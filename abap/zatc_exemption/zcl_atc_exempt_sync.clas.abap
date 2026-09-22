@@ -261,6 +261,22 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
     TRY.
 
+        " 승인 직전에 이 예외의 승인자를 누른 사람으로 맞춘다.
+        "
+        " 표준은 지정된 승인자만 승인할 수 있게 한다. 상신 때 박히는 값은
+        " 설정의 기본 승인자 한 명(ztatccfg-defapprover)인데, 우리 앱의 결재
+        " 권한은 Z_ATCEXEM 이 정하므로 결재자는 여럿일 수 있다. 맞춰주지
+        " 않으면 기본 승인자가 아닌 사람이 누를 때마다
+        " "not authorized to approve exemption with id ..." 로 막힌다.
+        "
+        " 대리 승인이 아니다. approve_exemptions_by_id( ) 에는 사용자 파라미터가
+        " 없고 승인은 언제나 실행한 사용자의 행위로 기록되므로, 표준에도 실제로
+        " 누른 사람이 승인자로 남는 것이 맞다. 대장의 approver 와도 같은 값이다.
+        DATA(lo_exemption) = lo_controller->get_exemption( iv_extexemptid ).
+        lo_exemption->lock_and_refresh( ).
+        lo_exemption->set_approver( i_approver = sy-uname ).
+        lo_exemption->unlock( ).
+
         DATA(lt_result) = lo_controller->approve_exemptions_by_id(
           VALUE #( exemption_id = iv_extexemptid
                    assessment   = iv_assessment ) ).

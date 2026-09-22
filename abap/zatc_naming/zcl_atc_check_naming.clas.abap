@@ -96,14 +96,11 @@ CLASS zcl_atc_check_naming IMPLEMENTATION.
 
   METHOD if_ci_atc_check~run.
 
-    " 🔴 형식 인자 이름 확인 필요.
-    "   검사 대상(ty_object)과 결과(ty_findings)를 어떤 이름으로 주고받는지는
-    "   ADT 에서 if_ci_atc_check 의 METHODS run 선언을 보고 맞춘다.
-    "   아래 ls_object / findings 를 그 이름으로 바꾸면 된다.
-    DATA(ls_object) = VALUE if_ci_atc_check=>ty_object( ).
-
-    LOOP AT check_name( iv_objtype = ls_object-type
-                        iv_objname = ls_object-name ) INTO DATA(ls_violation).
+    " data_provider 는 쓰지 않는다. 검사 대상이 오브젝트의 이름뿐이고
+    " 그 이름은 object 에 이미 들어 있다. 소스나 검사 대상 시스템의 추가
+    " 데이터가 필요해질 때 쓸 통로다.
+    LOOP AT check_name( iv_objtype = object-type
+                        iv_objname = object-name ) INTO DATA(ls_violation).
 
       " 위치는 오브젝트까지만 준다. 검사 대상이 소스의 한 줄이 아니라
       " 오브젝트의 "이름" 이라 줄/칼럼이 존재하지 않는다.
@@ -116,9 +113,9 @@ CLASS zcl_atc_check_naming IMPLEMENTATION.
                                WHEN '1' THEN finding_codes-error
                                WHEN '2' THEN finding_codes-warning
                                ELSE          finding_codes-note )
-        location   = VALUE #( object = ls_object )
+        location   = VALUE #( object = object )
         parameters = VALUE #( param_1 = ls_violation-msgtext
-                              param_2 = CONV string( ls_object-name ) )
+                              param_2 = CONV string( object-name ) )
       ) INTO TABLE findings.
 
     ENDLOOP.
@@ -128,7 +125,12 @@ CLASS zcl_atc_check_naming IMPLEMENTATION.
 
   METHOD if_ci_atc_check~get_meta_data.
 
-    " 🔴 반환 파라미터의 이름과 타입 확인 필요 (ADT 의 인터페이스 선언).
+    " meta_data 는 구조체가 아니라 IF_CI_ATC_CHECK_META_DATA 참조다.
+    " 값을 담는 게 아니라 객체를 만들어 돌려줘야 한다.
+    "
+    " 🔴 그 객체를 어떻게 만드는지 확인 필요. 인터페이스에 생성용 팩토리나
+    "   빌더가 따로 있을 것이다(CL_CI_ATC_... 계열). CL_CI_ATC_CHECK_EXAMPLE
+    "   의 get_meta_data 첫 줄을 보면 그대로 나온다.
     "
     " 여기에 넣을 것:
     "   - 체크 제목/설명

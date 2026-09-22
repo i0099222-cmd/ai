@@ -14,8 +14,10 @@
 // not_selectable 인 값은 뺀다. QGOV(Quality Governance)가 그렇고, 넣어서
 // 신청하면 표준이 거부한다. 고를 수 없는 값을 화면에 보여줄 이유가 없다.
 //
-// require_comment 는 걸러내지 않는다. 우리는 사유 서술을 항상 보내고
-// (set_reason 의 i_comment), 최소 20자를 강제하므로 언제나 충족된다.
+// require_comment 는 걸러내지 않고 필드로 내보낸다. validateReason 이 이 값을
+// 보고 서술 입력을 강제한다. 여기서 막지 않으면 표준이 "the specified reason
+// requires a justification" 으로 거부하는데, 그 호출은 별도 LUW 안이라
+// 사용자에게는 원인 없는 실패로만 보인다. FPOS 와 OTHR 이 'X' 다.
 define view entity ZI_AtcReasonVH
   as select from satc_ci_reasons
 {

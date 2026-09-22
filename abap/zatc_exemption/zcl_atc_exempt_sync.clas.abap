@@ -229,7 +229,11 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
           success = abap_false
           message = |{ lo_error->get_text( ) } | &&
                     |[승인자: { COND string( WHEN lv_approver IS INITIAL
-                                             THEN '(비어 있음)' ELSE lv_approver ) }]| ).
+                                             THEN '(비어 있음)' ELSE lv_approver ) }, | &&
+                    |사유: { COND string( WHEN is_exemption-reasoncode IS INITIAL
+                                          THEN '(비어 있음)'
+                                          ELSE is_exemption-reasoncode ) }, | &&
+                    |서술 { strlen( is_exemption-reasontext ) }자]| ).
     ENDTRY.
 
   ENDMETHOD.

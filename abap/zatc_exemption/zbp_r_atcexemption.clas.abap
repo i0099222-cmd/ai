@@ -733,22 +733,32 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
-      IF zcl_atc_config=>get( )->get_config(
-           ls_exemption-checkvariant )-reasonreq <> abap_true.
-        CONTINUE.
-      ENDIF.
-
       " 사유 코드는 표준이 값 목록을 가진다(SATC_CI_REASONS). 우리 목록을
       " 따로 두지 않고 거기서 확인한다. not_selectable 인 값(QGOV)은
       " ZI_AtcReasonVH 가 걸러내므로 여기 걸리면 화면을 거치지 않은 입력이다.
-      SELECT SINGLE @abap_true FROM zi_atcreasonvh
+      SELECT SINGLE requirecomment FROM zi_atcreasonvh
         WHERE reasoncode = @ls_exemption-reasoncode
-        INTO @DATA(lv_reason_ok).
+        INTO @DATA(lv_require_comment).
+
+      DATA(lv_known) = xsdbool( sy-subrc = 0 ).
+
+      " 서술을 요구하는 경우는 둘이다.
+      "   1) 표준이 그 사유에 요구한다 (require_comment: FPOS, OTHR).
+      "      여기서 막지 않으면 표준이 "the specified reason requires a
+      "      justification" 으로 거부하는데, 그 호출은 별도 LUW 안이라
+      "      사용자에게는 원인 없는 실패로만 보인다. 설정과 무관하게 본다.
+      "   2) 우리 설정이 요구한다 (reasonreq). 표준이 요구하지 않는 사유에도
+      "      서술을 받겠다는 사내 규칙이고, 표준 요구에 더해지는 것이다.
+      DATA(lv_text_required) = xsdbool(
+        lv_require_comment = abap_true
+        OR zcl_atc_config=>get( )->get_config(
+             ls_exemption-checkvariant )-reasonreq = abap_true ).
 
       " 근거 텍스트는 감사 대응 시 남는 유일한 서술이다. 한 단어짜리 형식적
       " 사유를 막기 위해 최소 길이를 본다.
-      IF lv_reason_ok = abap_true
-     AND strlen( ls_exemption-reasontext ) >= zif_atc_exemption=>min_reason_length.
+      IF lv_known = abap_true
+     AND ( lv_text_required = abap_false
+        OR strlen( ls_exemption-reasontext ) >= zif_atc_exemption=>min_reason_length ).
         CONTINUE.
       ENDIF.
 

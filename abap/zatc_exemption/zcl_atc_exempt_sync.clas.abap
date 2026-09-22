@@ -86,6 +86,12 @@ CLASS zcl_atc_exempt_sync DEFINITION
     "! 기존 건은 예외 ID 로 열어야 하고, 그 ID 는 상신 때 받아
     "! ztatcexempt-extexemptid 에 두었다. 연 다음에는 lock_and_refresh( ) 가
     "! 필요하다 - get_exemption( ) 은 조회용 핸들을 준다.
+    "!
+    "! delete( ) 는 물리 삭제가 아니라 아카이브다(확인함). 행은 남고
+    "! SATC_CI_R_EXEMPTION-deleted 에 'X' 가 서며, appr_comment 에 표준이
+    "! "archived by <user> on <date>" 를 남긴다. ATC 는 그 행을 면제로 치지
+    "! 않는다. 감사 관점에서도 이게 맞다 - 철회한 신청이 흔적 없이 사라지면
+    "! 안 된다.
     METHODS revoke_exemption
       IMPORTING iv_extexemptid   TYPE sysuuid_c32
                 iv_reason        TYPE string OPTIONAL

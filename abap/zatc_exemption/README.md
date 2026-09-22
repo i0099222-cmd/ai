@@ -70,6 +70,14 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 표준 승인 로직은 결국 `SATC_CI_R_EXEMPTION` 의 `state` / `approver` 를 바꾸는 것이고,
 그 경로가 위 컨트롤러다. 우리 앱도 같은 경로를 쓴다.
 
+- **예외 취소는 `get_exemption( <ID> )` → `lock_and_refresh( )` → `delete( )`.**
+  `get_exemption( )` 은 조회용 핸들을 주므로 잠그지 않고 `delete( )` 를 부르면
+  "the operation cannot be executed in the current state" 로 거부된다.
+  `delete( )` 는 아카이브다 - 행은 남고 `deleted = 'X'`, `appr_comment` 에
+  "archived by ..." 가 들어간다. ATC 는 그 행을 면제로 치지 않는다.
+  (막다른 길 2개: `reject_exemptions_by_id( )` 는 오류 없이 아무 일도 하지
+  않는다. `create_exemption( )` 에 같은 자연키를 줘도 기존 행이 열리지 않는다.)
+
 ### `SATC_API_FINDINGS` 필드 매핑
 
 뷰의 필드명이 우리 도메인 용어와 다르다. **`ZI_AtcFinding` 한 곳에서만** 맞춘다.

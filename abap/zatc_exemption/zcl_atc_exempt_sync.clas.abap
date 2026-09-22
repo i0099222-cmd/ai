@@ -79,6 +79,16 @@ CLASS zcl_atc_exempt_sync DEFINITION
     "! reject_exemptions_by_id( ) 로는 되지 않았다. state 가 OPEN 그대로였고
     "! assessment 도 기록되지 않았다. 상태기계가 OPEN -> APPR -> REJ 라
     "! 승인자가 집어들지 않은 건을 반려할 수 없기 때문으로 보인다.
+    "!
+    "! 🔴 미해결: delete( ) 도 "the operation cannot be executed in the current
+    "!   state" 로 거부된다. 두 가지 중 하나다.
+    "!     (1) create_exemption( ) 이 기존 행을 여는 것이 아니라 새 전이 객체를
+    "!         만든다. 아직 저장되지 않은 객체라 delete( ) 가 거부된다.
+    "!         -> 기존 건은 controller->get_exemption( ) 으로 열어야 한다.
+    "!     (2) 핸들은 제대로 열리지만 OPEN(승인자에게 넘어간 상태)에서는
+    "!         신청자가 지울 수 없다. APPL / REJ 에서만 가능하다.
+    "!         -> 상신 시 send_to_approver( ) 를 미루거나, 승인자 핸들로 처리.
+    "!   어느 쪽인지는 아래 구현이 남기는 [state=...] 메시지로 갈린다.
     METHODS withdraw_exemption
       IMPORTING is_exemption     TYPE ztatcexempt
       RETURNING VALUE(rs_result) TYPE ty_result.
@@ -201,6 +211,16 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
                              message     = |표준 예외 { lv_exemption_id } 생성(승인대기)| ).
 
       CATCH cx_root INTO DATA(lo_error).
+        " 실패 경로에서도 잠금을 푼다. 열어 놓고 나가면 그 예외는 잠긴 채로
+        " 남고, 다음 시도는 상태가 아니라 잠금 때문에 실패한다. 무엇 때문에
+        " 실패했는지 두 번 헷갈리게 된다.
+        IF lo_exemption IS BOUND.
+          TRY.
+              lo_exemption->unlock( ).
+            CATCH cx_root ##NO_HANDLER.
+          ENDTRY.
+        ENDIF.
+
         " 표준 반영이 실패해도 CBO 기록은 남긴다. 대장이 원천이고 표준 반영은
         " 뒤따르는 구조이기 때문이다. 실패 사유는 이력에 적힌다.
         "
@@ -244,11 +264,20 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
   METHOD withdraw_exemption.
 
+    " 어느 단계에서 깨지는지를 메시지에 남긴다.
+    "
+    " "the operation cannot be executed in the current state" 만으로는
+    " 핸들을 여는 데서 실패한 것인지, 연 다음 delete( ) 가 거부된 것인지
+    " 구분할 수 없다. 두 단계를 따로 감싸고 state 를 같이 적는다.
+    "
+    " 잠금도 분리한 이유다. 실패 경로에서 unlock( ) 을 하지 않으면 그 예외는
+    " 잠긴 채로 남고, 다음 시도는 상태가 아니라 잠금 때문에 실패한다.
+
     DATA(lo_controller) = get_controller( ).
 
     TRY.
 
-        " create_exemption( ) 과 같은 자연키다. 기존 예외의 핸들이 열린다.
+        " create_exemption( ) 과 같은 자연키다.
         DATA(lo_exemption) = lo_controller->create_exemption(
           i_object_type    = is_exemption-objecttype
           i_object_name    = is_exemption-objectname
@@ -256,15 +285,34 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
           i_check_code     = is_exemption-checkcode
           i_contact_person = is_exemption-requester ).
 
+      CATCH cx_root INTO DATA(lo_open_error).
+        rs_result = VALUE #( success = abap_false
+                             message = |핸들 열기 실패: { lo_open_error->get_text( ) }| ).
+        RETURN.
+    ENDTRY.
+
+    " 여기서부터는 무엇이 실패하든 잠금을 풀고 나간다.
+    TRY.
+
+        DATA(lv_state) = lo_exemption->get_exemption_state( ).
+
         lo_exemption->delete( ).
-        lo_exemption->unlock( ).
 
         rs_result = VALUE #( success = abap_true
-                             message = |표준 예외 삭제(신청자 철회)| ).
+                             message = |표준 예외 삭제(신청자 철회, state={ lv_state })| ).
 
-      CATCH cx_root INTO DATA(lo_error).
-        rs_result = VALUE #( success = abap_false
-                             message = lo_error->get_text( ) ).
+      CATCH cx_root INTO DATA(lo_del_error).
+        rs_result = VALUE #(
+          success = abap_false
+          message = |철회 실패 [state={ COND string( WHEN lv_state IS INITIAL
+                                                     THEN '(읽지 못함)' ELSE lv_state ) }]: | &&
+                    lo_del_error->get_text( ) ).
+    ENDTRY.
+
+    TRY.
+        lo_exemption->unlock( ).
+      CATCH cx_root.
+        " 잠금 해제 실패는 철회 결과를 뒤집지 않는다. 다음 접근에서 드러난다.
     ENDTRY.
 
   ENDMETHOD.

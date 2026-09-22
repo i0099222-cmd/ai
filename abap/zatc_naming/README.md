@@ -55,7 +55,7 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 | `seqnr` | `ZATC_NAMESEQ` | 신규 NUMC 3 | `Rule No.` | `Rule Number` | `Naming Rule Number` | `Rule` |
 | `active` | `ZATC_NAMEACT` | 표준 `XFELD` | `Active` | `Active` | `Rule Is Active` | `Act.` |
 | `pattern` | `ZATC_NAMEPATT` | 신규 CHAR 255 | `Pattern` | `Name Pattern` | `Name Pattern (Regular Expression)` | `Name Pattern (Regular Expression)` |
-| `priority` | `ZATC_NAMEPRIO` | 신규 INT1 | `Priority` | `Priority` | `Finding Priority (1 = Error)` | `Prio` |
+| `priority` | `ZATC_NAMEPRIO` | 신규 NUMC 1 | `Priority` | `Priority` | `Finding Priority (1 = Error)` | `Prio` |
 | `msgtext` | `ZATC_NAMEMSG` | 신규 CHAR 120 | `Message` | `Message Text` | `Message Shown on Violation` | `Message` |
 
 `active` 의 도메인을 표준 `XFELD` 로 두는 이유는 SM30 에서 체크박스로 뜨기

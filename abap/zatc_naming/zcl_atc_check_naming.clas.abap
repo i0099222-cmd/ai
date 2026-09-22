@@ -91,9 +91,9 @@ CLASS zcl_atc_check_naming IMPLEMENTATION.
               " 우선순위를 규칙마다 다르게 둔다. 접두어 위반은 error,
               " 권장 사항은 note 로 두는 식으로 팀이 조절할 수 있어야 한다.
               p_kind         = SWITCH #( ls_violation-priority
-                                         WHEN 1 THEN c_error
-                                         WHEN 2 THEN c_warning
-                                         ELSE        c_note )
+                                         WHEN '1' THEN c_error
+                                         WHEN '2' THEN c_warning
+                                         ELSE          c_note )
               p_param_1      = CONV #( object_name )
               p_param_2      = CONV #( ls_violation-msgtext ) ).
 

@@ -3,15 +3,27 @@
 표준 네이밍 체크로는 사내 개발 표준을 표현할 수 없어서 체크를 직접 만든다.
 규칙은 코드가 아니라 테이블에 두고 SM30 으로 유지한다.
 
-## 만드는 것 5개
+## 릴리스 전제
+
+`IF_CI_ATC_CHECK` 는 **S/4HANA 2022 이상**(Private Cloud / 온프레미스),
+S/4HANA Cloud Public Edition, BTP ABAP 환경에서 지원된다. 우리 시스템이
+2022 미만이면 이 API 자체가 없으므로 구 Code Inspector 경로밖에 없다.
+착수 전에 릴리스부터 확인할 것.
+
+## 만드는 것 6개
 
 | # | 오브젝트 | 어디서 | 역할 |
 |---|---|---|---|
 | 1 | `ZTATCNAMING` | SE11 / ADT | 규칙(정규식)을 담는다 |
 | 2 | 유지보수 뷰 | SE11 → 유틸리티 → 테이블 유지보수 생성기 | SM30 으로 규칙을 유지 |
 | 3 | `ZCL_ATC_CHECK_NAMING` | ADT | 이름을 규칙과 대조해 finding 을 낸다. `IF_CI_ATC_CHECK` 구현 |
-| 4 | **ATC Check** 오브젝트 | ADT: `New → ATC Check` | 체크의 등록. 이름·설명·**카테고리**·**구현 클래스**를 여기서 지정 |
-| 5 | ATC Check Variant (예: `ZNAMING`) | ADT | 4번 체크를 담은 세트. ATC 는 이걸 돌린다 |
+| 4 | **ATC Check Category** | ADT: `New → ABAP Repository Object` | 사내 커스텀 체크를 묶는 분류. Parent Category 는 비워 둔다 |
+| 5 | **ATC Check** | ADT: `New → ATC Check` | 체크의 등록. 이름·설명·**카테고리**·**구현 클래스** |
+| 6 | ATC Check Variant (예: `ZNAMING`) | ADT: `New → ATC Check Variant` | 5번 체크를 담은 세트. ATC 는 이걸 돌린다 |
+
+4번을 만들면 Project Explorer 에 **ABAP Test Cockpit 노드**가 생기고,
+그 아래에 Check Categories / Checks / Check Variants 가 모인다. 5번과 6번은
+그 노드의 컨텍스트 메뉴에서 만드는 편이 빠르다.
 
 셋의 관계:
 
@@ -54,10 +66,12 @@ ATC 실행(Run)      결과 = finding 목록
    돌아도 아무 일이 없어서 되는 건지 안 되는 건지 구분할 수 없다
 4. `CL_CI_ATC_CHECK_EXAMPLE` 을 복사해 `ZCL_ATC_CHECK_NAMING` 생성 →
    검사 로직만 우리 것으로 교체 (`check_name( )` 부분)
-5. ADT `New → ATC Check` → 이름·설명·카테고리·구현 클래스 지정
-6. ADT `New → ATC Check Variant` → 5번 체크만 담기
-7. ADT 대상 패키지 우클릭 → `Run As → ABAP Test Cockpit`
-8. 예외 앱 연결: `ZTATCCFG` 에 그 변형명으로 1행 (`activeflg = X`,
+5. ADT `New → ABAP Repository Object` → **ATC Check Category** 생성.
+   Description 이 체크 변형 화면에 분류명으로 뜬다. Parent Category 는 비움
+6. ADT `New → ATC Check` → 이름·설명·카테고리(5번)·구현 클래스(4번) → 활성화
+7. ADT `New → ATC Check Variant` → 5번 카테고리 아래에 뜬 6번 체크를 담고 활성화
+8. ADT 대상 패키지 우클릭 → `Run As → ABAP Test Cockpit` → 결과는 ATC Problems 뷰
+9. 예외 앱 연결: `ZTATCCFG` 에 그 변형명으로 1행 (`activeflg = X`,
    `objactive = X`, `pkgactive = X`, `fndactive` 공란)
 
 ## 필드 라벨
@@ -96,6 +110,11 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 | `run` | 실제 검사 | 규칙 대조 + finding 보고 |
 | `set_assistant_factory` | 프레임워크가 보조 객체 팩토리를 주입 | 받아서 보관만. 소스를 안 읽으므로 쓸 일 없음 |
 | `set_attributes` | 체크 파라미터(변형에 저장되는 설정) | 빈 구현. 규칙은 변형이 아니라 `ZTATCNAMING` 에 있다 |
+
+`set_attributes` 를 비우는 것은 SAP 예제와 다른 선택이다. SAP 예제는 이름
+패턴을 **체크 변형의 파라미터**로 둔다. 그러면 규칙을 바꿀 때마다 변형을
+고쳐 이송해야 하고, 개발자가 아니면 손댈 수 없다. 규칙을 테이블에 둔 이유가
+그것이므로 여기서는 파라미터를 쓰지 않는다.
 | `verify_prerequisites` | 실행 전제 확인 | 빈 구현 |
 
 이 저장소의 `zcl_atc_check_naming.clas.abap` 은 아직 **구 API(`CL_CI_TEST_ROOT`)**

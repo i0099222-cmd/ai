@@ -874,15 +874,18 @@ CLASS lhc_exemption IMPLEMENTATION.
                                                   THEN space
                                                   ELSE ls_exemption-checkcode ) ).
 
-      DATA(lv_reason) = ls_exemption-reasontext.
-      lv_reason = |{ lv_reason }\n---\n| &&
-                  |[자동] 적용범위: { ls_exemption-scopetype } { ls_exemption-devclass } | &&
-                  |{ ls_exemption-objecttype } { ls_exemption-objectname }\n| &&
-                  |[자동] 신청 시점 면제 대상: { lines( lt_impact ) }건\n|.
+      " 신청 맥락(적용범위, 영향도, 패키지 경고)은 이력에 남긴다.
+      " reasontext 에 덧붙이지 않는 이유가 둘이다.
+      "   - 그 필드는 신청자가 쓴 사유다. 생성 문장을 섞으면 원문이 사라지고,
+      "     표준의 appl_comment 로 그대로 넘어가 거기까지 지저분해진다.
+      "   - 철회 후 재상신하면 같은 블록이 또 붙는다. 반복할수록 쌓인다.
+      DATA(lv_context) = |적용범위 { ls_exemption-scopetype } | &&
+                         |{ ls_exemption-devclass } { ls_exemption-objecttype } | &&
+                         |{ ls_exemption-objectname } / 면제 대상 { lines( lt_impact ) }건|.
 
       IF ls_exemption-scopetype = zif_atc_exemption=>scope-pckg.
-        lv_reason = |{ lv_reason }[자동] 주의: 이 패키지에 향후 생성되는 | &&
-                    |오브젝트도 자동 면제됩니다.\n|.
+        lv_context = |{ lv_context } / 주의: 이 패키지에 향후 생성되는 | &&
+                     |오브젝트도 자동 면제됨|.
       ENDIF.
 
       " 표준 반영을 여기서 한다. 저장 시퀀스에서는 COMMIT 도 RFC 도 막혀
@@ -890,8 +893,6 @@ CLASS lhc_exemption IMPLEMENTATION.
       SELECT SINGLE * FROM ztatcexempt
         WHERE exemptuuid = @ls_exemption-exemptuuid
         INTO @DATA(ls_db).
-
-      ls_db-reasontext = lv_reason.
 
       " 표준을 부르기 전에 중복을 확인한다. 부른 뒤 validateOverlap 이
       " 실패하면 우리만 롤백되고 표준에는 예외가 남는다.
@@ -917,20 +918,19 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 표시되고(SyncCriticality), 정합성 배치가 다시 시도할 수 있다.
       APPEND VALUE #( %tky         = ls_exemption-%tky
                       exemptstatus = zif_atc_exemption=>status-pending
-                      extexemptid  = ls_sync-extexemptid
-                      reasontext   = lv_reason ) TO lt_update.
+                      extexemptid  = ls_sync-extexemptid ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-submit
                  iv_from    = ls_exemption-exemptstatus
                  iv_to      = zif_atc_exemption=>status-pending
-                 iv_comment = |면제 대상 { lines( lt_impact ) }건 / { ls_sync-message }| ).
+                 iv_comment = |{ lv_context } / { ls_sync-message }| ).
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus extexemptid reasontext )
+        UPDATE FIELDS ( exemptstatus extexemptid )
         WITH lt_update.
 
     " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지

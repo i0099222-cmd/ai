@@ -30,6 +30,7 @@ ATC 실행(Run)      결과 = finding 목록
 
 ## 순서
 
+0. 데이터 요소 4개 생성 (아래 **필드 라벨**)
 1. `ZTATCNAMING` 생성 → SE13 에서 **로그 데이터 변경 켜기** (규칙 변경 이력)
 2. SE11 → 유틸리티 → 테이블 유지보수 생성기
    - 유지보수 유형 **1단계**, 화면번호 임의(예: 0100), 권한그룹 지정
@@ -38,6 +39,31 @@ ATC 실행(Run)      결과 = finding 목록
 5. SCI/ATC 에서 체크 변형 생성 → 체크 트리에서 이 체크만 선택
 6. 예외 앱 연결: `ZTATCCFG` 에 그 변형명으로 1행 (`activeflg = X`,
    `objactive = X`, `pkgactive = X`, `fndactive` 공란)
+
+## 필드 라벨
+
+SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다. 내장 타입
+(`abap.char(4)` 등)으로 두면 라벨이 없어 필드명만 뜨므로 데이터 요소를 쓴다.
+시스템 언어가 EN 이라 라벨은 영어로 등록한다.
+
+`objtype` 은 표준 `TROBJTYPE` 을 그대로 쓴다. 라벨도 값 도움도 이미 있고,
+우리가 만들면 TADIR 과 같은 값인데 다른 이름으로 불리게 된다.
+
+| 필드 | 데이터 요소 | 도메인 | Short (10) | Medium (20) | Long (40) | Heading (55) |
+|---|---|---|---|---|---|---|
+| `objtype` | `TROBJTYPE` (표준) | — | 표준 그대로 | | | |
+| `seqnr` | `ZATC_NAMESEQ` | 신규 NUMC 3 | `Rule No.` | `Rule Number` | `Naming Rule Number` | `Rule` |
+| `active` | `ZATC_NAMEACT` | 표준 `XFELD` | `Active` | `Active` | `Rule Is Active` | `Act.` |
+| `pattern` | `ZATC_NAMEPATT` | 신규 CHAR 255 | `Pattern` | `Name Pattern` | `Name Pattern (Regular Expression)` | `Name Pattern (Regular Expression)` |
+| `priority` | `ZATC_NAMEPRIO` | 신규 INT1 | `Priority` | `Priority` | `Finding Priority (1 = Error)` | `Prio` |
+| `msgtext` | `ZATC_NAMEMSG` | 신규 CHAR 120 | `Message` | `Message Text` | `Message Shown on Violation` | `Message` |
+
+`active` 의 도메인을 표준 `XFELD` 로 두는 이유는 SM30 에서 체크박스로 뜨기
+때문이다. `ABAP_BOOLEAN` 을 쓰면 라벨이 없어 컬럼 제목이 비어 보인다.
+
+`priority` 에 고정값을 넣어 둘지는 선택이다. 도메인에 1/2/3 을 고정값으로
+등록하면 SM30 에 드롭다운이 생기고 오타가 막힌다. 다만 표준 ATC 가 우선순위를
+넓히면 우리만 못 따라가므로, 넣는다면 설명 목적으로만 보는 게 낫다.
 
 ## 확인 필요 3곳 (ADT 에서 `CL_CI_TEST_ROOT` 를 열어볼 것)
 

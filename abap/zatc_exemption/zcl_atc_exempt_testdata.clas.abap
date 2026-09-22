@@ -32,9 +32,16 @@ CLASS zcl_atc_exempt_testdata DEFINITION
 
     "! 상태별 신청서 7건 + 증빙 + 이력.
     "! iv_devclass 는 실재하는 커스텀 패키지여야 한다.
+    "! 승인대기 건의 신청자.
+    "!
+    "! 기본값(본인)으로 두면 그 건은 **승인 테스트에 쓸 수 없다**. 앱이
+    "! 자기 신청 승인을 막기 때문에(메시지 014) 승인 버튼에서 바로 걸린다.
+    "! 승인 경로를 보려면 본인이 아닌 값을 넘긴다. 실재하는 사용자가 아니어도
+    "! 된다 - 신청자 존재 여부를 보는 검증은 없다.
     CLASS-METHODS create_requests
       IMPORTING iv_checkvariant TYPE c
                 iv_devclass     TYPE devclass
+                iv_requester    TYPE syuname DEFAULT sy-uname
       RETURNING VALUE(rv_count) TYPE i.
 
     "! 표식이 붙은 행만 지운다. 실제 신청 데이터는 건드리지 않는다.
@@ -66,6 +73,7 @@ CLASS zcl_atc_exempt_testdata DEFINITION
                 iv_approver     TYPE c      OPTIONAL
                 iv_extexemptid  TYPE c      OPTIONAL
                 iv_prereg       TYPE abap_boolean DEFAULT abap_false
+                iv_requester    TYPE syuname DEFAULT sy-uname
                 iv_reasontext   TYPE string
       RETURNING VALUE(rv_uuid)  TYPE sysuuid_x16.
 
@@ -184,6 +192,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       iv_status       = zif_atc_exemption=>status-pending
       iv_validto      = lv_d90
       iv_approver     = sy-uname
+      iv_requester    = iv_requester
       iv_reasontext   = |[TEST] 표준 연동 구조체명을 상대 시스템 규격에 맞춰야 함.| ).
     insert_item( iv_exemptuuid = lv_u iv_itemno = 1 is_obj = ls_o2
                  iv_checkclass = lv_cls iv_checkcode = lv_code
@@ -330,7 +339,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       validfrom    = sy-datum
       validto      = iv_validto
       exemptstat   = iv_status
-      requester    = sy-uname
+      requester    = iv_requester
       approver     = iv_approver
       approvedat   = COND timestampl( WHEN iv_approver IS NOT INITIAL THEN lv_ts )
       extexemptid  = iv_extexemptid

@@ -96,17 +96,34 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 
 오브젝트 이름은 대문자로 저장되므로 패턴도 대문자로 쓴다.
 
-### 예시 행
+`matches( )` 는 **전체 일치**다. 접두어만 보고 싶어도 부분 일치가 되지 않으므로
+뒤에 `.*` 를 붙여야 한다. `^ZCL_` 만 쓰면 `ZCL_` 딱 네 글자인 이름만 통과한다.
+
+### 등록된 행 (CLAS)
 
 | objtype | seqnr | pattern | prio | msgtext |
 |---|---|---|---|---|
-| `CLAS` | 010 | `^ZCL_[A-Z0-9_]{1,26}$` | 1 | `Class name must start with ZCL_` |
-| `INTF` | 010 | `^ZIF_[A-Z0-9_]{1,26}$` | 1 | `Interface name must start with ZIF_` |
-| `TABL` | 010 | `^Z[TS][A-Z0-9_]+$` | 1 | `Table must start with ZT, structure with ZS` |
-| `PROG` | 010 | `^Z[A-Z0-9_]+$` | 2 | `Report name must start with Z` |
-| `DDLS` | 010 | `^Z[IPRC]_[A-Z0-9]+$` | 2 | `CDS view must be ZI_ ZP_ ZR_ or ZC_` |
+| `CLAS` | 010 | `^Z(CL\|CX\|BP)_[A-Z]{2}.*$` | 2 | `Class name must start with ZCL_, ZCX_ or ZBP_ followed by a module code` |
 
-이건 **예시다.** 사내 개발 표준 문서의 규칙으로 바꿔서 넣는다.
+사내 표준의 전체 형태는 이보다 자세하다.
+
+```
+ZCL_MMMR_BOM_CREATE        일반        ZCL_ + 모듈2 + 서브2 + _ + DESC
+ZCX_MRPP_BOM_CREATE        예외        ZCX_ + 모듈2 + 서브2 + _ + DESC
+ZCL_WF_ACC_DOCUMENT_POST   래핑팩토리  ZCL_WF_ + DESC (모듈코드 없음)
+ZBP_CMSM_R_OBJECT_MASTER   BDEF        ZBP_ + 모듈2 + 서브2 + _ + DESC
+```
+
+전부를 하나의 정규식에 넣지 않는다. 넷이 모두 TADIR 타입 `CLAS` 라서 한 패턴
+안에 `|` 로 묶어야 하는데, 그러면 위반 메시지가 네 형태를 전부 나열하게 되어
+정작 무엇이 틀렸는지 알려주지 못한다. 예외(래핑 팩토리처럼 모듈코드가 없는
+형태)도 계속 늘어난다. 그래서 **접두어와 모듈코드까지만 본다** - 이 선은
+예외가 없고, 넘으면 위반이 분명하다.
+
+길이 규칙은 두지 않는다. 클래스명은 30자를 넘길 수 없어서 ABAP 이 애초에
+만들지 못하게 한다. 절대 걸리지 않는 규칙은 읽는 사람만 헷갈리게 한다.
+
+나머지 타입(INTF, TABL, DDLS, PROG, FUGR …)도 같은 기준으로 정한다.
 
 ### 표준 문서가 없거나 못 찾을 때
 

@@ -115,9 +115,11 @@ CLASS zcl_atc_check_naming IMPLEMENTATION.
       DATA(lv_msgtext) = ls_rule-msgtext.
 
       TRY.
-          " 이름 전체가 패턴과 맞아야 한다. 규칙 쪽에서 ^ 와 $ 로 양끝을
-          " 묶는 것을 전제로 한다 - 여기서 강제로 붙이면 규칙 작성자가
-          " 의도한 부분 일치를 쓸 수 없다.
+          " matches( ) 는 전체 일치다. 이름의 일부만 보고 싶어도 부분 일치가
+          " 되지 않으므로, 접두어만 보는 규칙은 뒤에 .* 를 붙여 써야 한다.
+          "   ^Z(CL|CX|BP)_[A-Z]{2}.*$   <- 접두어 + 모듈코드까지만 본다
+          " ^ 와 $ 는 그래서 없어도 같지만, 규칙을 읽는 사람이 범위를 오해하지
+          " 않도록 붙여 쓰는 것을 권한다.
           "
           " pcre = 는 7.55 이상이다. 하위 릴리스면 regex = 로 바꾼다.
           IF matches( val  = CONV string( iv_objname )

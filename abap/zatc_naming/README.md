@@ -3,14 +3,15 @@
 표준 네이밍 체크로는 사내 개발 표준을 표현할 수 없어서 체크를 직접 만든다.
 규칙은 코드가 아니라 테이블에 두고 SM30 으로 유지한다.
 
-## 만드는 것 4개
+## 만드는 것 5개
 
 | # | 오브젝트 | 어디서 | 역할 |
 |---|---|---|---|
 | 1 | `ZTATCNAMING` | SE11 / ADT | 규칙(정규식)을 담는다 |
 | 2 | 유지보수 뷰 | SE11 → 유틸리티 → 테이블 유지보수 생성기 | SM30 으로 규칙을 유지 |
-| 3 | `ZCL_ATC_CHECK_NAMING` | ADT | 이름을 규칙과 대조해 finding 을 낸다 |
-| 4 | 체크 변형 (예: `ZNAMING`) | SCI / ATC | 3번 체크만 담은 세트. ATC 는 이걸 돌린다 |
+| 3 | `ZCL_ATC_CHECK_NAMING` | ADT | 이름을 규칙과 대조해 finding 을 낸다. `IF_CI_ATC_CHECK` 구현 |
+| 4 | **ATC Check** 오브젝트 | ADT: `New → ATC Check` | 체크의 등록. 이름·설명·**카테고리**·**구현 클래스**를 여기서 지정 |
+| 5 | ATC Check Variant (예: `ZNAMING`) | ADT | 4번 체크를 담은 세트. ATC 는 이걸 돌린다 |
 
 셋의 관계:
 
@@ -28,16 +29,35 @@ ATC 실행(Run)      결과 = finding 목록
 **체크 변형을 만든다고 규칙이 생기는 게 아니다.** 변형은 그릇이고 검사 로직은
 체크 클래스 안에 있다.
 
+## 신규 API 로 간다 (SCI 아님)
+
+체크를 만드는 길이 두 개다. 우리는 **신규 쪽**을 쓴다.
+
+| | 구(舊) Code Inspector | 신(新) ATC |
+|---|---|---|
+| 클래스 | `CL_CI_TEST_ROOT` 상속 | **`IF_CI_ATC_CHECK` 구현** |
+| 메타데이터 | 생성자에서 `description` / `category` / `add_obj_type( )` | `get_meta_data( )` 한 곳 |
+| 등록 | SCI → `Goto → Management of → Tests` 에서 체크박스 | **ADT `New → ATC Check`** 오브젝트 |
+| 카테고리 | 코드에 카테고리 클래스명을 박음 | ATC Check 오브젝트의 입력 필드 |
+
+구 API 로 가면 SCI 등록·카테고리 클래스명·SCI225 를 전부 상대해야 한다.
+신규 API 는 그 단계가 아예 없다. 카테고리도 코드가 아니라 ATC Check
+오브젝트에서 고른다.
+
 ## 순서
 
 0. 데이터 요소 4개 생성 (아래 **필드 라벨**)
 1. `ZTATCNAMING` 생성 → SE13 에서 **로그 데이터 변경 켜기** (규칙 변경 이력)
 2. SE11 → 유틸리티 → 테이블 유지보수 생성기
    - 유지보수 유형 **1단계**, 화면번호 임의(예: 0100), 권한그룹 지정
-3. `ZCL_ATC_CHECK_NAMING` 생성 → 아래 **확인 필요 3곳** 처리 후 활성화
-4. 규칙 행 입력 (SM30)
-5. SCI/ATC 에서 체크 변형 생성 → 체크 트리에서 이 체크만 선택
-6. 예외 앱 연결: `ZTATCCFG` 에 그 변형명으로 1행 (`activeflg = X`,
+3. 규칙 행 입력 (SM30). **체크보다 먼저 넣는다** - 규칙이 없으면 체크가
+   돌아도 아무 일이 없어서 되는 건지 안 되는 건지 구분할 수 없다
+4. `CL_CI_ATC_CHECK_EXAMPLE` 을 복사해 `ZCL_ATC_CHECK_NAMING` 생성 →
+   검사 로직만 우리 것으로 교체 (`check_name( )` 부분)
+5. ADT `New → ATC Check` → 이름·설명·카테고리·구현 클래스 지정
+6. ADT `New → ATC Check Variant` → 5번 체크만 담기
+7. ADT 대상 패키지 우클릭 → `Run As → ABAP Test Cockpit`
+8. 예외 앱 연결: `ZTATCCFG` 에 그 변형명으로 1행 (`activeflg = X`,
    `objactive = X`, `pkgactive = X`, `fndactive` 공란)
 
 ## 필드 라벨
@@ -65,16 +85,22 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 등록하면 SM30 에 드롭다운이 생기고 오타가 막힌다. 다만 표준 ATC 가 우선순위를
 넓히면 우리만 못 따라가므로, 넣는다면 설명 목적으로만 보는 게 낫다.
 
-## 확인 필요 3곳 (ADT 에서 `CL_CI_TEST_ROOT` 를 열어볼 것)
+## 체크 클래스는 예제를 복사해서 만든다
 
-체크 클래스에서 프레임워크에 의존하는 부분이다. 나머지(규칙 조회·대조)는
-프레임워크와 무관하므로 그대로 쓰면 된다.
+`CL_CI_ATC_CHECK_EXAMPLE` 이 `IF_CI_ATC_CHECK` 의 본보기다. 인터페이스
+메서드는 다섯 개고, 우리가 채울 곳은 둘뿐이다.
 
-| 위치 | 확인할 것 |
-|---|---|
-| `constructor` 의 `add_obj_type( )` | 메서드명과 파라미터. 다루는 오브젝트 타입을 등록하는 방식 |
-| `run` 의 `inform( )` | 파라미터 이름과 필수 여부 (`p_kind` / `p_test` / `p_code` / `p_param_*`) |
-| `get_message_text( )` | 메시지 텍스트를 여기서 주는 게 맞는지, `SCIMESSAGES` 등록 방식인지 |
+| 메서드 | 역할 | 우리 구현 |
+|---|---|---|
+| `get_meta_data` | 체크의 신상 - 제목, 카테고리, 다룰 오브젝트 타입, finding 코드 | 예제 구조를 우리 값으로 |
+| `run` | 실제 검사 | 규칙 대조 + finding 보고 |
+| `set_assistant_factory` | 프레임워크가 보조 객체 팩토리를 주입 | 받아서 보관만. 소스를 안 읽으므로 쓸 일 없음 |
+| `set_attributes` | 체크 파라미터(변형에 저장되는 설정) | 빈 구현. 규칙은 변형이 아니라 `ZTATCNAMING` 에 있다 |
+| `verify_prerequisites` | 실행 전제 확인 | 빈 구현 |
+
+이 저장소의 `zcl_atc_check_naming.clas.abap` 은 아직 **구 API(`CL_CI_TEST_ROOT`)**
+로 쓰여 있다. 규칙을 읽어 이름과 대조하는 `check_name( )` 만 프레임워크와
+무관하므로 그대로 옮기고, 나머지 껍데기는 예제에서 가져온다.
 
 ## 규칙 쓰는 법
 

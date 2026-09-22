@@ -117,9 +117,28 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 그것이므로 여기서는 파라미터를 쓰지 않는다.
 | `verify_prerequisites` | 실행 전제 확인 | 빈 구현 |
 
-이 저장소의 `zcl_atc_check_naming.clas.abap` 은 아직 **구 API(`CL_CI_TEST_ROOT`)**
-로 쓰여 있다. 규칙을 읽어 이름과 대조하는 `check_name( )` 만 프레임워크와
-무관하므로 그대로 옮기고, 나머지 껍데기는 예제에서 가져온다.
+`get_meta_data( )` 가 돌려주는 것은 구조체가 아니라
+**`IF_CI_ATC_CHECK_META_DATA` 를 구현한 객체**이고, 그 클래스는 SAP 이 주는 게
+아니라 체크를 만드는 쪽이 직접 만든다. 이 저장소에서는
+`zcl_atc_check_naming.clas.locals_imp.abap` (ADT 의 **Local Types** 탭) 이 그것이다.
+
+| 메타데이터 메서드 | 우리 값 |
+|---|---|
+| `get_description` | `Naming conventions (customer rules)` |
+| `get_check_object_types` | `ZTATCNAMING` 에서 `SELECT DISTINCT objtype` |
+| `get_finding_code_infos` | 코드 3개 = 심각도 3개. 텍스트는 전부 `&1` |
+| `get_attributes` | 비움 (체크 파라미터를 쓰지 않는다) |
+| `get_quickfix_code_infos` | 비움 (이름 변경은 자동으로 고칠 수 없다) |
+| `is_remote_enabled` | `X` - 검사 대상 시스템의 데이터를 읽지 않는다 |
+| `uses_checksums` | 공란 - finding 이 소스 줄이 아니라 이름에 붙는다 |
+
+**심각도는 finding 코드에 붙는다.** `ty_finding` 에 심각도 필드가 없어서,
+규칙의 `priority` 를 건별로 반영하려면 코드를 심각도 수만큼 나누는 수밖에
+없다. 그래서 `NAMING_E` / `NAMING_W` / `NAMING_N` 셋이다.
+
+**메시지 텍스트가 전부 `&1` 인 것도 같은 이유다.** 규칙마다 문장이 다르므로
+코드에 고정 문장을 걸 수 없다. `run( )` 이 규칙의 `msgtext` 를 `param_1` 로
+넘겨 그 자리를 채운다.
 
 ## 규칙 쓰는 법
 

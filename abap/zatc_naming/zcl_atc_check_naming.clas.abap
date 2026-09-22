@@ -125,23 +125,12 @@ CLASS zcl_atc_check_naming IMPLEMENTATION.
 
   METHOD if_ci_atc_check~get_meta_data.
 
-    " meta_data 는 구조체가 아니라 IF_CI_ATC_CHECK_META_DATA 참조다.
-    " 값을 담는 게 아니라 객체를 만들어 돌려줘야 한다.
+    " 메타데이터는 구조체가 아니라 IF_CI_ATC_CHECK_META_DATA 를 구현한 객체다.
+    " SAP 이 주는 클래스가 아니라 우리가 만든다 - Local Types 의 lcl_meta_data.
     "
-    " 🔴 그 객체를 어떻게 만드는지 확인 필요. 인터페이스에 생성용 팩토리나
-    "   빌더가 따로 있을 것이다(CL_CI_ATC_... 계열). CL_CI_ATC_CHECK_EXAMPLE
-    "   의 get_meta_data 첫 줄을 보면 그대로 나온다.
-    "
-    " 여기에 넣을 것:
-    "   - 체크 제목/설명
-    "   - 다룰 오브젝트 타입. ZTATCNAMING 에 규칙이 있는 타입만 넣는다.
-    "       SELECT DISTINCT objtype FROM ztatcnaming WHERE active = @abap_true
-    "     이렇게 테이블에서 끌어오면 새 타입의 규칙을 넣을 때 코드를 안 고친다.
-    "   - finding 코드 3개와 각각의 심각도/메시지 텍스트
-    "       NAMING_E -> error   / '&1'
-    "       NAMING_W -> warning / '&1'
-    "       NAMING_N -> note    / '&1'
-    "     텍스트를 '&1' 하나로 두는 이유는 위 run( ) 의 주석과 같다.
+    " 예제는 생성자로 체크 파라미터를 넘긴다. 파라미터에 따라 활성 finding
+    " 코드가 달라지기 때문이다. 우리는 파라미터를 쓰지 않으므로 인자가 없다.
+    meta_data = NEW lcl_meta_data( ).
 
   ENDMETHOD.
 

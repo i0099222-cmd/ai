@@ -121,6 +121,21 @@ CLASS zcl_atc_exempt_parallel IMPLEMENTATION.
 
     ENDCASE.
 
+    " 여기는 자기 LUW 이므로 COMMIT 이 합법이고, 필요하다.
+    "
+    " create 는 send_to_approver( ) 가 내부에서 커밋하기 때문에 이것 없이도
+    " 행이 남았다. 하지만 approve_exemption_by_id( ) / reject_exemptions_by_id( )
+    " 는 커밋하지 않는 것으로 보인다 - 철회 후에도 state 가 OPEN 그대로였다.
+    " 커밋 없이 워크프로세스가 끝나면 변경이 사라진다.
+    "
+    " 실패한 경우에는 커밋하지 않는다. 표준이 중간까지 바꿔 둔 것을 확정시키면
+    " 어느 상태인지 알 수 없는 행이 남는다.
+    IF ms_result-success = abap_true.
+      COMMIT WORK.
+    ELSE.
+      ROLLBACK WORK.
+    ENDIF.
+
   ENDMETHOD.
 
 ENDCLASS.

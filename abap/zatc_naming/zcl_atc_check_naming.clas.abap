@@ -56,7 +56,13 @@ CLASS zcl_atc_check_naming IMPLEMENTATION.
 
     " 체크 트리와 ATC 결과에 뜨는 이름이다. 시스템 언어가 EN 이라 영어로 쓴다.
     description    = 'Naming conventions (customer rules)'.
-    category       = 'CL_CI_CATEGORY_SYNTAX'.
+
+    " 실제로 존재하는 카테고리 클래스 이름이어야 한다. 없는 이름을 쓰면
+    " 등록 시 "check category missing" 으로 거부된다.
+    " CL_CI_CATEGORY_TOP 은 트리의 최상위라 항상 유효하다. 더 어울리는
+    " 자리가 있으면 표준 체크 클래스(CL_CI_TEST_*)의 생성자에서 그 값을
+    " 베껴 쓴다.
+    category       = 'CL_CI_CATEGORY_TOP'.
     version        = '001'.
     position       = '001'.
 

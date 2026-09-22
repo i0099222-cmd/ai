@@ -70,25 +70,21 @@ CLASS zcl_atc_exempt_sync DEFINITION
 
     "! 신청자가 상신을 철회한다.
     "!
-    "! 승인자의 반려(reject_exemptions_by_id)가 아니라 신청자의 삭제다.
-    "! 같은 자연키로 create_exemption( ) 을 부르면 기존 예외의 신청자 핸들이
-    "! 열리고, 거기서 delete( ) 한다. create 라는 이름이지만 행을 새로 만드는
-    "! 것이 아니라 그 예외에 대한 역할별 핸들을 여는 것이다 - 승인자 쪽
-    "! create_exemption_approver( ) 가 같은 자연키를 받는 것도 같은 이유다.
+    "! 승인자의 반려가 아니라 신청자의 삭제다.
+    "!   controller->get_exemption( <예외 ID> )->delete( )
     "!
-    "! reject_exemptions_by_id( ) 로는 되지 않았다. state 가 OPEN 그대로였고
-    "! assessment 도 기록되지 않았다. 상태기계가 OPEN -> APPR -> REJ 라
-    "! 승인자가 집어들지 않은 건을 반려할 수 없기 때문으로 보인다.
+    "! 앞서 두 번 틀렸다. 남겨 둔다 - 같은 길로 다시 가지 않기 위해서다.
+    "!   1) reject_exemptions_by_id( ) : 오류도 없고 아무 일도 없었다.
+    "!      state 는 OPEN 그대로, assessment 도 기록되지 않았다. 승인자의
+    "!      동사이고, 승인자가 집어들지 않은 건에는 걸리지 않는 것으로 보인다.
+    "!   2) create_exemption( <같은 자연키> )->delete( ) : 핸들은 열렸지만
+    "!      delete( ) 가 "the operation cannot be executed in the current
+    "!      state" 로 거부됐다. create 는 기존 행을 여는 것이 아니라 새
+    "!      전이 객체를 만든다. 저장된 적 없는 객체는 지울 것이 없다.
     "!
-    "! 🔴 미해결: delete( ) 도 "the operation cannot be executed in the current
-    "!   state" 로 거부된다. 두 가지 중 하나다.
-    "!     (1) create_exemption( ) 이 기존 행을 여는 것이 아니라 새 전이 객체를
-    "!         만든다. 아직 저장되지 않은 객체라 delete( ) 가 거부된다.
-    "!         -> 기존 건은 controller->get_exemption( ) 으로 열어야 한다.
-    "!     (2) 핸들은 제대로 열리지만 OPEN(승인자에게 넘어간 상태)에서는
-    "!         신청자가 지울 수 없다. APPL / REJ 에서만 가능하다.
-    "!         -> 상신 시 send_to_approver( ) 를 미루거나, 승인자 핸들로 처리.
-    "!   어느 쪽인지는 아래 구현이 남기는 [state=...] 메시지로 갈린다.
+    "! 그래서 컨트롤러에 create_exemption 과 get_exemption 이 따로 있다.
+    "! 기존 건은 예외 ID 로 열어야 하고, 그 ID 는 상신 때 ztatcexempt-
+    "! extexemptid 에 받아 두었다.
     METHODS withdraw_exemption
       IMPORTING is_exemption     TYPE ztatcexempt
       RETURNING VALUE(rs_result) TYPE ty_result.
@@ -108,6 +104,16 @@ CLASS zcl_atc_exempt_sync DEFINITION
       RETURNING VALUE(rv_synced) TYPE i.
 
   PRIVATE SECTION.
+
+    "! 예외 ID 로 표준 예외를 열어 삭제한다.
+    "!
+    "! 철회(신청자)와 무효화(대장 철회/만료)가 같은 동작이다. 어느 쪽이든
+    "! 그 예외는 더 이상 존재해서는 안 되고, 감사 흔적은 CBO 이력이 든다 -
+    "! 표준 쪽에 반려 상태로 남겨 두는 것은 우리 대장과 이중 기록이 된다.
+    METHODS delete_by_id
+      IMPORTING iv_extexemptid   TYPE sysuuid_c32
+                iv_note          TYPE string
+      RETURNING VALUE(rs_result) TYPE ty_result.
 
     "! 표준 예외 컨트롤러. 최초 호출 시 한 번만 만든다.
     METHODS get_controller
@@ -264,86 +270,89 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
   METHOD withdraw_exemption.
 
-    " 어느 단계에서 깨지는지를 메시지에 남긴다.
-    "
-    " "the operation cannot be executed in the current state" 만으로는
-    " 핸들을 여는 데서 실패한 것인지, 연 다음 delete( ) 가 거부된 것인지
-    " 구분할 수 없다. 두 단계를 따로 감싸고 state 를 같이 적는다.
-    "
-    " 잠금도 분리한 이유다. 실패 경로에서 unlock( ) 을 하지 않으면 그 예외는
-    " 잠긴 채로 남고, 다음 시도는 상태가 아니라 잠금 때문에 실패한다.
+    " 상신이 표준까지 가지 못한 건이면 지울 표준 건도 없다. 실패로 두면
+    " CBO 쪽 철회까지 막혀서, 표준에 없는 신청을 영구히 철회할 수 없게 된다.
+    IF is_exemption-extexemptid IS INITIAL.
+      rs_result = VALUE #( success = abap_true
+                           message = |표준 예외 없음 - CBO 철회만 수행| ).
+      RETURN.
+    ENDIF.
 
-    DATA(lo_controller) = get_controller( ).
-
-    TRY.
-
-        " create_exemption( ) 과 같은 자연키다.
-        DATA(lo_exemption) = lo_controller->create_exemption(
-          i_object_type    = is_exemption-objecttype
-          i_object_name    = is_exemption-objectname
-          i_check_class    = is_exemption-checkclass
-          i_check_code     = is_exemption-checkcode
-          i_contact_person = is_exemption-requester ).
-
-      CATCH cx_root INTO DATA(lo_open_error).
-        rs_result = VALUE #( success = abap_false
-                             message = |핸들 열기 실패: { lo_open_error->get_text( ) }| ).
-        RETURN.
-    ENDTRY.
-
-    " 여기서부터는 무엇이 실패하든 잠금을 풀고 나간다.
-    TRY.
-
-        DATA(lv_state) = lo_exemption->get_exemption_state( ).
-
-        lo_exemption->delete( ).
-
-        rs_result = VALUE #( success = abap_true
-                             message = |표준 예외 삭제(신청자 철회, state={ lv_state })| ).
-
-      CATCH cx_root INTO DATA(lo_del_error).
-        rs_result = VALUE #(
-          success = abap_false
-          message = |철회 실패 [state={ COND string( WHEN lv_state IS INITIAL
-                                                     THEN '(읽지 못함)' ELSE lv_state ) }]: | &&
-                    lo_del_error->get_text( ) ).
-    ENDTRY.
-
-    TRY.
-        lo_exemption->unlock( ).
-      CATCH cx_root.
-        " 잠금 해제 실패는 철회 결과를 뒤집지 않는다. 다음 접근에서 드러난다.
-    ENDTRY.
+    rs_result = delete_by_id( iv_extexemptid = is_exemption-extexemptid
+                              iv_note        = |신청자 철회| ).
 
   ENDMETHOD.
 
 
   METHOD revoke_exemption.
 
-    " 표준 쪽 예외도 함께 무효화해야 한다. CBO 만 철회하면 대장은 철회인데
+    " 표준 쪽 예외도 함께 없애야 한다. CBO 만 철회하면 대장은 철회인데
     " 실제로는 계속 면제되는 상태로 남는다.
     "
-    " reject_exemptions_by_id( ) 로 이미 승인된 예외를 반려 상태로 돌린다.
-    " assessment 에 철회 사유를 남겨 표준 쪽에서도 이유를 알 수 있게 한다.
+    " reject_exemptions_by_id( ) 를 쓰던 자리다. 그 메서드는 오류 없이
+    " 아무 일도 하지 않는다(철회 테스트에서 확인). 삭제로 바꾼다.
+    IF iv_extexemptid IS INITIAL.
+      rs_result = VALUE #( success = abap_true
+                           message = |표준 예외 없음 - CBO 무효화만 수행| ).
+      RETURN.
+    ENDIF.
+
+    rs_result = delete_by_id(
+      iv_extexemptid = iv_extexemptid
+      iv_note        = COND string( WHEN iv_reason IS NOT INITIAL
+                                    THEN |무효화: { iv_reason }|
+                                    ELSE |무효화| ) ).
+
+  ENDMETHOD.
+
+
+  METHOD delete_by_id.
 
     DATA(lo_controller) = get_controller( ).
 
     TRY.
 
-        " TODO 동작 확인: 이미 승인(approved)된 예외에 reject 를 걸었을 때
-        "   상태가 실제로 바뀌고 면제가 풀리는지 테스트할 것.
-        "   승인 전 상태에서만 동작한다면, 대안은 기존 예외를 다시 읽어
-        "   set_validity_date( ) 를 어제 날짜로 당기는 것이다.
-        lo_controller->reject_exemptions_by_id(
-          exemption_id = iv_extexemptid
-          assessment   = iv_reason ).
+        " 파라미터가 예외 ID 하나뿐이라 위치 인자로 넘긴다.
+        DATA(lo_exemption) = lo_controller->get_exemption( iv_extexemptid ).
 
-        rs_result = VALUE #( success = abap_true
-                             message = |표준 예외 { iv_extexemptid } 무효화| ).
+      CATCH cx_root INTO DATA(lo_open_error).
+        rs_result = VALUE #(
+          success = abap_false
+          message = |표준 예외 { iv_extexemptid } 열기 실패: | &&
+                    lo_open_error->get_text( ) ).
+        RETURN.
+    ENDTRY.
 
-      CATCH cx_root INTO DATA(lo_error).
-        rs_result = VALUE #( success = abap_false
-                             message = lo_error->get_text( ) ).
+    " 여기서부터는 무엇이 실패하든 잠금을 풀고 나간다. 열어 놓고 나가면
+    " 그 예외는 잠긴 채로 남고, 다음 시도는 상태가 아니라 잠금 때문에
+    " 실패한다. 무엇 때문에 실패했는지 두 번 헷갈리게 된다.
+    TRY.
+
+        DATA(lv_state) = lo_exemption->get_exemption_state( ).
+
+        lo_exemption->delete( ).
+
+        rs_result = VALUE #( success     = abap_true
+                             extexemptid = iv_extexemptid
+                             message     = |표준 예외 삭제({ iv_note }, state={ lv_state })| ).
+
+      CATCH cx_root INTO DATA(lo_del_error).
+        " state 를 같이 남긴다. 여기서 또 거부되면 원인은 "저장되지 않은
+        " 객체"가 아니라 상태기계다 - OPEN(승인자에게 넘어간 상태)에서는
+        " 신청자가 지울 수 없다는 뜻이고, 그러면 상신 시 send_to_approver( )
+        " 를 승인 시점으로 미뤄 표준 행을 APPL 로 두는 쪽으로 바꿔야 한다.
+        rs_result = VALUE #(
+          success = abap_false
+          message = |{ iv_note } 실패 [state={ COND string( WHEN lv_state IS INITIAL
+                                                            THEN '(읽지 못함)'
+                                                            ELSE lv_state ) }]: | &&
+                    lo_del_error->get_text( ) ).
+    ENDTRY.
+
+    TRY.
+        lo_exemption->unlock( ).
+      CATCH cx_root ##NO_HANDLER.
+        " 잠금 해제 실패는 결과를 뒤집지 않는다. 다음 접근에서 드러난다.
     ENDTRY.
 
   ENDMETHOD.

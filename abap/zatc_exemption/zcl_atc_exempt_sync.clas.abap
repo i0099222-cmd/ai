@@ -84,7 +84,8 @@ CLASS zcl_atc_exempt_sync DEFINITION
     "!      전이 객체를 만든다. 저장된 적 없는 객체는 지울 것이 없다.
     "!
     "! 기존 건은 예외 ID 로 열어야 하고, 그 ID 는 상신 때 받아
-    "! ztatcexempt-extexemptid 에 두었다.
+    "! ztatcexempt-extexemptid 에 두었다. 연 다음에는 lock( ) 이 필요하다 -
+    "! get_exemption( ) 은 조회용 핸들을 준다.
     METHODS revoke_exemption
       IMPORTING iv_extexemptid   TYPE sysuuid_c32
                 iv_reason        TYPE string OPTIONAL
@@ -270,8 +271,14 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         " 파라미터가 예외 ID 하나뿐이라 위치 인자로 넘긴다.
         DATA(lo_exemption) = lo_controller->get_exemption( iv_extexemptid ).
 
-        " state 를 먼저 읽어 둔다. delete( ) 가 거부되면 어느 상태에서
-        " 거부됐는지가 그대로 원인이다.
+        " get_exemption( ) 이 주는 것은 조회용 핸들이다. 잠그지 않고 delete( )
+        " 를 부르면 "the operation cannot be executed in the current state" 로
+        " 거부된다 - 여기서 말하는 state 는 예외의 상태(OPEN)가 아니라 핸들의
+        " 상태다. unlock( ) 의 짝이 lock( ) 인 것도 그래서다.
+        lo_exemption->lock( ).
+
+        " state 를 읽어 둔다. 그래도 거부되면 어느 상태에서 거부됐는지가
+        " 그대로 원인이다.
         DATA(lv_state) = lo_exemption->get_exemption_state( ).
 
         lo_exemption->delete( ).

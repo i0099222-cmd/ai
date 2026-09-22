@@ -22,9 +22,15 @@
 "!          send_to_approver( )       승인 요청 제출
 "!          unlock( )                 잠금 해제
 "!          get_exemption_id( )       생성된 예외 ID
-"!   controller->approve_exemption_by_id( exemption_id, assessment )  <- 건별 승인
-"!   controller->reject_exemptions_by_id( exemption_id, assessment ) <- 건별 반려
-"!   controller->approve_exemptions_by_if( exemptions_for_approval ) <- 테이블 일괄 승인
+"!   controller->get_exemption( <예외 ID> )
+"!     -> 기존 예외의 핸들. lock_and_refresh( ) 로 잠가야 delete( ) 가 된다.
+"!        delete( ) 는 아카이브다 (deleted = 'X').
+"!   controller->approve_exemptions_by_id( <구조체: exemption_id, assessment> )
+"!     -> 결과 테이블. 예외를 던지지 않고 message_kind / message 로 알린다.
+"!        'E' 면 거부된 것이다. 반드시 읽어야 한다.
+"!   controller->reject_exemptions_by_id( ... ) <- 쓰지 않는다.
+"!     반려도 우리는 예외를 지운다(아카이브). 결정은 CBO 대장이 들고 있고,
+"!     표준에 반려 상태로 남겨 두면 같은 사실이 두 군데 기록된다.
 "!
 "! set_object_scope 가 있으므로 패키지 스코프를 표준 예외 1건으로 넘길 수 있다.
 "! 오브젝트마다 예외를 전개할 필요가 없고, 예외 ID 는 신청서(헤더)에 1개면 된다.
@@ -243,14 +249,40 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
     " 표준 예외를 승인한다. CBO 대장에서 결재가 끝난 뒤 그 결과를 표준에
     " 반영하는 단계이고, ATC 가 실제로 이 건을 면제하기 시작하는 지점이다.
+    "
+    " 이 메서드는 예외를 던지지 않는다. 건별 결과를 테이블로 돌려주고,
+    " 권한 부족 같은 거부도 거기에 message_kind = 'E' 로 담긴다. 반환값을
+    " 보지 않으면 거부당한 것을 성공으로 기록하게 되는데, 그게 이 앱에서
+    " 제일 위험한 상태다 - 대장은 승인인데 ATC 는 계속 막는 건이 생긴다.
+
+    DATA lv_error TYPE string.
 
     DATA(lo_controller) = get_controller( ).
 
     TRY.
 
-        lo_controller->approve_exemption_by_id(
-          exemption_id = iv_extexemptid
-          assessment   = iv_assessment ).
+        DATA(lt_result) = lo_controller->approve_exemptions_by_id(
+          VALUE #( exemption_id = iv_extexemptid
+                   assessment   = iv_assessment ) ).
+
+        LOOP AT lt_result INTO DATA(ls_result).
+
+          " E 오류 / A 중단 / X 종료. 경고(W)와 정보(I)는 실패가 아니다.
+          IF ls_result-message_kind NA 'EAX'.
+            CONTINUE.
+          ENDIF.
+
+          lv_error = COND #( WHEN lv_error IS INITIAL
+                             THEN ls_result-message
+                             ELSE |{ lv_error } / { ls_result-message }| ).
+
+        ENDLOOP.
+
+        IF lv_error IS NOT INITIAL.
+          rs_result = VALUE #( success = abap_false
+                               message = |표준 승인 거부: { lv_error }| ).
+          RETURN.
+        ENDIF.
 
         rs_result = VALUE #( success     = abap_true
                              extexemptid = iv_extexemptid

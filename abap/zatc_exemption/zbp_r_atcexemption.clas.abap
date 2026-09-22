@@ -990,11 +990,14 @@ CLASS lhc_exemption IMPLEMENTATION.
                         iv_operation = zcl_atc_exempt_parallel=>operation-withdraw
                         iv_reason    = |신청자 철회| ).
 
-      " ID 를 비운다. 안 비우면 재상신 때 "이미 등록됨" 으로 보고 건너뛰어,
-      " 표준에는 반려된 행만 남고 영영 승인되지 않는다.
-      APPEND VALUE #( %tky               = ls_exemption-%tky
-                      extexemptid        = space
-                      exemptstatus       = zif_atc_exemption=>status-draft ) TO lt_update.
+      " 표준 예외를 실제로 지웠을 때만 ID 를 비운다. 비워야 재상신 때
+      " "이미 등록됨" 으로 건너뛰지 않는다. 다만 삭제가 실패했는데 비우면
+      " 표준에는 살아 있는 행이 남고 우리는 그 행을 다시 찾지 못한다.
+      APPEND VALUE #( %tky         = ls_exemption-%tky
+                      exemptstatus = zif_atc_exemption=>status-draft
+                      extexemptid  = COND #( WHEN ls_sync-success = abap_true
+                                             THEN space
+                                             ELSE ls_db-extexemptid ) ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-withdraw
@@ -1055,10 +1058,6 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 여기서는 CBO 대장의 결재만 기록한다.
-      " 표준 예외 생성은 저장 시퀀스(saver 의 save_modified)에서 한다. 액션에서
-      " 부르면 DB 를 바꾸고 잠금을 잡는 호출이 저장 전에 일어나므로, 사용자가
-      " 초안을 버리거나 저장이 실패하면 CBO 기록 없는 표준 예외만 남는다.
       SELECT SINGLE * FROM ztatcexempt
         WHERE exemptuuid = @ls_exemption-exemptuuid
         INTO @DATA(ls_db).
@@ -1067,9 +1066,15 @@ CLASS lhc_exemption IMPLEMENTATION.
                         is_row       = ls_db
                         iv_operation = zcl_atc_exempt_parallel=>operation-approve ).
 
+      " 표준 반영이 실패해도 대장의 결재는 기록한다(대장이 원천이다).
+      " 다만 기존 예외 ID 는 그대로 둔다. 표준 행은 상신 때 이미 만들어져
+      " 있고 승인만 거부된 상태이므로, 여기서 ID 를 지우면 그 행과의 연결이
+      " 끊겨 나중에 철회도 만료도 그 행을 찾지 못한다.
       APPEND VALUE #( %tky         = ls_exemption-%tky
                       exemptstatus = zif_atc_exemption=>status-approved
-                      extexemptid  = ls_sync-extexemptid
+                      extexemptid  = COND #( WHEN ls_sync-extexemptid IS NOT INITIAL
+                                             THEN ls_sync-extexemptid
+                                             ELSE ls_db-extexemptid )
                       approver     = sy-uname
                       approvedat   = lv_now ) TO lt_update.
 
@@ -1140,10 +1145,15 @@ CLASS lhc_exemption IMPLEMENTATION.
                         iv_operation = zcl_atc_exempt_parallel=>operation-revoke
                         iv_reason    = |CBO 대장에서 반려| ).
 
-      APPEND VALUE #( %tky               = ls_key-%tky
-                      exemptstatus       = zif_atc_exemption=>status-rejected
-                      approver           = sy-uname
-                      approvedat         = lv_now ) TO lt_update.
+      " 표준 예외를 실제로 지웠을 때만 ID 를 비운다. 실패했는데 비우면
+      " 표준에는 살아 있는 행이 남고 우리는 그 행을 다시 찾지 못한다.
+      APPEND VALUE #( %tky         = ls_key-%tky
+                      exemptstatus = zif_atc_exemption=>status-rejected
+                      extexemptid  = COND #( WHEN ls_sync-success = abap_true
+                                             THEN space
+                                             ELSE ls_db-extexemptid )
+                      approver     = sy-uname
+                      approvedat   = lv_now ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-reject
@@ -1203,8 +1213,11 @@ CLASS lhc_exemption IMPLEMENTATION.
                         iv_operation = zcl_atc_exempt_parallel=>operation-revoke
                         iv_reason    = |CBO 대장에서 철회| ).
 
-      APPEND VALUE #( %tky               = ls_exemption-%tky
-                      exemptstatus       = zif_atc_exemption=>status-revoked ) TO lt_update.
+      APPEND VALUE #( %tky         = ls_exemption-%tky
+                      exemptstatus = zif_atc_exemption=>status-revoked
+                      extexemptid  = COND #( WHEN ls_sync-success = abap_true
+                                             THEN space
+                                             ELSE ls_db-extexemptid ) ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-revoke

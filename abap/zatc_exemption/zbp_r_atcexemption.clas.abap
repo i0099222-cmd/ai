@@ -977,7 +977,8 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       DATA(ls_sync) = sync_standard(
                         is_row       = ls_db
-                        iv_operation = zcl_atc_exempt_parallel=>operation-withdraw ).
+                        iv_operation = zcl_atc_exempt_parallel=>operation-withdraw
+                        iv_reason    = |신청자 철회| ).
 
       " ID 를 비운다. 안 비우면 재상신 때 "이미 등록됨" 으로 보고 건너뛰어,
       " 표준에는 반려된 행만 남고 영영 승인되지 않는다.

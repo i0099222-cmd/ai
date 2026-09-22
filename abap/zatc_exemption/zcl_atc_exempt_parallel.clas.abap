@@ -116,10 +116,10 @@ CLASS zcl_atc_exempt_parallel IMPLEMENTATION.
                         iv_assessment  = ms_exemption-reasontext ).
         ENDIF.
 
-      WHEN operation-withdraw.
-        ms_result = lo_sync->withdraw_exemption( ms_exemption ).
+      WHEN operation-withdraw OR operation-revoke.
 
-      WHEN operation-revoke.
+        " 신청자의 철회든 대장의 무효화든 표준 쪽에서는 같은 동작이다.
+        " 그 예외를 지운다. 구분은 CBO 이력이 든다.
         ms_result = lo_sync->revoke_exemption(
                       iv_extexemptid = ms_exemption-extexemptid
                       iv_reason      = mv_reason ).

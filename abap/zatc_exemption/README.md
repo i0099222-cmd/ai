@@ -70,6 +70,14 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 표준 승인 로직은 결국 `SATC_CI_R_EXEMPTION` 의 `state` / `approver` 를 바꾸는 것이고,
 그 경로가 위 컨트롤러다. 우리 앱도 같은 경로를 쓴다.
 
+- **상신 / 철회 / 재상신 동작 확인 (실제 시스템).**
+  상신하면 `SATC_CI_R_EXEMPTION` 에 `state = OPEN` 행이 생기고 예외 ID 가
+  `ztatcexempt-extexemptid` 에 들어온다. 철회하면 그 행이 아카이브된다.
+  철회한 건을 다시 상신하면 아카이브된 행과 별개로 **새 예외 ID** 가 생긴다 -
+  같은 자연키에 취소된 행이 있어도 표준이 막지 않는다.
+  `OBJ` / `PCKG` 스코프에서 `subobjname` / `subobjtype` / `checksum` 이 비는 것은
+  정상이다. 그 셋은 `FND`(개별 finding) 스코프에서만 채워진다.
+
 - **예외 취소는 `get_exemption( <ID> )` → `lock_and_refresh( )` → `delete( )`.**
   `get_exemption( )` 은 조회용 핸들을 주므로 잠그지 않고 `delete( )` 를 부르면
   "the operation cannot be executed in the current state" 로 거부된다.

@@ -27,8 +27,10 @@ CLASS zcl_atc_exempt_parallel DEFINITION
         register TYPE char10 VALUE 'REGISTER',
         "! 승인 -> 표준 승인. extexemptid 가 없으면 생성부터 한다.
         approve  TYPE char10 VALUE 'APPROVE',
-        "! 반려 / 철회 / 만료 / 상신철회 -> 표준 무효화
+        "! 반려 / 철회 / 만료 -> 표준 무효화 (승인자 행위)
         revoke   TYPE char10 VALUE 'REVOKE',
+        "! 상신철회 -> 신청자가 자기 신청을 삭제
+        withdraw TYPE char10 VALUE 'WITHDRAW',
       END OF operation.
 
     METHODS constructor
@@ -113,6 +115,9 @@ CLASS zcl_atc_exempt_parallel IMPLEMENTATION.
                         iv_extexemptid = lv_extid
                         iv_assessment  = ms_exemption-reasontext ).
         ENDIF.
+
+      WHEN operation-withdraw.
+        ms_result = lo_sync->withdraw_exemption( ms_exemption ).
 
       WHEN operation-revoke.
         ms_result = lo_sync->revoke_exemption(

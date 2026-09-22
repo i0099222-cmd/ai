@@ -68,6 +68,21 @@ CLASS zcl_atc_exempt_sync DEFINITION
                 iv_assessment    TYPE string OPTIONAL
       RETURNING VALUE(rs_result) TYPE ty_result.
 
+    "! 신청자가 상신을 철회한다.
+    "!
+    "! 승인자의 반려(reject_exemptions_by_id)가 아니라 신청자의 삭제다.
+    "! 같은 자연키로 create_exemption( ) 을 부르면 기존 예외의 신청자 핸들이
+    "! 열리고, 거기서 delete( ) 한다. create 라는 이름이지만 행을 새로 만드는
+    "! 것이 아니라 그 예외에 대한 역할별 핸들을 여는 것이다 - 승인자 쪽
+    "! create_exemption_approver( ) 가 같은 자연키를 받는 것도 같은 이유다.
+    "!
+    "! reject_exemptions_by_id( ) 로는 되지 않았다. state 가 OPEN 그대로였고
+    "! assessment 도 기록되지 않았다. 상태기계가 OPEN -> APPR -> REJ 라
+    "! 승인자가 집어들지 않은 건을 반려할 수 없기 때문으로 보인다.
+    METHODS withdraw_exemption
+      IMPORTING is_exemption     TYPE ztatcexempt
+      RETURNING VALUE(rs_result) TYPE ty_result.
+
     "! 철회/만료된 예외를 표준 저장소에서 무효화한다.
     METHODS revoke_exemption
       IMPORTING iv_extexemptid   TYPE sysuuid_c32
@@ -218,6 +233,34 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         rs_result = VALUE #( success     = abap_true
                              extexemptid = iv_extexemptid
                              message     = |표준 예외 { iv_extexemptid } 승인| ).
+
+      CATCH cx_root INTO DATA(lo_error).
+        rs_result = VALUE #( success = abap_false
+                             message = lo_error->get_text( ) ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD withdraw_exemption.
+
+    DATA(lo_controller) = get_controller( ).
+
+    TRY.
+
+        " create_exemption( ) 과 같은 자연키다. 기존 예외의 핸들이 열린다.
+        DATA(lo_exemption) = lo_controller->create_exemption(
+          i_object_type    = is_exemption-objecttype
+          i_object_name    = is_exemption-objectname
+          i_check_class    = is_exemption-checkclass
+          i_check_code     = is_exemption-checkcode
+          i_contact_person = is_exemption-requester ).
+
+        lo_exemption->delete( ).
+        lo_exemption->unlock( ).
+
+        rs_result = VALUE #( success = abap_true
+                             message = |표준 예외 삭제(신청자 철회)| ).
 
       CATCH cx_root INTO DATA(lo_error).
         rs_result = VALUE #( success = abap_false

@@ -167,14 +167,14 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 
 | objtype | seqnr | pattern | prio | msgtext |
 |---|---|---|---|---|
-| `TABL` | 010 | `^Z[TS][A-Z]{4}[0-9]{5}D?$` | 2 | `Table must be ZT, structure ZS + module + submodule + 5 digits` |
-| `TTYP` | 010 | `^ZY[A-Z]{4}[0-9]{5}$` | 2 | `Table type must be ZY + module + submodule + 5 digits` |
-| `DTEL` | 010 | `^ZDE[A-Z]{2}_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Data element must be ZDE + module + _ + description` |
-| `DOMA` | 010 | `^ZDMO[A-Z]{2}_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Domain must be ZDMO + module + _ + description` |
-| `DDLS` | 010 | `^(Z[A-Z]{4}_[IRCPFU]\|Z[A-Z]{2}_VH)_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `CDS view must be Z<module><submodule>_<I,R,C,P,F,U>_<desc> or Z<module>_VH_<desc>` |
-| `SRVD` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)$` | 2 | `Service definition must end with _UI or _API` |
-| `SRVB` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)_O[24]$` | 2 | `Service binding must end with _UI or _API plus _O2 or _O4` |
-| `DEVC` | 010 | `^ZD?[A-Z]{2}(-[A-Z0-9]{2}(-[A-Z0-9]{2}-[A-Z0-9]{3}(_D[0-9]{3,4})?)?)?$` | 2 | `Package must be Z<module>, then -<submodule>, then -<L3>-<L4>, then _D<id>` |
+| `TABL` | 010 | `^Z[TS][A-Z]{4}[0-9]{5}D?$` | 2 | `Please check naming rule (TABLE / STRUCTURE)` |
+| `TTYP` | 010 | `^ZY[A-Z]{4}[0-9]{5}$` | 2 | `Please check naming rule (TABLE TYPE)` |
+| `DTEL` | 010 | `^ZDE[A-Z]{2}_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Please check naming rule (DATA ELEMENT)` |
+| `DOMA` | 010 | `^ZDMO[A-Z]{2}_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Please check naming rule (DOMAIN)` |
+| `DDLS` | 010 | `^(Z[A-Z]{4}_[IRCPFU]\|Z[A-Z]{2}_VH)_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Please check naming rule (CDS VIEW)` |
+| `SRVD` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)$` | 2 | `Please check naming rule (SERVICE DEFINITION)` |
+| `SRVB` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)_O[24]$` | 2 | `Please check naming rule (SERVICE BINDING)` |
+| `DEVC` | 010 | `^ZD?[A-Z]{2}(-[A-Z0-9]{2}(-[A-Z0-9]{2}-[A-Z0-9]{3}(_D[0-9]{3,4})?)?)?$` | 2 | `Please check naming rule (PACKAGE)` |
 
 `CLAS` 는 보류. 커스텀 엔티티 클래스, BDEF 클래스, 예외 클래스 등 유형이 많아
 한 패턴으로 묶으면 메시지가 무의미해진다. 유형이 정리된 뒤에 정한다.
@@ -194,6 +194,11 @@ ZSD-SA-01-A10_D001      + 설계ID (3~4자리)
 
 계층별로 행을 나누지 않은 이유는 행이 AND 이기 때문이다. 나누면 `ZMR` 이
 L4 규칙에도 걸린다.
+
+메시지는 짧게 둔다. finding 에 위반한 오브젝트 이름이 같이 뜨므로 어느
+오브젝트인지는 메시지가 말하지 않아도 된다. 기대 형태까지 적고 싶으면
+`msgtext` 가 120자라 여유가 있다 - `Please check naming rule (DOMAIN):
+ZDMO + module + _ + description` 처럼.
 
 길이 규칙은 어디에도 두지 않는다. CDS 뷰 30자, 테이블 16자 같은 상한은
 시스템이 이미 막는다.

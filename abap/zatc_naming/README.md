@@ -167,8 +167,23 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 
 | objtype | seqnr | pattern | prio | msgtext |
 |---|---|---|---|---|
-| `CLAS` | 010 | `^Z(CL\|CX\|BP)_[A-Z]{2}.*$` | 2 | `Class name must start with ZCL_, ZCX_ or ZBP_ followed by a module code` |
 | `TABL` | 010 | `^Z[TS][A-Z]{4}[0-9]{5}D?$` | 2 | `Table must be ZT, structure ZS + module + submodule + 5 digits` |
+| `TTYP` | 010 | `^ZY[A-Z]{4}[0-9]{5}$` | 2 | `Table type must be ZY + module + submodule + 5 digits` |
+| `DTEL` | 010 | `^ZDE[A-Z]{2}_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Data element must be ZDE + module + _ + description` |
+| `DOMA` | 010 | `^ZDMO[A-Z]{2}_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Domain must be ZDMO + module + _ + description` |
+| `DDLS` | 010 | `^(Z[A-Z]{4}_[IRCPFU]\|Z[A-Z]{2}_VH)_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `CDS view must be Z<module><submodule>_<I,R,C,P,F,U>_<desc> or Z<module>_VH_<desc>` |
+| `SRVD` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)$` | 2 | `Service definition must end with _UI or _API` |
+| `SRVB` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)_O4$` | 2 | `Service binding must end with _UI_O4 or _API_O4` |
+
+`CLAS` 는 보류. 커스텀 엔티티 클래스, BDEF 클래스, 예외 클래스 등 유형이 많아
+한 패턴으로 묶으면 메시지가 무의미해진다. 유형이 정리된 뒤에 정한다.
+
+`DDLS` 의 한 글자는 뷰의 계층이다 - I 인터페이스 / R 루트 / C 소비 /
+P 프로젝션 / F 테이블함수 / U 커스텀엔티티. 값 도움(`_VH_`)만 서브모듈 없이
+모듈 2자다.
+
+길이 규칙은 어디에도 두지 않는다. CDS 뷰 30자, 테이블 16자 같은 상한은
+시스템이 이미 막는다.
 
 `TABL` 은 투명테이블과 구조체를 같이 담는 TADIR 타입이라 둘을 한 패턴에 넣었다.
 `ZTFIGL00010` / `ZSFIGL00010`.

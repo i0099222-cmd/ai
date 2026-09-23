@@ -168,10 +168,12 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 | objtype | seqnr | pattern | prio | msgtext |
 |---|---|---|---|---|
 | `CLAS` | 010 | `^Z(CL\|CX\|BP)_[A-Z]{2}.*$` | 2 | `Class name must start with ZCL_, ZCX_ or ZBP_ followed by a module code` |
-| `TABL` | 010 | `^Z[TS][A-Z]{4}[0-9]{5}$` | 2 | `Table must be ZT, structure ZS + module + submodule + 5 digits` |
+| `TABL` | 010 | `^Z[TS][A-Z]{4}[0-9]{5}D?$` | 2 | `Table must be ZT, structure ZS + module + submodule + 5 digits` |
 
 `TABL` 은 투명테이블과 구조체를 같이 담는 TADIR 타입이라 둘을 한 패턴에 넣었다.
 `ZTFIGL00010` / `ZSFIGL00010`.
+
+끝의 `D?` 는 RAP 드래프트 테이블이다. `ZTFIGL00010D` 처럼 뒤에 D 가 붙는다.
 
 일련번호가 10 단위로 는다는 규칙은 넣지 않았다. 10 씩 띄우는 이유가 나중에
 사이에 끼워 넣기 위해서인데, 끝자리를 0 으로 강제하면 `00015` 를 만드는

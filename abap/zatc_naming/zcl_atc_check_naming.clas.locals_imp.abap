@@ -20,7 +20,7 @@ CLASS lcl_meta_data IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD if_ci_atc_check_meta_data~get_check_object_types.
+  METHOD if_ci_atc_check_meta_data~get_checked_object_types.
 
     " 규칙이 있는 타입만. 새 타입은 행만 추가하면 되고 코드는 그대로다.
     SELECT DISTINCT objtype FROM ztatcnaming
@@ -28,8 +28,8 @@ CLASS lcl_meta_data IMPLEMENTATION.
       INTO TABLE @DATA(lt_objtype).
 
     " 🔴 반환이 구조체 테이블이면 ( objtype = ls-objtype ) 로 바꾼다.
-    check_object_types = VALUE #( FOR ls IN lt_objtype
-                                  ( CONV #( ls-objtype ) ) ).
+    checked_object_types = VALUE #( FOR ls IN lt_objtype
+                                    ( CONV #( ls-objtype ) ) ).
 
   ENDMETHOD.
 

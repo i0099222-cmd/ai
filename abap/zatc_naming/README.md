@@ -125,7 +125,7 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 | 메타데이터 메서드 | 우리 값 |
 |---|---|
 | `get_description` | `Naming conventions (customer rules)` |
-| `get_check_object_types` | `ZTATCNAMING` 에서 `SELECT DISTINCT objtype` |
+| `get_checked_object_types` | `ZTATCNAMING` 에서 `SELECT DISTINCT objtype` |
 | `get_finding_code_infos` | 코드 3개 = 심각도 3개. 텍스트는 전부 `&1` |
 | `get_attributes` | 비움 (체크 파라미터를 쓰지 않는다) |
 | `get_quickfix_code_infos` | 비움 (이름 변경은 자동으로 고칠 수 없다) |

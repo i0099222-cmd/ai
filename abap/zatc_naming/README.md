@@ -173,7 +173,8 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 | `DOMA` | 010 | `^ZDMO[A-Z]{2}_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Domain must be ZDMO + module + _ + description` |
 | `DDLS` | 010 | `^(Z[A-Z]{4}_[IRCPFU]\|Z[A-Z]{2}_VH)_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `CDS view must be Z<module><submodule>_<I,R,C,P,F,U>_<desc> or Z<module>_VH_<desc>` |
 | `SRVD` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)$` | 2 | `Service definition must end with _UI or _API` |
-| `SRVB` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)_O4$` | 2 | `Service binding must end with _UI_O4 or _API_O4` |
+| `SRVB` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)_O[24]$` | 2 | `Service binding must end with _UI or _API plus _O2 or _O4` |
+| `DEVC` | 010 | `^ZD?[A-Z]{2}(-[A-Z0-9]{2}(-[A-Z0-9]{2}-[A-Z0-9]{3}(_D[0-9]{3,4})?)?)?$` | 2 | `Package must be Z<module>, then -<submodule>, then -<L3>-<L4>, then _D<id>` |
 
 `CLAS` 는 보류. 커스텀 엔티티 클래스, BDEF 클래스, 예외 클래스 등 유형이 많아
 한 패턴으로 묶으면 메시지가 무의미해진다. 유형이 정리된 뒤에 정한다.
@@ -181,6 +182,18 @@ SM30 의 컬럼 제목은 **데이터 요소의 필드 라벨**에서 나온다.
 `DDLS` 의 한 글자는 뷰의 계층이다 - I 인터페이스 / R 루트 / C 소비 /
 P 프로젝션 / F 테이블함수 / U 커스텀엔티티. 값 도움(`_VH_`)만 서브모듈 없이
 모듈 2자다.
+
+`DEVC` 는 계층이 하나의 패턴에 다 들어간다. 뒤로 갈수록 한 단계씩 붙는다.
+
+```
+ZMR                     모듈          (ZD... 는 standard ABAP)
+ZMR-CM                  + 서브모듈2
+ZSD-SA-01-A10           + L3코드2 + L4코드3
+ZSD-SA-01-A10_D001      + 설계ID (3~4자리)
+```
+
+계층별로 행을 나누지 않은 이유는 행이 AND 이기 때문이다. 나누면 `ZMR` 이
+L4 규칙에도 걸린다.
 
 길이 규칙은 어디에도 두지 않는다. CDS 뷰 30자, 테이블 16자 같은 상한은
 시스템이 이미 막는다.

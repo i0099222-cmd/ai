@@ -72,7 +72,7 @@ etag master LocalLastChangedAt
   action ( features : instance, authorization : instance ) approve result [1] $self;
   action ( features : instance, authorization : instance ) reject
     parameter ZD_AtcReject result [1] $self;
-  action ( features : instance, authorization : instance ) revoke result [1] $self;
+
 
   // 유효기간 연장. 재승인을 거치도록 승인대기로 되돌린다.
   action ( features : instance ) extendValidity

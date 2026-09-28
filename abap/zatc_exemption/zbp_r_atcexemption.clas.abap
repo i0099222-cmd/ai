@@ -76,8 +76,6 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS reject FOR MODIFY
       IMPORTING keys FOR ACTION exemption~reject RESULT result.
 
-    METHODS revoke FOR MODIFY
-      IMPORTING keys FOR ACTION exemption~revoke RESULT result.
 
     METHODS extendvalidity FOR MODIFY
       IMPORTING keys FOR ACTION exemption~extendvalidity RESULT result.
@@ -178,11 +176,6 @@ CLASS lhc_exemption IMPLEMENTATION.
            AND lv_is_requester = abap_false
           THEN if_abap_behv=>fc-o-enabled ELSE if_abap_behv=>fc-o-disabled )
 
-        %action-revoke              = COND #(
-          WHEN ls_exemption-exemptstatus = zif_atc_exemption=>status-approved
-           AND lv_is_approver = abap_true
-          THEN if_abap_behv=>fc-o-enabled ELSE if_abap_behv=>fc-o-disabled )
-
         %action-extendvalidity      = COND #(
           WHEN ls_exemption-exemptstatus = zif_atc_exemption=>status-approved
            AND lv_is_requester = abap_true
@@ -240,8 +233,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                       %update          = lv_update
                       %delete          = lv_update
                       %action-approve  = lv_approve
-                      %action-reject   = lv_approve
-                      %action-revoke   = lv_approve ) TO result.
+                      %action-reject   = lv_approve ) TO result.
 
     ENDLOOP.
 
@@ -1166,70 +1158,6 @@ CLASS lhc_exemption IMPLEMENTATION.
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         UPDATE FIELDS ( exemptstatus approver approvedat extexemptid )
-        WITH lt_update.
-
-    " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지
-    " 성공한 것처럼 돌려주게 된다.
-    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
-      ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( lt_update )
-      RESULT DATA(lt_result).
-
-    result = VALUE #( FOR ls_res IN lt_result
-                      ( %tky = ls_res-%tky %param = CORRESPONDING #( ls_res ) ) ).
-
-  ENDMETHOD.
-
-
-  METHOD revoke.
-
-    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
-      ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_exemption).
-
-    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
-
-    LOOP AT lt_exemption INTO DATA(ls_exemption).
-
-      " 상태가 맞지 않으면 조용히 건너뛰지 않고 거부한다. 그냥 넘기면 액션이
-      " 성공한 것처럼 끝나서 사용자는 왜 아무 일도 없었는지 알 수 없다.
-      IF ls_exemption-exemptstatus <> zif_atc_exemption=>status-approved.
-        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
-        APPEND VALUE #( %tky = ls_exemption-%tky
-                        %msg = new_error( iv_number = '020'
-                                          iv_v1     = ls_exemption-exemptstatus ) )
-               TO reported-exemption.
-        CONTINUE.
-      ENDIF.
-
-      " 표준 쪽 무효화도 저장 시퀀스에서 한다 (승인과 같은 이유).
-      SELECT SINGLE * FROM ztatcexempt
-        WHERE exemptuuid = @ls_exemption-exemptuuid
-        INTO @DATA(ls_db).
-
-      DATA(ls_sync) = sync_standard(
-                        is_row       = ls_db
-                        iv_operation = zcl_atc_exempt_parallel=>operation-revoke
-                        iv_reason    = |CBO 대장에서 철회| ).
-
-      APPEND VALUE #( %tky         = ls_exemption-%tky
-                      exemptstatus = zif_atc_exemption=>status-revoked
-                      extexemptid  = COND #( WHEN ls_sync-success = abap_true
-                                             THEN space
-                                             ELSE ls_db-extexemptid ) ) TO lt_update.
-
-      write_log( is_row     = ls_exemption
-                 iv_action  = zif_atc_exemption=>logaction-revoke
-                 iv_from    = ls_exemption-exemptstatus
-                 iv_to      = zif_atc_exemption=>status-revoked
-                 iv_comment = ls_sync-message ).
-
-    ENDLOOP.
-
-    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
-      ENTITY exemption
-        UPDATE FIELDS ( exemptstatus extexemptid )
         WITH lt_update.
 
     " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지

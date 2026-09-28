@@ -18,7 +18,6 @@ define behavior for ZP_AtcExemption alias Exemption
   use action withdraw;
   use action approve;
   use action reject;
-  use action revoke;
   use action extendValidity;
   use action simulateImpact;
 

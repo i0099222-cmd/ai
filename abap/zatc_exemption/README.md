@@ -78,6 +78,12 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
   `OBJ` / `PCKG` 스코프에서 `subobjname` / `subobjtype` / `checksum` 이 비는 것은
   정상이다. 그 셋은 `FND`(개별 finding) 스코프에서만 채워진다.
 
+- **승인 테스트에는 계정이 둘 필요하다.**
+  표준은 예외의 신청자를 우리가 넘긴 `i_contact_person` 이 아니라 **생성
+  호출을 실행 중인 사용자**로 기록한다. 그래서 대장의 `requester` 를 바꿔
+  놓아도 표준 쪽 신청자는 바뀌지 않고, 네눈 원칙(신청자 ≠ 승인자)에 걸린다.
+  A 로 로그인해 상신하고 B 로 로그인해 승인해야 통과한다.
+
 - **예외 취소는 `get_exemption( <ID> )` → `lock_and_refresh( )` → `delete( )`.**
   `get_exemption( )` 은 조회용 핸들을 주므로 잠그지 않고 `delete( )` 를 부르면
   "the operation cannot be executed in the current state" 로 거부된다.

@@ -157,13 +157,12 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
     TRY.
 
-        " 신청서의 checkclass / checkcode 는 표준 예외 뷰
-        " SATC_CI_R_EXEMPTION 과 같은 형태의 값이다 (CL_CI_TEST_DB / DBREAD).
-        " 여기서는 그대로 넘긴다.
+        " checkclass / checkcode 는 SATC_CI_R_EXEMPTION 과 같은 형태의 값이다.
         "
-        " 두 값은 findings 뷰에 없어서 ZCL_ATC_CHECK_RESOLVER 가 환산하거나,
-        " 환산되지 않으면 사용자가 신청 화면에서 직접 채운다. 어느 쪽이든
-        " 저장 시점의 필수 검증을 통과한 뒤에만 이 메서드에 도달한다.
+        " i_contact_person 은 넘겨도 표준이 쓰지 않는다. 표준은 신청자를
+        " **이 호출을 실행 중인 사용자**로 기록한다(확인함). 그래서 대장의
+        " requester 를 바꿔도 표준 쪽 신청자는 바뀌지 않는다. 값은 의도를
+        " 남기려고 그대로 넘긴다.
         DATA(lo_exemption) = lo_controller->create_exemption(
           i_object_type    = is_exemption-objecttype
           i_object_name    = is_exemption-objectname

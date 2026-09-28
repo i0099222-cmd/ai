@@ -103,6 +103,16 @@ CLASS zcl_atc_exempt_sync DEFINITION
                 iv_reason        TYPE string OPTIONAL
       RETURNING VALUE(rs_result) TYPE ty_result.
 
+    "! 승인자가 반려한다.
+    "!
+    "! 삭제가 아니라 표준의 반려 전이다. 상태가 REJ 로 남아야 신청자가 표준
+    "! 쪽에서도 반려 사실을 알 수 있고, 알림 유형 REJ(반려 시 통보)도 이
+    "! 전이에 걸린다. 지워 버리면 그 둘이 다 사라진다.
+    METHODS reject_exemption
+      IMPORTING iv_extexemptid   TYPE sysuuid_c32
+                iv_reason        TYPE string OPTIONAL
+      RETURNING VALUE(rs_result) TYPE ty_result.
+
     "! ADT 에서 직접 올라온 신청을 CBO 대장으로 끌어온다.
     "!
     "! 신청 경로는 두 개이고 ADT 경로는 막을 수 없다. 동기화하지 않으면
@@ -306,6 +316,46 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
       CATCH cx_root INTO DATA(lo_error).
         rs_result = VALUE #( success = abap_false
                              message = lo_error->get_text( ) ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD reject_exemption.
+
+    IF iv_extexemptid IS INITIAL.
+      rs_result = VALUE #( success = abap_true
+                           message = |표준 예외 없음 - CBO 기록만 변경| ).
+      RETURN.
+    ENDIF.
+
+    DATA(lo_controller) = get_controller( ).
+
+    TRY.
+
+        DATA(lo_exemption) = lo_controller->get_exemption( iv_extexemptid ).
+
+        " get_exemption( ) 은 조회용 핸들을 준다. 잠가야 편집 계열이 된다.
+        lo_exemption->lock_and_refresh( ).
+
+        " 🔴 reject( ) 에 반려 사유 파라미터가 있으면 iv_reason 을 넘길 것.
+        lo_exemption->reject( ).
+        lo_exemption->unlock( ).
+
+        rs_result = VALUE #( success     = abap_true
+                             extexemptid = iv_extexemptid
+                             message     = |표준 예외 { iv_extexemptid } 반려 { iv_reason }| ).
+
+      CATCH cx_root INTO DATA(lo_error).
+        IF lo_exemption IS BOUND.
+          TRY.
+              lo_exemption->unlock( ).
+            CATCH cx_root ##NO_HANDLER.
+          ENDTRY.
+        ENDIF.
+
+        rs_result = VALUE #( success = abap_false
+                             message = |반려 실패: { lo_error->get_text( ) }| ).
     ENDTRY.
 
   ENDMETHOD.

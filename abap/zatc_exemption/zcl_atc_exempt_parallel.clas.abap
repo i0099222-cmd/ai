@@ -29,6 +29,7 @@ CLASS zcl_atc_exempt_parallel DEFINITION
         approve  TYPE char10 VALUE 'APPROVE',
         "! 반려 / 철회 / 만료 -> 표준 무효화 (승인자 행위)
         revoke   TYPE char10 VALUE 'REVOKE',
+        reject   TYPE char10 VALUE 'REJECT',
         "! 상신철회 -> 신청자가 자기 신청을 삭제
         withdraw TYPE char10 VALUE 'WITHDRAW',
       END OF operation.
@@ -115,6 +116,11 @@ CLASS zcl_atc_exempt_parallel IMPLEMENTATION.
                         iv_extexemptid = lv_extid
                         iv_assessment  = ms_exemption-reasontext ).
         ENDIF.
+
+      WHEN operation-reject.
+        ms_result = lo_sync->reject_exemption(
+                      iv_extexemptid = ms_exemption-extexemptid
+                      iv_reason      = mv_reason ).
 
       WHEN operation-withdraw OR operation-revoke.
 

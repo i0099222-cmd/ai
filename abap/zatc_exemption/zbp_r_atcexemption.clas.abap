@@ -1134,16 +1134,13 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       DATA(ls_sync) = sync_standard(
                         is_row       = ls_db
-                        iv_operation = zcl_atc_exempt_parallel=>operation-revoke
-                        iv_reason    = |CBO 대장에서 반려| ).
+                        iv_operation = zcl_atc_exempt_parallel=>operation-reject
+                        iv_reason    = CONV #( ls_key-%param-rejectreason ) ).
 
-      " 표준 예외를 실제로 지웠을 때만 ID 를 비운다. 실패했는데 비우면
-      " 표준에는 살아 있는 행이 남고 우리는 그 행을 다시 찾지 못한다.
+      " ID 는 그대로 둔다. 반려는 삭제가 아니라 상태 전이라서 표준 행이
+      " REJ 로 살아 있고, 그 행과의 연결을 끊으면 안 된다.
       APPEND VALUE #( %tky         = ls_key-%tky
                       exemptstatus = zif_atc_exemption=>status-rejected
-                      extexemptid  = COND #( WHEN ls_sync-success = abap_true
-                                             THEN space
-                                             ELSE ls_db-extexemptid )
                       approver     = sy-uname
                       approvedat   = lv_now ) TO lt_update.
 
@@ -1157,7 +1154,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus approver approvedat extexemptid )
+        UPDATE FIELDS ( exemptstatus approver approvedat )
         WITH lt_update.
 
     " 실패한 건은 result 에 넣지 않는다. keys 로 다시 읽으면 거부된 건까지

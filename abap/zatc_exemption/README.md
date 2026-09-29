@@ -647,7 +647,7 @@ keys 로 다시 읽으면 거부된 건까지 성공한 것처럼 돌려주게 �
 | `submit` | 초안 | 상신 시 영향 건수를 근거 텍스트에 자동 기입 |
 | `withdraw` | 승인대기 | |
 | `approve` | 승인대기 | 자기승인 금지 (014) |
-| `reject` | 승인대기 | 반려 사유 필수 (015) |
+| `reject` | 승인대기 · **승인** | 반려 사유 필수 (015). 표준이 승인된 예외에도 Reject 를 허용하며 그것이 무효화 경로다 |
 | `extendValidity` | 승인 | 연장일이 현재보다 뒤여야 함 (016). 승인대기로 되돌려 재승인 |
 | `simulateImpact` | (제한 없음) | 승인 판단 근거라 누구나 확인 가능 |
 | `createFromFinding` | (static factory) | 대상 finding 없으면 거부 (017). 화면에 노출하지 않고 `requestExemption` 이 EML 로 부른다 |

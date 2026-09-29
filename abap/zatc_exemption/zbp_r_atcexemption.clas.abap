@@ -149,7 +149,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       " 버튼 활성화 규칙. 같은 화면에서 신청자와 승인자를 구분하는 지점이다.
       "   신청자 : 본인 초안에서만 Submit/Delete, 승인대기에서 Withdraw
-      "   승인자 : 승인대기에서만 Approve/Reject, 승인 건에서 Revoke
+      "   승인자 : 승인대기에서 Approve/Reject, 승인 건에서도 Reject
       "   자기승인은 금지한다.
       APPEND VALUE #(
         %tky                        = ls_exemption-%tky
@@ -170,8 +170,13 @@ CLASS lhc_exemption IMPLEMENTATION.
            AND lv_is_requester = abap_false
           THEN if_abap_behv=>fc-o-enabled ELSE if_abap_behv=>fc-o-disabled )
 
+        " 승인 건에서도 반려할 수 있다. 표준이 승인된 예외에 Reject 를 허용하고,
+        " 그것이 표준의 무효화 경로다. 우리가 승인대기로만 막으면 한번 승인한
+        " 예외를 이 앱에서 되돌릴 방법이 없어진다 - 사용자는 표준 앱으로 가서
+        " 처리하게 되고, 그러면 결재 흔적이 CBO 대장을 비켜 간다.
         %action-reject              = COND #(
-          WHEN ls_exemption-exemptstatus = zif_atc_exemption=>status-pending
+          WHEN ( ls_exemption-exemptstatus = zif_atc_exemption=>status-pending
+              OR ls_exemption-exemptstatus = zif_atc_exemption=>status-approved )
            AND lv_is_approver = abap_true
            AND lv_is_requester = abap_false
           THEN if_abap_behv=>fc-o-enabled ELSE if_abap_behv=>fc-o-disabled )
@@ -1111,7 +1116,12 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       DATA(ls_exemption) = VALUE #( lt_exemption[ %tky = ls_key-%tky ] OPTIONAL ).
 
-      IF ls_exemption-exemptstatus <> zif_atc_exemption=>status-pending.
+      " 승인 건도 반려할 수 있다. 표준이 승인된 예외에 Reject 를 허용하며
+      " 그것이 표준의 무효화 경로다. 이때의 반려는 "이미 적용 중인 면제를
+      " 거둬들인다" 는 뜻이고, 승인 후 면제가 계속 유효할 이유가 없어진 건은
+      " 이 경로로만 끌 수 있다.
+      IF ls_exemption-exemptstatus <> zif_atc_exemption=>status-pending
+     AND ls_exemption-exemptstatus <> zif_atc_exemption=>status-approved.
         APPEND VALUE #( %tky = ls_key-%tky ) TO failed-exemption.
         APPEND VALUE #( %tky = ls_key-%tky
                         %msg = new_error( iv_number = '020'
@@ -1121,6 +1131,8 @@ CLASS lhc_exemption IMPLEMENTATION.
       ENDIF.
 
       " 반려 사유는 필수다. 사유 없는 반려는 신청자가 무엇을 고쳐야 할지 모른다.
+      " 승인 건을 거둬들이는 경우에는 더 그렇다 - 개발자는 어제까지 통과했던
+      " 위반이 왜 다시 막히는지 여기서만 알 수 있다.
       IF ls_key-%param-rejectreason IS INITIAL.
         APPEND VALUE #( %tky = ls_key-%tky ) TO failed-exemption.
         APPEND VALUE #( %tky = ls_key-%tky

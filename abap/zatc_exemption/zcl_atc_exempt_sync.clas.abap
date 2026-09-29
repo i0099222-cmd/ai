@@ -187,6 +187,14 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         DATA lv_object_name TYPE ztatcexempt-objectname.
 
         IF is_exemption-scopetype = zif_atc_exemption=>scope-pckg.
+          " 패키지가 비어 있으면 만들지 않는다. 빈 이름으로도 행은 생기고
+          " 승인까지 되는데 아무것도 면제하지 않는다. 대장은 승인이고 ATC 는
+          " 계속 막는 상태가 조용히 만들어지므로, 여기서 실패로 끊는다.
+          IF is_exemption-devclass IS INITIAL.
+            rs_result = VALUE #( success = abap_false
+                                 message = |패키지 스코프인데 패키지가 비어 있다| ).
+            RETURN.
+          ENDIF.
           lv_object_type = 'DEVC'.
           lv_object_name = is_exemption-devclass.
         ELSE.

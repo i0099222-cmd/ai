@@ -1,10 +1,11 @@
 @AccessControl.authorizationCheck: #CHECK
 @EndUserText.label: 'ATC Findings'
-@Metadata.allowExtensions: true
 @Search.searchable: true
-// 읽기 전용이므로 behavior definition 없이 서비스에 노출한다.
-// 여기서 위반 건을 선택해 예외 신청(createFromFinding)으로 넘어간다.
-define view entity ZP_AtcFinding
+// 위반 자체는 읽기 전용이다. behavior 를 두는 것은 [예외 신청] 액션 하나
+// 때문이고, 그 액션은 finding 을 바꾸지 않고 신청서를 만든다.
+@Metadata.allowExtensions: true
+define root view entity ZP_AtcFinding
+  provider contract transactional_query
   as projection on ZI_AtcFinding
 {
   key ResultId,

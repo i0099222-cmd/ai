@@ -33,4 +33,15 @@ define abstract entity ZD_AtcCreateFromFinding
     additionalBinding: [{ localElement: 'CheckVariant', element: 'CheckVariant' }]
   }]
   ScopeType  : abap.char(4);
+
+  // 사유와 기간. 조회 화면에서 신청할 때 입력창에서 받아 그대로 내려온다.
+  // 비어 있으면 초안에서 채운다.
+  @EndUserText.label: 'Reason Code'
+  ReasonCode : abap.char(4);
+
+  @EndUserText.label: 'Justification'
+  ReasonText : abap.string(0);
+
+  @EndUserText.label: 'Valid To'
+  ValidTo    : abap.dats;
 }

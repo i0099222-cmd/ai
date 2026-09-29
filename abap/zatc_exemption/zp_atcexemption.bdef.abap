@@ -21,7 +21,8 @@ define behavior for ZP_AtcExemption alias Exemption
   use action extendValidity;
   use action simulateImpact;
 
-  use action createFromFinding;
+  // createFromFinding 은 화면에 노출하지 않는다. 조회 화면의
+  // requestExemption 이 EML 로 부른다.
 
   use association _Item { create; with draft; }
   use association _Log  { with draft; }

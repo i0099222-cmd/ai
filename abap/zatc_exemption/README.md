@@ -604,7 +604,16 @@ keys 로 다시 읽으면 거부된 건까지 성공한 것처럼 돌려주게 �
 | `reject` | 승인대기 | 반려 사유 필수 (015) |
 | `extendValidity` | 승인 | 연장일이 현재보다 뒤여야 함 (016). 승인대기로 되돌려 재승인 |
 | `simulateImpact` | (제한 없음) | 승인 판단 근거라 누구나 확인 가능 |
-| `createFromFinding` | (static factory) | 대상 finding 없으면 거부 (017) |
+| `createFromFinding` | (static factory) | 대상 finding 없으면 거부 (017). 화면에 노출하지 않고 `requestExemption` 이 EML 로 부른다 |
+
+조회 화면(`ZP_AtcFinding`)에도 액션이 하나 있다.
+
+| Action | 하는 일 |
+|---|---|
+| `requestExemption` | 고른 위반들로 신청서를 만든다. 적용범위가 `PCKG` 면 패키지+체크가 같은 선택 건들이 신청서 하나로 묶인다 |
+
+주 경로는 **조회 화면 → 위반 선택 → 예외 신청**이다. 신청 목록의 `Create` 는
+아직 ATC 를 돌리지 않은 대상을 미리 거는 선등록 전용이다.
 
 ## Determination 구성
 

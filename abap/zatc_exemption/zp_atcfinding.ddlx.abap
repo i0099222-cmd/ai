@@ -5,7 +5,11 @@
     typeNamePlural: 'ATC Findings',
     title:          { type: #STANDARD, value: 'ObjectName' },
     description:    { value: 'MessageText' }
-  }
+  },
+  // 목록에서 위반을 여러 건 골라 한 번에 신청한다. 적용범위를 PCKG 로
+  // 고르면 같은 패키지끼리 신청서 하나로 묶인다.
+  lineItem: [{ type: #FOR_ACTION, dataAction: 'requestExemption',
+               label: 'Request Exemption', position: 10 }]
 }
 annotate entity ZP_AtcFinding with
 {

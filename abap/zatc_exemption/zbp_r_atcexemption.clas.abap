@@ -1328,6 +1328,11 @@ CLASS lhc_exemption IMPLEMENTATION.
         checkclass = ls_param-checkclass
         checkcode  = ls_param-checkcode
         rulescope  = zif_atc_exemption=>rulescope-message
+        " 사유와 기간은 넘어온 값이 있으면 쓴다. 조회 화면에서 신청하면
+        " 입력창에서 받아 오고, 없으면 초안에서 채운다.
+        reasoncode = ls_param-reasoncode
+        reasontext = ls_param-reasontext
+        validto    = ls_param-validto
         " preregflag 는 넣지 않는다. derivePreReg 가 증빙 유무로 판정한다.
         validfrom  = sy-datum ) TO lt_create.
 
@@ -1359,7 +1364,8 @@ CLASS lhc_exemption IMPLEMENTATION.
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         CREATE FIELDS ( checkvariant scopetype devclass objecttype objectname
-                        checkclass checkcode rulescope validfrom )
+                        checkclass checkcode rulescope validfrom
+                        reasoncode reasontext validto )
         WITH lt_create
       ENTITY exemption
         CREATE BY \_Item

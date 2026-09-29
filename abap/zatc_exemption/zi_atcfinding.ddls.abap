@@ -28,7 +28,7 @@
 // 알려진 제약: 하위 패키지 포함(InclSubPkg) 은 CDS 조인으로 패키지 계층을 전개할 수
 //   없어 여기서는 패키지 직접 일치만 판정한다. Phase 1 은 화면에서 InclSubPkg 를
 //   읽기 전용으로 잠가 판정 로직과 어긋나지 않게 한다.
-define view entity ZI_AtcFinding
+define root view entity ZI_AtcFinding
   as select from satc_api_findings as Finding
 
   // 컨트롤 테이블에 활성으로 등록된 체크 변형의 결과만 앱의 대상이다.

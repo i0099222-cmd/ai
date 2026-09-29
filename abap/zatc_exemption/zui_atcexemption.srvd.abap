@@ -4,10 +4,15 @@
 //
 // Fiori 앱은 둘이다. Finding 과 Exemption 이 부모-자식이 아니라서 한 앱의
 // 메인 엔티티가 될 수 없다. 서비스와 바인딩은 그대로 하나다.
-//   앱 A  메인 = Finding    타일 ① "ATC 위반 조회"                  개발자
-//   앱 B  메인 = Exemption  타일 ② "내 예외 신청"  Requester = 본인  개발자
-//                           타일 ③ "ATC 예외 승인" 상태 = 승인대기   승인자
-// ②와 ③은 같은 앱에 필터 프리셋만 다른 타일이다. 역할 카탈로그에 나누어 배치한다.
+//   앱 A  메인 = Finding    타일 ① ATC Findings           ATC 위반 현황
+//   앱 B  메인 = Exemption  타일 ② My ATC Exemptions       내 ATC 예외 신청
+//                           타일 ③ Review ATC Exemptions   ATC 예외 결재
+// ②와 ③은 같은 앱에 필터 프리셋만 다른 타일이다(② Requester = 본인,
+// ③ 상태 = 승인대기). 역할 카탈로그에 나누어 배치한다.
+//
+// ③을 "Approve ATC Exemptions" 로 부르지 않는다. 그것이 표준 Fiori 앱의 이름이고,
+// 런치패드에 나란히 뜨면 어디서 결재해야 하는지 알 수 없게 된다. 결재 창구를 이
+// 앱 하나로 남기는 것이 이 앱을 CBO 로 만든 이유다.
 //
 // 일은 ①에서 시작한다. 위반을 골라 requestExemption 을 누르면 신청서가 생기고,
 // 그 뒤는 ②/③에서 흐른다.

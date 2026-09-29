@@ -38,15 +38,16 @@ define root view entity ZI_AtcFinding
     on  Cfg.checkvariant = Finding.checkvariant
     and Cfg.activeflg    = 'X'
 
-  // ATC 는 실행할 때마다 결과를 새 result 로 쌓는다. 필터가 없으면 같은 위반이
-  // 회차만큼 보이고, 예외 승인 전 회차와 후 회차가 나란히 떠서 예외가 안 먹는
-  // 것처럼 보인다.
-  //
-  // 표준이 유효 결과를 isactiveresult 로 표시하므로 그것만 읽는다. 최신 회차를
-  // MAX 로 계산할 필요가 없고, "무엇이 현재 결과인가" 의 판정을 표준에 맡긴다.
+  // 오브젝트마다 최신 회차의 결과만 남긴다. 판정 기준은 ZI_AtcLatestRun 이 들고
+  // 있고, 왜 표준 플래그를 못 쓰는지도 거기에 적혀 있다.
   inner join satc_api_result_headers as Hdr
-    on  Hdr.resultid       = Finding.resultid
-    and Hdr.isactiveresult = 'X'
+    on Hdr.resultid = Finding.resultid
+
+  inner join ZI_AtcLatestRun as Latest
+    on  Latest.ObjectType   = Finding.objecttype
+    and Latest.ObjectName   = Finding.objectname
+    and Latest.CheckVariant = Finding.checkvariant
+    and Latest.LatestRunTs  = Hdr.scheduledontimestamp
 
   // SATC_API_FINDINGS 는 체크를 moduleid(RAW16) 로만 식별한다. 표준 예외 API 가
   // 받는 것은 문자 클래스명(CL_CI_TEST_DB)이므로 체크 모듈 테이블에서 가져온다.

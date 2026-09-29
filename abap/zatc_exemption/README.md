@@ -56,7 +56,7 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | **적용범위 코드값** | `FND` / `OBJ` / **`PCKG`** | 가정했던 `PKG` 가 틀렸다. 값과 함께 **필드 길이도 `char(4)`** 로 수정 |
 | **표준 예외 API** | `CL_SATC_API=>CREATE_API_FACTORY( )->GET_EXEMPTION_CONTROLLER( )` | **Option B 확정.** 커스텀 체크 클래스(Option C) 폐기 |
 | 컨트롤러 메소드 | `create_exemption( )` / `approve_exemptions_by_if( )` | **생성이 되므로 앱의 신청 기능이 유효**하다 |
-| `create_exemption` 필수 파라미터 | `i_object_type` / `i_object_name` / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관** |
+| `create_exemption` 파라미터 | `i_object_type` / `i_object_name` / **`i_package_name`** / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관.** 패키지는 `i_package_name` 이고, 오브젝트 자리에 넣으면 안 된다 |
 | 예외 오브젝트 API | `set_object_scope`(타입 `SATC_CI_OBJ_SCOPE`) / `set_check_scope` / `set_reason` / `set_validity_date` / `set_approver` / `set_notification_type` / `send_to_approver` / `unlock` / `get_exemption_id` | **`set_object_scope` 덕분에 패키지 스코프를 표준 예외 1건으로 넘길 수 있다** → 예외 ID 는 헤더에 1개, 오브젝트별 전개 불필요. 유효기간도 표준에 넘어간다 |
 | 알림 유형 | `REJ` 반려 시 / `ALWS` 승인·반려 모두 / `NEVR` 없음 | 조직 정책이므로 `ztatccfg-notiftype` 설정으로 |
 | 표준 승인자 | 표준은 승인자 1명을 필수로 요구한다 | `ztatccfg-defapprover`. 비어 있으면 상신이 막힌다(메시지 021) |
@@ -167,8 +167,9 @@ GUID 와 인덱스이므로 클래스명은 `ci_id` 다.
 
 ```abap
 DATA(lo_exemption) = lo_controller->create_exemption(
-  i_object_type    = ...    " 출발점 오브젝트. 패키지 스코프에서도 필수
+  i_object_type    = ...    " 위반이 난 오브젝트. 패키지 스코프에서도 필수
   i_object_name    = ...
+  i_package_name   = ...    " 패키지는 **여기**다. 오브젝트 자리가 아니다
   i_check_class    = ...    " 체크. 비워 둘 수 없다
   i_check_code     = ...    " 메시지. 비워 둘 수 없다
   i_contact_person = ... ).
@@ -186,6 +187,51 @@ DATA(lv_id) = lo_exemption->get_exemption_id( ).
 " 이어서 바로 승인한다
 lo_controller->approve_exemptions_by_if( exemptions_for_approval = ... ).
 ```
+
+#### 패키지 스코프는 `i_package_name` 이다 (실기로 확인)
+
+`PCKG` 스코프에서 표준은 저장 행의 `obj_type` / `obj_name` 을 **스코프와
+`i_package_name` 에서 스스로 파생한다** (`DEVC` / 패키지명). 오브젝트 파라미터에는
+위반이 난 오브젝트를 그대로 넣는다.
+
+여기서 네 번 돌았다. 남겨 둔다.
+
+| 시도 | 넘긴 값 | 결과 |
+|---|---|---|
+| 1 | 오브젝트명만, 패키지 안 넘김 | 행은 생기고 승인도 되는데 **아무것도 면제하지 않는다** |
+| 2 | `i_object_name` 에 패키지명 | `referred object <패키지> does not exist anymore` — `R3TR <원래유형> <패키지>` 를 TADIR 에서 찾는다 |
+| 3 | `i_object_type = 'DEVC'` + `i_object_name` 에 패키지명 | `obj_type` 은 `DEVC` 로 들어가는데 **`obj_name` 이 빈 채로 저장된다** |
+| 4 | `i_package_name` 에 패키지 | 동작한다 |
+
+3번이 결정적 단서였다. 이름이 사라진 것은 표준이 `i_package_name` 에서 이름을
+만들기 때문이고, 그 파라미터를 안 넘겼으니 빈 값이 된 것이다.
+
+진단이 오래 걸린 이유는 1번의 실패가 조용했기 때문이다. 빈 패키지로도 행은
+생기고 승인까지 된다 — 대장은 승인인데 ATC 는 계속 막는다. 그래서
+`zcl_atc_exempt_sync` 는 `PCKG` 인데 `devclass` 가 비면 실패로 끊는다.
+
+막힐 때 가장 빠른 길: **ADT 에서 같은 위반에 "All Objects of Package" 로 예외를
+만들고 승인해서 동작을 확인한 뒤, 그 행의 전체 컬럼을 우리 행과 대조한다.**
+필드 하나만 골라 물어보면(그때 `obj_type` 이 그렇게 빠졌다) 같은 자리를 다시 돈다.
+
+#### 규칙 범위는 패키지 신청에서 `CHK` 여야 한다
+
+`MSG` 는 체크 코드 하나만 덮는다. 네이밍 체크는 우선순위별로
+`NAMING_E` / `NAMING_W` / `NAMING_N` 으로 코드를 나눠 내므로, `MSG` 로 두면
+"패키지 싹 다" 신청이 코드 종류만큼 쪼개진다. 실제로 한 패키지 안에서 어떤
+위반은 `exemption_applies`, 어떤 위반은 `approval_missing` 이 됐다.
+
+`createFromFinding` 이 `PCKG` 면 `CHK`, 그 외는 `MSG` 를 넣는다. finding 쪽 그룹
+키도 `PCKG` 일 때 체크 코드를 빼야 한다 — `CHK` 가 코드를 안 가리므로, 코드별로
+신청서를 만들면 같은 범위를 덮는 신청서가 여러 장 생기고 중복 검증에 걸린다.
+
+#### 미승인 신청이 승인된 예외를 가린다
+
+한 finding 을 덮는 예외가 여럿이면 표준은 **더 구체적인 쪽의 상태**를 보고한다.
+오브젝트 단위 신청이 승인 대기로 남아 있으면, 그 패키지 예외가 승인돼 있어도
+`approval_missing` 으로 뜬다. 운영에서도 일어난다 — 개발자가 `OBJ` 신청을 하나
+올려두고 방치하면 그 오브젝트만 계속 막힌 것처럼 보인다. 만료·방치 신청 정리
+작업에서 함께 다룬다.
 
 생성만으로는 승인 상태가 되지 않는다. `send_to_approver( )` 로 승인 요청까지 간 뒤
 `approve_exemptions_by_if( )` 로 승인해야 한다. **두 호출을 한 번에 이어서 한다** —

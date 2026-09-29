@@ -110,25 +110,24 @@ define root view entity ZI_AtcFinding
       Finding.responsible        as Responsible,
 
       // --- 표준이 들고 있는 예외 상태 ---
-      // 원본은 ENUM 이다 (unknown/external, no_exemption/exemption_applies,
-      // undefined/approved). 그대로 내보내면 DDIC 타입이 숫자 계열이라
-      // OData 직렬화가 "the argument 'A' cannot be interpreted as a number"
-      // 로 죽는다. 우리가 쓰는 것은 "있나/유효한가/승인됐나" 셋뿐이므로
-      // 여기서 문자 플래그로 접는다.
-      case when Finding.exemptionkind is initial
-           then cast( '' as abap.char( 1 ) )
-           else cast( 'X' as abap.char( 1 ) )
-      end                        as StdExemptionKind,
+      // 원본은 ENUM 이다. 그대로 내보내면 DDIC 타입이 숫자 계열이라 OData
+      // 직렬화가 "the argument 'A' cannot be interpreted as a number" 로
+      // 죽는다. 값은 한 글자이므로 CHAR(1) 로 내보내 코드를 그대로 살린다.
+      //
+      //   kind      '' 없음 / A 외부 / I 내부 / B 베이스라인 / 3 베이스라인(저)
+      //   validity  '' 미상 / N 예외없음 / I 비활성 / A 승인대기 / E 적용중
+      //   approval  '' 미상 / - 미정 / U 미처리 / P 처리중 / R 반려 / A 승인
+      cast( Finding.exemptionkind     as abap.char( 1 ) ) as StdExemptionKind,
+      cast( Finding.exemptionvalidity as abap.char( 1 ) ) as StdExemptionValidity,
+      cast( Finding.exemptionapproval as abap.char( 1 ) ) as StdExemptionApproval,
 
-      case when Finding.exemptionvalidity is initial
-           then cast( '' as abap.char( 1 ) )
-           else cast( 'X' as abap.char( 1 ) )
-      end                        as StdExemptionValidity,
-
-      case when Finding.exemptionapproval is initial
-           then cast( '' as abap.char( 1 ) )
-           else cast( 'X' as abap.char( 1 ) )
-      end                        as StdExemptionApproval,
+      // 표준이 이 위반을 실제로 덮고 있는가.
+      // 예외가 걸려 있어도(kind) 비활성이거나 승인 전이면 ATC 는 여전히 막는다.
+      // 그래서 kind 가 아니라 validity 로 판단한다.
+      case when Finding.exemptionvalidity = 'E'
+           then cast( 'X' as abap.char( 1 ) )
+           else cast( '' as abap.char( 1 ) )
+      end                        as StdExemptionActive,
 
       // --- CBO 대장 기준 면제 여부 ---
       // 신청번호를 두지 않으므로, 어느 예외가 덮고 있는지는 범위로 말한다.
@@ -153,11 +152,14 @@ define root view entity ZI_AtcFinding
       end                        as ExemptValidTo,
 
       // 대장과 표준의 불일치. 정합성 점검이 찾는 것이 이 값이다.
-      //   X : 대장에는 승인된 예외가 있는데 표준에는 예외가 없다
+      //   X : 대장에는 승인된 예외가 있는데 표준에서는 아직 안 먹고 있다
       //       -> 승인 시 표준 반영이 실패했다는 뜻. 실제로는 여전히 차단된다.
+      //
+      // kind 가 아니라 validity 로 본다. 예외 행이 있어도(kind='A') 비활성이거나
+      // 승인 전이면 ATC 는 계속 막으므로, kind 로 보면 반영 누락을 놓친다.
       case
         when ( PkgExempt.ExemptUuid is not initial or ObjExempt.ExemptUuid is not initial )
-         and Finding.exemptionkind is initial
+         and Finding.exemptionvalidity <> 'E'
         then cast( 'X' as abap.char( 1 ) )
         else cast( '' as abap.char( 1 ) )
       end                        as ExemptionMismatch

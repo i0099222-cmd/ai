@@ -65,12 +65,14 @@ annotate entity ZP_AtcFinding with
   ExemptValidTo;
 
   // 표준이 들고 있는 예외 상태. 대장과 나란히 보면 반영 누락이 드러난다.
+  // 실제로 ATC 를 통과시키는지는 validity 가 정하므로 그것을 보여준다.
+  //   '' 미상 / N 예외없음 / I 비활성 / A 승인대기 / E 적용중
   @UI.lineItem: [{ position: 75, importance: #MEDIUM }]
   @EndUserText.label: 'Standard Exemption'
-  StdExemptionKind;
+  StdExemptionValidity;
 
   @UI.hidden: true
-  StdExemptionValidity;
+  StdExemptionKind;
   @UI.hidden: true
   StdExemptionApproval;
 

@@ -98,11 +98,10 @@ define root view entity ZI_AtcFinding
       Finding.checksum           as Checksum,
 
       Cfg.checkgroup             as CheckGroup,
-      // priority 의 DDIC 타입은 ENUMC3 다. 그 타입을 우리 쪽으로 퍼뜨리지 않고
-      // 여기서 INT1 로 바꾼다. ATC 우선순위는 1/2/3 이라 값 손실이 없고,
-      // ztatccfg-maxpriority(INT1) 와의 숫자 비교가 그대로 성립한다.
-      // 열거 타입이라 이 캐스트가 활성화에서 거부되면 abap.numc( 3 ) 으로
-      // 바꾸고 maxpriority / ty_finding-priority 도 같은 타입으로 맞춘다.
+      // priority 도 ENUMC3 다. 예외 상태 셋과 같은 함정이 있으니,
+      // 직렬화가 여기서도 깨지면 cast 를 빼고 case 로 값을 대응시킨다.
+      //   case Finding.priority when <열거값> then 1 ... end
+      // ztatccfg-maxpriority(INT1) 와 숫자로 비교하는 곳이 있어 INT1 로 둔다.
       cast( Finding.priority as abap.int1 ) as Priority,
       Finding.messagetitle       as MessageText,
 
@@ -111,9 +110,25 @@ define root view entity ZI_AtcFinding
       Finding.responsible        as Responsible,
 
       // --- 표준이 들고 있는 예외 상태 ---
-      Finding.exemptionkind      as StdExemptionKind,
-      Finding.exemptionvalidity  as StdExemptionValidity,
-      Finding.exemptionapproval  as StdExemptionApproval,
+      // 원본은 ENUM 이다 (unknown/external, no_exemption/exemption_applies,
+      // undefined/approved). 그대로 내보내면 DDIC 타입이 숫자 계열이라
+      // OData 직렬화가 "the argument 'A' cannot be interpreted as a number"
+      // 로 죽는다. 우리가 쓰는 것은 "있나/유효한가/승인됐나" 셋뿐이므로
+      // 여기서 문자 플래그로 접는다.
+      case when Finding.exemptionkind is initial
+           then cast( '' as abap.char( 1 ) )
+           else cast( 'X' as abap.char( 1 ) )
+      end                        as StdExemptionKind,
+
+      case when Finding.exemptionvalidity is initial
+           then cast( '' as abap.char( 1 ) )
+           else cast( 'X' as abap.char( 1 ) )
+      end                        as StdExemptionValidity,
+
+      case when Finding.exemptionapproval is initial
+           then cast( '' as abap.char( 1 ) )
+           else cast( 'X' as abap.char( 1 ) )
+      end                        as StdExemptionApproval,
 
       // --- CBO 대장 기준 면제 여부 ---
       // 신청번호를 두지 않으므로, 어느 예외가 덮고 있는지는 범위로 말한다.

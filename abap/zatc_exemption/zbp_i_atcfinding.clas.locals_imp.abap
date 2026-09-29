@@ -40,9 +40,11 @@ CLASS lhc_finding IMPLEMENTATION.
     DATA lt_action TYPE TABLE FOR ACTION IMPORT zr_atcexemption\\exemption~createfromfinding.
 
     " 같은 그룹은 신청서 하나로 묶는다.
-    "   PCKG : 패키지 + 체크가 같으면 한 건. 패키지 전체가 덮이므로 오브젝트를
-    "          여럿 골라도 신청서는 하나면 된다.
-    "   그 외 : 오브젝트 + 체크마다 한 건.
+    "   PCKG : 패키지 + 체크 클래스가 같으면 한 건. 패키지 신청은 규칙 범위가
+    "          CHK 라 체크 코드를 가리지 않고 덮으므로, 코드가 달라도 신청서를
+    "          더 만들 이유가 없다. 코드별로 만들면 같은 범위를 덮는 신청서가
+    "          여러 장 생기고 중복 검증에 걸린다.
+    "   그 외 : 오브젝트 + 체크 코드마다 한 건. 규칙 범위가 MSG 다.
     DATA lt_seen TYPE SORTED TABLE OF string WITH UNIQUE KEY table_line.
 
     LOOP AT keys INTO DATA(ls_key).
@@ -61,7 +63,7 @@ CLASS lhc_finding IMPLEMENTATION.
         WHEN ls_param-scopetype = zif_atc_exemption=>scope-pckg
         THEN |{ ls_param-scopetype }/{ ls_finding-checkvariant }|
           && |/{ ls_finding-devclass }|
-          && |/{ ls_finding-checkclass }/{ ls_finding-checkcode }|
+          && |/{ ls_finding-checkclass }|
         ELSE |{ ls_param-scopetype }/{ ls_finding-checkvariant }|
           && |/{ ls_finding-devclass }|
           && |/{ ls_finding-objecttype }/{ ls_finding-objectname }|

@@ -1327,7 +1327,16 @@ CLASS lhc_exemption IMPLEMENTATION.
         " 뷰가 주는 값을 그대로 옮긴다. 표준 create_exemption 이 받는 값과 같다.
         checkclass = ls_param-checkclass
         checkcode  = ls_param-checkcode
-        rulescope  = zif_atc_exemption=>rulescope-message
+        " 패키지 신청은 체크 전체를 덮는다(CHK).
+        " MSG 는 체크 코드 하나만 덮는다. 우리 네이밍 체크는 우선순위에 따라
+        " NAMING_E / NAMING_W / NAMING_N 으로 코드를 나눠 내므로, MSG 로 두면
+        " "패키지 싹 다" 신청이 코드 종류만큼 쪼개진다. 실제로 그렇게 됐고,
+        " 한 패키지 안에서 어떤 위반은 면제되고 어떤 위반은 승인대기로 남았다.
+        " 오브젝트 단위 신청은 그대로 MSG 다 - 범위가 좁으니 코드까지 좁히는
+        " 것이 맞고, 넓히고 싶으면 패키지로 신청하면 된다.
+        rulescope  = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
+                             THEN zif_atc_exemption=>rulescope-check
+                             ELSE zif_atc_exemption=>rulescope-message )
         " 사유와 기간은 넘어온 값이 있으면 쓴다. 조회 화면에서 신청하면
         " 입력창에서 받아 오고, 없으면 초안에서 채운다.
         reasoncode = ls_param-reasoncode

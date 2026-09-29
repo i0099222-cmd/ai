@@ -34,7 +34,8 @@
 "!
 "! set_object_scope 가 있으므로 패키지 스코프를 표준 예외 1건으로 넘길 수 있다.
 "! 오브젝트마다 예외를 전개할 필요가 없고, 예외 ID 는 신청서(헤더)에 1개면 된다.
-"! 단, PCKG 일 때 i_object_name 에 넣는 것은 오브젝트명이 아니라 패키지명이다.
+"! 단, PCKG 일 때 표준에 넘기는 대상은 위반 오브젝트가 아니라 패키지 자체다
+"!   i_object_type = 'DEVC', i_object_name = 패키지명
 "!
 "! 생성은 곧바로 승인 상태가 되지 않는다. send_to_approver( ) 로 승인 요청까지
 "! 간 뒤 approve_exemptions_by_if( ) 로 승인해야 한다. 그래서 두 호출을 한 번에
@@ -175,18 +176,26 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         " requester 를 바꿔도 표준 쪽 신청자는 바뀌지 않는다. 값은 의도를
         " 남기려고 그대로 넘긴다.
         "
-        " PCKG 스코프는 오브젝트명 자리에 **패키지명**이 들어간다.
-        " ADT 에서 직접 신청한 행과 대조해 확인했다. 오브젝트명을 넣으면
-        " 그 오브젝트로도 패키지로도 매칭되지 않아, state 가 OK 여도 ATC 는
-        " 계속 막는다. 오브젝트 유형은 표준도 원래 값을 그대로 둔다.
+        " PCKG 스코프는 대상 오브젝트가 위반이 난 오브젝트가 아니라 **패키지
+        " 자체**다. 유형도 이름도 같이 바꿔야 한다. 이름만 패키지로 두고 유형을
+        " 남겨두면 표준이 R3TR <원래유형> <패키지명> 을 TADIR 에서 찾다가
+        " "referred object ... does not exist anymore" 로 거부한다.
+        "
+        " 대장은 위반이 난 오브젝트를 그대로 들고 있다. 어느 위반에서 신청이
+        " 나왔는지가 기록으로 남아야 하고, 뷰의 조인도 그 값을 쓴다.
+        DATA lv_object_type TYPE ztatcexempt-objecttype.
         DATA lv_object_name TYPE ztatcexempt-objectname.
-        lv_object_name = COND #(
-          WHEN is_exemption-scopetype = zif_atc_exemption=>scope-pckg
-          THEN is_exemption-devclass
-          ELSE is_exemption-objectname ).
+
+        IF is_exemption-scopetype = zif_atc_exemption=>scope-pckg.
+          lv_object_type = 'DEVC'.
+          lv_object_name = is_exemption-devclass.
+        ELSE.
+          lv_object_type = is_exemption-objecttype.
+          lv_object_name = is_exemption-objectname.
+        ENDIF.
 
         DATA(lo_exemption) = lo_controller->create_exemption(
-          i_object_type    = is_exemption-objecttype
+          i_object_type    = lv_object_type
           i_object_name    = lv_object_name
           i_check_class    = is_exemption-checkclass
           i_check_code     = is_exemption-checkcode

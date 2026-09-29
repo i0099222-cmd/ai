@@ -7,7 +7,7 @@
   sizeCategory: #M,
   dataClass: #MIXED
 }
-// 조회 앱의 데이터 소스. ATC 결과를 **라이브로** 읽는다.
+// 조회 앱의 데이터 소스. 표준이 유효로 표시한 ATC 결과를 **라이브로** 읽는다.
 // 스냅샷 테이블을 두지 않는다 - 추세 리포팅이 요건에 없으므로 중간 적재 계층과
 // 배치, 보관 정책을 만들 이유가 없다.
 //
@@ -37,6 +37,16 @@ define root view entity ZI_AtcFinding
   inner join ztatccfg as Cfg
     on  Cfg.checkvariant = Finding.checkvariant
     and Cfg.activeflg    = 'X'
+
+  // ATC 는 실행할 때마다 결과를 새 result 로 쌓는다. 필터가 없으면 같은 위반이
+  // 회차만큼 보이고, 예외 승인 전 회차와 후 회차가 나란히 떠서 예외가 안 먹는
+  // 것처럼 보인다.
+  //
+  // 표준이 유효 결과를 isactiveresult 로 표시하므로 그것만 읽는다. 최신 회차를
+  // MAX 로 계산할 필요가 없고, "무엇이 현재 결과인가" 의 판정을 표준에 맡긴다.
+  inner join satc_api_result_headers as Hdr
+    on  Hdr.resultid       = Finding.resultid
+    and Hdr.isactiveresult = 'X'
 
   // SATC_API_FINDINGS 는 체크를 moduleid(RAW16) 로만 식별한다. 표준 예외 API 가
   // 받는 것은 문자 클래스명(CL_CI_TEST_DB)이므로 체크 모듈 테이블에서 가져온다.

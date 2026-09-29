@@ -34,8 +34,9 @@
 "!
 "! set_object_scope 가 있으므로 패키지 스코프를 표준 예외 1건으로 넘길 수 있다.
 "! 오브젝트마다 예외를 전개할 필요가 없고, 예외 ID 는 신청서(헤더)에 1개면 된다.
-"! 단, PCKG 일 때 표준에 넘기는 대상은 위반 오브젝트가 아니라 패키지 자체다
-"!   i_object_type = 'DEVC', i_object_name = 패키지명
+"! 패키지는 create_exemption 의 i_package_name 으로 넘긴다. 오브젝트 파라미터는
+"! 위반이 난 오브젝트를 그대로 넣고, PCKG 스코프에서 저장 행의 obj_type /
+"! obj_name(DEVC / 패키지명)은 표준이 스스로 파생한다.
 "!
 "! 생성은 곧바로 승인 상태가 되지 않는다. send_to_approver( ) 로 승인 요청까지
 "! 간 뒤 approve_exemptions_by_if( ) 로 승인해야 한다. 그래서 두 호출을 한 번에
@@ -176,35 +177,35 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         " requester 를 바꿔도 표준 쪽 신청자는 바뀌지 않는다. 값은 의도를
         " 남기려고 그대로 넘긴다.
         "
-        " PCKG 스코프는 대상 오브젝트가 위반이 난 오브젝트가 아니라 **패키지
-        " 자체**다. 유형도 이름도 같이 바꿔야 한다. 이름만 패키지로 두고 유형을
-        " 남겨두면 표준이 R3TR <원래유형> <패키지명> 을 TADIR 에서 찾다가
-        " "referred object ... does not exist anymore" 로 거부한다.
+        " 패키지는 i_package_name 으로 넘긴다. 오브젝트 자리에 넣는 것이 아니다.
+        " PCKG 스코프에서 표준은 저장 행의 obj_type / obj_name 을 스코프와
+        " i_package_name 에서 스스로 파생한다(DEVC / 패키지명).
         "
-        " 대장은 위반이 난 오브젝트를 그대로 들고 있다. 어느 위반에서 신청이
-        " 나왔는지가 기록으로 남아야 하고, 뷰의 조인도 그 값을 쓴다.
-        DATA lv_object_type TYPE ztatcexempt-objecttype.
-        DATA lv_object_name TYPE ztatcexempt-objectname.
-
-        IF is_exemption-scopetype = zif_atc_exemption=>scope-pckg.
-          " 패키지가 비어 있으면 만들지 않는다. 빈 이름으로도 행은 생기고
-          " 승인까지 되는데 아무것도 면제하지 않는다. 대장은 승인이고 ATC 는
-          " 계속 막는 상태가 조용히 만들어지므로, 여기서 실패로 끊는다.
-          IF is_exemption-devclass IS INITIAL.
-            rs_result = VALUE #( success = abap_false
-                                 message = |패키지 스코프인데 패키지가 비어 있다| ).
-            RETURN.
-          ENDIF.
-          lv_object_type = 'DEVC'.
-          lv_object_name = is_exemption-devclass.
-        ELSE.
-          lv_object_type = is_exemption-objecttype.
-          lv_object_name = is_exemption-objectname.
+        " 앞서 세 번 틀렸다. 남겨 둔다.
+        "   1) 오브젝트명만 넘김        -> 예외가 아무것도 매칭하지 않음
+        "   2) 오브젝트명 자리에 패키지 -> R3TR <원래유형> <패키지명> 을 TADIR 에서
+        "      찾다가 "referred object ... does not exist anymore"
+        "   3) 유형까지 DEVC 로 바꿈    -> obj_type 은 DEVC 로 들어갔지만 obj_name 이
+        "      빈 채로 저장됐다. 표준이 i_package_name 에서 이름을 파생하는데 그
+        "      파라미터를 안 넘겼기 때문이다.
+        "
+        " 그래서 오브젝트는 위반이 난 오브젝트를 그대로 넘긴다. 대장도 같은 값을
+        " 들고 있다 - 어느 위반에서 신청이 나왔는지가 기록으로 남아야 하고,
+        " 뷰의 조인도 그 값을 쓴다.
+        IF  is_exemption-scopetype = zif_atc_exemption=>scope-pckg
+        AND is_exemption-devclass IS INITIAL.
+          " 패키지가 비어 있으면 만들지 않는다. 빈 패키지로도 행은 생기고 승인까지
+          " 되는데 아무것도 면제하지 않는다. 대장은 승인이고 ATC 는 계속 막는
+          " 상태가 조용히 만들어지므로 여기서 끊는다.
+          rs_result = VALUE #( success = abap_false
+                               message = |패키지 스코프인데 패키지가 비어 있다| ).
+          RETURN.
         ENDIF.
 
         DATA(lo_exemption) = lo_controller->create_exemption(
-          i_object_type    = lv_object_type
-          i_object_name    = lv_object_name
+          i_object_type    = is_exemption-objecttype
+          i_object_name    = is_exemption-objectname
+          i_package_name   = is_exemption-devclass
           i_check_class    = is_exemption-checkclass
           i_check_code     = is_exemption-checkcode
           i_contact_person = is_exemption-requester ).

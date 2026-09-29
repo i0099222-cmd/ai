@@ -12,10 +12,30 @@ CLASS lhc_finding IMPLEMENTATION.
 
   METHOD requestexemption.
 
-    READ ENTITIES OF zi_atcfinding IN LOCAL MODE
-      ENTITY finding
-        ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_finding).
+    " ZI_AtcFinding 은 unmanaged 이고 read 를 구현하지 않았다. READ ENTITIES 는
+    " 빈 결과를 돌려주므로 뷰에서 직접 읽는다. read 를 구현해도 그 안에서 하는
+    " 일이 이 SELECT 하나라 메서드만 늘어난다.
+    DATA lt_key TYPE STANDARD TABLE OF zi_atcfinding WITH EMPTY KEY.
+
+    LOOP AT keys INTO DATA(ls_sel).
+      APPEND VALUE #( resultid      = ls_sel-%tky-ResultId
+                      itemid        = ls_sel-%tky-ItemId
+                      checkrunindex = ls_sel-%tky-CheckRunIndex ) TO lt_key.
+    ENDLOOP.
+
+    IF lt_key IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    SELECT resultid, itemid, checkrunindex,
+           checkvariant, devclass, objecttype, objectname,
+           checkclass, checkcode
+      FROM zi_atcfinding
+      FOR ALL ENTRIES IN @lt_key
+      WHERE resultid      = @lt_key-resultid
+        AND itemid        = @lt_key-itemid
+        AND checkrunindex = @lt_key-checkrunindex
+      INTO TABLE @DATA(lt_finding).
 
     DATA lt_action TYPE TABLE FOR ACTION IMPORT zr_atcexemption\\exemption~createfromfinding.
 
@@ -25,22 +45,27 @@ CLASS lhc_finding IMPLEMENTATION.
     "   그 외 : 오브젝트 + 체크마다 한 건.
     DATA lt_seen TYPE SORTED TABLE OF string WITH UNIQUE KEY table_line.
 
-    LOOP AT lt_finding INTO DATA(ls_finding).
+    LOOP AT keys INTO DATA(ls_key).
 
-      DATA(ls_param) = VALUE #( keys[ %tky-ResultId      = ls_finding-ResultId
-                                      %tky-ItemId        = ls_finding-ItemId
-                                      %tky-CheckRunIndex = ls_finding-CheckRunIndex
-                                    ]-%param OPTIONAL ).
+      READ TABLE lt_finding INTO DATA(ls_finding)
+        WITH KEY resultid      = ls_key-%tky-ResultId
+                 itemid        = ls_key-%tky-ItemId
+                 checkrunindex = ls_key-%tky-CheckRunIndex.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+
+      DATA(ls_param) = ls_key-%param.
 
       DATA(lv_group) = COND string(
         WHEN ls_param-scopetype = zif_atc_exemption=>scope-pckg
-        THEN |{ ls_finding-CheckVariant }|
-          && |/{ ls_finding-Devclass }|
-          && |/{ ls_finding-CheckClass }/{ ls_finding-CheckCode }|
-        ELSE |{ ls_finding-CheckVariant }|
-          && |/{ ls_finding-Devclass }|
-          && |/{ ls_finding-ObjectType }/{ ls_finding-ObjectName }|
-          && |/{ ls_finding-CheckClass }/{ ls_finding-CheckCode }| ).
+        THEN |{ ls_param-scopetype }/{ ls_finding-checkvariant }|
+          && |/{ ls_finding-devclass }|
+          && |/{ ls_finding-checkclass }/{ ls_finding-checkcode }|
+        ELSE |{ ls_param-scopetype }/{ ls_finding-checkvariant }|
+          && |/{ ls_finding-devclass }|
+          && |/{ ls_finding-objecttype }/{ ls_finding-objectname }|
+          && |/{ ls_finding-checkclass }/{ ls_finding-checkcode }| ).
 
       IF line_exists( lt_seen[ table_line = lv_group ] ).
         CONTINUE.
@@ -49,12 +74,12 @@ CLASS lhc_finding IMPLEMENTATION.
 
       APPEND VALUE #(
         %cid  = |RE{ lines( lt_action ) + 1 }|
-        %param = VALUE #( checkvariant = ls_finding-CheckVariant
-                          devclass     = ls_finding-Devclass
-                          objecttype   = ls_finding-ObjectType
-                          objectname   = ls_finding-ObjectName
-                          checkclass   = ls_finding-CheckClass
-                          checkcode    = ls_finding-CheckCode
+        %param = VALUE #( checkvariant = ls_finding-checkvariant
+                          devclass     = ls_finding-devclass
+                          objecttype   = ls_finding-objecttype
+                          objectname   = ls_finding-objectname
+                          checkclass   = ls_finding-checkclass
+                          checkcode    = ls_finding-checkcode
                           scopetype    = ls_param-scopetype
                           reasoncode   = ls_param-reasoncode
                           reasontext   = ls_param-reasontext
@@ -80,7 +105,7 @@ CLASS lhc_finding IMPLEMENTATION.
 
     " 선택한 행을 그대로 돌려준다. finding 은 바뀌지 않지만, 화면이
     " 새로고침되면서 예외 상태 컬럼이 갱신된다.
-    result = VALUE #( FOR ls_key IN keys ( %tky = ls_key-%tky ) ).
+    result = VALUE #( FOR ls_res IN keys ( %tky = ls_res-%tky ) ).
 
   ENDMETHOD.
 

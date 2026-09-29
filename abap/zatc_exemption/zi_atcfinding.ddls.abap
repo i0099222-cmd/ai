@@ -143,6 +143,18 @@ define root view entity ZI_AtcFinding
       // --- CBO 대장 기준 면제 여부 ---
       // 신청번호를 두지 않으므로, 어느 예외가 덮고 있는지는 범위로 말한다.
       // 패키지 예외가 더 넓으므로 먼저 본다.
+
+      // 이 위반을 덮고 있는 신청서의 키. 조회 화면에서 신청 화면으로 이동하는
+      // 유일한 수단이다. 없으면 "예외 처리됨" 만 보이고 어느 신청으로 풀렸는지
+      // 확인할 방법이 없다.
+      //
+      // 둘 다 없으면 ObjExempt 쪽이 null 이라 그대로 초기값이 된다. 여기서
+      // 리터럴을 캐스트할 방법이 없으므로(RAW16) else 를 두지 않는다.
+      case
+        when PkgExempt.ExemptUuid is not initial then PkgExempt.ExemptUuid
+        else ObjExempt.ExemptUuid
+      end                        as ExemptUuid,
+
       case
         when PkgExempt.ExemptUuid is not initial then cast( 'PCKG' as abap.char( 4 ) )
         when ObjExempt.ExemptUuid is not initial then cast( 'OBJ' as abap.char( 4 ) )

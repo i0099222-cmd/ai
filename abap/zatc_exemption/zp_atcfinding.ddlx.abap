@@ -60,9 +60,29 @@ annotate entity ZP_AtcFinding with
   @EndUserText.label: 'Exempted Scope'
   ExemptScopeType;
 
+  // 이 위반을 덮고 있는 신청서로 이동한다. 값이 있는 행만 링크가 된다.
+  //
+  // 앱이 둘이라(Finding / Exemption) 앱 내부 navigation 이 아니고, 런치패드의
+  // 시맨틱 오브젝트 이동이다. 대상 매핑을 만들어야 링크가 살아난다 - README
+  // 의 "런치패드 타일" 참고. 매핑이 없으면 값만 보이고 클릭이 안 된다.
+  @Consumption.semanticObject: 'ZAtcExemption'
+  @UI.lineItem: [{ position: 60, importance: #HIGH }]
+  @EndUserText.label: 'Exemption Request'
+  ExemptUuid;
+
   @UI.lineItem: [{ position: 70, importance: #MEDIUM }]
   @EndUserText.label: 'Exemption Valid To'
   ExemptValidTo;
+
+  // 표준 예외 API 로 그대로 넘어가는 값. 비어 있으면 신청해도 표준 반영이
+  // 실패한다. 진단에 필요하므로 목록에 두되 우선순위는 낮춘다.
+  @UI.lineItem: [{ position: 80, importance: #LOW }]
+  @EndUserText.label: 'Check Class'
+  CheckClass;
+
+  @UI.lineItem: [{ position: 85, importance: #LOW }]
+  @EndUserText.label: 'Check Code'
+  CheckCode;
 
   // 표준이 들고 있는 예외 상태. 대장과 나란히 보면 반영 누락이 드러난다.
   // 실제로 ATC 를 통과시키는지는 validity 가 정하므로 그것을 보여준다.

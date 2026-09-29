@@ -584,6 +584,29 @@ ACTVT: 01 생성 / 02 변경 / 03 조회 / 43 승인
 이름이다. 런치패드에 나란히 뜨면 어디서 결재해야 하는지 알 수 없게 되고, 결재
 창구를 이 앱 하나로 남기는 것이 이 앱을 CBO 로 만든 이유다.
 
+#### 조회 → 신청 이동 (시맨틱 오브젝트)
+
+앱이 둘이라 앱 내부 navigation 이 아니다. 런치패드 대상 매핑이 있어야 링크가
+살아난다.
+
+| 항목 | 값 |
+|---|---|
+| Semantic Object | `ZAtcExemption` |
+| Action | `display` |
+| 대상 | 앱 B (Exemption) |
+| 파라미터 | `ExemptUuid` |
+
+`ZP_AtcFinding` 의 `ExemptUuid` 에 `@Consumption.semanticObject: 'ZAtcExemption'`
+이 붙어 있고, `ZP_AtcExemption` 의 `ExemptUuid` 는 화면에서는 감추되
+`@UI.selectionField` 로 열어 두었다. 받는 쪽이 필터로 받지 못하면 이동은 되지만
+신청 목록 전체가 뜬다.
+
+매핑을 만들기 전에는 값만 보이고 클릭이 안 된다 — 앱이 깨지지는 않는다.
+
+UUID 가 URL 과 필터에 노출되는 것은 **신청번호를 두지 않기로 한 결정의 대가**다.
+사람이 읽을 번호가 필요해지면(메일로 "몇 번 건" 이라고 말할 때) 그때 도입하고,
+이동 파라미터도 그 번호로 바꾼다.
+
 ---
 
 ## 컨트롤 테이블 초기 데이터 (`ztatccfg`)

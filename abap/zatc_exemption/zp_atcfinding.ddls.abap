@@ -29,7 +29,15 @@ define root view entity ZP_AtcFinding
       ContactPerson,
       Responsible,
 
+      // 표준 예외 API 로 그대로 넘어가는 값. 비어 있으면 신청해도 표준 반영이
+      // 실패하므로, 목록에서 눈으로 확인할 수 있어야 한다.
+      CheckClass,
+      CheckCode,
+
       ExemptScopeType,
       ExemptionStatus,
-      ExemptValidTo
+      ExemptValidTo,
+
+      // 이 위반을 덮고 있는 신청서. 신청 화면으로 이동할 키다.
+      ExemptUuid
 }

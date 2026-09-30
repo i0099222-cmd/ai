@@ -24,15 +24,7 @@ annotate entity ZP_AtcExemption with
       label: 'History', position: 50, targetElement: '_Log' }
   ]
 
-  // 목록·상세 화면에는 보이지 않지만 필터로는 열어 둔다. 조회 화면에서 시맨틱
-  // 오브젝트로 넘어올 때 이 값이 필터로 들어와야 해당 신청서만 남는다. 필터를
-  // 닫아 두면 이동은 되지만 신청 목록 전체가 뜬다.
-  //
-  // UUID 가 필터에 보이는 것은 보기 좋지 않다. 신청번호를 두지 않기로 한 결정의
-  // 대가이고, 사람이 읽을 번호가 필요해지면(메일·전화로 "몇 번 건" 이라고 말할
-  // 때) 그때 도입한다.
   @UI.hidden: true
-  @UI.selectionField: [{ position: 90 }]
   ExemptUuid;
 
   @UI: {

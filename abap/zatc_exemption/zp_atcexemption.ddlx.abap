@@ -7,7 +7,33 @@
     description:    { value: 'CheckClass' }
   },
   // 신청번호가 없으므로 생성 시각 역순이 곧 최신순이다.
-  presentationVariant: [{ sortOrder: [{ by: 'CreatedAt', direction: #DESC }] }]
+  // 한정자 없는 것은 기본 목록용, pvList 는 탭(다중 뷰)이 공유한다.
+  presentationVariant: [
+    { sortOrder: [{ by: 'CreatedAt', direction: #DESC }] },
+    { qualifier: 'pvList',
+      sortOrder: [{ by: 'CreatedAt', direction: #DESC }],
+      visualizations: [{ type: #AS_LINEITEM }] }
+  ],
+
+  // 상태별 탭. 앱 manifest 의 views.paths 가 SelectionPresentationVariant 를
+  // 한정자로 참조해야 탭이 생긴다. 참조하지 않으면 아무 영향이 없다.
+  // 상태 값은 zif_atc_exemption=>status 와 같아야 한다.
+  selectionVariant: [
+    { qualifier: 'svDraft',    text: 'Draft',            filter: 'ExemptStatus EQ 10' },
+    { qualifier: 'svPending',  text: 'Pending Approval', filter: 'ExemptStatus EQ 20' },
+    { qualifier: 'svApproved', text: 'Approved',         filter: 'ExemptStatus EQ 30' },
+    { qualifier: 'svRejected', text: 'Rejected',         filter: 'ExemptStatus EQ 40' }
+  ],
+  selectionPresentationVariant: [
+    { qualifier: 'Draft',    text: 'Draft',
+      selectionVariantQualifier: 'svDraft',    presentationVariantQualifier: 'pvList' },
+    { qualifier: 'Pending',  text: 'Pending Approval',
+      selectionVariantQualifier: 'svPending',  presentationVariantQualifier: 'pvList' },
+    { qualifier: 'Approved', text: 'Approved',
+      selectionVariantQualifier: 'svApproved', presentationVariantQualifier: 'pvList' },
+    { qualifier: 'Rejected', text: 'Rejected',
+      selectionVariantQualifier: 'svRejected', presentationVariantQualifier: 'pvList' }
+  ]
 }
 annotate entity ZP_AtcExemption with
 {

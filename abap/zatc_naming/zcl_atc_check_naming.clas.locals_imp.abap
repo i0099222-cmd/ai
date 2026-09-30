@@ -39,10 +39,11 @@ CLASS lcl_meta_data IMPLEMENTATION.
     " 텍스트가 전부 '&1' 인 것은 실수가 아니다. 규칙마다 문장이 달라서
     " run( ) 이 규칙의 msgtext 를 param_1 로 채운다. ADT 결과에는 그 문장이 뜬다.
     "
-    " SATC_API_FINDINGS-messagetitle 에는 이 체크의 제목이 담기지 않는다(확인함 -
-    " ADT 에는 문장이 뜨는데 그 필드는 비고, 고정 문구를 붙여도 비었다). 신규 ATC
-    " API 로 만든 커스텀 체크의 제목은 그 뷰에 안 들어오는 것으로 보인다. 그래서
-    " 조회 앱의 문장은 ZI_AtcFinding 이 ZTATCNAMING 에서 직접 가져온다.
+    " ATC 는 코드마다 제목을 SATC_AC_MSGT 에 등록하고, SATC_API_FINDINGS-messagetitle
+    " 은 거기서 온다. 파라미터는 finding 마다 달라 제목에 넣을 수 없으니 '&1' 은
+    " '...' 으로 바뀌어 저장된다(확인함). 그 뒤 문장을 바꾸고 재활성화해도 그 제목은
+    " 바뀌지 않았다 - 기존 코드의 제목을 다시 읽게 하는 방법은 아직 모른다.
+    " 그래서 조회 앱의 문장은 ZI_AtcFinding 이 ZTATCNAMING 에서 직접 가져온다.
     finding_code_infos = VALUE #(
       ( code     = zcl_atc_check_naming=>finding_codes-error
         severity = if_ci_atc_check=>finding_severities-error

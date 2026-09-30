@@ -781,24 +781,10 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
-      " 같은 범위·같은 규칙의 유효한 예외가 이미 있으면 중복이다.
       " 중복을 허용하면 어느 예외가 실제로 덮고 있는지 추적할 수 없게 된다.
-      SELECT SINGLE @abap_true
-        FROM ztatcexempt
-        WHERE exemptuuid <> @ls_exemption-exemptuuid
-          AND scopetype   = @ls_exemption-scopetype
-          AND devclass    = @ls_exemption-devclass
-          AND objecttype  = @ls_exemption-objecttype
-          AND objectname  = @ls_exemption-objectname
-          AND checkclass     = @ls_exemption-checkclass
-          AND checkcode   = @ls_exemption-checkcode
-          AND exemptstat IN ( @zif_atc_exemption=>status-pending,
-                              @zif_atc_exemption=>status-approved )
-          AND validto    >= @ls_exemption-validfrom
-          AND validfrom  <= @ls_exemption-validto
-        INTO @DATA(lv_duplicate).
-
-      IF lv_duplicate <> abap_true.
+      " 판정은 상신(submit)과 같은 has_overlap( ) 이 한다. 두 곳에 같은 SELECT 를
+      " 두었다가 한쪽만 고쳐지는 일을 막는다.
+      IF has_overlap( CORRESPONDING #( ls_exemption MAPPING FROM ENTITY ) ) = abap_false.
         CONTINUE.
       ENDIF.
 
@@ -1449,14 +1435,37 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD has_overlap.
 
+    " 같은 범위·같은 규칙의 유효한 예외가 이미 있으면 중복이다.
+    "
+    " 비교 항목은 범위와 규칙에 따라 다르다.
+    "   PCKG : 오브젝트를 비교하지 않는다. PCKG 신청의 오브젝트는 신청을
+    "          시작한 위반 오브젝트일 뿐이라, 같은 패키지를 다른 오브젝트에서
+    "          신청해도 같은 범위다.
+    "   CHK  : 체크 코드를 비교하지 않는다. 한쪽이라도 CHK 면 그 체크의 모든
+    "          코드를 덮으므로 코드가 달라도 겹친다.
+    " 빈 range 는 IN 에서 전부 통과하므로 "비교하지 않음" 이 된다.
+    DATA lr_objtype TYPE RANGE OF ztatcexempt-objecttype.
+    DATA lr_objname TYPE RANGE OF ztatcexempt-objectname.
+    DATA lr_code    TYPE RANGE OF ztatcexempt-checkcode.
+
+    IF is_row-scopetype <> zif_atc_exemption=>scope-pckg.
+      lr_objtype = VALUE #( ( sign = 'I' option = 'EQ' low = is_row-objecttype ) ).
+      lr_objname = VALUE #( ( sign = 'I' option = 'EQ' low = is_row-objectname ) ).
+    ENDIF.
+
+    IF is_row-rulescope <> zif_atc_exemption=>rulescope-check.
+      lr_code = VALUE #( ( sign = 'I' option = 'EQ' low = is_row-checkcode ) ).
+    ENDIF.
+
     SELECT SINGLE @abap_true FROM ztatcexempt
       WHERE exemptuuid <> @is_row-exemptuuid
         AND scopetype   = @is_row-scopetype
         AND devclass    = @is_row-devclass
-        AND objecttype  = @is_row-objecttype
-        AND objectname  = @is_row-objectname
+        AND objecttype IN @lr_objtype
+        AND objectname IN @lr_objname
         AND checkclass  = @is_row-checkclass
-        AND checkcode   = @is_row-checkcode
+        AND ( rulescope = @zif_atc_exemption=>rulescope-check
+           OR checkcode IN @lr_code )
         AND exemptstat IN ( @zif_atc_exemption=>status-pending,
                             @zif_atc_exemption=>status-approved )
         AND validto    >= @is_row-validfrom

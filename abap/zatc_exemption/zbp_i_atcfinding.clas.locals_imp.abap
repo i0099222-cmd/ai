@@ -108,8 +108,24 @@ CLASS lhc_finding IMPLEMENTATION.
 
     " 성공도 알린다. 신청서는 다른 앱에 초안 상태로 생기고 finding 은 승인 전까지
     " 바뀌지 않아서, 이 메시지가 없으면 화면에서는 아무 일도 없었던 것처럼 보인다.
-    " 다음에 할 일(상신)과 가는 길까지 같이 적는다.
+    "
+    " 다만 여기서 만든 것은 버퍼의 신청서이고, 검증은 저장 단계에서 돈다.
+    " 그대로 성공을 알리면 저장에서 실패할 건에도 성공 메시지가 에러와 같이 뜬다.
+    " 그래서 checkRequest 로 같은 검증을 지금 돌려 보고, 하나라도 걸리면 성공을
+    " 알리지 않는다. 그 에러는 여기서 올리지 않는다 - 저장 단계의 검증이 같은
+    " 에러를 다시 올리므로, 여기서도 올리면 두 번 뜬다.
+    "
+    " 저장은 전부 아니면 전무다. 하나라도 걸리면 선택한 건 전체가 만들어지지 않는다.
     IF lt_mapped-exemption IS NOT INITIAL.
+      MODIFY ENTITIES OF zr_atcexemption
+        ENTITY exemption
+          EXECUTE checkrequest FROM VALUE #( FOR ls_new IN lt_mapped-exemption
+                                             ( %tky = ls_new-%tky ) )
+        FAILED DATA(lt_check_failed).
+    ENDIF.
+
+    IF lt_mapped-exemption IS NOT INITIAL
+   AND lt_check_failed-exemption IS INITIAL.
       APPEND VALUE #( %tky = keys[ 1 ]-%tky
                       %msg = new_message_with_text(
                                severity = if_abap_behv_message=>severity-success

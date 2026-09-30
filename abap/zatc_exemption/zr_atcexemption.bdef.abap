@@ -64,6 +64,20 @@ etag master LocalLastChangedAt
     validation validateOverlap;
   }
 
+  // Prepare 와 같은 검증을 활성 인스턴스에 저장 전에 돌린다.
+  // 조회 화면의 requestExemption 이 신청서를 활성으로 만든 뒤 이것으로
+  // "이대로 저장하면 통과하는가" 를 먼저 묻는다. 검증은 원래 저장 단계에서만
+  // 돌아서, 묻지 않으면 저장에서 실패할 건에도 성공 메시지를 띄우게 된다.
+  determine action checkRequest
+  {
+    validation validateScope;
+    validation validateVariant;
+    validation validateRuleScope;
+    validation validateValidity;
+    validation validateReason;
+    validation validateOverlap;
+  }
+
   // --- 신청자 액션 ---
   action ( features : instance ) submit   result [1] $self;
   action ( features : instance ) withdraw result [1] $self;

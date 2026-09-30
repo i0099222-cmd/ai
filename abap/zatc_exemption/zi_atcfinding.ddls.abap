@@ -62,6 +62,10 @@ define root view entity ZI_AtcFinding
   left outer join satc_ac_chm as Chm
     on Chm.module_id = Finding.moduleid
 
+  // 우리 네이밍 체크는 messagetitle 이 비어 온다. 그 문장을 규칙 테이블에서 채운다.
+  left outer join ZI_AtcNamingText as NamingText
+    on NamingText.ObjectType = Finding.objecttype
+
   left outer join ZI_AtcActiveExemption as PkgExempt
     on  PkgExempt.ScopeType  = 'PCKG'
     and PkgExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
@@ -114,7 +118,15 @@ define root view entity ZI_AtcFinding
       //   case Finding.priority when <열거값> then 1 ... end
       // ztatccfg-maxpriority(INT1) 와 숫자로 비교하는 곳이 있어 INT1 로 둔다.
       cast( Finding.priority as abap.int1 ) as Priority,
-      Finding.messagetitle       as MessageText,
+      // 표준 체크는 messagetitle 을 그대로 쓴다. 우리 네이밍 체크(신규 ATC API)는
+      // 그 필드가 비어 오므로 규칙 테이블의 문장으로 채운다. 다른 체크가 빈 제목으로
+      // 올 일은 없어서, 비었다는 것만으로 네이밍 체크로 본다.
+      // 두 쪽의 타입(문자열 / CHAR)을 같게 맞춰야 case 가 활성화된다.
+      case
+        when Finding.messagetitle is initial
+        then cast( NamingText.RuleText as abap.sstring( 255 ) )
+        else cast( Finding.messagetitle as abap.sstring( 255 ) )
+      end                        as MessageText,
 
       // TODO 확인 필요: contractperson 의 철자 (contactperson 일 가능성)
       Finding.contractperson     as ContactPerson,

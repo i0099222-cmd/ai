@@ -36,22 +36,23 @@ CLASS lcl_meta_data IMPLEMENTATION.
 
   METHOD if_ci_atc_check_meta_data~get_finding_code_infos.
 
-    " 규칙마다 문장이 달라서 run( ) 이 규칙의 msgtext 를 param_1 로 채운다.
+    " 텍스트가 전부 '&1' 인 것은 실수가 아니다. 규칙마다 문장이 달라서
+    " run( ) 이 규칙의 msgtext 를 param_1 로 채운다. ADT 결과에는 그 문장이 뜬다.
     "
-    " 제목을 '&1' 하나로 두지 않는다. ADT 는 파라미터를 채워 보여주지만
-    " SATC_API_FINDINGS-messagetitle 은 파라미터 없이 제목을 만들어서, 자리표시자만
-    " 있으면 제목이 통째로 빈다(확인함 - 표준 체크 행은 차 있고 이 체크 행만 비었다).
-    " 고정 문구를 앞에 두면 조회 앱에서도 무슨 위반인지는 읽힌다.
+    " SATC_API_FINDINGS-messagetitle 에는 이 체크의 제목이 담기지 않는다(확인함 -
+    " ADT 에는 문장이 뜨는데 그 필드는 비고, 고정 문구를 붙여도 비었다). 신규 ATC
+    " API 로 만든 커스텀 체크의 제목은 그 뷰에 안 들어오는 것으로 보인다. 그래서
+    " 조회 앱의 문장은 ZI_AtcFinding 이 ZTATCNAMING 에서 직접 가져온다.
     finding_code_infos = VALUE #(
       ( code     = zcl_atc_check_naming=>finding_codes-error
         severity = if_ci_atc_check=>finding_severities-error
-        text     = 'Naming rule violated: &1' )
+        text     = '&1' )
       ( code     = zcl_atc_check_naming=>finding_codes-warning
         severity = if_ci_atc_check=>finding_severities-warning
-        text     = 'Naming rule violated: &1' )
+        text     = '&1' )
       ( code     = zcl_atc_check_naming=>finding_codes-note
         severity = if_ci_atc_check=>finding_severities-note
-        text     = 'Naming rule violated: &1' ) ).
+        text     = '&1' ) ).
 
   ENDMETHOD.
 

@@ -24,14 +24,17 @@
     { qualifier: 'svApproved', text: 'Approved',         filter: 'ExemptStatus EQ 30' },
     { qualifier: 'svRejected', text: 'Rejected',         filter: 'ExemptStatus EQ 40' }
   ],
+  // 탭 이름 앞의 기호는 아이콘 대용이다. Fiori Elements 의 탭은 아이콘 속성을
+  // 받지 않아서 이름에 붙인다. 모두 BMP 범위(U+FFFF 이하) 문자만 쓴다 - ABAP 은
+  // 내부적으로 UCS-2 라 그 밖의 이모지(📝 등)는 깨질 수 있다.
   selectionPresentationVariant: [
-    { qualifier: 'Draft',    text: 'Draft',
+    { qualifier: 'Draft',    text: '✎ Draft',
       selectionVariantQualifier: 'svDraft',    presentationVariantQualifier: 'pvList' },
-    { qualifier: 'Pending',  text: 'Pending Approval',
+    { qualifier: 'Pending',  text: '⏳ Pending Approval',
       selectionVariantQualifier: 'svPending',  presentationVariantQualifier: 'pvList' },
-    { qualifier: 'Approved', text: 'Approved',
+    { qualifier: 'Approved', text: '✅ Approved',
       selectionVariantQualifier: 'svApproved', presentationVariantQualifier: 'pvList' },
-    { qualifier: 'Rejected', text: 'Rejected',
+    { qualifier: 'Rejected', text: '❌ Rejected',
       selectionVariantQualifier: 'svRejected', presentationVariantQualifier: 'pvList' }
   ]
 }

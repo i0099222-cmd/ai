@@ -36,22 +36,20 @@ CLASS lcl_meta_data IMPLEMENTATION.
 
   METHOD if_ci_atc_check_meta_data~get_finding_code_infos.
 
-    " 규칙마다 문장이 달라서 run( ) 이 규칙의 msgtext 를 param_1 로 채운다.
+    " 텍스트가 전부 '&1' 인 것은 실수가 아니다. 규칙마다 문장이 달라서
+    " run( ) 이 규칙의 msgtext 를 param_1 로 채운다.
     "
-    " 제목을 '&1' 하나로 두지 않는다. ADT 는 파라미터를 채워 보여주지만
-    " SATC_API_FINDINGS-messagetitle 은 채우지 않은 제목을 들고 있어서,
-    " 자리표시자만 있으면 조회 앱에 '...' 만 보인다. 고정 문구를 앞에 두면
-    " 거기서도 무슨 위반인지는 읽힌다.
+    " 🔴 필드 이름 확인 필요. text 가 message 나 description 일 수 있다.
     finding_code_infos = VALUE #(
       ( code     = zcl_atc_check_naming=>finding_codes-error
         severity = if_ci_atc_check=>finding_severities-error
-        text     = 'Naming rule violated: &1' )
+        text     = '&1' )
       ( code     = zcl_atc_check_naming=>finding_codes-warning
         severity = if_ci_atc_check=>finding_severities-warning
-        text     = 'Naming rule violated: &1' )
+        text     = '&1' )
       ( code     = zcl_atc_check_naming=>finding_codes-note
         severity = if_ci_atc_check=>finding_severities-note
-        text     = 'Naming rule violated: &1' ) ).
+        text     = '&1' ) ).
 
   ENDMETHOD.
 

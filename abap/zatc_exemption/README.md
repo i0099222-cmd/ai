@@ -576,7 +576,7 @@ ACTVT: 01 생성 / 02 변경 / 03 조회 / 43 승인
 
 | 타일 | 한글 | 메인 엔터티 | 필터 프리셋 | 배치 역할 |
 |---|---|---|---|---|
-| ATC Findings | ATC 위반 현황 | Finding | 패키지 필수 | 개발자 |
+| Display ATC Findings | ATC 위반 조회 | Finding | 패키지 필수 | 개발자 |
 | My ATC Exemptions | 내 ATC 예외 신청 | Exemption | Requester = 본인 | 개발자 |
 | Review ATC Exemptions | ATC 예외 결재 | Exemption | 상태 = 승인대기 | 승인자 |
 

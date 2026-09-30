@@ -4,7 +4,7 @@
 //
 // Fiori 앱은 둘이다. Finding 과 Exemption 이 부모-자식이 아니라서 한 앱의
 // 메인 엔티티가 될 수 없다. 서비스와 바인딩은 그대로 하나다.
-//   앱 A  메인 = Finding    타일 ① ATC Findings           ATC 위반 현황
+//   앱 A  메인 = Finding    타일 ① Display ATC Findings   ATC 위반 조회
 //   앱 B  메인 = Exemption  타일 ② My ATC Exemptions       내 ATC 예외 신청
 //                           타일 ③ Review ATC Exemptions   ATC 예외 결재
 // ②와 ③은 같은 앱에 필터 프리셋만 다른 타일이다(② Requester = 본인,

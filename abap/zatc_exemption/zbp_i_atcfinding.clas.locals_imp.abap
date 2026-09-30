@@ -116,16 +116,32 @@ CLASS lhc_finding IMPLEMENTATION.
     " 에러를 다시 올리므로, 여기서도 올리면 두 번 뜬다.
     "
     " 저장은 전부 아니면 전무다. 하나라도 걸리면 선택한 건 전체가 만들어지지 않는다.
+    "
+    " 판정은 FAILED 가 아니라 REPORTED 의 에러 메시지로 한다. determine action 은
+    " 안에서 돈 validation 이 failed 를 채워도 그것을 호출한 쪽에 돌려주지 않는다
+    " (확인함 - validateValidity 가 failed 를 채웠는데 여기서는 비어 있었다).
+    " 메시지는 돌아오므로 에러 등급이 하나라도 있으면 실패로 본다.
+    DATA(lv_check_error) = abap_false.
+
     IF lt_mapped-exemption IS NOT INITIAL.
       MODIFY ENTITIES OF zr_atcexemption
         ENTITY exemption
           EXECUTE checkrequest FROM VALUE #( FOR ls_new IN lt_mapped-exemption
                                              ( %tky = ls_new-%tky ) )
-        FAILED DATA(lt_check_failed).
+        FAILED DATA(lt_check_failed)
+        REPORTED DATA(lt_check_reported).
+
+      lv_check_error = xsdbool( lt_check_failed-exemption IS NOT INITIAL ).
+      LOOP AT lt_check_reported-exemption INTO DATA(ls_check) WHERE %msg IS BOUND.
+        IF ls_check-%msg->m_severity = if_abap_behv_message=>severity-error.
+          lv_check_error = abap_true.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
     ENDIF.
 
     IF lt_mapped-exemption IS NOT INITIAL
-   AND lt_check_failed-exemption IS INITIAL.
+   AND lv_check_error = abap_false.
       APPEND VALUE #( %tky = keys[ 1 ]-%tky
                       %msg = new_message_with_text(
                                severity = if_abap_behv_message=>severity-success

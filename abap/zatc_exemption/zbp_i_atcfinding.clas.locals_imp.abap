@@ -95,6 +95,7 @@ CLASS lhc_finding IMPLEMENTATION.
     MODIFY ENTITIES OF zr_atcexemption
       ENTITY exemption
         EXECUTE createfromfinding FROM lt_action
+      MAPPED DATA(lt_mapped)
       FAILED DATA(lt_failed)
       REPORTED DATA(lt_reported).
 
@@ -105,8 +106,19 @@ CLASS lhc_finding IMPLEMENTATION.
                       %msg = ls_rep-%msg ) TO reported-finding.
     ENDLOOP.
 
-    " 선택한 행을 그대로 돌려준다. finding 은 바뀌지 않지만, 화면이
-    " 새로고침되면서 예외 상태 컬럼이 갱신된다.
+    " 성공도 알린다. 신청서는 다른 앱에 초안 상태로 생기고 finding 은 승인 전까지
+    " 바뀌지 않아서, 이 메시지가 없으면 화면에서는 아무 일도 없었던 것처럼 보인다.
+    " 다음에 할 일(상신)과 가는 길까지 같이 적는다.
+    IF lt_mapped-exemption IS NOT INITIAL.
+      APPEND VALUE #( %tky = keys[ 1 ]-%tky
+                      %msg = new_message_with_text(
+                               severity = if_abap_behv_message=>severity-success
+                               text     = |{ lines( lt_mapped-exemption ) } exemption request(s) | &&
+                                          |created. Submit them in My Exemption Requests.| ) )
+             TO reported-finding.
+    ENDIF.
+
+    " 선택한 행을 그대로 돌려준다. finding 은 승인 전까지 바뀌지 않는다.
     result = VALUE #( FOR ls_res IN keys ( %tky = ls_res-%tky ) ).
 
   ENDMETHOD.

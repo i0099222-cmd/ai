@@ -40,6 +40,9 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS derivecheckgroup FOR DETERMINE ON MODIFY
       IMPORTING keys FOR exemption~derivecheckgroup.
 
+    METHODS deriverulescope FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR exemption~deriverulescope.
+
     METHODS derivepackage FOR DETERMINE ON MODIFY
       IMPORTING keys FOR exemption~derivepackage.
 
@@ -353,6 +356,41 @@ CLASS lhc_exemption IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD deriverulescope.
+
+    " 규칙 범위는 적용범위에서 정해진다. 패키지는 체크 전체(CHK), 그 외는 메시지
+    " 하나(MSG). 패키지 신청을 MSG 로 두면 규칙(코드) 수만큼 신청이 쪼개지고,
+    " 한 패키지 안에서 어떤 위반은 면제되고 어떤 위반은 승인대기로 남는다.
+    " 조회 화면 신청이든 선등록이든 같은 규칙이라 여기 한 곳에서 정한다.
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        FIELDS ( scopetype rulescope )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_exemption).
+
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
+
+    LOOP AT lt_exemption INTO DATA(ls_exemption).
+
+      DATA(lv_rulescope) = COND #( WHEN ls_exemption-scopetype = zif_atc_exemption=>scope-pckg
+                                   THEN zif_atc_exemption=>rulescope-check
+                                   ELSE zif_atc_exemption=>rulescope-message ).
+
+      IF lv_rulescope <> ls_exemption-rulescope.
+        APPEND VALUE #( %tky      = ls_exemption-%tky
+                        rulescope = lv_rulescope ) TO lt_update.
+      ENDIF.
+
+    ENDLOOP.
+
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        UPDATE FIELDS ( rulescope )
+        WITH lt_update.
+
+  ENDMETHOD.
+
+
   METHOD derivepackage.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
@@ -448,7 +486,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkvariant scopetype devclass objecttype objectname )
+        FIELDS ( checkvariant scopetype devclass objecttype objectname checkcode )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -480,21 +518,27 @@ CLASS lhc_exemption IMPLEMENTATION.
       CASE ls_exemption-scopetype.
 
         WHEN zif_atc_exemption=>scope-pckg.
-          " 패키지 스코프도 출발점 오브젝트가 필요하다.
-          " 표준 create_exemption 이 오브젝트를 필수로 받고, 그 뒤에
-          " set_object_scope( ) 로 패키지까지 넓히는 순서이기 때문이다.
-          " 효력은 패키지 전체이고, 이 오브젝트는 어디서 시작했는지의 기록이다.
+          " 패키지만 있으면 된다. 오브젝트와 체크 코드는 선택이다.
+          "
+          " 예전에는 출발점 오브젝트를 필수로 받았다(003). 패키지를 오브젝트 자리에
+          " 넣던 때의 가정이었고, 지금은 패키지를 i_package_name 으로 따로 넘긴다.
+          " 선등록은 위반이 아직 없는 패키지를 신청하는 것이라, 그 안의 아무
+          " 오브젝트나 골라 넣게 하는 건 의미가 없다.
+          " 🔴 표준이 오브젝트 없이 받아주는지는 선등록 상신으로 확인한다.
+          "    거부되면 패키지의 오브젝트 하나를 TADIR 에서 골라 넘긴다.
+          " 체크 코드는 규칙 범위가 CHK 라 매칭에 쓰이지 않는다.
           IF ls_exemption-devclass IS INITIAL.
             lv_error = '002'.
-          ELSEIF ls_exemption-objecttype IS INITIAL
-              OR ls_exemption-objectname IS INITIAL.
-            lv_error = '003'.
           ENDIF.
 
         WHEN zif_atc_exemption=>scope-obj.
+          " 오브젝트 신청은 그 오브젝트가 어긴 규칙 하나(MSG)만 덮는다.
+          " 어느 규칙인지가 체크 코드라서 비울 수 없다.
           IF ls_exemption-objecttype IS INITIAL
           OR ls_exemption-objectname IS INITIAL.
             lv_error = '004'.
+          ELSEIF ls_exemption-checkcode IS INITIAL.
+            lv_error = '022'.
           ENDIF.
 
         WHEN zif_atc_exemption=>scope-fnd.
@@ -1325,16 +1369,7 @@ CLASS lhc_exemption IMPLEMENTATION.
         " 뷰가 주는 값을 그대로 옮긴다. 표준 create_exemption 이 받는 값과 같다.
         checkclass = ls_param-checkclass
         checkcode  = ls_param-checkcode
-        " 패키지 신청은 체크 전체를 덮는다(CHK).
-        " MSG 는 체크 코드 하나만 덮는다. 우리 네이밍 체크는 규칙마다 코드를
-        " 따로 내므로(NDOMA010 등), MSG 로 두면 "패키지 싹 다" 신청이 규칙 수만큼
-        " 쪼개진다. 실제로 그렇게 됐고(그때는 심각도별 코드였다), 한 패키지 안에서
-        " 어떤 위반은 면제되고 어떤 위반은 승인대기로 남았다.
-        " 오브젝트 단위 신청은 그대로 MSG 다 - 그 오브젝트가 어긴 규칙 하나만 덮는다.
-        " 넓히고 싶으면 패키지로 신청하면 된다.
-        rulescope  = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
-                             THEN zif_atc_exemption=>rulescope-check
-                             ELSE zif_atc_exemption=>rulescope-message )
+        " 규칙 범위(rulescope)는 넣지 않는다. deriveRuleScope 가 적용범위로 정한다.
         " 사유와 기간은 넘어온 값이 있으면 쓴다. 조회 화면에서 신청하면
         " 입력창에서 받아 오고, 없으면 초안에서 채운다.
         reasoncode = ls_param-reasoncode
@@ -1371,7 +1406,7 @@ CLASS lhc_exemption IMPLEMENTATION.
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
         CREATE FIELDS ( checkvariant scopetype devclass objecttype objectname
-                        checkclass checkcode rulescope validfrom
+                        checkclass checkcode validfrom
                         reasoncode reasontext validto )
         WITH lt_create
       ENTITY exemption

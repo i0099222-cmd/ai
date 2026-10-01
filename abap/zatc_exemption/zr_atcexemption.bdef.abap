@@ -41,9 +41,17 @@ etag master LocalLastChangedAt
   // 열어 두면 화면 표시와 실제 판정이 어긋난다. 필드는 Phase 2 대비로 남긴다.
   field ( readonly ) InclSubPkg;
 
-  // CheckClass / CheckCode 가 필수인 이유: 표준 create_exemption 이
-  // i_check_class 와 i_check_code 를 필수로 요구한다. 비워 두면 표준에 반영할 수 없다.
-  field ( mandatory ) CheckVariant, ScopeType, RuleScope, CheckClass, CheckCode, ValidTo;
+  // CheckClass 는 언제나 필수다. 표준 예외가 체크 단위다.
+  //
+  // CheckCode 는 범위에 따라 다르다. OBJ 는 어긴 규칙 하나만 덮으므로 필수이고,
+  // PCKG 는 체크 전체(CHK)를 덮어 코드를 보지 않는다. 화면에서 범위에 따라
+  // 필수 표시를 바꾸려면 side effects 가 있어야 하는데 릴리스를 탄다. 그래서
+  // 정적으로는 선택 입력으로 두고 OBJ 의 필수 여부는 validateScope 가 막는다.
+  field ( mandatory ) CheckVariant, ScopeType, CheckClass, ValidTo;
+
+  // 규칙 범위는 적용범위에서 정해진다(deriveRuleScope). 사용자가 CHK/MSG 차이를
+  // 알 필요가 없게 고르지 못하게 한다.
+  field ( readonly ) RuleScope;
 
   create;
   update;
@@ -103,6 +111,7 @@ etag master LocalLastChangedAt
 
   determination setInitialValues on modify { create; }
   determination deriveCheckGroup on modify { field CheckVariant; }
+  determination deriveRuleScope  on modify { create; field ScopeType; }
   determination derivePackage    on modify { field ObjectType, ObjectName; }
 
   // 선등록 여부는 사용자가 고르는 값이 아니라 등록 시점의 사실이다.
@@ -112,7 +121,7 @@ etag master LocalLastChangedAt
 
   // 같은 필드에 걸리는 검증은 한 메소드로 묶었다. 나눠 두면 같은 인스턴스를
   // 여러 번 읽을 뿐이고, 트리거가 다른 것만 따로 두면 바뀐 필드에 걸린 검증만 돈다.
-  validation validateScope       on save { field ScopeType, CheckVariant, Devclass, ObjectType, ObjectName; create; update; }
+  validation validateScope       on save { field ScopeType, CheckVariant, Devclass, ObjectType, ObjectName, CheckCode; create; update; }
   validation validateVariant     on save { field CheckVariant; create; update; }
   validation validateRuleScope   on save { field RuleScope; create; update; }
   validation validateValidity    on save { field ValidFrom, ValidTo; create; update; }

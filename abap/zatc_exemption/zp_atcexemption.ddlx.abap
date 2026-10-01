@@ -119,10 +119,12 @@ annotate entity ZP_AtcExemption with
   @EndUserText.label: 'Check Class'
   CheckClass;
 
+  // 오브젝트 신청에서만 필수다(validateScope, 메시지 022). 패키지 신청은 비워도 된다.
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 70 }]
   @EndUserText.label: 'Check Message Code'
   CheckCode;
 
+  // 적용범위로 자동 결정된다(패키지 → CHK, 오브젝트 → MSG). 읽기 전용.
   @UI.fieldGroup: [{ qualifier: 'ScopeGroup', position: 80 }]
   @EndUserText.label: 'Check Scope'
   RuleScope;

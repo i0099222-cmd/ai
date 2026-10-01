@@ -29,4 +29,6 @@ define service ZUI_AtcExemption {
   expose ZI_AtcScopeVH       as ScopeVH;
   expose ZI_AtcVariantVH     as VariantVH;
   expose ZI_AtcPackageVH     as PackageVH;
+  expose ZI_AtcCheckClassVH  as CheckClassVH;
+  expose ZI_AtcCheckCodeVH   as CheckCodeVH;
 }

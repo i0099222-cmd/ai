@@ -44,9 +44,17 @@ define root view entity ZP_AtcExemption
       ObjectName,
 
 
-      // 체크 ID / 메시지 ID 는 finding 에서 프리필된다. 체크의 마스터는 표준이
-      // 갖고 있으므로 우리 쪽 값 도움을 만들지 않는다.
+      // 조회 화면 신청은 finding 에서 프리필되지만, 선등록은 사용자가 고른다.
+      @Consumption.valueHelpDefinition: [{
+        entity: { name: 'ZI_AtcCheckClassVH', element: 'CheckClass' }
+      }]
       CheckClass,
+
+      // 오브젝트 신청에서 어긴 규칙 하나를 고른다. 규칙 문장이 같이 보인다.
+      // 패키지 신청은 체크 전체(CHK)라 비워 둬도 된다.
+      @Consumption.valueHelpDefinition: [{
+        entity: { name: 'ZI_AtcCheckCodeVH', element: 'CheckCode' }
+      }]
       CheckCode,
 
       RuleScope,

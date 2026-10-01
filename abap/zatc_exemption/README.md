@@ -56,7 +56,7 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 | **적용범위 코드값** | `FND` / `OBJ` / **`PCKG`** | 가정했던 `PKG` 가 틀렸다. 값과 함께 **필드 길이도 `char(4)`** 로 수정 |
 | **표준 예외 API** | `CL_SATC_API=>CREATE_API_FACTORY( )->GET_EXEMPTION_CONTROLLER( )` | **Option B 확정.** 커스텀 체크 클래스(Option C) 폐기 |
 | 컨트롤러 메소드 | `create_exemption( )` / `approve_exemptions_by_if( )` | **생성이 되므로 앱의 신청 기능이 유효**하다 |
-| `create_exemption` 파라미터 | `i_object_type` / `i_object_name` / **`i_package_name`** / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관.** 패키지는 `i_package_name` 이고, 오브젝트 자리에 넣으면 안 된다 |
+| `create_exemption` 파라미터 | `i_object_type` / `i_object_name` / **`i_package_name`** / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관.** 패키지는 `i_package_name` 이고, 오브젝트 자리에 넣으면 안 된다. 🔴 `i_package_name` 이 있으면 PCKG 에서 오브젝트를 비워도 되는지는 선등록 상신으로 확인 중 |
 | 예외 오브젝트 API | `set_object_scope`(타입 `SATC_CI_OBJ_SCOPE`) / `set_check_scope` / `set_reason` / `set_validity_date` / `set_approver` / `set_notification_type` / `send_to_approver` / `unlock` / `get_exemption_id` | **`set_object_scope` 덕분에 패키지 스코프를 표준 예외 1건으로 넘길 수 있다** → 예외 ID 는 헤더에 1개, 오브젝트별 전개 불필요. 유효기간도 표준에 넘어간다 |
 | 알림 유형 | `REJ` 반려 시 / `ALWS` 승인·반려 모두 / `NEVR` 없음 | 조직 정책이므로 `ztatccfg-notiftype` 설정으로 |
 | 표준 승인자 | 표준은 승인자 1명을 필수로 요구한다 | `ztatccfg-defapprover`. 비어 있으면 상신이 막힌다(메시지 021) |
@@ -535,7 +535,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 |---|---|
 | 001 | Object scope &1 is not allowed for check variant &2 |
 | 002 | Package is required for package scope |
-| 003 | Package scope also requires an origin object |
+| 003 | ~~Package scope also requires an origin object~~ (사용 안 함 - 패키지는 `i_package_name` 으로 넘기므로 출발점 오브젝트가 필요 없다) |
 | 004 | Object scope requires object type and object name |
 | 005 | Finding scope requires object type and object name |
 | 006 | &1 is not a customer namespace package |
@@ -554,6 +554,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 019 | Check scope &1 is not allowed (use message or check) |
 | 020 | Action not allowed for status &1 |
 | 021 | No approver is configured for check variant &1 |
+| 022 | Object scope requires a check message code |
 
 ### 3. 권한 오브젝트 `Z_ATCEXEM`
 

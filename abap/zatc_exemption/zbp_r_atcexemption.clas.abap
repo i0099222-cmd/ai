@@ -975,14 +975,22 @@ CLASS lhc_exemption IMPLEMENTATION.
                         iv_operation = zcl_atc_exempt_parallel=>operation-withdraw
                         iv_reason    = |신청자 철회| ).
 
-      " 표준 예외를 실제로 지웠을 때만 ID 를 비운다. 비워야 재상신 때
-      " "이미 등록됨" 으로 건너뛰지 않는다. 다만 삭제가 실패했는데 비우면
-      " 표준에는 살아 있는 행이 남고 우리는 그 행을 다시 찾지 못한다.
+      " 표준 예외를 못 지웠으면 철회하지 않는다. 철회를 진행하면 대장은 초안인데
+      " 표준에는 승인대기 행이 살아 있어 표준 앱에서 그대로 승인할 수 있게 된다.
+      IF ls_sync-success = abap_false.
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_exemption-%tky
+                        %msg = new_message_with_text(
+                                 severity = if_abap_behv_message=>severity-error
+                                 text     = |Withdraw failed: { ls_sync-message }| ) )
+               TO reported-exemption.
+        CONTINUE.
+      ENDIF.
+
+      " ID 를 비워야 재상신 때 "이미 등록됨" 으로 건너뛰지 않는다.
       APPEND VALUE #( %tky         = ls_exemption-%tky
                       exemptstatus = zif_atc_exemption=>status-draft
-                      extexemptid  = COND #( WHEN ls_sync-success = abap_true
-                                             THEN space
-                                             ELSE ls_db-extexemptid ) ) TO lt_update.
+                      extexemptid  = space ) TO lt_update.
 
       write_log( is_row     = ls_exemption
                  iv_action  = zif_atc_exemption=>logaction-withdraw

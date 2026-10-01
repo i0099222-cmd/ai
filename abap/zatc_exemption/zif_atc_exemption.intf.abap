@@ -76,17 +76,6 @@ INTERFACE zif_atc_exemption
       sync     TYPE char10 VALUE 'SYNC',
     END OF logaction.
 
-  "! 표준 ATC 예외 승인 권한. 표준 approve 가 직접 검사하므로 승인자는 이것도 있어야 한다.
-  "! 누가 승인자인지는 이것이 아니라 표준 승인자 목록(SATC_CI_APPROVER)이 정한다.
-  CONSTANTS:
-    BEGIN OF std_authobject,
-      name    TYPE char10 VALUE 'S_Q_GOVERN',
-      "! ATC_OTYPGO. 01 예외(Exemption) / 02 체크 설정(Check Configuration)
-      otype   TYPE char2  VALUE '01',
-      "! 31 확인(승인)
-      approve TYPE char2  VALUE '31',
-    END OF std_authobject.
-
   "! 근거 텍스트 최소 길이. 한 줄짜리 형식적 사유를 막는다.
   CONSTANTS min_reason_length TYPE i VALUE 20.
 

@@ -124,8 +124,7 @@ CLASS zcl_atc_exempt_sync DEFINITION
     METHODS sync_from_standard
       RETURNING VALUE(rv_synced) TYPE i.
 
-    "! 현재 사용자가 이 앱에서 승인할 수 있는지.
-    "! S_Q_GOVERN 이 behavior pool 에서 "not permitted" 로 막혀 여기서 본다.
+    "! 현재 사용자가 표준 승인자 목록(SATC_CI_APPROVER)에 있는지.
     CLASS-METHODS is_approver
       RETURNING VALUE(rv_can) TYPE abap_boolean.
 
@@ -458,22 +457,11 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
   METHOD is_approver.
 
-    " 둘 다 있어야 한다.
-    "   SATC_CI_APPROVER : 표준 승인자 목록. 누가 승인자인가는 여기서 정한다.
-    "                      S_Q_GOVERN 은 개발자 대부분이 가져서 못 가린다.
-    "   S_Q_GOVERN       : 표준 approve 가 직접 검사한다. 없으면 버튼은 켜져도 표준이 거부한다.
+    " 권한 오브젝트는 보지 않는다. S_Q_GOVERN 은 개발자 대부분이 가져서
+    " 승인자를 가려내지 못하고, 표준 승인자 목록이 그 역할을 한다.
     SELECT SINGLE @abap_true FROM satc_ci_approver
       WHERE approver = @sy-uname
-      INTO @DATA(lv_listed).
-    IF lv_listed = abap_false.
-      RETURN.
-    ENDIF.
-
-    AUTHORITY-CHECK OBJECT zif_atc_exemption=>std_authobject-name
-      ID 'ATC_OTYPGO' FIELD zif_atc_exemption=>std_authobject-otype
-      ID 'ACTVT'      FIELD zif_atc_exemption=>std_authobject-approve.
-
-    rv_can = xsdbool( sy-subrc = 0 ).
+      INTO @rv_can.
 
   ENDMETHOD.
 

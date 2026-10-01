@@ -82,7 +82,7 @@ INTERFACE zif_atc_exemption
   CONSTANTS:
     BEGIN OF authobject,
       name    TYPE char10 VALUE 'S_Q_GOVERN',
-      "! ATC_OTYPGO. 트레이스에서 01 만 나왔다
+      "! ATC_OTYPGO. 01 예외(Exemption) / 02 체크 설정(Check Configuration)
       otype   TYPE char2  VALUE '01',
       "! 31 확인(승인)
       approve TYPE char2  VALUE '31',

@@ -216,10 +216,10 @@ lo_controller->approve_exemptions_by_if( exemptions_for_approval = ... ).
 
 #### 규칙 범위는 패키지 신청에서 `CHK` 여야 한다
 
-`MSG` 는 체크 코드 하나만 덮는다. 네이밍 체크는 우선순위별로
-`NAMING_E` / `NAMING_W` / `NAMING_N` 으로 코드를 나눠 내므로, `MSG` 로 두면
-"패키지 싹 다" 신청이 코드 종류만큼 쪼개진다. 실제로 한 패키지 안에서 어떤
-위반은 `exemption_applies`, 어떤 위반은 `approval_missing` 이 됐다.
+`MSG` 는 체크 코드 하나만 덮는다. 네이밍 체크는 규칙마다 코드를 따로 내므로
+(`NDOMA010` 등), `MSG` 로 두면 "패키지 싹 다" 신청이 규칙 수만큼 쪼개진다.
+실제로(그때는 심각도별 코드였다) 한 패키지 안에서 어떤 위반은
+`exemption_applies`, 어떤 위반은 `approval_missing` 이 됐다.
 
 `createFromFinding` 이 `PCKG` 면 `CHK`, 그 외는 `MSG` 를 넣는다. finding 쪽 그룹
 키도 `PCKG` 일 때 체크 코드를 빼야 한다 — `CHK` 가 코드를 안 가리므로, 코드별로

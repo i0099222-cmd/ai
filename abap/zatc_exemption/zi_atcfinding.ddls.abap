@@ -62,10 +62,6 @@ define root view entity ZI_AtcFinding
   left outer join satc_ac_chm as Chm
     on Chm.module_id = Finding.moduleid
 
-  // 우리 네이밍 체크는 messagetitle 이 비어 온다. 그 문장을 규칙 테이블에서 채운다.
-  left outer join ZI_AtcNamingText as NamingText
-    on NamingText.ObjectType = Finding.objecttype
-
   left outer join ZI_AtcActiveExemption as PkgExempt
     on  PkgExempt.ScopeType  = 'PCKG'
     and PkgExempt.Devclass   = cast( Finding.packagename as abap.char( 30 ) )
@@ -118,25 +114,9 @@ define root view entity ZI_AtcFinding
       //   case Finding.priority when <열거값> then 1 ... end
       // ztatccfg-maxpriority(INT1) 와 숫자로 비교하는 곳이 있어 INT1 로 둔다.
       cast( Finding.priority as abap.int1 ) as Priority,
-      // 표준 체크는 messagetitle 을 그대로 쓴다. 우리 네이밍 체크는 규칙 테이블의
-      // 문장을 쓴다.
-      //
-      // messagetitle 은 SATC_AC_MSGT 의 제목이고, 메시지 코드마다 하나뿐이다.
-      // 우리 체크는 규칙마다 문장이 달라 코드의 제목을 '&1' 로 두었고, ATC 는 그
-      // 자리표시자를 '...' 으로 바꿔 저장했다(확인함). 그래서 빈 값이 아니라 '...'
-      // 이 온다 - 처음에 "비어 있으면" 으로 판정했다가 한 번도 걸리지 않았다.
-      //
-      // 판정은 제목 값이 아니라 finding 코드로 한다. 우리 체크의 코드는 모두
-      // NAMING 으로 시작한다(zcl_atc_check_naming=>finding_codes). 코드를 바꾸면
-      // 여기도 같이 본다. 규칙이 비활성이라 문장이 없으면 원래 제목으로 둔다.
-      //
-      // 두 쪽의 타입(문자열 / CHAR)을 같게 맞춰야 case 가 활성화된다.
-      case
-        when Finding.module_msg_key like 'NAMING%'
-         and NamingText.RuleText is not null
-        then cast( NamingText.RuleText as abap.sstring( 255 ) )
-        else cast( Finding.messagetitle as abap.sstring( 255 ) )
-      end                        as MessageText,
+      // 제목은 ATC 가 finding 코드마다 등록한 것(SATC_AC_MSGT)이다. 네이밍 체크는
+      // 규칙마다 코드를 두고 그 규칙의 문장을 제목으로 등록하므로 그대로 쓴다.
+      Finding.messagetitle       as MessageText,
 
       // TODO 확인 필요: contractperson 의 철자 (contactperson 일 가능성)
       Finding.contractperson     as ContactPerson,

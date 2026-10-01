@@ -36,24 +36,34 @@ CLASS lcl_meta_data IMPLEMENTATION.
 
   METHOD if_ci_atc_check_meta_data~get_finding_code_infos.
 
-    " 텍스트가 전부 '&1' 인 것은 실수가 아니다. 규칙마다 문장이 달라서
-    " run( ) 이 규칙의 msgtext 를 param_1 로 채운다. ADT 결과에는 그 문장이 뜬다.
+    " 규칙마다 코드 하나. 제목은 그 규칙의 msgtext 이고 자리표시자를 넣지 않는다.
     "
-    " ATC 는 코드마다 제목을 SATC_AC_MSGT 에 등록하고, SATC_API_FINDINGS-messagetitle
-    " 은 거기서 온다. 파라미터는 finding 마다 달라 제목에 넣을 수 없으니 '&1' 은
-    " '...' 으로 바뀌어 저장된다(확인함). 그 뒤 문장을 바꾸고 재활성화해도 그 제목은
-    " 바뀌지 않았다 - 기존 코드의 제목을 다시 읽게 하는 방법은 아직 모른다.
-    " 그래서 조회 앱의 문장은 ZI_AtcFinding 이 ZTATCNAMING 에서 직접 가져온다.
+    " ATC 는 코드마다 제목을 SATC_AC_MSGT 에 등록하고 조회 뷰의 messagetitle 은
+    " 거기서 온다. 파라미터는 finding 마다 달라 제목에 못 들어가므로 &1 은
+    " '...' 으로 저장된다(확인함). 규칙 문장을 제목 자체로 두면 그대로 들어간다.
+    "
+    " 한 번 등록된 코드의 제목은 바뀌지 않는다(확인함 - 문장을 바꾸고 재활성화해도
+    " 그대로였다). 그래서 규칙 문장을 고칠 때는 행을 고치지 말고, 새 순번으로 행을
+    " 추가하고 옛 행을 끈다. 새 순번이 새 코드가 되어 새 제목으로 등록된다.
+    SELECT objtype, seqnr, priority, msgtext FROM ztatcnaming
+      WHERE active = @abap_true
+      INTO TABLE @DATA(lt_rule).
+
     finding_code_infos = VALUE #(
-      ( code     = zcl_atc_check_naming=>finding_codes-error
-        severity = if_ci_atc_check=>finding_severities-error
-        text     = '&1' )
-      ( code     = zcl_atc_check_naming=>finding_codes-warning
-        severity = if_ci_atc_check=>finding_severities-warning
-        text     = '&1' )
-      ( code     = zcl_atc_check_naming=>finding_codes-note
-        severity = if_ci_atc_check=>finding_severities-note
-        text     = '&1' ) ).
+      FOR ls_rule IN lt_rule
+      ( code     = zcl_atc_check_naming=>rule_code( iv_objtype = ls_rule-objtype
+                                                    iv_seqnr   = ls_rule-seqnr )
+        severity = SWITCH #( ls_rule-priority
+                             WHEN '1' THEN if_ci_atc_check=>finding_severities-error
+                             WHEN '2' THEN if_ci_atc_check=>finding_severities-warning
+                             ELSE          if_ci_atc_check=>finding_severities-note )
+        text     = CONV #( ls_rule-msgtext ) ) ).
+
+    " 잘못 쓴 정규식. 어느 규칙인지는 ADT 에서 &1 로 보인다.
+    INSERT VALUE #( code     = zcl_atc_check_naming=>invalid_pattern_code
+                    severity = if_ci_atc_check=>finding_severities-error
+                    text     = 'Invalid naming rule pattern: &1' )
+           INTO TABLE finding_code_infos.
 
   ENDMETHOD.
 

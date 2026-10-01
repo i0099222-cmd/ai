@@ -1326,12 +1326,12 @@ CLASS lhc_exemption IMPLEMENTATION.
         checkclass = ls_param-checkclass
         checkcode  = ls_param-checkcode
         " 패키지 신청은 체크 전체를 덮는다(CHK).
-        " MSG 는 체크 코드 하나만 덮는다. 우리 네이밍 체크는 우선순위에 따라
-        " NAMING_E / NAMING_W / NAMING_N 으로 코드를 나눠 내므로, MSG 로 두면
-        " "패키지 싹 다" 신청이 코드 종류만큼 쪼개진다. 실제로 그렇게 됐고,
-        " 한 패키지 안에서 어떤 위반은 면제되고 어떤 위반은 승인대기로 남았다.
-        " 오브젝트 단위 신청은 그대로 MSG 다 - 범위가 좁으니 코드까지 좁히는
-        " 것이 맞고, 넓히고 싶으면 패키지로 신청하면 된다.
+        " MSG 는 체크 코드 하나만 덮는다. 우리 네이밍 체크는 규칙마다 코드를
+        " 따로 내므로(NDOMA010 등), MSG 로 두면 "패키지 싹 다" 신청이 규칙 수만큼
+        " 쪼개진다. 실제로 그렇게 됐고(그때는 심각도별 코드였다), 한 패키지 안에서
+        " 어떤 위반은 면제되고 어떤 위반은 승인대기로 남았다.
+        " 오브젝트 단위 신청은 그대로 MSG 다 - 그 오브젝트가 어긴 규칙 하나만 덮는다.
+        " 넓히고 싶으면 패키지로 신청하면 된다.
         rulescope  = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
                              THEN zif_atc_exemption=>rulescope-check
                              ELSE zif_atc_exemption=>rulescope-message )

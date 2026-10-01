@@ -99,10 +99,6 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
                 iv_to      TYPE char2
                 iv_comment TYPE string OPTIONAL.
 
-    "! 현재 사용자가 표준 ATC 예외 승인 권한을 가졌는지.
-    METHODS is_approver
-      RETURNING VALUE(rv_can) TYPE abap_boolean.
-
     "! 표준 저장소 반영을 별도 LUW 에서 수행하고 결과를 돌려준다.
     "!
     "! 액션에서 부르는 이유: RAP 저장 시퀀스(save_modified)는 COMMIT 도 RFC 도
@@ -144,7 +140,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       FAILED failed.
 
     " 승인 권한은 행과 무관하다. 한 번만 본다.
-    DATA(lv_is_approver) = is_approver( ).
+    DATA(lv_is_approver) = zcl_atc_exempt_sync=>is_approver( ).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
@@ -218,7 +214,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       RESULT DATA(lt_exemption)
       FAILED failed.
 
-    DATA(lv_approve) = COND #( WHEN is_approver( ) = abap_true
+    DATA(lv_approve) = COND #( WHEN zcl_atc_exempt_sync=>is_approver( ) = abap_true
                                THEN if_abap_behv=>auth-allowed
                                ELSE if_abap_behv=>auth-unauthorized ).
 
@@ -247,19 +243,6 @@ CLASS lhc_exemption IMPLEMENTATION.
     IF requested_authorizations-%create = if_abap_behv=>mk-on.
       result-%create = if_abap_behv=>auth-allowed.
     ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD is_approver.
-
-    " 표준 승인 앱과 같은 권한을 본다. 이 권한이 없으면 표준 approve 도 거부한다.
-    " 패키지/범위별로 승인자를 나누지는 못한다 - 표준 권한에 그런 필드가 없다.
-    AUTHORITY-CHECK OBJECT zif_atc_exemption=>authobject-name
-      ID 'ATC_OTYPGO' FIELD zif_atc_exemption=>authobject-otype
-      ID 'ACTVT'      FIELD zif_atc_exemption=>authobject-approve.
-
-    rv_can = xsdbool( sy-subrc = 0 ).
 
   ENDMETHOD.
 

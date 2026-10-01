@@ -124,6 +124,12 @@ CLASS zcl_atc_exempt_sync DEFINITION
     METHODS sync_from_standard
       RETURNING VALUE(rv_synced) TYPE i.
 
+    "! 현재 사용자가 표준 ATC 예외 승인 권한을 가졌는지.
+    "! 표준 권한 오브젝트(S_Q_GOVERN)는 릴리스되지 않아 behavior pool 에서
+    "! "not permitted" 로 막힌다. 표준 의존은 이 클래스에 모아 두었으므로 여기서 본다.
+    CLASS-METHODS is_approver
+      RETURNING VALUE(rv_can) TYPE abap_boolean.
+
   PRIVATE SECTION.
 
     "! 표준 예외 컨트롤러. 최초 호출 시 한 번만 만든다.
@@ -447,6 +453,19 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
                                                      ELSE lv_state ) }]: | &&
                     lo_error->get_text( ) ).
     ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD is_approver.
+
+    " 표준 승인 앱과 같은 권한을 본다. 이 권한이 없으면 표준 approve 도 거부한다.
+    " 패키지/범위별로 승인자를 나누지는 못한다 - 표준 권한에 그런 필드가 없다.
+    AUTHORITY-CHECK OBJECT zif_atc_exemption=>authobject-name
+      ID 'ATC_OTYPGO' FIELD zif_atc_exemption=>authobject-otype
+      ID 'ACTVT'      FIELD zif_atc_exemption=>authobject-approve.
+
+    rv_can = xsdbool( sy-subrc = 0 ).
 
   ENDMETHOD.
 

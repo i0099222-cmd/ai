@@ -99,11 +99,9 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
                 iv_to      TYPE char2
                 iv_comment TYPE string OPTIONAL.
 
-    "! 현재 사용자가 이 예외를 승인할 수 있는지.
-    "! 적용범위에 따라 요구 승인 레벨이 다르다 (PKG 는 더 높은 레벨).
+    "! 현재 사용자가 표준 ATC 예외 승인 권한을 가졌는지.
     METHODS is_approver
-      IMPORTING is_exemption     TYPE ztatcexempt
-      RETURNING VALUE(rv_can)    TYPE abap_boolean.
+      RETURNING VALUE(rv_can) TYPE abap_boolean.
 
     "! 표준 저장소 반영을 별도 LUW 에서 수행하고 결과를 돌려준다.
     "!
@@ -145,10 +143,12 @@ CLASS lhc_exemption IMPLEMENTATION.
       RESULT DATA(lt_exemption)
       FAILED failed.
 
+    " 승인 권한은 행과 무관하다. 한 번만 본다.
+    DATA(lv_is_approver) = is_approver( ).
+
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
       DATA(lv_is_requester) = xsdbool( ls_exemption-requester = sy-uname ).
-      DATA(lv_is_approver)  = is_approver( CORRESPONDING #( ls_exemption ) ).
 
       " 버튼 활성화 규칙. 같은 화면에서 신청자와 승인자를 구분하는 지점이다.
       "   신청자 : 본인 초안에서만 Submit/Delete, 승인대기에서 Withdraw
@@ -214,28 +214,21 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        ALL FIELDS WITH CORRESPONDING #( keys )
+        FIELDS ( requester ) WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption)
       FAILED failed.
 
+    DATA(lv_approve) = COND #( WHEN is_approver( ) = abap_true
+                               THEN if_abap_behv=>auth-allowed
+                               ELSE if_abap_behv=>auth-unauthorized ).
+
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
-      " 권한 오브젝트는 체크그룹 + 패키지 + 적용범위 + 액티비티 4개 필드다.
-      " Phase 1 에서 값이 비어 있어도 필드는 지금 만들어 둔다. 나중에 필드를
-      " 추가하면 PFCG 역할을 전수 재작업해야 한다.
-      AUTHORITY-CHECK OBJECT zif_atc_exemption=>authobject-name
-        ID 'CHECKGRP'  FIELD ls_exemption-checkgroup
-        ID 'DEVCLASS'  FIELD ls_exemption-devclass
-        ID 'SCOPETYPE' FIELD ls_exemption-scopetype
-        ID 'ACTVT'     FIELD zif_atc_exemption=>authobject-actvt_chng.
-
-      DATA(lv_update) = COND #( WHEN sy-subrc = 0
+      " 수정/삭제는 신청자 본인만. 별도 권한 오브젝트를 두지 않는다.
+      " 승인자의 상태 변경은 액션 안에서 LOCAL MODE 로 하므로 여기 걸리지 않는다.
+      DATA(lv_update) = COND #( WHEN ls_exemption-requester = sy-uname
                                 THEN if_abap_behv=>auth-allowed
                                 ELSE if_abap_behv=>auth-unauthorized ).
-
-      DATA(lv_approve) = COND #( WHEN is_approver( CORRESPONDING #( ls_exemption ) ) = abap_true
-                                 THEN if_abap_behv=>auth-allowed
-                                 ELSE if_abap_behv=>auth-unauthorized ).
 
       APPEND VALUE #( %tky             = ls_exemption-%tky
                       %update          = lv_update
@@ -250,21 +243,9 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD get_global_authorizations.
 
-    " 생성 권한은 인스턴스가 없으므로 전역에서 판정한다.
-    " 패키지/체크그룹은 이 시점에 모르니 더미로 넘기고, 실제 범위 제한은
-    " get_instance_authorizations 와 validation 이 담당한다.
+    " 신청은 누구나 할 수 있다. 표준 ADT 에서도 개발자는 누구나 예외를 신청한다.
     IF requested_authorizations-%create = if_abap_behv=>mk-on.
-
-      AUTHORITY-CHECK OBJECT zif_atc_exemption=>authobject-name
-        ID 'CHECKGRP'  DUMMY
-        ID 'DEVCLASS'  DUMMY
-        ID 'SCOPETYPE' DUMMY
-        ID 'ACTVT'     FIELD zif_atc_exemption=>authobject-actvt_crea.
-
-      result-%create = COND #( WHEN sy-subrc = 0
-                               THEN if_abap_behv=>auth-allowed
-                               ELSE if_abap_behv=>auth-unauthorized ).
-
+      result-%create = if_abap_behv=>auth-allowed.
     ENDIF.
 
   ENDMETHOD.
@@ -272,17 +253,11 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD is_approver.
 
-    " 승인 권한은 권한 오브젝트 하나로 판정한다. SCOPETYPE 필드가 있으므로
-    " "누가 어느 범위를 승인할 수 있는지" 는 PFCG 역할에서 표현된다.
-    "   팀리더   : SCOPETYPE = OBJ
-    "   아키텍트 : SCOPETYPE = OBJ, PKG
-    "   보안담당 : CHECKGRP = SECURITY
-    " 컨트롤 테이블에 승인 레벨을 따로 두면 같은 것을 두 군데서 관리하게 된다.
+    " 표준 승인 앱과 같은 권한을 본다. 이 권한이 없으면 표준 approve 도 거부한다.
+    " 패키지/범위별로 승인자를 나누지는 못한다 - 표준 권한에 그런 필드가 없다.
     AUTHORITY-CHECK OBJECT zif_atc_exemption=>authobject-name
-      ID 'CHECKGRP'  FIELD is_exemption-checkgroup
-      ID 'DEVCLASS'  FIELD is_exemption-devclass
-      ID 'SCOPETYPE' FIELD is_exemption-scopetype
-      ID 'ACTVT'     FIELD zif_atc_exemption=>authobject-actvt_appr.
+      ID 'ATC_OTYPGO' FIELD zif_atc_exemption=>authobject-otype
+      ID 'ACTVT'      FIELD zif_atc_exemption=>authobject-approve.
 
     rv_can = xsdbool( sy-subrc = 0 ).
 

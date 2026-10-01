@@ -76,15 +76,16 @@ INTERFACE zif_atc_exemption
       sync     TYPE char10 VALUE 'SYNC',
     END OF logaction.
 
-  "! 권한 오브젝트. 필드는 Phase 2 확장을 고려해 처음부터 4개를 모두 둔다.
-  "! (권한 오브젝트 필드는 나중에 추가하면 PFCG 역할 전수 재작업이 발생한다)
+  "! 승인 권한. 표준 ATC 예외 승인과 같은 오브젝트를 본다.
+  "! 표준 승인 앱에서 승인할 때 권한 트레이스로 확인한 값이다.
+  "! 버튼 판정과 표준 approve 가 같은 권한을 보므로 둘이 어긋나지 않는다.
   CONSTANTS:
     BEGIN OF authobject,
-      name       TYPE char10 VALUE 'Z_ATCEXEM',
-      actvt_disp TYPE char2  VALUE '03',
-      actvt_crea TYPE char2  VALUE '01',
-      actvt_chng TYPE char2  VALUE '02',
-      actvt_appr TYPE char2  VALUE '43',
+      name    TYPE char10 VALUE 'S_Q_GOVERN',
+      "! ATC_OTYPGO. 트레이스에서 01 만 나왔다
+      otype   TYPE char2  VALUE '01',
+      "! 31 확인(승인)
+      approve TYPE char2  VALUE '31',
     END OF authobject.
 
   "! 근거 텍스트 최소 길이. 한 줄짜리 형식적 사유를 막는다.
@@ -127,7 +128,7 @@ INTERFACE zif_atc_exemption
     END OF ty_selection.
 
   "! 컨트롤 테이블 1행 (ztatccfg). 키는 체크 변형이다.
-  "! 승인 레벨은 여기 없다. 권한 오브젝트 Z_ATCEXEM 의 SCOPETYPE 필드가 담당한다.
+  "! 승인 레벨은 여기 없다. 승인 권한은 표준 S_Q_GOVERN 이다.
   TYPES:
     BEGIN OF ty_config,
       checkvariant TYPE char30,

@@ -304,7 +304,7 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         "
         " 표준은 지정된 승인자만 승인할 수 있게 한다. 상신 때 박히는 값은
         " 설정의 기본 승인자 한 명(ztatccfg-defapprover)인데, 우리 앱의 결재
-        " 권한은 Z_ATCEXEM 이 정하므로 결재자는 여럿일 수 있다. 맞춰주지
+        " 권한은 S_Q_GOVERN 이 정하므로 결재자는 여럿일 수 있다. 맞춰주지
         " 않으면 기본 승인자가 아닌 사람이 누를 때마다
         " "not authorized to approve exemption with id ..." 로 막힌다.
         "

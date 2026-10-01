@@ -124,9 +124,8 @@ CLASS zcl_atc_exempt_sync DEFINITION
     METHODS sync_from_standard
       RETURNING VALUE(rv_synced) TYPE i.
 
-    "! 현재 사용자가 표준 ATC 예외 승인 권한을 가졌는지.
-    "! 표준 권한 오브젝트(S_Q_GOVERN)는 릴리스되지 않아 behavior pool 에서
-    "! "not permitted" 로 막힌다. 표준 의존은 이 클래스에 모아 두었으므로 여기서 본다.
+    "! 현재 사용자가 이 앱에서 승인할 수 있는지.
+    "! S_Q_GOVERN 이 behavior pool 에서 "not permitted" 로 막혀 여기서 본다.
     CLASS-METHODS is_approver
       RETURNING VALUE(rv_can) TYPE abap_boolean.
 
@@ -310,7 +309,7 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         "
         " 표준은 지정된 승인자만 승인할 수 있게 한다. 상신 때 박히는 값은
         " 설정의 기본 승인자 한 명(ztatccfg-defapprover)인데, 우리 앱의 결재
-        " 권한은 S_Q_GOVERN 이 정하므로 결재자는 여럿일 수 있다. 맞춰주지
+        " 권한은 Z_ATCEXEM 이 정하므로 결재자는 여럿일 수 있다. 맞춰주지
         " 않으면 기본 승인자가 아닌 사람이 누를 때마다
         " "not authorized to approve exemption with id ..." 로 막힌다.
         "
@@ -459,11 +458,18 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
   METHOD is_approver.
 
-    " 표준 승인 앱과 같은 권한을 본다. 이 권한이 없으면 표준 approve 도 거부한다.
-    " 패키지/범위별로 승인자를 나누지는 못한다 - 표준 권한에 그런 필드가 없다.
+    " 둘 다 있어야 한다.
+    "   Z_ATCEXEM  : 누가 승인자인가. S_Q_GOVERN 은 개발자 대부분이 가져서 못 가린다.
+    "   S_Q_GOVERN : 표준 approve 가 직접 검사한다. 없으면 버튼은 켜져도 표준이 거부한다.
     AUTHORITY-CHECK OBJECT zif_atc_exemption=>authobject-name
-      ID 'ATC_OTYPGO' FIELD zif_atc_exemption=>authobject-otype
-      ID 'ACTVT'      FIELD zif_atc_exemption=>authobject-approve.
+      ID 'ACTVT' FIELD zif_atc_exemption=>authobject-approve.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    AUTHORITY-CHECK OBJECT zif_atc_exemption=>std_authobject-name
+      ID 'ATC_OTYPGO' FIELD zif_atc_exemption=>std_authobject-otype
+      ID 'ACTVT'      FIELD zif_atc_exemption=>std_authobject-approve.
 
     rv_can = xsdbool( sy-subrc = 0 ).
 

@@ -76,16 +76,8 @@ INTERFACE zif_atc_exemption
       sync     TYPE char10 VALUE 'SYNC',
     END OF logaction.
 
-  "! 우리 앱의 승인 권한. SU21 에서 만든다(필드 ACTVT 하나).
-  "! 표준 S_Q_GOVERN 은 개발자 대부분이 갖고 있어 승인자를 가려내지 못한다.
-  CONSTANTS:
-    BEGIN OF authobject,
-      name    TYPE char10 VALUE 'Z_ATCEXEM',
-      "! 43 승인(Release)
-      approve TYPE char2  VALUE '43',
-    END OF authobject.
-
   "! 표준 ATC 예외 승인 권한. 표준 approve 가 직접 검사하므로 승인자는 이것도 있어야 한다.
+  "! 누가 승인자인지는 이것이 아니라 표준 승인자 목록(SATC_CI_APPROVER)이 정한다.
   CONSTANTS:
     BEGIN OF std_authobject,
       name    TYPE char10 VALUE 'S_Q_GOVERN',
@@ -135,7 +127,7 @@ INTERFACE zif_atc_exemption
     END OF ty_selection.
 
   "! 컨트롤 테이블 1행 (ztatccfg). 키는 체크 변형이다.
-  "! 승인 레벨은 여기 없다. 승인 권한은 Z_ATCEXEM 이다.
+  "! 승인 레벨은 여기 없다. 승인자는 표준 승인자 목록(SATC_CI_APPROVER)이 정한다.
   TYPES:
     BEGIN OF ty_config,
       checkvariant TYPE char30,

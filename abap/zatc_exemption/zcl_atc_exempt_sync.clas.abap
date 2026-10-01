@@ -309,7 +309,7 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         "
         " 표준은 지정된 승인자만 승인할 수 있게 한다. 상신 때 박히는 값은
         " 설정의 기본 승인자 한 명(ztatccfg-defapprover)인데, 우리 앱의 결재
-        " 권한은 Z_ATCEXEM 이 정하므로 결재자는 여럿일 수 있다. 맞춰주지
+        " 권한은 표준 승인자 목록(SATC_CI_APPROVER)이 정하므로 결재자는 여럿일 수 있다. 맞춰주지
         " 않으면 기본 승인자가 아닌 사람이 누를 때마다
         " "not authorized to approve exemption with id ..." 로 막힌다.
         "
@@ -459,11 +459,13 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
   METHOD is_approver.
 
     " 둘 다 있어야 한다.
-    "   Z_ATCEXEM  : 누가 승인자인가. S_Q_GOVERN 은 개발자 대부분이 가져서 못 가린다.
-    "   S_Q_GOVERN : 표준 approve 가 직접 검사한다. 없으면 버튼은 켜져도 표준이 거부한다.
-    AUTHORITY-CHECK OBJECT zif_atc_exemption=>authobject-name
-      ID 'ACTVT' FIELD zif_atc_exemption=>authobject-approve.
-    IF sy-subrc <> 0.
+    "   SATC_CI_APPROVER : 표준 승인자 목록. 누가 승인자인가는 여기서 정한다.
+    "                      S_Q_GOVERN 은 개발자 대부분이 가져서 못 가린다.
+    "   S_Q_GOVERN       : 표준 approve 가 직접 검사한다. 없으면 버튼은 켜져도 표준이 거부한다.
+    SELECT SINGLE @abap_true FROM satc_ci_approver
+      WHERE approver = @sy-uname
+      INTO @DATA(lv_listed).
+    IF lv_listed = abap_false.
       RETURN.
     ENDIF.
 

@@ -24,7 +24,7 @@
 // 가동 전에 반드시 초기 데이터를 넣어야 한다. 비어 있으면 모든 신청이 거부되고
 // 조회 목록도 비어 보인다.
 //
-// 승인 권한은 여기 두지 않는다. 권한 오브젝트 Z_ATCEXEM 이 정한다.
+// 승인 권한은 여기 두지 않는다. 표준 승인자 목록(SATC_CI_APPROVER)이 정한다.
 define table ztatccfg {
 
   key client      : abap.clnt not null;
@@ -66,7 +66,7 @@ define table ztatccfg {
   "! 기본 승인자. 표준 예외를 승인대기로 올릴 때 send_to_approver( ) 가
   "! 받는 사람이다. 표준은 승인자 1명을 필수로 요구한다.
   "!
-  "! 우리 앱의 승인 권한 자체는 이 값이 아니라 권한 오브젝트 Z_ATCEXEM 이
+  "! 우리 앱의 승인 권한 자체는 이 값이 아니라 표준 승인자 목록(SATC_CI_APPROVER)이
   "! 정한다. 이 필드는 "표준에 누구 앞으로 올릴 것인가" 만 정한다.
   defapprover     : abap.char(12);
 

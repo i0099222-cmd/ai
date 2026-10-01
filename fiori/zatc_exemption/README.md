@@ -13,8 +13,8 @@ FE 는 bound 액션이 돌려준 행의 키가 원래 행과 같으면 그 행�
 
 ### 넣는 법
 
-1. `webapp/ext/controller/ListReportExt.controller.js` 를 앱의 같은 경로에 복사한다.
-2. 파일 안의 `zatcexemption` 을 앱 ID(manifest 의 `sap.app.id`)로 바꾼다.
+1. `webapp/ext/controller/ListReportExt.controller.ts` 를 앱의 같은 경로에 복사한다.
+2. 파일 안의 `@namespace zatcexemption.ext.controller` 의 `zatcexemption` 을 앱 ID(manifest 의 `sap.app.id`)로 바꾼다.
 3. `manifest.json` 의 `sap.ui5` 아래에 추가한다.
 
 ```json
@@ -28,6 +28,9 @@ FE 는 bound 액션이 돌려준 행의 키가 원래 행과 같으면 그 행�
   }
 }
 ```
+
+- 앱이 TypeScript 프로젝트(BAS 에서 TypeScript 로 생성)여야 한다. 빌드가 `.ts` 를
+  `.js` 로 변환하므로 manifest 의 `controllerName` 은 그대로다.
 
 ### 버전
 

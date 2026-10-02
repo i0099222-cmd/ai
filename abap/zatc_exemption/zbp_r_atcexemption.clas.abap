@@ -89,6 +89,9 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS createfromfinding FOR MODIFY
       IMPORTING keys FOR ACTION exemption~createfromfinding RESULT result.
 
+    METHODS preregisterpackages FOR MODIFY
+      IMPORTING keys FOR ACTION exemption~preregisterpackages.
+
     "! 상태 전이 1건을 이력에 남긴다. 감사 대응의 유일한 근거이므로 모든 액션이 호출한다.
     "! 키를 UUID 가 아니라 읽기 결과 라인으로 받는다. draft 활성 BO 에서는
     "! %tky 에 %is_draft 가 들어 있어야 이력이 올바른 인스턴스에 달린다.
@@ -1443,6 +1446,148 @@ CLASS lhc_exemption IMPLEMENTATION.
     " 트랜잭션을 되돌릴 수단이 없어 진행은 시키지만, 결과를 버리지는 않는다.
     " 조용히 버리는 바람에 _Log 에 create 가 없던 것을 한참 못 찾았다.
     ASSERT lt_log_failed IS INITIAL.
+
+  ENDMETHOD.
+
+
+  METHOD preregisterpackages.
+
+    " 와일드카드가 Z* 처럼 넓으면 수백 건이 생긴다. 실수로 그렇게 되지 않게 막는다.
+    CONSTANTS lc_max_packages TYPE i VALUE 100.
+
+    DATA lt_package TYPE SORTED TABLE OF devclass WITH UNIQUE KEY table_line.
+    DATA lt_create  TYPE TABLE FOR CREATE zr_atcexemption.
+
+    LOOP AT keys INTO DATA(ls_key).
+
+      DATA(ls_param) = ls_key-%param.
+
+      " 쉼표·세미콜론·줄바꿈을 공백으로 바꿔 나눈다.
+      DATA(lv_input) = to_upper( ls_param-packages ).
+      REPLACE ALL OCCURRENCES OF REGEX `[,;\r\n\t]` IN lv_input WITH ` `.
+      CONDENSE lv_input.
+      SPLIT lv_input AT ` ` INTO TABLE DATA(lt_token).
+
+      LOOP AT lt_token INTO DATA(lv_token) WHERE table_line IS NOT INITIAL.
+
+        " 고객 네임스페이스만 대상이다. validateScope 도 같은 규칙으로 막는다.
+        IF lv_token(1) <> 'Z' AND lv_token(1) <> 'Y' AND lv_token(1) <> '/'.
+          APPEND VALUE #( %cid = ls_key-%cid
+                          %msg = new_message_with_text(
+                                   severity = if_abap_behv_message=>severity-warning
+                                   text     = |{ lv_token }: not a customer package, skipped| ) )
+                 TO reported-exemption.
+          CONTINUE.
+        ENDIF.
+
+        DATA(lv_pattern) = lv_token.
+        REPLACE ALL OCCURRENCES OF `*` IN lv_pattern WITH `%`.
+        SELECT devclass FROM tdevc
+          WHERE devclass LIKE @lv_pattern
+          INTO TABLE @DATA(lt_found).
+
+        IF lt_found IS INITIAL.
+          APPEND VALUE #( %cid = ls_key-%cid
+                          %msg = new_message_with_text(
+                                   severity = if_abap_behv_message=>severity-warning
+                                   text     = |{ lv_token }: package not found, skipped| ) )
+                 TO reported-exemption.
+          CONTINUE.
+        ENDIF.
+
+        LOOP AT lt_found INTO DATA(ls_found).
+          INSERT ls_found-devclass INTO TABLE lt_package.
+        ENDLOOP.
+
+      ENDLOOP.
+
+      IF lines( lt_package ) > lc_max_packages.
+        APPEND VALUE #( %cid = ls_key-%cid ) TO failed-exemption.
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %msg = new_message_with_text(
+                                 severity = if_abap_behv_message=>severity-error
+                                 text     = |{ lines( lt_package ) } packages matched. | &&
+                                            |Narrow the pattern to { lc_max_packages } or fewer.| ) )
+               TO reported-exemption.
+        RETURN.
+      ENDIF.
+
+      LOOP AT lt_package INTO DATA(lv_package).
+
+        " 이미 신청·승인된 같은 범위는 건너뛴다. 만들면 저장 단계의 중복 검증에
+        " 걸려 선택한 전체가 만들어지지 않는다.
+        IF has_overlap( VALUE #( scopetype  = zif_atc_exemption=>scope-pckg
+                                 devclass   = lv_package
+                                 checkclass = ls_param-checkclass
+                                 rulescope  = zif_atc_exemption=>rulescope-check
+                                 validfrom  = sy-datum
+                                 validto    = ls_param-validto ) ) = abap_true.
+          APPEND VALUE #( %cid = ls_key-%cid
+                          %msg = new_message_with_text(
+                                   severity = if_abap_behv_message=>severity-warning
+                                   text     = |{ lv_package }: already requested, skipped| ) )
+                 TO reported-exemption.
+          CONTINUE.
+        ENDIF.
+
+        " 상태·신청자·규칙 범위·체크그룹·선등록 표시는 determination 이 채운다.
+        APPEND VALUE #( %cid         = |PR{ lines( lt_create ) + 1 }|
+                        checkvariant = ls_param-checkvariant
+                        scopetype    = zif_atc_exemption=>scope-pckg
+                        devclass     = lv_package
+                        checkclass   = ls_param-checkclass
+                        reasoncode   = ls_param-reasoncode
+                        reasontext   = ls_param-reasontext
+                        validfrom    = sy-datum
+                        validto      = ls_param-validto ) TO lt_create.
+
+      ENDLOOP.
+
+    ENDLOOP.
+
+    IF lt_create IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        CREATE FIELDS ( checkvariant scopetype devclass checkclass
+                        reasoncode reasontext validfrom validto )
+        WITH lt_create
+      MAPPED DATA(lt_mapped)
+      FAILED DATA(lt_failed)
+      REPORTED DATA(lt_reported).
+
+    " 검증은 저장 단계에서 돈다. 걸릴 건이 있으면 성공을 알리지 않는다 - 그 에러는
+    " 저장 단계가 올리므로 여기서는 올리지 않는다. 조회 화면의 신청과 같은 방식이다.
+    DATA(lv_check_error) = abap_false.
+
+    IF lt_mapped-exemption IS NOT INITIAL.
+      MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
+        ENTITY exemption
+          EXECUTE checkrequest FROM VALUE #( FOR ls_new IN lt_mapped-exemption
+                                             ( %tky = ls_new-%tky ) )
+        FAILED DATA(lt_check_failed)
+        REPORTED DATA(lt_check_reported).
+
+      lv_check_error = xsdbool( lt_check_failed-exemption IS NOT INITIAL ).
+      LOOP AT lt_check_reported-exemption INTO DATA(ls_check) WHERE %msg IS BOUND.
+        IF ls_check-%msg->m_severity = if_abap_behv_message=>severity-error.
+          lv_check_error = abap_true.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    IF lt_mapped-exemption IS NOT INITIAL
+   AND lv_check_error = abap_false.
+      APPEND VALUE #( %cid = keys[ 1 ]-%cid
+                      %msg = new_message_with_text(
+                               severity = if_abap_behv_message=>severity-success
+                               text     = |{ lines( lt_mapped-exemption ) } package exemption request(s) | &&
+                                          |created as draft. Select them in Draft and submit.| ) )
+             TO reported-exemption.
+    ENDIF.
 
   ENDMETHOD.
 

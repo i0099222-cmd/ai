@@ -1456,32 +1456,42 @@ CLASS lhc_exemption IMPLEMENTATION.
     CONSTANTS lc_max_targets TYPE i VALUE 100.
 
     TYPES: BEGIN OF ty_target,
+             scopetype  TYPE ztatcexempt-scopetype,
              devclass   TYPE devclass,
              objecttype TYPE trobjtype,
              objectname TYPE sobj_name,
+             checkcode  TYPE ztatcexempt-checkcode,
            END OF ty_target.
-    DATA lt_target TYPE SORTED TABLE OF ty_target WITH UNIQUE KEY devclass objecttype objectname.
+    DATA lt_target TYPE SORTED TABLE OF ty_target
+                   WITH UNIQUE KEY scopetype devclass objecttype objectname checkcode.
     DATA lt_create TYPE TABLE FOR CREATE zr_atcexemption.
 
     LOOP AT keys INTO DATA(ls_key).
 
       DATA(ls_param) = ls_key-%param.
-      DATA(lv_scope) = COND #( WHEN ls_param-scopetype IS INITIAL
-                               THEN zif_atc_exemption=>scope-pckg
-                               ELSE ls_param-scopetype ).
 
-      " 오브젝트 신청은 어긴 규칙 하나를 덮는다. 어느 규칙인지 없으면 만들지 않는다.
-      IF lv_scope = zif_atc_exemption=>scope-obj AND ls_param-checkcode IS INITIAL.
-        APPEND VALUE #( %cid = ls_key-%cid ) TO failed-exemption.
-        APPEND VALUE #( %cid = ls_key-%cid
-                        %msg = new_error( iv_number = '022' ) ) TO reported-exemption.
-        RETURN.
-      ENDIF.
+      " 대상은 deep parameter 의 자식 행으로 들어온다. 범위는 행마다 정한다.
+      "   Object Name 이 비면 패키지(PCKG), 있으면 오브젝트(OBJ).
+      LOOP AT ls_param-_targets INTO DATA(ls_row)
+           WHERE devclass IS NOT INITIAL OR objectname IS NOT INITIAL.
 
-      " 대상은 deep parameter 의 자식 행으로 들어온다. 한 행에 하나, * 허용.
-      LOOP AT ls_param-_targets INTO DATA(ls_row) WHERE objectname IS NOT INITIAL.
+        DATA(lv_is_obj) = xsdbool( ls_row-objectname IS NOT INITIAL ).
+        DATA(lv_name)   = to_upper( condense( COND string( WHEN lv_is_obj = abap_true
+                                                           THEN ls_row-objectname
+                                                           ELSE ls_row-devclass ) ) ).
+        DATA(lv_type)   = to_upper( ls_row-objecttype ).
+        DATA(lv_code)   = to_upper( ls_row-checkcode ).
 
-        DATA(lv_name) = to_upper( condense( CONV string( ls_row-objectname ) ) ).
+        " 오브젝트 신청은 어긴 규칙 하나(MSG)를 덮는다. 유형과 규칙이 없으면 만들 수 없다.
+        IF lv_is_obj = abap_true AND ( lv_type IS INITIAL OR lv_code IS INITIAL ).
+          APPEND VALUE #( %cid = ls_key-%cid
+                          %msg = new_message_with_text(
+                                   severity = if_abap_behv_message=>severity-warning
+                                   text     = |{ lv_name }: object type and check message code | &&
+                                              |are required for an object, skipped| ) )
+                 TO reported-exemption.
+          CONTINUE.
+        ENDIF.
 
         " 고객 네임스페이스만 대상이다. validateScope 도 같은 규칙으로 막는다.
         IF lv_name(1) <> 'Z' AND lv_name(1) <> 'Y' AND lv_name(1) <> '/'.
@@ -1495,16 +1505,17 @@ CLASS lhc_exemption IMPLEMENTATION.
 
         DATA(lv_pattern) = lv_name.
         REPLACE ALL OCCURRENCES OF `*` IN lv_pattern WITH `%`.
-        DATA(lv_type) = to_upper( ls_row-objecttype ).
+        DATA(lv_found) = abap_false.
 
-        IF lv_scope = zif_atc_exemption=>scope-pckg.
+        IF lv_is_obj = abap_false.
           SELECT devclass FROM tdevc
             WHERE devclass LIKE @lv_pattern
             INTO TABLE @DATA(lt_found_pkg).
           LOOP AT lt_found_pkg INTO DATA(ls_found_pkg).
-            INSERT VALUE #( devclass = ls_found_pkg-devclass ) INTO TABLE lt_target.
+            INSERT VALUE #( scopetype = zif_atc_exemption=>scope-pckg
+                            devclass  = ls_found_pkg-devclass ) INTO TABLE lt_target.
+            lv_found = abap_true.
           ENDLOOP.
-          DATA(lv_found) = xsdbool( lt_found_pkg IS NOT INITIAL ).
         ELSE.
           " 패키지는 TADIR 에서 파생한다. 삭제 대기(delflag) 오브젝트는 신청할 이유가 없다.
           SELECT object, obj_name, devclass FROM tadir
@@ -1514,11 +1525,13 @@ CLASS lhc_exemption IMPLEMENTATION.
               AND delflag  = @space
             INTO TABLE @DATA(lt_found_obj).
           LOOP AT lt_found_obj INTO DATA(ls_found_obj).
-            INSERT VALUE #( devclass   = ls_found_obj-devclass
+            INSERT VALUE #( scopetype  = zif_atc_exemption=>scope-obj
+                            devclass   = ls_found_obj-devclass
                             objecttype = ls_found_obj-object
-                            objectname = ls_found_obj-obj_name ) INTO TABLE lt_target.
+                            objectname = ls_found_obj-obj_name
+                            checkcode  = lv_code ) INTO TABLE lt_target.
+            lv_found = abap_true.
           ENDLOOP.
-          lv_found = xsdbool( lt_found_obj IS NOT INITIAL ).
         ENDIF.
 
         IF lv_found = abap_false.
@@ -1546,13 +1559,13 @@ CLASS lhc_exemption IMPLEMENTATION.
 
         " 이미 신청·승인된 같은 범위는 건너뛴다. 만들면 저장 단계의 중복 검증에
         " 걸려 전체가 만들어지지 않는다.
-        IF has_overlap( VALUE #( scopetype  = lv_scope
+        IF has_overlap( VALUE #( scopetype  = ls_target-scopetype
                                  devclass   = ls_target-devclass
                                  objecttype = ls_target-objecttype
                                  objectname = ls_target-objectname
                                  checkclass = ls_param-checkclass
-                                 checkcode  = ls_param-checkcode
-                                 rulescope  = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
+                                 checkcode  = ls_target-checkcode
+                                 rulescope  = COND #( WHEN ls_target-scopetype = zif_atc_exemption=>scope-pckg
                                                       THEN zif_atc_exemption=>rulescope-check
                                                       ELSE zif_atc_exemption=>rulescope-message )
                                  validfrom  = sy-datum
@@ -1569,12 +1582,12 @@ CLASS lhc_exemption IMPLEMENTATION.
         " 상태·신청자·규칙 범위·체크그룹·선등록 표시는 determination 이 채운다.
         APPEND VALUE #( %cid         = |PR{ lines( lt_create ) + 1 }|
                         checkvariant = ls_param-checkvariant
-                        scopetype    = lv_scope
+                        scopetype    = ls_target-scopetype
                         devclass     = ls_target-devclass
                         objecttype   = ls_target-objecttype
                         objectname   = ls_target-objectname
                         checkclass   = ls_param-checkclass
-                        checkcode    = ls_param-checkcode
+                        checkcode    = ls_target-checkcode
                         reasoncode   = ls_param-reasoncode
                         reasontext   = ls_param-reasontext
                         validfrom    = sy-datum

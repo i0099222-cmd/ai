@@ -7,14 +7,6 @@
 // FE 기본 입력창은 deep parameter 를 그리지 못해 앱의 컨트롤러 확장이 입력창을 띄운다.
 define root abstract entity ZD_AtcPreRegister
 {
-  // PCKG / OBJ. 대상 행을 무엇으로 읽을지 정한다.
-  @EndUserText.label: 'Object Scope'
-  @Consumption.valueHelpDefinition: [{
-    entity:            { name: 'ZI_AtcScopeVH', element: 'ScopeType' },
-    additionalBinding: [{ localElement: 'CheckVariant', element: 'CheckVariant' }]
-  }]
-  ScopeType    : abap.char(4);
-
   // 고르면 체크 클래스가 같이 채워진다.
   @EndUserText.label: 'Check Variant'
   @Consumption.valueHelpDefinition: [{
@@ -30,13 +22,6 @@ define root abstract entity ZD_AtcPreRegister
   }]
   CheckClass   : abap.char(30);
 
-  // OBJ 만 쓴다. 오브젝트 신청은 어긴 규칙 하나(MSG)를 덮으므로 필수다.
-  @EndUserText.label: 'Check Message Code'
-  @Consumption.valueHelpDefinition: [{
-    entity: { name: 'ZI_AtcCheckCodeVH', element: 'CheckCode' }
-  }]
-  CheckCode    : abap.char(10);
-
   @EndUserText.label: 'Reason Code'
   @Consumption.valueHelpDefinition: [{
     entity: { name: 'ZI_AtcReasonVH', element: 'ReasonCode' }
@@ -49,6 +34,6 @@ define root abstract entity ZD_AtcPreRegister
   @EndUserText.label: 'Valid To'
   ValidTo      : abap.dats;
 
-  // 선등록 대상. 한 행에 하나, * 허용(예: ZSD*, ZCL_CM*).
+  // 선등록 대상. 한 행에 하나. Object Name 이 비면 패키지 신청, 있으면 오브젝트 신청.
   _Targets     : composition [1..*] of ZD_AtcPreRegisterTgt;
 }

@@ -1,23 +1,27 @@
 import ControllerExtension from "sap/ui/core/mvc/ControllerExtension";
 import ExtensionAPI from "sap/fe/templates/ListReport/ExtensionAPI";
 import ODataModel from "sap/ui/model/odata/v4/ODataModel";
+import Context from "sap/ui/model/odata/v4/Context";
+import ODataListBinding from "sap/ui/model/odata/v4/ODataListBinding";
+import JSONModel from "sap/ui/model/json/JSONModel";
+import Filter from "sap/ui/model/Filter";
+import FilterOperator from "sap/ui/model/FilterOperator";
 import Dialog from "sap/m/Dialog";
+import SelectDialog from "sap/m/SelectDialog";
+import StandardListItem from "sap/m/StandardListItem";
 import Button from "sap/m/Button";
 import Label from "sap/m/Label";
 import Input from "sap/m/Input";
-import MultiInput from "sap/m/MultiInput";
-import Token from "sap/m/Token";
 import TextArea from "sap/m/TextArea";
 import DatePicker from "sap/m/DatePicker";
-import SimpleForm from "sap/ui/layout/form/SimpleForm";
-import SegmentedButton from "sap/m/SegmentedButton";
-import SegmentedButtonItem from "sap/m/SegmentedButtonItem";
 import Table from "sap/m/Table";
 import Column from "sap/m/Column";
 import ColumnListItem from "sap/m/ColumnListItem";
 import Text from "sap/m/Text";
-import VBox from "sap/m/VBox";
-import JSONModel from "sap/ui/model/json/JSONModel";
+import Toolbar from "sap/m/Toolbar";
+import ToolbarSpacer from "sap/m/ToolbarSpacer";
+import Title from "sap/m/Title";
+import SimpleForm from "sap/ui/layout/form/SimpleForm";
 
 // 상태를 바꾸는 액션. 끝나면 목록을 다시 읽는다.
 // FE 는 액션이 돌려준 행($self)만 바꿔 끼우고 탭 필터를 다시 적용하지 않는다.
@@ -60,100 +64,115 @@ export default class ListReportExt extends ControllerExtension {
 	// [Pre-Register] 버튼. manifest 의 custom action 이 이 메소드를 부른다.
 	// FE 의 기본 입력창은 deep parameter(대상 여러 행)를 그리지 못해서 입력창을 직접 띄운다.
 	// 확인을 누르면 백엔드의 같은 static 액션 preRegister 를 부른다.
+	//
+	// 대상 표의 한 행 = 신청서 1건. Object Name 이 비면 패키지 신청, 있으면 오브젝트 신청.
+	// 이름에는 * 를 쓸 수 있다(예: ZSD*, ZCL_CM*). 범위 판정은 백엔드가 행마다 한다.
 	onPreRegister(): void {
-		// 패키지: 엔터를 치면 토큰이 된다. 한 토큰 = 패키지 하나, * 허용(예: ZSD*).
-		// 오브젝트: 행마다 유형 + 이름. 이름에 * 허용(예: ZCL_CM*).
-		const rows = new JSONModel({ objects: [{ ObjectType: "CLAS", ObjectName: "" }] });
+		const emptyRow = () => ({ Devclass: "", ObjectType: "", ObjectName: "", CheckCode: "" });
+		const rows = new JSONModel({ targets: [emptyRow(), emptyRow(), emptyRow()] });
 
-		const scope = new SegmentedButton({
-			selectedKey: "PCKG",
-			items: [new SegmentedButtonItem({ key: "PCKG", text: "Package" }), new SegmentedButtonItem({ key: "OBJ", text: "Object" })]
-		});
-		const variant = new Input({ width: "100%" });
-		const checkClass = new Input({ width: "100%", placeholder: "Filled from the variant if it has one check" });
-		const checkCodeLabel = new Label({ text: "Check Message Code", required: true, visible: false });
-		const checkCode = new Input({ width: "100%", visible: false });
+		const variant = new Input({ width: "100%", showValueHelp: true });
+		const checkClass = new Input({ width: "100%", showValueHelp: true, placeholder: "Filled from the variant if it has one check" });
+		// 변형과 체크 클래스는 짝 목록(CheckClassVH)에서 고른다. 어느 쪽에서 골라도 둘 다 채운다.
+		const pickVariant = () =>
+			this.openValueHelp("Check Variant", "/CheckClassVH", "CheckVariant", "CheckClass", (picked) => {
+				variant.setValue(picked.getProperty("CheckVariant") as string);
+				checkClass.setValue(picked.getProperty("CheckClass") as string);
+			});
+		variant.attachValueHelpRequest(pickVariant);
+		checkClass.attachValueHelpRequest(pickVariant);
 
-		const packages = new MultiInput({ width: "100%", showValueHelp: false, placeholder: "ZCM_ATC, ZSD* ... (Enter)" });
-		packages.addValidator((args: { text: string }) => new Token({ key: args.text.toUpperCase(), text: args.text.toUpperCase() }));
+		const reason = new Input({ width: "100%", showValueHelp: true });
+		reason.attachValueHelpRequest(() =>
+			this.openValueHelp("Reason Code", "/ReasonVH", "ReasonCode", "", (picked) => reason.setValue(picked.getProperty("ReasonCode") as string))
+		);
+		const justification = new TextArea({ width: "100%", rows: 3 });
+		const validTo = new DatePicker({ width: "100%", valueFormat: "yyyy-MM-dd" });
 
-		const objects = new Table({
+		// 표 안의 입력칸은 행 모델에 묶여 있다. setValue 가 양방향 바인딩으로 행 값을 바꾼다.
+		const cellValueHelp = (input: Input, title: string, path: string, key: string, description: string) => {
+			input.attachValueHelpRequest(() =>
+				this.openValueHelp(title, path, key, description, (picked) => input.setValue(picked.getProperty(key) as string))
+			);
+			return input;
+		};
+
+		const targets = new Table({
 			mode: "Delete",
-			visible: false,
-			columns: [new Column({ header: new Text({ text: "Object Type" }), width: "8rem" }), new Column({ header: new Text({ text: "Object Name" }) })],
+			headerToolbar: new Toolbar({
+				content: [
+					new Title({ text: "Targets" }),
+					new ToolbarSpacer(),
+					new Button({
+						icon: "sap-icon://add",
+						text: "Add Row",
+						press: () => rows.setProperty("/targets", [...(rows.getProperty("/targets") as object[]), emptyRow()])
+					})
+				]
+			}),
+			columns: [
+				new Column({ header: new Text({ text: "Package" }) }),
+				new Column({ header: new Text({ text: "Object Type" }), width: "7rem" }),
+				new Column({ header: new Text({ text: "Object Name" }) }),
+				new Column({ header: new Text({ text: "Check Message Code" }) })
+			],
 			items: {
-				path: "/objects",
+				path: "/targets",
 				template: new ColumnListItem({
-					cells: [new Input({ value: "{ObjectType}", maxLength: 4 }), new Input({ value: "{ObjectName}" })]
+					cells: [
+						cellValueHelp(new Input({ value: "{Devclass}", showValueHelp: true }), "Package", "/PackageVH", "Devclass", "ParentPackage"),
+						new Input({ value: "{ObjectType}", maxLength: 4, placeholder: "CLAS" }),
+						new Input({ value: "{ObjectName}", placeholder: "Empty = package" }),
+						cellValueHelp(new Input({ value: "{CheckCode}", showValueHelp: true }), "Check Message Code", "/CheckCodeVH", "CheckCode", "RuleText")
+					]
 				})
 			},
 			delete: (event: { getParameter(name: string): unknown }) => {
 				const path = (event.getParameter("listItem") as ColumnListItem).getBindingContext()!.getPath();
-				const list = rows.getProperty("/objects") as object[];
+				const list = rows.getProperty("/targets") as object[];
 				list.splice(Number(path.split("/").pop()), 1);
-				rows.setProperty("/objects", list);
+				rows.setProperty("/targets", list);
 			}
 		});
-		objects.setModel(rows);
-		const addRow = new Button({
-			text: "Add Object",
-			visible: false,
-			press: () => rows.setProperty("/objects", [...(rows.getProperty("/objects") as object[]), { ObjectType: "CLAS", ObjectName: "" }])
-		});
-
-		const targetsLabel = new Label({ text: "Packages", required: true });
-		scope.attachSelectionChange(() => {
-			const isObject = scope.getSelectedKey() === "OBJ";
-			targetsLabel.setText(isObject ? "Objects" : "Packages");
-			packages.setVisible(!isObject);
-			objects.setVisible(isObject);
-			addRow.setVisible(isObject);
-			checkCodeLabel.setVisible(isObject);
-			checkCode.setVisible(isObject);
-		});
-
-		const reason = new Input({ width: "100%" });
-		const justification = new TextArea({ width: "100%", rows: 3 });
-		const validTo = new DatePicker({ width: "100%", valueFormat: "yyyy-MM-dd" });
+		targets.setModel(rows);
 
 		const dialog: Dialog = new Dialog({
 			title: "Pre-Register",
-			contentWidth: "36rem",
+			contentWidth: "48rem",
 			content: [
 				new SimpleForm({
 					editable: true,
 					content: [
-						new Label({ text: "Object Scope" }), scope,
 						new Label({ text: "Check Variant", required: true }), variant,
 						new Label({ text: "Check Class" }), checkClass,
-						checkCodeLabel, checkCode,
-						targetsLabel, new VBox({ items: [packages, objects, addRow] }),
 						new Label({ text: "Reason Code" }), reason,
 						new Label({ text: "Justification" }), justification,
 						new Label({ text: "Valid To", required: true }), validTo
 					]
-				})
+				}),
+				targets
 			],
 			beginButton: new Button({
 				text: "OK",
 				type: "Emphasized",
 				press: async () => {
-					const isObject = scope.getSelectedKey() === "OBJ";
-					const targets = isObject
-						? (rows.getProperty("/objects") as { ObjectType: string; ObjectName: string }[])
-								.filter((row: { ObjectType: string; ObjectName: string }) => row.ObjectName)
-								.map((row: { ObjectType: string; ObjectName: string }) => ({ ObjectType: row.ObjectType.toUpperCase(), ObjectName: row.ObjectName.toUpperCase() }))
-						: packages.getTokens().map((token: Token) => ({ ObjectType: "DEVC", ObjectName: token.getKey() }));
+					type Row = { Devclass: string; ObjectType: string; ObjectName: string; CheckCode: string };
+					const filled = (rows.getProperty("/targets") as Row[])
+						.filter((row: Row) => row.Devclass || row.ObjectName)
+						.map((row: Row) => ({
+							Devclass: row.Devclass.toUpperCase(),
+							ObjectType: row.ObjectType.toUpperCase(),
+							ObjectName: row.ObjectName.toUpperCase(),
+							CheckCode: row.CheckCode.toUpperCase()
+						}));
 					dialog.close();
 					await this.invokePreRegister({
-						ScopeType: scope.getSelectedKey(),
 						CheckVariant: variant.getValue().toUpperCase(),
 						CheckClass: checkClass.getValue().toUpperCase(),
-						CheckCode: isObject ? checkCode.getValue().toUpperCase() : "",
 						ReasonCode: reason.getValue().toUpperCase(),
 						ReasonText: justification.getValue(),
 						ValidTo: validTo.getValue(),
-						_Targets: targets
+						_Targets: filled
 					});
 				}
 			}),
@@ -161,6 +180,35 @@ export default class ListReportExt extends ControllerExtension {
 			afterClose: () => dialog.destroy()
 		});
 		dialog.open();
+	}
+
+	// 값 도움 목록. 서비스에 노출된 VH 엔티티셋을 그대로 읽는다(검색은 키 포함 검색).
+	private openValueHelp(title: string, path: string, key: string, description: string, onPick: (picked: Context) => void): void {
+		const model = this.base.getExtensionAPI().getModel() as ODataModel;
+		const help: SelectDialog = new SelectDialog({
+			title: title,
+			items: {
+				path: path,
+				template: new StandardListItem({ title: `{${key}}`, description: description ? `{${description}}` : "" })
+			},
+			search: (event: { getParameter(name: string): unknown }) => {
+				const value = String(event.getParameter("value") ?? "").toUpperCase();
+				(help.getBinding("items") as ODataListBinding | undefined)?.filter(
+					value ? [new Filter(key, FilterOperator.Contains, value)] : []
+				);
+			},
+			confirm: (event: { getParameter(name: string): unknown }) => {
+				const item = event.getParameter("selectedItem") as StandardListItem | undefined;
+				const picked = item?.getBindingContext() as Context | undefined;
+				if (picked) {
+					onPick(picked);
+				}
+			},
+			cancel: () => help.destroy()
+		});
+		help.setModel(model);
+		help.attachConfirm(() => help.destroy());
+		help.open("");
 	}
 
 	private async invokePreRegister(parameters: Record<string, unknown>): Promise<void> {

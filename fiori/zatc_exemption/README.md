@@ -45,8 +45,10 @@ FE 는 bound 액션이 돌려준 행의 키가 원래 행과 같으면 그 행�
 FE 기본 입력창은 deep parameter 를 그리지 못해서, 컨트롤러 확장의 `onPreRegister` 가
 입력창을 직접 띄우고 `editFlow.invokeAction` 으로 같은 액션을 부른다.
 
-- Object Scope = Package: 패키지를 MultiInput 에 입력하고 엔터 → 토큰(토큰 하나 = 패키지 하나, `*` 허용)
-- Object Scope = Object: 행마다 Object Type + Object Name(`*` 허용), Check Message Code 필수
+- 위: Check Variant / Check Class / Reason Code (값 도움), Justification, Valid To
+- 아래 대상 표: 한 행 = 신청서 1건. 열은 Package / Object Type / Object Name / Check Message Code
+  - Object Name 이 비면 패키지 신청, 있으면 오브젝트 신청(Object Type, Check Message Code 필수)
+  - 이름에 `*` 허용(예: `ZSD*`, `ZCL_CM*`). Package, Check Message Code 는 값 도움이 있다
 
 `manifest.json` 의 List Report `options.settings` 에 추가한다.
 

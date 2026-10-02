@@ -89,8 +89,8 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS createfromfinding FOR MODIFY
       IMPORTING keys FOR ACTION exemption~createfromfinding RESULT result.
 
-    METHODS preregisterpackages FOR MODIFY
-      IMPORTING keys FOR ACTION exemption~preregisterpackages.
+    METHODS preregister FOR MODIFY
+      IMPORTING keys FOR ACTION exemption~preregister.
 
     "! 상태 전이 1건을 이력에 남긴다. 감사 대응의 유일한 근거이므로 모든 액션이 호출한다.
     "! 키를 UUID 가 아니라 읽기 결과 라인으로 받는다. draft 활성 BO 에서는
@@ -1450,79 +1450,118 @@ CLASS lhc_exemption IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD preregisterpackages.
+  METHOD preregister.
 
     " 와일드카드가 Z* 처럼 넓으면 수백 건이 생긴다. 실수로 그렇게 되지 않게 막는다.
-    CONSTANTS lc_max_packages TYPE i VALUE 100.
+    CONSTANTS lc_max_targets TYPE i VALUE 100.
 
-    DATA lt_package TYPE SORTED TABLE OF devclass WITH UNIQUE KEY table_line.
-    DATA lt_create  TYPE TABLE FOR CREATE zr_atcexemption.
+    TYPES: BEGIN OF ty_target,
+             devclass   TYPE devclass,
+             objecttype TYPE trobjtype,
+             objectname TYPE sobj_name,
+           END OF ty_target.
+    DATA lt_target TYPE SORTED TABLE OF ty_target WITH UNIQUE KEY devclass objecttype objectname.
+    DATA lt_create TYPE TABLE FOR CREATE zr_atcexemption.
 
     LOOP AT keys INTO DATA(ls_key).
 
       DATA(ls_param) = ls_key-%param.
+      DATA(lv_scope) = COND #( WHEN ls_param-scopetype IS INITIAL
+                               THEN zif_atc_exemption=>scope-pckg
+                               ELSE ls_param-scopetype ).
 
-      " 패키지는 deep parameter 의 자식 행으로 들어온다. 한 행에 하나, * 허용.
-      LOOP AT ls_param-_packages INTO DATA(ls_package_row) WHERE devclass IS NOT INITIAL.
+      " 오브젝트 신청은 어긴 규칙 하나를 덮는다. 어느 규칙인지 없으면 만들지 않는다.
+      IF lv_scope = zif_atc_exemption=>scope-obj AND ls_param-checkcode IS INITIAL.
+        APPEND VALUE #( %cid = ls_key-%cid ) TO failed-exemption.
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %msg = new_error( iv_number = '022' ) ) TO reported-exemption.
+        RETURN.
+      ENDIF.
 
-        DATA(lv_token) = to_upper( condense( CONV string( ls_package_row-devclass ) ) ).
+      " 대상은 deep parameter 의 자식 행으로 들어온다. 한 행에 하나, * 허용.
+      LOOP AT ls_param-_targets INTO DATA(ls_row) WHERE objectname IS NOT INITIAL.
+
+        DATA(lv_name) = to_upper( condense( CONV string( ls_row-objectname ) ) ).
 
         " 고객 네임스페이스만 대상이다. validateScope 도 같은 규칙으로 막는다.
-        IF lv_token(1) <> 'Z' AND lv_token(1) <> 'Y' AND lv_token(1) <> '/'.
+        IF lv_name(1) <> 'Z' AND lv_name(1) <> 'Y' AND lv_name(1) <> '/'.
           APPEND VALUE #( %cid = ls_key-%cid
                           %msg = new_message_with_text(
                                    severity = if_abap_behv_message=>severity-warning
-                                   text     = |{ lv_token }: not a customer package, skipped| ) )
+                                   text     = |{ lv_name }: not in the customer namespace, skipped| ) )
                  TO reported-exemption.
           CONTINUE.
         ENDIF.
 
-        DATA(lv_pattern) = lv_token.
+        DATA(lv_pattern) = lv_name.
         REPLACE ALL OCCURRENCES OF `*` IN lv_pattern WITH `%`.
-        SELECT devclass FROM tdevc
-          WHERE devclass LIKE @lv_pattern
-          INTO TABLE @DATA(lt_found).
+        DATA(lv_type) = to_upper( ls_row-objecttype ).
 
-        IF lt_found IS INITIAL.
+        IF lv_scope = zif_atc_exemption=>scope-pckg.
+          SELECT devclass FROM tdevc
+            WHERE devclass LIKE @lv_pattern
+            INTO TABLE @DATA(lt_found_pkg).
+          LOOP AT lt_found_pkg INTO DATA(ls_found_pkg).
+            INSERT VALUE #( devclass = ls_found_pkg-devclass ) INTO TABLE lt_target.
+          ENDLOOP.
+          DATA(lv_found) = xsdbool( lt_found_pkg IS NOT INITIAL ).
+        ELSE.
+          " 패키지는 TADIR 에서 파생한다. 삭제 대기(delflag) 오브젝트는 신청할 이유가 없다.
+          SELECT object, obj_name, devclass FROM tadir
+            WHERE pgmid    = 'R3TR'
+              AND object   = @lv_type
+              AND obj_name LIKE @lv_pattern
+              AND delflag  = @space
+            INTO TABLE @DATA(lt_found_obj).
+          LOOP AT lt_found_obj INTO DATA(ls_found_obj).
+            INSERT VALUE #( devclass   = ls_found_obj-devclass
+                            objecttype = ls_found_obj-object
+                            objectname = ls_found_obj-obj_name ) INTO TABLE lt_target.
+          ENDLOOP.
+          lv_found = xsdbool( lt_found_obj IS NOT INITIAL ).
+        ENDIF.
+
+        IF lv_found = abap_false.
           APPEND VALUE #( %cid = ls_key-%cid
                           %msg = new_message_with_text(
                                    severity = if_abap_behv_message=>severity-warning
-                                   text     = |{ lv_token }: package not found, skipped| ) )
+                                   text     = |{ lv_type } { lv_name }: not found, skipped| ) )
                  TO reported-exemption.
-          CONTINUE.
         ENDIF.
-
-        LOOP AT lt_found INTO DATA(ls_found).
-          INSERT ls_found-devclass INTO TABLE lt_package.
-        ENDLOOP.
 
       ENDLOOP.
 
-      IF lines( lt_package ) > lc_max_packages.
+      IF lines( lt_target ) > lc_max_targets.
         APPEND VALUE #( %cid = ls_key-%cid ) TO failed-exemption.
         APPEND VALUE #( %cid = ls_key-%cid
                         %msg = new_message_with_text(
                                  severity = if_abap_behv_message=>severity-error
-                                 text     = |{ lines( lt_package ) } packages matched. | &&
-                                            |Narrow the pattern to { lc_max_packages } or fewer.| ) )
+                                 text     = |{ lines( lt_target ) } targets matched. | &&
+                                            |Narrow the pattern to { lc_max_targets } or fewer.| ) )
                TO reported-exemption.
         RETURN.
       ENDIF.
 
-      LOOP AT lt_package INTO DATA(lv_package).
+      LOOP AT lt_target INTO DATA(ls_target).
 
         " 이미 신청·승인된 같은 범위는 건너뛴다. 만들면 저장 단계의 중복 검증에
-        " 걸려 선택한 전체가 만들어지지 않는다.
-        IF has_overlap( VALUE #( scopetype  = zif_atc_exemption=>scope-pckg
-                                 devclass   = lv_package
+        " 걸려 전체가 만들어지지 않는다.
+        IF has_overlap( VALUE #( scopetype  = lv_scope
+                                 devclass   = ls_target-devclass
+                                 objecttype = ls_target-objecttype
+                                 objectname = ls_target-objectname
                                  checkclass = ls_param-checkclass
-                                 rulescope  = zif_atc_exemption=>rulescope-check
+                                 checkcode  = ls_param-checkcode
+                                 rulescope  = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
+                                                      THEN zif_atc_exemption=>rulescope-check
+                                                      ELSE zif_atc_exemption=>rulescope-message )
                                  validfrom  = sy-datum
                                  validto    = ls_param-validto ) ) = abap_true.
           APPEND VALUE #( %cid = ls_key-%cid
                           %msg = new_message_with_text(
                                    severity = if_abap_behv_message=>severity-warning
-                                   text     = |{ lv_package }: already requested, skipped| ) )
+                                   text     = |{ ls_target-devclass } { ls_target-objectname }: | &&
+                                              |already requested, skipped| ) )
                  TO reported-exemption.
           CONTINUE.
         ENDIF.
@@ -1530,9 +1569,12 @@ CLASS lhc_exemption IMPLEMENTATION.
         " 상태·신청자·규칙 범위·체크그룹·선등록 표시는 determination 이 채운다.
         APPEND VALUE #( %cid         = |PR{ lines( lt_create ) + 1 }|
                         checkvariant = ls_param-checkvariant
-                        scopetype    = zif_atc_exemption=>scope-pckg
-                        devclass     = lv_package
+                        scopetype    = lv_scope
+                        devclass     = ls_target-devclass
+                        objecttype   = ls_target-objecttype
+                        objectname   = ls_target-objectname
                         checkclass   = ls_param-checkclass
+                        checkcode    = ls_param-checkcode
                         reasoncode   = ls_param-reasoncode
                         reasontext   = ls_param-reasontext
                         validfrom    = sy-datum
@@ -1548,8 +1590,8 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        CREATE FIELDS ( checkvariant scopetype devclass checkclass
-                        reasoncode reasontext validfrom validto )
+        CREATE FIELDS ( checkvariant scopetype devclass objecttype objectname checkclass
+                        checkcode reasoncode reasontext validfrom validto )
         WITH lt_create
       MAPPED DATA(lt_mapped)
       FAILED DATA(lt_failed)
@@ -1581,7 +1623,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       APPEND VALUE #( %cid = keys[ 1 ]-%cid
                       %msg = new_message_with_text(
                                severity = if_abap_behv_message=>severity-success
-                               text     = |{ lines( lt_mapped-exemption ) } package exemption request(s) | &&
+                               text     = |{ lines( lt_mapped-exemption ) } exemption request(s) | &&
                                           |created as draft. Select them in Draft and submit.| ) )
              TO reported-exemption.
     ENDIF.

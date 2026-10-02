@@ -1,13 +1,13 @@
-// preRegisterPackages 의 deep parameter. 헤더 1행 + 패키지 여러 행.
+// preRegister 의 deep parameter. 헤더 1행 + 대상 여러 행.
 abstract;
 strict ( 2 );
 with hierarchy;
 
 define behavior for ZD_AtcPreRegister alias PreRegister
 {
-  association _Packages;
+  association _Targets;
 }
 
-define behavior for ZD_AtcPreRegisterPkg alias Package
+define behavior for ZD_AtcPreRegisterTgt alias Target
 {
 }

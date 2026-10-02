@@ -20,7 +20,7 @@ define behavior for ZP_AtcExemption alias Exemption
   use action reject;
   use action extendValidity;
   use action simulateImpact;
-  use action preRegisterPackages;
+  use action preRegister;
 
   // createFromFinding 은 화면에 노출하지 않는다. 조회 화면의
   // requestExemption 이 EML 로 부른다.

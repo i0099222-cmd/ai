@@ -39,12 +39,14 @@ FE 는 bound 액션이 돌려준 행의 키가 원래 행과 같으면 그 행�
 - 1.114 보다 낮으면 훅이 불리지 않는다. 오류는 나지 않고 지금처럼 새로고침만 안 된다.
 - Object Page 에서 누른 액션은 이 확장과 무관하다. 목록으로 돌아오면 FE 가 다시 읽는다.
 
-## Pre-Register Packages 입력창
+## Pre-Register 입력창
 
-백엔드 static 액션 `preRegisterPackages` 는 패키지를 deep parameter(여러 행)로 받는다.
+백엔드 static 액션 `preRegister` 는 대상(패키지 또는 오브젝트)을 deep parameter(여러 행)로 받는다.
 FE 기본 입력창은 deep parameter 를 그리지 못해서, 컨트롤러 확장의 `onPreRegister` 가
 입력창을 직접 띄우고 `editFlow.invokeAction` 으로 같은 액션을 부른다.
-패키지는 MultiInput 에 입력하고 엔터를 치면 토큰이 된다(토큰 하나 = 패키지 하나, `*` 허용).
+
+- Object Scope = Package: 패키지를 MultiInput 에 입력하고 엔터 → 토큰(토큰 하나 = 패키지 하나, `*` 허용)
+- Object Scope = Object: 행마다 Object Type + Object Name(`*` 허용), Check Message Code 필수
 
 `manifest.json` 의 List Report `options.settings` 에 추가한다.
 
@@ -52,9 +54,9 @@ FE 기본 입력창은 deep parameter 를 그리지 못해서, 컨트롤러 확�
 "controlConfiguration": {
   "@com.sap.vocabularies.UI.v1.LineItem": {
     "actions": {
-      "preRegisterPackages": {
+      "preRegister": {
         "press": ".extension.zatcexemption.ext.controller.ListReportExt.onPreRegister",
-        "text": "Pre-Register Packages",
+        "text": "Pre-Register",
         "requiresSelection": false
       }
     }

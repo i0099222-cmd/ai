@@ -5,6 +5,7 @@
 "!   - 억제 자체는 표준 메커니즘이 한다. 커스텀 체크 클래스는 만들지 않는다.
 "!
 "! 표준 진입점: CL_SATC_API=>CREATE_API_FACTORY( )->GET_EXEMPTION_CONTROLLER( )
+"!   삭제(철회)만은 표준 RAP BO SATC_CI_R_EXEMPTION 의 delete 를 EML 로 부른다.
 "!   표준 Fiori 앱 "Approve ATC Exemptions" 도 결국 이 경로로 예외의 state 와
 "!   approver 를 바꾼다 (SATC_CI_R_EXEMPTION).
 "!
@@ -77,30 +78,15 @@ CLASS zcl_atc_exempt_sync DEFINITION
                 iv_assessment    TYPE string OPTIONAL
       RETURNING VALUE(rs_result) TYPE ty_result.
 
-    "! 예외를 표준 저장소에서 없앤다. 신청자의 철회, 대장 철회, 만료가
-    "! 모두 이 하나다 - 어느 쪽이든 그 예외는 더 이상 존재하면 안 되고,
-    "! 감사 흔적은 CBO 이력이 든다. 표준에 반려 상태로 남겨 두면 이중 기록이다.
+    "! 예외를 표준 저장소에서 없앤다. 신청자의 철회, 대장 철회, 만료가 모두 이 하나다.
+    "! 감사 흔적은 CBO 이력이 든다.
     "!
-    "!   controller->get_exemption( <예외 ID> )->delete( )
+    "! 표준 앱의 Delete 와 같은 길로 지운다 - 표준 RAP BO SATC_CI_R_EXEMPTION 의
+    "! delete 다. 행이 실제로 없어진다.
     "!
-    "! 앞서 두 번 틀렸다. 남겨 둔다 - 같은 길로 다시 가지 않기 위해서다.
-    "!   1) reject_exemptions_by_id( ) : 오류도 없고 아무 일도 없었다.
-    "!      state 는 OPEN 그대로, assessment 도 기록되지 않았다. 승인자의
-    "!      동사이고, 승인자가 집어들지 않은 건에는 걸리지 않는 것으로 보인다.
-    "!   2) create_exemption( <같은 자연키> )->delete( ) : 핸들은 열렸지만
-    "!      delete( ) 가 "the operation cannot be executed in the current
-    "!      state" 로 거부됐다. create 는 기존 행을 여는 것이 아니라 새
-    "!      전이 객체를 만든다. 저장된 적 없는 객체는 지울 것이 없다.
-    "!
-    "! 기존 건은 예외 ID 로 열어야 하고, 그 ID 는 상신 때 받아
-    "! ztatcexempt-extexemptid 에 두었다. 연 다음에는 lock_and_refresh( ) 가
-    "! 필요하다 - get_exemption( ) 은 조회용 핸들을 준다.
-    "!
-    "! delete( ) 는 물리 삭제가 아니라 아카이브다(확인함). 행은 남고
-    "! SATC_CI_R_EXEMPTION-deleted 에 'X' 가 서며, appr_comment 에 표준이
-    "! "archived by <user> on <date>" 를 남긴다. ATC 는 그 행을 면제로 치지
-    "! 않는다. 감사 관점에서도 이게 맞다 - 철회한 신청이 흔적 없이 사라지면
-    "! 안 된다.
+    "! 예전에는 controller->get_exemption( )->delete( ) 를 썼다. 그것은 아카이브
+    "! (deleted = 'X')만 하고 state 는 그대로라, 철회한 건을 표준 앱에서 여전히
+    "! 승인할 수 있었다.
     METHODS revoke_exemption
       IMPORTING iv_extexemptid   TYPE sysuuid_c32
                 iv_reason        TYPE string OPTIONAL
@@ -405,52 +391,42 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(lo_controller) = get_controller( ).
+    " draft BO 라 활성 인스턴스를 지정한다.
+    " 🔴 키 필드명 확인: exemption_id 가 아니면 이 줄만 바꾼다.
+    MODIFY ENTITIES OF satc_ci_r_exemption
+      ENTITY satc_ci_r_exemption
+        DELETE FROM VALUE #( ( %is_draft    = if_abap_behv=>mk-off
+                               exemption_id = iv_extexemptid ) )
+      FAILED DATA(ls_failed)
+      REPORTED DATA(ls_reported).
 
-    TRY.
+    " 표준이 준 메시지를 그대로 남긴다. 무엇 때문에 거부됐는지가 곧 원인이다.
+    DATA(lv_message) = |삭제 실패|.
 
-        " 파라미터가 예외 ID 하나뿐이라 위치 인자로 넘긴다.
-        DATA(lo_exemption) = lo_controller->get_exemption( iv_extexemptid ).
-
-        " get_exemption( ) 이 주는 것은 조회용 핸들이다. 잠그지 않고 delete( )
-        " 를 부르면 "the operation cannot be executed in the current state" 로
-        " 거부된다 - 여기서 말하는 state 는 예외의 상태(OPEN)가 아니라 핸들의
-        " 상태다. unlock( ) 의 짝이 이것이다.
-        lo_exemption->lock_and_refresh( ).
-
-        " state 를 읽어 둔다. 그래도 거부되면 어느 상태에서 거부됐는지가
-        " 그대로 원인이다.
-        DATA(lv_state) = lo_exemption->get_exemption_state( ).
-
-        lo_exemption->delete( ).
-        lo_exemption->unlock( ).
-
+    IF ls_failed IS INITIAL.
+      " 이 메소드는 별도 세션(zcl_atc_exempt_parallel)에서 돈다. 그래서 여기서
+      " 커밋할 수 있다. 우리 BO 의 저장 시퀀스 안이었다면 막혔을 것이다.
+      COMMIT ENTITIES RESPONSE OF satc_ci_r_exemption
+        FAILED DATA(ls_commit_failed)
+        REPORTED DATA(ls_commit_reported).
+      IF ls_commit_failed IS INITIAL.
         rs_result = VALUE #( success     = abap_true
                              extexemptid = iv_extexemptid
-                             message     = |표준 예외 { iv_extexemptid } 삭제 | &&
-                                           |(state={ lv_state }) { iv_reason }| ).
+                             message     = |표준 예외 { iv_extexemptid } 삭제 { iv_reason }| ).
+        RETURN.
+      ENDIF.
+      LOOP AT ls_commit_reported-satc_ci_r_exemption INTO DATA(ls_commit_msg) WHERE %msg IS BOUND.
+        lv_message = |{ lv_message }: { ls_commit_msg-%msg->if_message~get_text( ) }|.
+      ENDLOOP.
+    ELSE.
+      LOOP AT ls_reported-satc_ci_r_exemption INTO DATA(ls_msg) WHERE %msg IS BOUND.
+        lv_message = |{ lv_message }: { ls_msg-%msg->if_message~get_text( ) }|.
+      ENDLOOP.
+    ENDIF.
 
-      CATCH cx_root INTO DATA(lo_error).
-        " 열어 놓고 나가면 그 예외는 잠긴 채로 남고, 다음 시도는 상태가
-        " 아니라 잠금 때문에 실패한다. 무엇 때문인지 두 번 헷갈리게 된다.
-        IF lo_exemption IS BOUND.
-          TRY.
-              lo_exemption->unlock( ).
-            CATCH cx_root ##NO_HANDLER.
-          ENDTRY.
-        ENDIF.
-
-        " state 가 OPEN 인 채로 거부되면 원인은 "저장되지 않은 객체"가 아니라
-        " 상태기계다 - 승인자에게 넘어간 건은 신청자가 못 지운다는 뜻이고,
-        " 그러면 상신 시 send_to_approver( ) 를 승인 시점으로 미뤄 표준 행을
-        " APPL 로 두는 쪽으로 바꿔야 한다.
-        rs_result = VALUE #(
-          success = abap_false
-          message = |삭제 실패 [state={ COND string( WHEN lv_state IS INITIAL
-                                                     THEN '(읽지 못함)'
-                                                     ELSE lv_state ) }]: | &&
-                    lo_error->get_text( ) ).
-    ENDTRY.
+    ROLLBACK ENTITIES.
+    rs_result = VALUE #( success = abap_false
+                         message = lv_message ).
 
   ENDMETHOD.
 

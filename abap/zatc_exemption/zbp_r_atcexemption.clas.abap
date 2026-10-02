@@ -290,7 +290,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkvariant )
+        FIELDS ( checkvariant checkclass )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -298,17 +298,31 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
+      " 체크 클래스가 비어 있고 그 변형의 체크가 하나뿐이면 채운다.
+      " 둘 이상이면 고르게 둔다 - 값 도움이 변형으로 걸러 준다.
+      DATA(lv_checkclass) = ls_exemption-checkclass.
+      IF lv_checkclass IS INITIAL.
+        SELECT checkclass FROM zi_atccheckclassvh
+          WHERE checkvariant = @ls_exemption-checkvariant
+          INTO TABLE @DATA(lt_class)
+          UP TO 2 ROWS.
+        IF lines( lt_class ) = 1.
+          lv_checkclass = lt_class[ 1 ]-checkclass.
+        ENDIF.
+      ENDIF.
+
       " 체크그룹은 사용자가 고르는 값이 아니라 변형 정책에서 파생된다.
       APPEND VALUE #( %tky       = ls_exemption-%tky
                       checkgroup = zcl_atc_config=>get( )->get_config(
-                                     ls_exemption-checkvariant )-checkgroup )
+                                     ls_exemption-checkvariant )-checkgroup
+                      checkclass = lv_checkclass )
              TO lt_update.
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( checkgroup )
+        UPDATE FIELDS ( checkgroup checkclass )
         WITH lt_update.
 
   ENDMETHOD.
@@ -482,8 +496,7 @@ CLASS lhc_exemption IMPLEMENTATION.
           " 넣던 때의 가정이었고, 지금은 패키지를 i_package_name 으로 따로 넘긴다.
           " 선등록은 위반이 아직 없는 패키지를 신청하는 것이라, 그 안의 아무
           " 오브젝트나 골라 넣게 하는 건 의미가 없다.
-          " 🔴 표준이 오브젝트 없이 받아주는지는 선등록 상신으로 확인한다.
-          "    거부되면 패키지의 오브젝트 하나를 TADIR 에서 골라 넘긴다.
+          " 표준은 오브젝트 없이 i_package_name 만으로도 받아준다(선등록 상신으로 확인함).
           " 체크 코드는 규칙 범위가 CHK 라 매칭에 쓰이지 않는다.
           IF ls_exemption-devclass IS INITIAL.
             lv_error = '002'.

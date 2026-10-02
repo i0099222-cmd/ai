@@ -11,8 +11,10 @@ define root view entity ZP_AtcExemption
       @Search.defaultSearchElement: true
       ScopeText,
 
+      // 변형-체크 클래스 짝 목록에서 고른다. 고르면 체크 클래스도 같이 채워진다.
       @Consumption.valueHelpDefinition: [{
-        entity: { name: 'ZI_AtcVariantVH', element: 'CheckVariant' }
+        entity:            { name: 'ZI_AtcCheckClassVH', element: 'CheckVariant' },
+        additionalBinding: [{ localElement: 'CheckClass', element: 'CheckClass', usage: #RESULT }]
       }]
       CheckVariant,
 
@@ -45,8 +47,10 @@ define root view entity ZP_AtcExemption
 
 
       // 조회 화면 신청은 finding 에서 프리필되지만, 선등록은 사용자가 고른다.
+      // 변형이 들어 있으면 그 변형의 체크만 보이고, 고르면 변형도 같이 채워진다.
       @Consumption.valueHelpDefinition: [{
-        entity: { name: 'ZI_AtcCheckClassVH', element: 'CheckClass' }
+        entity:            { name: 'ZI_AtcCheckClassVH', element: 'CheckClass' },
+        additionalBinding: [{ localElement: 'CheckVariant', element: 'CheckVariant' }]
       }]
       CheckClass,
 

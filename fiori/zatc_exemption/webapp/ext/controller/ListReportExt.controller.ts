@@ -1,5 +1,15 @@
 import ControllerExtension from "sap/ui/core/mvc/ControllerExtension";
 import ExtensionAPI from "sap/fe/templates/ListReport/ExtensionAPI";
+import ODataModel from "sap/ui/model/odata/v4/ODataModel";
+import Dialog from "sap/m/Dialog";
+import Button from "sap/m/Button";
+import Label from "sap/m/Label";
+import Input from "sap/m/Input";
+import MultiInput from "sap/m/MultiInput";
+import Token from "sap/m/Token";
+import TextArea from "sap/m/TextArea";
+import DatePicker from "sap/m/DatePicker";
+import SimpleForm from "sap/ui/layout/form/SimpleForm";
 
 // 상태를 바꾸는 액션. 끝나면 목록을 다시 읽는다.
 // FE 는 액션이 돌려준 행($self)만 바꿔 끼우고 탭 필터를 다시 적용하지 않는다.
@@ -14,7 +24,10 @@ const REFRESH_ACTIONS = /\.(submit|withdraw|approve|reject|extendValidity|preReg
  */
 export default class ListReportExt extends ControllerExtension {
 	// @sapui5/types 에는 base 가 없다. FE 가 붙여 주는 컨트롤러의 모양만 선언한다.
-	declare base: { getExtensionAPI(): ExtensionAPI };
+	declare base: {
+		getExtensionAPI(): ExtensionAPI;
+		editFlow: { invokeAction(name: string, parameters: object): Promise<unknown> };
+	};
 
 	static overrides = {
 		editFlow: {
@@ -35,4 +48,71 @@ export default class ListReportExt extends ControllerExtension {
 			}
 		}
 	};
+
+	// [Pre-Register Packages] 버튼. manifest 의 custom action 이 이 메소드를 부른다.
+	// FE 의 기본 입력창은 deep parameter(패키지 여러 행)를 그리지 못해서 입력창을 직접 띄운다.
+	// 확인을 누르면 백엔드의 같은 static 액션 preRegisterPackages 를 부른다.
+	onPreRegister(): void {
+		const variant = new Input({ width: "100%" });
+		const checkClass = new Input({ width: "100%", placeholder: "Filled from the variant if it has one check" });
+		// 엔터를 치면 토큰이 된다. 한 토큰 = 패키지 하나, * 허용(예: ZSD*).
+		const packages = new MultiInput({ width: "100%", showValueHelp: false, placeholder: "ZCM_ATC, ZSD* ... (Enter)" });
+		packages.addValidator((args: { text: string }) => new Token({ key: args.text.toUpperCase(), text: args.text.toUpperCase() }));
+		const reason = new Input({ width: "100%" });
+		const justification = new TextArea({ width: "100%", rows: 3 });
+		const validTo = new DatePicker({ width: "100%", valueFormat: "yyyy-MM-dd" });
+
+		const dialog: Dialog = new Dialog({
+			title: "Pre-Register Packages",
+			contentWidth: "32rem",
+			content: [
+				new SimpleForm({
+					editable: true,
+					content: [
+						new Label({ text: "Check Variant", required: true }), variant,
+						new Label({ text: "Check Class" }), checkClass,
+						new Label({ text: "Packages", required: true }), packages,
+						new Label({ text: "Reason Code" }), reason,
+						new Label({ text: "Justification" }), justification,
+						new Label({ text: "Valid To", required: true }), validTo
+					]
+				})
+			],
+			beginButton: new Button({
+				text: "OK",
+				type: "Emphasized",
+				press: async () => {
+					dialog.close();
+					await this.invokePreRegister({
+						CheckVariant: variant.getValue().toUpperCase(),
+						CheckClass: checkClass.getValue().toUpperCase(),
+						ReasonCode: reason.getValue().toUpperCase(),
+						ReasonText: justification.getValue(),
+						ValidTo: validTo.getValue(),
+						_Packages: packages.getTokens().map((token) => ({ Devclass: token.getKey() }))
+					});
+				}
+			}),
+			endButton: new Button({ text: "Cancel", press: () => dialog.close() }),
+			afterClose: () => dialog.destroy()
+		});
+		dialog.open();
+	}
+
+	private async invokePreRegister(parameters: Record<string, unknown>): Promise<void> {
+		const model = this.base.getExtensionAPI().getModel() as ODataModel;
+		// 액션 이름 앞의 네임스페이스는 서비스마다 다르다. 메타데이터의 컨테이너 이름에서 얻는다.
+		const container = model.getMetaModel().getObject("/$EntityContainer") as string;
+		const namespace = container.substring(0, container.lastIndexOf("."));
+		// static 액션은 엔티티셋 컬렉션에 묶인다. 그 컬렉션의 헤더 컨텍스트로 부른다.
+		const collection = model.bindList("/Exemption").getHeaderContext();
+
+		// editFlow 로 부르면 메시지 표시·바쁨 표시·onAfterActionExecution(새로고침)을 FE 가 해 준다.
+		await this.base.editFlow.invokeAction(`${namespace}.preRegisterPackages`, {
+			model: model,
+			contexts: collection,
+			skipParameterDialog: true,
+			parameterValues: Object.keys(parameters).map((name) => ({ name: name, value: parameters[name] }))
+		});
+	}
 }

@@ -6,10 +6,9 @@
     title:          { type: #STANDARD, value: 'ScopeText' },
     description:    { value: 'CheckClass' }
   },
-  // 목록 툴바 버튼. 여러 패키지 선등록(static 액션)이라 줄을 고르지 않아도 눌린다.
-  // 🔴 시스템의 DDLX 에 submit/approve 등 버튼 주석을 따로 넣어 두었다면 이 배열에 합친다.
-  lineItem: [{ type: #FOR_ACTION, dataAction: 'preRegisterPackages',
-               label: 'Pre-Register Packages', position: 5 }],
+  // [Pre-Register Packages] 버튼은 여기 두지 않는다. FE 기본 입력창이 deep parameter
+  // (패키지 여러 행)를 그리지 못해서, 앱의 컨트롤러 확장이 입력창을 직접 띄운다
+  // (manifest custom action → ListReportExt.onPreRegister).
   // 신청번호가 없으므로 생성 시각 역순이 곧 최신순이다.
   // 한정자 없는 것은 기본 목록용, pvList 는 탭(다중 뷰)이 공유한다.
   presentationVariant: [

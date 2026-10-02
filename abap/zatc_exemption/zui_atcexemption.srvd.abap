@@ -22,7 +22,9 @@ define service ZUI_AtcExemption {
   expose ZP_AtcExemptionLog  as ExemptionLog;
 
   // 위반 현황 조회 (읽기 전용). ATC 결과를 라이브로 읽는다.
+  // 앱 A 의 두 탭이다. Finding = 오브젝트 탭, FindingPackage = 패키지 탭.
   expose ZP_AtcFinding       as Finding;
+  expose ZP_AtcFindingPkg    as FindingPackage;
 
   // 값 도움
   expose ZI_AtcReasonVH      as ReasonVH;

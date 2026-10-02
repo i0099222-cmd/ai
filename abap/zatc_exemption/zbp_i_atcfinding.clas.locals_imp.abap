@@ -37,15 +37,10 @@ CLASS lhc_finding IMPLEMENTATION.
         AND checkrunindex = @lt_key-checkrunindex
       INTO TABLE @DATA(lt_finding).
 
-    DATA lt_action TYPE TABLE FOR ACTION IMPORT zr_atcexemption\\exemption~createfromfinding.
-
-    " 같은 그룹은 신청서 하나로 묶는다.
-    "   PCKG : 패키지 + 체크 클래스가 같으면 한 건. 패키지 신청은 규칙 범위가
-    "          CHK 라 체크 코드를 가리지 않고 덮으므로, 코드가 달라도 신청서를
-    "          더 만들 이유가 없다. 코드별로 만들면 같은 범위를 덮는 신청서가
-    "          여러 장 생기고 중복 검증에 걸린다.
-    "   그 외 : 오브젝트 + 체크 코드마다 한 건. 규칙 범위가 MSG 다.
-    DATA lt_seen TYPE SORTED TABLE OF string WITH UNIQUE KEY table_line.
+    " 이 탭은 오브젝트 단위 신청만 한다. 패키지 단위는 패키지 탭(ZI_AtcFindingPkg)이다.
+    " 오브젝트 + 체크 코드마다 한 건. 같은 위반을 여러 줄 골라도 신청서는 하나다.
+    DATA lt_action TYPE zbp_i_atcfinding=>tt_create.
+    DATA lt_seen   TYPE SORTED TABLE OF string WITH UNIQUE KEY table_line.
 
     LOOP AT keys INTO DATA(ls_key).
 
@@ -57,95 +52,44 @@ CLASS lhc_finding IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      DATA(ls_param) = ls_key-%param.
-
-      DATA(lv_group) = COND string(
-        WHEN ls_param-scopetype = zif_atc_exemption=>scope-pckg
-        THEN |{ ls_param-scopetype }/{ ls_finding-checkvariant }|
-          && |/{ ls_finding-devclass }|
-          && |/{ ls_finding-checkclass }|
-        ELSE |{ ls_param-scopetype }/{ ls_finding-checkvariant }|
-          && |/{ ls_finding-devclass }|
-          && |/{ ls_finding-objecttype }/{ ls_finding-objectname }|
-          && |/{ ls_finding-checkclass }/{ ls_finding-checkcode }| ).
-
+      DATA(lv_group) = |{ ls_finding-checkvariant }/{ ls_finding-devclass }|
+                    && |/{ ls_finding-objecttype }/{ ls_finding-objectname }|
+                    && |/{ ls_finding-checkclass }/{ ls_finding-checkcode }|.
       IF line_exists( lt_seen[ table_line = lv_group ] ).
         CONTINUE.
       ENDIF.
       INSERT lv_group INTO TABLE lt_seen.
 
       APPEND VALUE #(
-        %cid  = |RE{ lines( lt_action ) + 1 }|
+        %cid   = |RE{ lines( lt_action ) + 1 }|
         %param = VALUE #( checkvariant = ls_finding-checkvariant
                           devclass     = ls_finding-devclass
                           objecttype   = ls_finding-objecttype
                           objectname   = ls_finding-objectname
                           checkclass   = ls_finding-checkclass
                           checkcode    = ls_finding-checkcode
-                          scopetype    = ls_param-scopetype
-                          reasoncode   = ls_param-reasoncode
-                          reasontext   = ls_param-reasontext
-                          validto      = ls_param-validto ) ) TO lt_action.
+                          scopetype    = zif_atc_exemption=>scope-obj
+                          reasoncode   = ls_key-%param-reasoncode
+                          reasontext   = ls_key-%param-reasontext
+                          validto      = ls_key-%param-validto ) ) TO lt_action.
 
     ENDLOOP.
 
-    " 🔴 초안으로 만들지 활성 인스턴스로 만들지는 %is_draft 가 정한다.
-    "   여기서는 활성으로 만든다 - 초안으로 만들면 사용자가 신청서를 하나씩
-    "   열어 저장해야 하고, 여러 건을 한 번에 만드는 의미가 없어진다.
-    MODIFY ENTITIES OF zr_atcexemption
-      ENTITY exemption
-        EXECUTE createfromfinding FROM lt_action
-      MAPPED DATA(lt_mapped)
-      FAILED DATA(lt_failed)
-      REPORTED DATA(lt_reported).
+    zbp_i_atcfinding=>create_requests( EXPORTING it_action  = lt_action
+                                       IMPORTING et_message = DATA(lt_message)
+                                                 ev_created = DATA(lv_created) ).
 
-    " 생성 쪽에서 나온 메시지를 그대로 화면에 올린다. 몇 건 중 몇 건이
-    " 실패했는지는 사용자가 알아야 한다.
-    LOOP AT lt_reported-exemption INTO DATA(ls_rep).
-      APPEND VALUE #( %tky = keys[ 1 ]-%tky
-                      %msg = ls_rep-%msg ) TO reported-finding.
+    LOOP AT lt_message INTO DATA(lo_message).
+      APPEND VALUE #( %tky = keys[ 1 ]-%tky %msg = lo_message ) TO reported-finding.
     ENDLOOP.
 
-    " 성공도 알린다. 신청서는 다른 앱에 초안 상태로 생기고 finding 은 승인 전까지
-    " 바뀌지 않아서, 이 메시지가 없으면 화면에서는 아무 일도 없었던 것처럼 보인다.
-    "
-    " 다만 여기서 만든 것은 버퍼의 신청서이고, 검증은 저장 단계에서 돈다.
-    " 그대로 성공을 알리면 저장에서 실패할 건에도 성공 메시지가 에러와 같이 뜬다.
-    " 그래서 checkRequest 로 같은 검증을 지금 돌려 보고, 하나라도 걸리면 성공을
-    " 알리지 않는다. 그 에러는 여기서 올리지 않는다 - 저장 단계의 검증이 같은
-    " 에러를 다시 올리므로, 여기서도 올리면 두 번 뜬다.
-    "
-    " 저장은 전부 아니면 전무다. 하나라도 걸리면 선택한 건 전체가 만들어지지 않는다.
-    "
-    " 판정은 FAILED 가 아니라 REPORTED 의 에러 메시지로 한다. determine action 은
-    " 안에서 돈 validation 이 failed 를 채워도 그것을 호출한 쪽에 돌려주지 않는다
-    " (확인함 - validateValidity 가 failed 를 채웠는데 여기서는 비어 있었다).
-    " 메시지는 돌아오므로 에러 등급이 하나라도 있으면 실패로 본다.
-    DATA(lv_check_error) = abap_false.
-
-    IF lt_mapped-exemption IS NOT INITIAL.
-      MODIFY ENTITIES OF zr_atcexemption
-        ENTITY exemption
-          EXECUTE checkrequest FROM VALUE #( FOR ls_new IN lt_mapped-exemption
-                                             ( %tky = ls_new-%tky ) )
-        FAILED DATA(lt_check_failed)
-        REPORTED DATA(lt_check_reported).
-
-      lv_check_error = xsdbool( lt_check_failed-exemption IS NOT INITIAL ).
-      LOOP AT lt_check_reported-exemption INTO DATA(ls_check) WHERE %msg IS BOUND.
-        IF ls_check-%msg->m_severity = if_abap_behv_message=>severity-error.
-          lv_check_error = abap_true.
-          EXIT.
-        ENDIF.
-      ENDLOOP.
-    ENDIF.
-
-    IF lt_mapped-exemption IS NOT INITIAL
-   AND lv_check_error = abap_false.
+    " 신청서는 다른 앱에 생기고 finding 은 승인 전까지 바뀌지 않아서, 이 메시지가
+    " 없으면 화면에서는 아무 일도 없었던 것처럼 보인다.
+    IF lv_created > 0.
       APPEND VALUE #( %tky = keys[ 1 ]-%tky
                       %msg = new_message_with_text(
                                severity = if_abap_behv_message=>severity-success
-                               text     = |{ lines( lt_mapped-exemption ) } exemption request(s) | &&
+                               text     = |{ lv_created } exemption request(s) | &&
                                           |created. Submit them in My Exemption Requests.| ) )
              TO reported-finding.
     ENDIF.

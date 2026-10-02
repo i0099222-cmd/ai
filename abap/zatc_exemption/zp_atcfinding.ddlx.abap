@@ -6,18 +6,24 @@
     title:          { type: #STANDARD, value: 'ObjectName' },
     description:    { value: 'MessageText' }
   },
-  // 목록에서 위반을 여러 건 골라 한 번에 신청한다. 적용범위를 PCKG 로
-  // 고르면 같은 패키지끼리 신청서 하나로 묶인다.
+  // 목록에서 위반을 여러 건 골라 한 번에 오브젝트 단위로 신청한다.
+  // 패키지 단위 신청은 패키지 탭(ZP_AtcFindingPkg)에서 한다.
   //
   // 두 번째는 신청 목록으로 가는 이동 버튼이다. 액션 자체는 화면을 옮기지
   // 못하므로, 신청한 뒤 결과를 보려면 따로 눌러야 한다. 파라미터를 넘기지
   // 않으므로 그 사람의 신청 목록이 그냥 열린다 - 특정 신청서로 바로 가려면
   // 키가 필요하고, 그건 신청번호를 도입할 때 같이 한다.
   lineItem: [{ type: #FOR_ACTION, dataAction: 'requestExemption',
-               label: 'Request Exemption', position: 10 },
+               label: 'Request Object Exemption', position: 10 },
              { type: #FOR_INTENT_BASED_NAVIGATION,
                semanticObject: 'ZAtcExemption', action: 'display',
-               label: 'My Exemption Requests', position: 20 }]
+               label: 'My Exemption Requests', position: 20 }],
+  // 앱 manifest 의 views.paths 가 이 한정자를 참조해 탭을 만든다.
+  presentationVariant: [{ qualifier: 'pvTab', visualizations: [{ type: #AS_LINEITEM }] }],
+  selectionVariant: [{ qualifier: 'svTab', text: 'By Object' }],
+  selectionPresentationVariant: [{ qualifier: 'Tab', text: 'By Object',
+                                   selectionVariantQualifier: 'svTab',
+                                   presentationVariantQualifier: 'pvTab' }]
 }
 annotate entity ZP_AtcFinding with
 {

@@ -13,7 +13,7 @@ strict ( 2 );
 
 define behavior for ZI_AtcFinding alias Finding
 {
-  // 선택한 위반들로 예외 신청서를 만든다.
-  // PCKG 범위면 같은 패키지끼리 신청서 하나로 묶인다.
+  // 선택한 위반들로 오브젝트 단위(OBJ) 예외 신청서를 만든다.
+  // 패키지 단위는 패키지 탭(ZI_AtcFindingPkg)의 같은 이름 액션이다.
   action requestExemption parameter ZD_AtcRequestExemption result [1] $self;
 }

@@ -582,6 +582,31 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | My ATC Exemptions | 내 ATC 예외 신청 | Exemption | Requester = 본인 | 개발자 |
 | Review ATC Exemptions | ATC 예외 결재 | Exemption | 상태 = 승인대기 | 승인자 |
 
+#### Display ATC Findings 의 탭 2개
+
+| 탭 | 엔티티셋 | 한 줄 | 버튼 |
+|---|---|---|---|
+| By Object | `Finding` (`ZP_AtcFinding`) | 위반 1건 | Request Object Exemption → OBJ 신청 |
+| By Package | `FindingPackage` (`ZP_AtcFindingPkg`) | 변형 + 패키지 + 체크 클래스 | Request Package Exemption → PCKG 신청 |
+
+탭이 적용범위를 정하므로 신청 입력창에는 적용범위가 없다. 패키지 신청의 증빙에는
+그 패키지의 위반 전체가 붙는다. 필터 필드(Package, Check Variant, Check Group,
+Exemption Status)는 두 엔티티에서 이름을 맞춰 두어 두 탭에 같이 걸린다.
+
+앱 manifest 의 List Report `options.settings` 에 넣는다.
+
+```json
+"views": {
+  "paths": [
+    { "key": "byObject",
+      "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab" },
+    { "key": "byPackage", "entitySet": "FindingPackage",
+      "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab" }
+  ],
+  "showCounts": true
+}
+```
+
 세 번째를 **`Approve ATC Exemptions` 로 부르지 않는다** — 그것이 표준 Fiori 앱의
 이름이다. 런치패드에 나란히 뜨면 어디서 결재해야 하는지 알 수 없게 되고, 결재
 창구를 이 앱 하나로 남기는 것이 이 앱을 CBO 로 만든 이유다.

@@ -1306,13 +1306,15 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 증빙으로 쓸 finding 을 다시 읽는다. 파라미터로 라인 정보를 받지 않고
       " 여기서 채우는 이유는, 신청서 헤더에 라인을 올리지 않는다는 원칙을
       " 호출자 쪽에서도 지키게 하려는 것이다.
+      " PCKG 는 패키지 탭에서 패키지를 골라 신청한다. 그 패키지의 위반 전체가 근거다.
+      DATA(lv_is_pckg) = xsdbool( lv_scope = zif_atc_exemption=>scope-pckg ).
       DATA(lt_finding) = lo_reader->select( VALUE #(
                            checkvariant = ls_param-checkvariant
                            devclass     = ls_param-devclass
-                           objecttype   = ls_param-objecttype
-                           objectname   = ls_param-objectname
+                           objecttype   = COND #( WHEN lv_is_pckg = abap_false THEN ls_param-objecttype )
+                           objectname   = COND #( WHEN lv_is_pckg = abap_false THEN ls_param-objectname )
                            checkclass   = ls_param-checkclass
-                           checkcode    = ls_param-checkcode
+                           checkcode    = COND #( WHEN lv_is_pckg = abap_false THEN ls_param-checkcode )
                            only_mine    = abap_false ) ).
 
       IF lt_finding IS INITIAL.
@@ -1344,9 +1346,7 @@ CLASS lhc_exemption IMPLEMENTATION.
         " preregflag 는 넣지 않는다. derivePreReg 가 증빙 유무로 판정한다.
         validfrom  = sy-datum ) TO lt_create.
 
-      " 선택한 오브젝트의 위반 건을 증빙으로 붙인다.
-      " PKG 스코프라도 증빙은 출발점이 된 오브젝트의 것만 담는다. 효력 범위와
-      " 증빙 범위는 다르며, 그 구분이 이 설계의 전제다.
+      " 위반 건을 증빙으로 붙인다. OBJ 는 그 오브젝트의 위반, PCKG 는 패키지의 위반 전체.
       CLEAR ls_item.
       ls_item-%cid_ref = ls_key-%cid.
 

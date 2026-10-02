@@ -1462,13 +1462,10 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       DATA(ls_param) = ls_key-%param.
 
-      " 쉼표·세미콜론·줄바꿈을 공백으로 바꿔 나눈다.
-      DATA(lv_input) = to_upper( ls_param-packages ).
-      REPLACE ALL OCCURRENCES OF REGEX `[,;\r\n\t]` IN lv_input WITH ` `.
-      CONDENSE lv_input.
-      SPLIT lv_input AT ` ` INTO TABLE DATA(lt_token).
+      " 패키지는 deep parameter 의 자식 행으로 들어온다. 한 행에 하나, * 허용.
+      LOOP AT ls_param-_packages INTO DATA(ls_package_row) WHERE devclass IS NOT INITIAL.
 
-      LOOP AT lt_token INTO DATA(lv_token) WHERE table_line IS NOT INITIAL.
+        DATA(lv_token) = to_upper( condense( CONV string( ls_package_row-devclass ) ) ).
 
         " 고객 네임스페이스만 대상이다. validateScope 도 같은 규칙으로 막는다.
         IF lv_token(1) <> 'Z' AND lv_token(1) <> 'Y' AND lv_token(1) <> '/'.

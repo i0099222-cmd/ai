@@ -111,7 +111,7 @@ etag master LocalLastChangedAt
 
   // 위반이 없는 패키지 여러 개를 한 번에 선등록한다. 패키지마다 초안 신청서 1건.
   // Create 는 화면 하나가 신청서 1건이라 여러 패키지를 받을 수 없어서 따로 둔다.
-  static action preRegisterPackages parameter ZD_AtcPreRegister;
+  static action preRegisterPackages deep parameter ZD_AtcPreRegister;
 
   determination setInitialValues on modify { create; }
   determination deriveCheckGroup on modify { field CheckVariant; }

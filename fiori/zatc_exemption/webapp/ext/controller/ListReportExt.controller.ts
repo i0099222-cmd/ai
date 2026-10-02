@@ -87,7 +87,7 @@ export default class ListReportExt extends ControllerExtension {
 					cells: [new Input({ value: "{ObjectType}", maxLength: 4 }), new Input({ value: "{ObjectName}" })]
 				})
 			},
-			delete: (event) => {
+			delete: (event: { getParameter(name: string): unknown }) => {
 				const path = (event.getParameter("listItem") as ColumnListItem).getBindingContext()!.getPath();
 				const list = rows.getProperty("/objects") as object[];
 				list.splice(Number(path.split("/").pop()), 1);
@@ -141,9 +141,9 @@ export default class ListReportExt extends ControllerExtension {
 					const isObject = scope.getSelectedKey() === "OBJ";
 					const targets = isObject
 						? (rows.getProperty("/objects") as { ObjectType: string; ObjectName: string }[])
-								.filter((row) => row.ObjectName)
-								.map((row) => ({ ObjectType: row.ObjectType.toUpperCase(), ObjectName: row.ObjectName.toUpperCase() }))
-						: packages.getTokens().map((token) => ({ ObjectType: "DEVC", ObjectName: token.getKey() }));
+								.filter((row: { ObjectType: string; ObjectName: string }) => row.ObjectName)
+								.map((row: { ObjectType: string; ObjectName: string }) => ({ ObjectType: row.ObjectType.toUpperCase(), ObjectName: row.ObjectName.toUpperCase() }))
+						: packages.getTokens().map((token: Token) => ({ ObjectType: "DEVC", ObjectName: token.getKey() }));
 					dialog.close();
 					await this.invokePreRegister({
 						ScopeType: scope.getSelectedKey(),

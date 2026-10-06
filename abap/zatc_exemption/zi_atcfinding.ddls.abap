@@ -47,7 +47,7 @@ define root view entity ZI_AtcFinding
   inner join ZI_AtcLatestRun as Latest
     on  Latest.ObjectType   = Finding.objecttype
     and Latest.ObjectName   = Finding.objectname
-    and Latest.CheckVariant = Finding.checkvariant
+    and Latest.CheckGroup   = Cfg.checkgroup
     and Latest.LatestRunTs  = Hdr.scheduledontimestamp
 
   // SATC_API_FINDINGS 는 체크를 moduleid(RAW16) 로만 식별한다. 표준 예외 API 가

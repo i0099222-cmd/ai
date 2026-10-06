@@ -89,11 +89,14 @@ export default class ListReportExt extends ControllerExtension {
 		const justification = new TextArea({ width: "100%", rows: 3 });
 		const validTo = new DatePicker({ width: "100%", valueFormat: "yyyy-MM-dd" });
 
-		// 표 안의 입력칸은 행 모델에 묶여 있다. setValue 가 양방향 바인딩으로 행 값을 바꾼다.
+		// 표 안의 입력칸은 템플릿을 행마다 복제한 것이다. 핸들러가 템플릿 변수(input)를 잡으면
+		// 화면에 없는 템플릿에 값이 들어가므로, 눌린 칸(event source)의 행 경로로 모델에 쓴다.
+		// 행 모델의 필드명이 VH 의 키와 같다(Devclass, CheckCode).
 		const cellValueHelp = (input: Input, title: string, path: string, key: string, description: string) => {
-			input.attachValueHelpRequest(() =>
-				this.openValueHelp(title, path, key, description, (picked) => input.setValue(picked.getProperty(key) as string))
-			);
+			input.attachValueHelpRequest((event: { getSource(): unknown }) => {
+				const row = (event.getSource() as Input).getBindingContext()!.getPath();
+				this.openValueHelp(title, path, key, description, (picked) => rows.setProperty(`${row}/${key}`, picked.getProperty(key)));
+			});
 			return input;
 		};
 

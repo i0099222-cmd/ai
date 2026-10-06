@@ -21,8 +21,7 @@ etag master LocalLastChangedAt
   field ( numbering : managed, readonly ) ExemptUuid;
 
   // 상태와 결재 정보는 액션으로만 바뀐다. 화면에서 직접 못 고친다.
-  field ( readonly ) CheckGroup,
-                     ExemptStatus,
+  field ( readonly ) ExemptStatus,
                      Requester,
                      Approver,
                      ApprovedAt,
@@ -46,7 +45,6 @@ etag master LocalLastChangedAt
   draft action Resume;
   draft determine action Prepare
   {
-    validation validateVariant;
     validation validateValidity;
     validation validateReason;
     validation ExemptionItem~validateTarget;
@@ -69,10 +67,9 @@ etag master LocalLastChangedAt
   action ( features : instance ) simulateImpact result [1] $self;
 
   determination setInitialValues on modify { create; }
-  // 체크 그룹을 변형에서 파생하고, 체크 클래스를 대상 줄에 내려 준다(값 도움 필터용).
-  determination deriveCheckGroup on modify { field CheckVariant, CheckClass; }
+  // 변형의 체크가 하나면 체크 클래스를 채우고, 대상 줄에 내려 준다(값 도움 필터용).
+  determination deriveCheckClass on modify { field CheckVariant, CheckClass; }
 
-  validation validateVariant  on save { field CheckVariant; create; update; }
   validation validateValidity on save { field ValidFrom, ValidTo; create; update; }
   validation validateReason   on save { field ReasonCode, ReasonText; create; update; }
 
@@ -81,7 +78,6 @@ etag master LocalLastChangedAt
     ExemptUuid         = exemptuuid;
     Title              = title;
     CheckVariant       = checkvariant;
-    CheckGroup         = checkgroup;
     CheckClass         = checkclass;
     ReasonCode         = reasoncode;
     ReasonText         = reasontext;

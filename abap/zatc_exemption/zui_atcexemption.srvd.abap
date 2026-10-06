@@ -17,7 +17,6 @@ define service ZUI_AtcExemption {
 
   // 값 도움
   expose ZI_AtcReasonVH      as ReasonVH;
-  expose ZI_AtcVariantVH     as VariantVH;
   expose ZI_AtcCheckClassVH  as CheckClassVH;
   expose ZI_AtcCheckCodeVH   as CheckCodeVH;
   expose ZI_AtcFindingObjVH  as FindingObjectVH;

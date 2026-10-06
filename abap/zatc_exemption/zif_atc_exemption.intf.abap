@@ -1,40 +1,28 @@
 "! ATC 예외 관리 앱 공통 상수/타입.
-"! 코드값 리터럴은 전부 여기로 모은다. 표준 도메인 고정값이 릴리즈마다
-"! 달라질 수 있으므로, 값 변경 시 이 인터페이스만 고치면 되도록 한다.
+"! 코드값 리터럴과 정책 값은 전부 여기 둔다. 바뀌면 이 인터페이스만 고친다.
 INTERFACE zif_atc_exemption
   PUBLIC.
 
-  "! 적용 범위 (set_object_scope, 타입 SATC_CI_OBJ_SCOPE).
-  "! ADT "Apply exemption to" 와 1:1 대응하며 표준 고정값과 값이 같음을 확인했다.
-  "!   fnd  = Finding                 - Phase 1 비활성 (ztatccfg 의 fndactive 로 제어)
+  "! 적용 범위 (set_object_scope, 타입 SATC_CI_OBJ_SCOPE). 표준 고정값과 값이 같다.
   "!   obj  = ABAP Object
   "!   pckg = All Objects of Package
-  "! 표준 도메인 고정값과 일치해야 한다. 'PCKG' 가 4자이므로 필드 길이는 char4 다.
   CONSTANTS:
     BEGIN OF scope,
-      fnd  TYPE char4 VALUE 'FND',
       obj  TYPE char4 VALUE 'OBJ',
       pckg TYPE char4 VALUE 'PCKG',
     END OF scope.
 
-  "! 규칙 적용 축 (set_check_scope). 표준 고정값 4종.
-  "!   finding = 이 finding 한 건만
-  "!   message = 이 메시지만          ADT 화면의 "Message"
-  "!   check   = 이 체크의 모든 메시지  ADT 화면의 "Check"
-  "!   all     = 모든 체크           <- 이 앱에서는 금지한다
-  "!
-  "! all 을 허용하면 대상 오브젝트/패키지의 ATC 체크가 통째로 꺼진다.
-  "! 네이밍 예외를 신청했는데 성능·보안 체크까지 같이 면제되는 셈이라,
-  "! 요건("네이밍 건만")을 정면으로 깬다. validateRuleScope 가 거부한다.
+  "! 규칙 적용 축 (set_check_scope).
+  "!   message = 이 메시지만          (오브젝트 대상)
+  "!   check   = 이 체크의 모든 메시지  (패키지 대상)
+  "! ALL(모든 체크)은 쓰지 않는다. 대상의 ATC 체크가 통째로 꺼진다.
   CONSTANTS:
     BEGIN OF rulescope,
-      finding TYPE char3 VALUE 'FND',
       message TYPE char3 VALUE 'MSG',
       check   TYPE char3 VALUE 'CHK',
-      all     TYPE char3 VALUE 'ALL',
     END OF rulescope.
 
-  "! 신청서 상태
+  "! 요청서 상태
   CONSTANTS:
     BEGIN OF status,
       draft    TYPE char2 VALUE '10',
@@ -45,107 +33,6 @@ INTERFACE zif_atc_exemption
       expired  TYPE char2 VALUE '60',
     END OF status.
 
-  "! 사유 코드. 값 목록은 표준 테이블 SATC_CI_REASONS 가 가진다.
-  "! 여기에는 우리가 기본값으로 쓰는 것만 둔다. 전체 목록은 ZI_AtcReasonVH 다.
-  CONSTANTS:
-    BEGIN OF reason,
-      "! ATC 판정 자체가 틀렸을 때
-      false_positive TYPE char4 VALUE 'FPOS',
-      "! 규칙은 맞지만 지킬 수 없을 때. 우리 앱의 전형적인 사유다.
-      other          TYPE char4 VALUE 'OTHR',
-    END OF reason.
-
-  "! 표준 예외의 이메일 알림 유형 (set_notification_type)
-  CONSTANTS:
-    BEGIN OF notification,
-      on_rejection TYPE char4 VALUE 'REJ',
-      always       TYPE char4 VALUE 'ALWS',
-      never        TYPE char4 VALUE 'NEVR',
-    END OF notification.
-
-  "! 이력 액션 코드
-  CONSTANTS:
-    BEGIN OF logaction,
-      create   TYPE char10 VALUE 'CREATE',
-      submit   TYPE char10 VALUE 'SUBMIT',
-      withdraw TYPE char10 VALUE 'WITHDRAW',
-      approve  TYPE char10 VALUE 'APPROVE',
-      reject   TYPE char10 VALUE 'REJECT',
-      revoke   TYPE char10 VALUE 'REVOKE',
-      expire   TYPE char10 VALUE 'EXPIRE',
-      sync     TYPE char10 VALUE 'SYNC',
-    END OF logaction.
-
-  "! 근거 텍스트 최소 길이. 한 줄짜리 형식적 사유를 막는다.
-  CONSTANTS min_reason_length TYPE i VALUE 20.
-
-  "! ATC finding 1건
-  TYPES:
-    BEGIN OF ty_finding,
-      checkvariant  TYPE char30,
-      devclass      TYPE devclass,
-      objecttype    TYPE trobjtype,
-      objectname    TYPE sobj_name,
-      "! 코드가 바뀌어도 같은 위반이면 유지되는 finding 식별자
-      checksum      TYPE i,
-      "! 대상 체크. 표준 예외 API 와 표준 예외 뷰가 쓰는 값 그대로다.
-      "!   checkclass  예: CL_CI_TEST_DB
-      "!   checkcode   예: DBREAD, UPDATE_SUC
-      checkclass    TYPE char30,
-      checkcode     TYPE char10,
-      priority      TYPE int1,
-      msgtext       TYPE char255,
-      contactperson TYPE syuname,
-      responsible   TYPE syuname,
-    END OF ty_finding,
-    tt_finding TYPE STANDARD TABLE OF ty_finding WITH EMPTY KEY.
-
-  "! finding 조회 조건
-  TYPES:
-    BEGIN OF ty_selection,
-      "! 공란이면 활성 변형 전체를 대상으로 한다.
-      checkvariant TYPE char30,
-      devclass     TYPE devclass,
-      inclsubpkg   TYPE abap_boolean,
-      objecttype   TYPE trobjtype,
-      objectname   TYPE sobj_name,
-      checkclass   TYPE char30,
-      checkcode    TYPE char10,
-      "! X 이면 담당자 필터(경로 1). 공란이면 전체(경로 2, 승인자/조회용).
-      only_mine    TYPE abap_boolean,
-    END OF ty_selection.
-
-  "! 컨트롤 테이블 1행 (ztatccfg). 키는 체크 변형이다.
-  "! 승인 레벨은 여기 없다. 승인자는 표준 승인자 목록(SATC_CI_APPROVER)이 정한다.
-  TYPES:
-    BEGIN OF ty_config,
-      checkvariant TYPE char30,
-      checkgroup   TYPE char10,
-      checkclass   TYPE char30,
-      activeflg    TYPE abap_boolean,
-      fndactive    TYPE abap_boolean,
-      objactive    TYPE abap_boolean,
-      pkgactive    TYPE abap_boolean,
-      maxvalidmon  TYPE int2,
-      reasonreq    TYPE abap_boolean,
-      notiftype    TYPE char4,
-      maxpriority  TYPE int1,
-      "! 표준 예외를 승인대기로 올릴 때 지정할 승인자
-      defapprover  TYPE syuname,
-    END OF ty_config,
-    tt_config TYPE STANDARD TABLE OF ty_config WITH EMPTY KEY.
-
-  TYPES tt_devclass TYPE STANDARD TABLE OF devclass WITH EMPTY KEY.
-
-  "! ABAP SQL 의 IN 은 range 테이블만 받는다.
-  TYPES tt_devclass_range TYPE RANGE OF devclass.
-  TYPES tt_variant_range  TYPE RANGE OF char30.
-
-  TYPES tt_exempt TYPE STANDARD TABLE OF ztatcexempt WITH EMPTY KEY.
-
-  "! 요청서의 대상 줄들
-  TYPES tt_item TYPE STANDARD TABLE OF ztatcexempti WITH EMPTY KEY.
-
   "! 대상 한 줄의 표준 쪽 진행 상태 (ztatcexempti-stdstatus)
   CONSTANTS:
     BEGIN OF stdstatus,
@@ -155,9 +42,44 @@ INTERFACE zif_atc_exemption
       rejected TYPE char1 VALUE 'R',
     END OF stdstatus.
 
+  "! 사유 코드. 값 목록은 표준 테이블 SATC_CI_REASONS 가 가진다(ZI_AtcReasonVH).
+  CONSTANTS:
+    BEGIN OF reason,
+      false_positive TYPE char4 VALUE 'FPOS',
+      other          TYPE char4 VALUE 'OTHR',
+    END OF reason.
+
+  "! 신청 정책. 모든 체크에 같게 적용한다.
+  "!   maxvalidmon : 유효기간 상한(개월). 무기한 예외를 막는다
+  "!   maxpriority : 이 값보다 심각한(작은) 우선순위의 위반이 있으면 예외 불가. 1 이 가장 심각
+  "!   reasonreq   : 사유 서술 필수. 표준이 요구하지 않는 사유에도 받는다
+  "!   minreason   : 사유 서술 최소 길이. 한 줄짜리 형식적 사유를 막는다
+  "!   notiftype   : 표준 예외 메일 알림 (REJ 반려 시 / ALWS 항상 / NEVR 안 보냄)
+  CONSTANTS:
+    BEGIN OF policy,
+      maxvalidmon TYPE i            VALUE 12,
+      maxpriority TYPE i            VALUE 2,
+      reasonreq   TYPE abap_boolean VALUE abap_true,
+      minreason   TYPE i            VALUE 20,
+      notiftype   TYPE char4        VALUE 'REJ',
+    END OF policy.
+
+  "! 이력 액션 코드
+  CONSTANTS:
+    BEGIN OF logaction,
+      create   TYPE char10 VALUE 'CREATE',
+      submit   TYPE char10 VALUE 'SUBMIT',
+      withdraw TYPE char10 VALUE 'WITHDRAW',
+      approve  TYPE char10 VALUE 'APPROVE',
+      reject   TYPE char10 VALUE 'REJECT',
+      expire   TYPE char10 VALUE 'EXPIRE',
+    END OF logaction.
+
+  "! 요청서의 대상 줄들
+  TYPES tt_item TYPE STANDARD TABLE OF ztatcexempti WITH EMPTY KEY.
+
   "! 표준 반영 후 대상 한 줄의 상태. 처리 성공 여부와 무관하게 실제 상태를 담는다.
-  "! 호출자는 이 값으로 아이템을 갱신한다 - 요청서 처리가 실패해도 표준에서 이미
-  "! 바뀐 줄이 있으면 그 사실은 남겨야 다음 시도가 같은 줄을 두 번 처리하지 않는다.
+  "! 요청서 처리가 실패해도 표준에서 이미 바뀐 줄은 남겨야 다음 시도가 건너뛴다.
   TYPES:
     BEGIN OF ty_item_result,
       itemuuid    TYPE sysuuid_x16,

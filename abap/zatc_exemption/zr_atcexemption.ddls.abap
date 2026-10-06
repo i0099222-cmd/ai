@@ -17,7 +17,6 @@ define root view entity ZR_AtcExemption
 
       Title,
       CheckVariant,
-      CheckGroup,
       CheckClass,
 
       ReasonCode,

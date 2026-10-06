@@ -38,26 +38,17 @@ ATC 예외를 **패키지/오브젝트 단위로 신청 · 승인 · 반려**하
 
 | 원칙 | 내용 |
 |---|---|
-| **관리는 CBO, 실행은 표준** | 신청·승인·이력·권한은 CBO 테이블이 원천. 억제 자체는 표준 ATC 메커니즘에 맡긴다. **예외를 구현하려고 커스텀 체크 클래스를 만들지 않는다** (finding 을 만들어 내는 쪽의 커스텀 체크는 별개다 — `abap/zatc_naming/` 의 사내 네이밍 체크가 그것이고, 이 앱은 그 변형을 `ztatccfg` 한 행으로 받아들일 뿐 코드가 바뀌지 않는다) |
+| **관리는 CBO, 실행은 표준** | 신청·승인·이력·권한은 CBO 테이블이 원천. 억제 자체는 표준 ATC 메커니즘에 맡긴다. **예외를 구현하려고 커스텀 체크 클래스를 만들지 않는다** (finding 을 만들어 내는 쪽의 커스텀 체크는 별개다 — `abap/zatc_naming/` 의 사내 네이밍 체크가 그것이고, 이 앱은 어떤 체크의 위반이든 같은 방식으로 받는다) |
 | **앱은 하나** | 신청자와 승인자를 앱으로 나누지 않고 권한 + instance features 로 구분. 런치패드 타일만 2개 |
-| **정책은 설정, 코드는 불변** | 적용범위 허용 여부·대상 체크·유효기간 상한·승인 레벨은 전부 설정 테이블 |
+| **정책은 한 곳** | 유효기간 상한·우선순위 상한·사유 필수·메일 알림은 `zif_atc_exemption=>policy` 상수. 모든 체크에 같게 적용. 승인자는 표준 승인자 목록(`SATC_CI_APPROVER`) |
 | **표준 우선** | 표준에 있는 기능은 다시 만들지 않는다 |
 | **메서드를 잘게 쪼개지 않는다** | 한 흐름은 한 메서드에서 끝까지 읽히게 둔다. 호출자가 하나뿐인 헬퍼는 만들지 않는다. 같은 일을 두 곳에서 한다면 헬퍼를 빼기 전에 **두 진입점이 정말 따로 있어야 하는지부터** 본다 (철회와 무효화가 한 메서드로 합쳐진 이유) |
 
-### 요건이 코드가 아니라 설정으로 지켜지는 방식
+### 설정 테이블을 두지 않는다
 
-```
-요건 : "네이밍 예외를 패키지/오브젝트 단위로만 등록"
-
-구현 : ztatccfg 초기 데이터 — 키는 체크 변형이다
-         네이밍 전용 변형 1행:  fndactive = 공란  -> 드롭다운에 안 뜨고 validation 이 거부
-                               objactive = X
-                               pkgactive = X
-
-Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변경 0
-```
-
-`IF scopetype = 'FND'` 같은 하드코딩은 어디에도 없다.
+예전에는 `ztatccfg`(체크 변형별 정책)를 두었다. 모든 체크를 다루기로 하면서 "어느 변형을
+보여줄지" 가 필요 없어졌고, 남은 정책 값은 거의 바뀌지 않아 상수로 옮겼다. 체크마다 다른
+정책(예: 보안 체크는 패키지 대상 금지)이 필요해지면 그때 체크 클래스를 키로 작은 테이블을 둔다.
 
 ---
 
@@ -71,15 +62,15 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 |---|---|---|
 | `ZSCM00010` | `createdby` / `createdat` 등 | 같은 이름의 자체 컬럼 제거 (충돌이었음). include 가 감사 필드를 제공하고 managed 런타임이 채운다 |
 | `SATC_API_FINDINGS` 키 | `resultid` + `itemid` + `checkrunindex` | 가정했던 `findingkey` 대체. `subobject` 는 없어서 제거 |
-| `SATC_API_FINDINGS` 기타 | `checkvariant` / `priority` / `contactperson` / `responsible` 존재 | 컨트롤 테이블을 변형 기준으로, `maxpriority` 검증 추가 |
+| `SATC_API_FINDINGS` 기타 | `checkvariant` / `priority` / `contactperson` / `responsible` 존재 | 최신 실행 판정(`ZI_AtcLatestRun`)을 변형 기준으로 |
 | **API State** | **릴리즈됨** | RAP 앱 전체를 **ABAP Cloud(Tier 1)** 로 간다. 클래식 패키지 분리 불필요 |
 | **적용범위 코드값** | `FND` / `OBJ` / **`PCKG`** | 가정했던 `PKG` 가 틀렸다. 값과 함께 **필드 길이도 `char(4)`** 로 수정 |
 | **표준 예외 API** | `CL_SATC_API=>CREATE_API_FACTORY( )->GET_EXEMPTION_CONTROLLER( )` | **Option B 확정.** 커스텀 체크 클래스(Option C) 폐기 |
 | 컨트롤러 메소드 | `create_exemption( )` / `approve_exemptions_by_if( )` | **생성이 되므로 앱의 신청 기능이 유효**하다 |
 | `create_exemption` 파라미터 | `i_object_type` / `i_object_name` / **`i_package_name`** / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관.** 패키지는 `i_package_name` 이고, 오브젝트 자리에 넣으면 안 된다. 🔴 `i_package_name` 이 있으면 PCKG 에서 오브젝트를 비워도 되는지는 선등록 상신으로 확인 중 |
 | 예외 오브젝트 API | `set_object_scope`(타입 `SATC_CI_OBJ_SCOPE`) / `set_check_scope` / `set_reason` / `set_validity_date` / `set_approver` / `set_notification_type` / `send_to_approver` / `unlock` / `get_exemption_id` | **`set_object_scope` 덕분에 패키지 스코프를 표준 예외 1건으로 넘길 수 있다** → 예외 ID 는 헤더에 1개, 오브젝트별 전개 불필요. 유효기간도 표준에 넘어간다 |
-| 알림 유형 | `REJ` 반려 시 / `ALWS` 승인·반려 모두 / `NEVR` 없음 | 조직 정책이므로 `ztatccfg-notiftype` 설정으로 |
-| 표준 승인자 | 표준은 승인자 1명을 필수로 요구한다 | `ztatccfg-defapprover`. 비어 있으면 상신이 막힌다(메시지 021) |
+| 알림 유형 | `REJ` 반려 시 / `ALWS` 승인·반려 모두 / `NEVR` 없음 | `zif_atc_exemption=>policy-notiftype` 상수 |
+| 표준 승인자 | 표준은 승인자 1명을 필수로 요구한다 | 표준 승인자 목록(`SATC_CI_APPROVER`)에서 신청자가 아닌 사람을 넣는다. 목록이 비어 있으면 상신이 막힌다(메시지 021) |
 | 반려 API | `reject_exemptions_by_id( exemption_id, assessment )` | 철회·만료 시 표준 무효화 경로로 사용 |
 | `checksum` | 필드명 동일, 타입 `int4` | 아이템 컬럼을 `char(32)` → `int4` 로 수정 |
 | `SATC_CI_OBJ_SCOPE` 고정값 | `FND` / `OBJ` / `PCKG` — 우리 값과 동일 | 변환 없이 그대로 전달 |
@@ -115,7 +106,7 @@ Phase 2 (기타 체크 확장, 확정됨) : 설정 행만 추가 -> 코드 변�
 ### `SATC_API_FINDINGS` 필드 매핑
 
 뷰의 필드명이 우리 도메인 용어와 다르다. **`ZI_AtcFinding` 한 곳에서만** 맞춘다.
-`zcl_atc_finding_reader` 도 `SATC_*` 를 직접 읽지 않고 이 뷰를 읽는다.
+behavior pool 의 `lcl_rules=>read_findings` 도 `SATC_*` 를 직접 읽지 않고 이 뷰를 읽는다.
 
 | 뷰 필드 | 우리 이름 | 비고 |
 |---|---|---|
@@ -335,14 +326,13 @@ ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것�
 
 ## 오브젝트 목록
 
-### 테이블 4개 (필드명 언더바 없음, CBO 이력 구조 `ZSCM00010` 포함)
+### 테이블 3개 (필드명 언더바 없음, CBO 이력 구조 `ZSCM00010` 포함)
 
 | 테이블 | 분류 | Delivery Class | 용도 | 키 |
 |---|---|---|---|---|
 | `ztatcexempt` | 업무 데이터 | `A` | 요청서 (승인 단위) | `exemptuuid` |
 | `ztatcexempti` | 업무 데이터 | `A` | 요청서 대상 (한 줄 = 표준 예외 1건) | `itemuuid` |
 | `ztatcexemptlog` | 업무 데이터 | `A` | 상태 변경 이력 | `loguuid` |
-| `ztatccfg` | **컨트롤** | `C` | 앱 동작 규칙 (대상 변형 + 허용 범위) | `checkvariant` |
 
 ### 헤더와 아이템의 역할 구분
 
@@ -356,28 +346,9 @@ ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것�
 TADIR 에서 온다.
 
 아이템의 `checkclass` 는 요청서 값의 사본이다. Fiori 값 도움은 같은 엔티티의 필드로만
-거를 수 있어서 둔다. 요청서의 체크 클래스가 바뀌면 `deriveCheckGroup` 이 같이 바꾼다.
+거를 수 있어서 둔다. 요청서의 체크 클래스가 바뀌면 `deriveCheckClass` 가 같이 바꾼다.
 
 예전의 증빙(위반 스냅샷) 아이템은 없앴다. 위반은 값 도움과 영향도 계산에서 라이브로 읽는다.
-
-`ztatccfg` 는 업무 데이터가 아니라 **컨트롤 테이블**이다. 답하는 질문은 네 개다.
-
-```
-① 이 변형의 결과가 앱 관리 대상인가?  -> activeflg                        (요건: 네이밍 건만)
-② 어떤 적용범위를 허용하는가?         -> fndactive / objactive / pkgactive  (요건: 패키지/오브젝트만)
-③ 유효기간 상한은?                   -> maxvalidmon
-④ 어느 Priority 까지 허용하는가?      -> maxpriority
-```
-
-**체크 마스터가 아니다.** 체크의 실체(체크 클래스, 메시지 코드, 체크 제목)는 표준이
-갖고 있고 finding 에 실려 온다. 이 테이블은 그 위에 우리 정책만 얹는다.
-
-키를 **체크 변형**으로 잡은 이유: "무엇을 대상으로 볼지" 는 표준이 이미 체크 변형으로
-묶어놓았다. 체크 단위로 키를 잡으면 Phase 2 에서 수백 행을 손으로 등록해야 하고
-체크가 추가될 때마다 이 테이블을 손봐야 한다. 변형 단위면 Phase 1 은 **1행**,
-Phase 2 도 3~4행이면 끝나고 체크 추가는 변형 관리로 흡수된다.
-
-**가동 전에 초기 데이터를 넣어야 한다. 비어 있으면 모든 신청이 거부된다.**
 
 ATC finding 은 별도 테이블에 적재하지 않고 `SATC_API_FINDINGS` 에서 **라이브로 읽는다.**
 추세 리포팅이 요건에 없어 스냅샷 계층과 적재 배치, 보관 정책을 두지 않았다.
@@ -407,7 +378,7 @@ ZP_AtcExemption      ZP_AtcExemptionItem      ZP_AtcExemptionLog
 읽기 전용 뷰는 R 계층이 필요 없다.
 
 ```
-SATC_API_FINDINGS ⋈ SATC_AC_CHM(체크 클래스) ⋈ ztatccfg(활성 변형)
+SATC_API_FINDINGS ⋈ SATC_AC_CHM(체크 클래스)
                   ⋈ ZI_AtcLatestRun(오브젝트별 최신 실행)
                   ⋈ ZI_AtcActiveExemption ×2 (PCKG / OBJ)
      ▼  I
@@ -415,7 +386,7 @@ ZI_AtcFinding      표준 스키마를 아는 유일한 오브젝트. 면제 여
      ├► ZI_AtcFindingObjVH   대상 Object Name 값 도움 (미면제 위반이 있는 오브젝트 + 코드)
      └► ZI_AtcFindingPkgVH   대상 Package 값 도움 (미면제 위반이 있는 패키지)
 
-ZI_AtcVariantVH / ZI_AtcCheckClassVH   변형 · 체크 클래스 값 도움
+ZI_AtcCheckClassVH   변형 · 체크 클래스 값 도움 (실제로 돈 ATC 결과에서 짝을 만든다)
 ZI_AtcPackageVH   고객 패키지 전체 (대상 Package 의 두 번째 값 도움, 선등록용)
 ZI_AtcCheckCodeVH 메시지 코드 값 도움
 ZI_AtcReasonVH    사유 코드 값 도움 (표준 SATC_CI_REASONS, not_selectable 제외)
@@ -426,7 +397,7 @@ ZD_AtcReject / ZD_AtcExtend   액션 파라미터(추상 엔터티)
 |---|---|
 | 트랜잭션 BO (I 1 + R 3 + P 3) | 7 |
 | 판정 (ZI_AtcFinding + ZI_AtcLatestRun + ZI_AtcActiveExemption) | 3 |
-| 값 도움 | 7 |
+| 값 도움 | 6 |
 | 액션 파라미터 (추상 엔터티, 뷰 아님) | 2 |
 
 **필드 레이블은 테이블을 직접 읽는 뷰에 둔다.** 헤더는 `ZI_AtcExemption`,
@@ -437,14 +408,10 @@ P 의 ddlx 는 화면 배치(위치·중요도·facet)만 담당한다.
 
 | 클래스 | 역할 |
 |---|---|
-| `zbp_r_atcexemption` | behavior pool. 판정·상태전이·이력 |
-| `zcl_atc_config` | 컨트롤 테이블 조회 (세션 버퍼링). 정책값의 단일 창구 |
-| `zcl_atc_finding_reader` | ATC 표준 의존 격리. finding 조회 + 영향도 시뮬레이션 |
-| `zcl_atc_exempt_sync` | 표준 예외 저장소 반영 (표준 API 호출) |
-| `zcl_atc_exempt_parallel` | 그 호출을 **별도 LUW** 에서 수행. 표준이 내부 COMMIT 을 하기 때문 |
-| `zcl_atc_expiry_job` | 만료 전환 + D-30 알림 대상 추출 |
-| `zif_atc_exemption` | 상수/타입. 코드값 리터럴의 유일한 위치 |
-| `zcl_atc_config_setup` | 컨트롤 테이블 유지보수 (검증 포함). 설정을 쓰는 유일한 창구 |
+| `zbp_r_atcexemption` | behavior pool. 판정·상태전이·이력. 대상 규칙(중복·위반 건수)은 로컬 `lcl_rules` |
+| `zcl_atc_exempt_sync` | 요청서 1건의 표준 반영. `cl_abap_parallel` 로 **별도 LUW** 에서 돈다(표준이 내부 COMMIT). 대상 줄을 차례로 처리하고 상신 실패 시 되돌림 |
+| `zcl_atc_expiry_job` | 만료 전환 + 표준 예외 삭제 + 만료 임박 건수 |
+| `zif_atc_exemption` | 상수/타입/정책 값 |
 | `zcl_atc_exempt_testdata` | 테스트 데이터 생성/삭제 **(운영 이송 대상 아님)** |
 
 ### 서비스
@@ -454,60 +421,17 @@ P 계층(`ZP_*`)만 노출하고 값 도움은 I 계층을 그대로 쓴다.
 
 ---
 
-## 설정 입력
-
-`zcl_atc_config_setup` 으로 넣는다. SE16 으로 직접 넣어도 되지만, 값이 서로
-맞물려 있어 하나만 틀려도 앱이 조용히 멈춘다.
-
-```abap
-DATA(ls) = zcl_atc_config_setup=>set_variant(
-             iv_checkvariant = 'ZNAMING_CHECK'
-             iv_defapprover  = 'ATC_APPROVER' ).   " 나머지는 Phase 1 기본값
-
-" 정책을 바꿀 때
-zcl_atc_config_setup=>set_variant(
-  iv_checkvariant = 'ZNAMING_CHECK'
-  iv_defapprover  = 'ATC_APPROVER'
-  iv_maxvalidmon  = 6            " 유효기간 상한을 6개월로
-  iv_notiftype    = 'ALWS' ).    " 승인·반려 모두 알림
-
-zcl_atc_config_setup=>deactivate( 'ZNAMING_CHECK' ).   " 끄기 (삭제 아님)
-zcl_atc_config_setup=>list( ).                          " 현재 설정 확인
-```
-
-저장 전에 막는 것들 — 전부 앱이 **조용히** 멈추는 조합이다.
-
-| 검증 | 안 막으면 |
-|---|---|
-| `defapprover` 필수 + `USR02` 존재 | 상신이 메시지 021 로 막힌다 |
-| 적용범위 최소 1개 | 어떤 범위로도 신청할 수 없다 |
-| `maxvalidmon` ≥ 1 | 기간 상한 검사를 건너뛰어 무제한 예외가 된다 |
-| `notiftype` ∈ REJ/ALWS/NEVR | 표준이 거부한다 |
-
-`delete_variant( )` 는 그 변형으로 신청된 건이 있으면 거부한다. 설정이 사라지면
-기존 신청서의 승인·철회가 기준을 잃는다. 그럴 땐 `deactivate( )` 를 쓴다.
-
-> ⚠️ `ztatccfg` 는 delivery class `C`(커스터마이징)다. 이 클래스의 직접 쓰기는
-> **이송 요청에 기록되지 않는다.** 다만 ATC 는 개발 시스템에서 돌므로 운영에
-> 이 앱이 필요할 일은 드물고, 대개 DEV 에서 이 클래스로 넣으면 충분하다.
-> 이송이 필요하면 유지보수 뷰를 만들어 SM30 으로 넣는다.
-
----
-
 ## 테스트 데이터
 
 `zcl_atc_exempt_testdata` 로 대장 데이터를 만든다. 개발/품질 시스템 전용이다.
 
 ```abap
-" 1. 컨트롤 테이블 1행. 이게 없으면 대상 값 도움이 빈 채로 뜬다.
-zcl_atc_exempt_testdata=>setup_config( 'YOUR_NAMING_VARIANT' ).
-
-" 2. 상태별 요청서 6건 + 대상 줄 + 이력
+" 1. 상태별 요청서 6건 + 대상 줄 + 이력
 DATA(lv_n) = zcl_atc_exempt_testdata=>create_requests(
                iv_checkvariant = 'YOUR_NAMING_VARIANT'
                iv_devclass     = 'YOUR_PACKAGE' ).
 
-" 3. 정리 (reasoncode = 'TEST' 인 행만 지운다)
+" 2. 정리 (사유가 [TEST] 로 시작하는 행만 지운다)
 zcl_atc_exempt_testdata=>cleanup( ).
 ```
 
@@ -551,7 +475,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 
 | 번호 | 텍스트 |
 |---|---|
-| 001 | Object scope &1 is not allowed for check variant &2 |
+| 001 | (사용 안 함) |
 | 002 | Package is required for package scope |
 | 003 | ~~Package scope also requires an origin object~~ (사용 안 함 - 패키지는 `i_package_name` 으로 넘기므로 출발점 오브젝트가 필요 없다) |
 | 004 | Object scope requires object type and object name |
@@ -559,7 +483,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 006 | &1 is not a customer namespace package |
 | 007 | Package &1 does not exist |
 | 008 | Object &1 does not exist |
-| 009 | Check variant &1 is not managed by this application |
+| 009 | (사용 안 함) |
 | 010 | Valid-to date must be later than valid-from date |
 | 011 | Validity period must not exceed &1 months |
 | 012 | Enter a reason code and a justification of at least &1 characters |
@@ -571,7 +495,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 018 | Priority &1 findings cannot be exempted (allowed from &2) |
 | 019 | (사용 안 함 - 규칙 범위는 대상에서 자동으로 정해진다) |
 | 020 | Action not allowed for status &1 |
-| 021 | No approver is configured for check variant &1 |
+| 021 | No approver is maintained in the ATC approver list |
 | 022 | Object scope requires a check message code |
 | 023 | Add at least one target before submitting the request |
 | 024 | Target &1 is entered more than once in this request |
@@ -590,7 +514,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 없으면 승인 시 표준이 거부하고 메시지로 알린다.
 
 ### 4. 배치 잡 1개
-`zcl_atc_expiry_job` 의 `run( )` 을 일 1회 스케줄 (만료 전환 + D-30 알림 대상 추출).
+`zcl_atc_expiry_job` 의 `run( )` 을 일 1회 스케줄 (만료 전환 + 표준 예외 삭제 + D-30 건수).
 
 ### 5. 런치패드 타일 2개 (앱 1개, 서비스 1개)
 
@@ -609,39 +533,6 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 창구를 이 앱 하나로 남기는 것이 이 앱을 CBO 로 만든 이유다.
 
 ---
-
-## 컨트롤 테이블 초기 데이터 (`ztatccfg`)
-
-### Phase 1 — 네이밍 전용 변형 1행
-
-| checkvariant | checkgroup | activeflg | fndactive | objactive | pkgactive | maxvalidmon | reasonreq | maxpriority |
-|---|---|---|---|---|---|---|---|---|
-| `Z_NAMING_ONLY` | NAMING | X | (공란) | X | X | 12 | X | 2 |
-
-전제: **네이밍 체크만 담은 전용 체크 변형**이 있어야 한다. 없으면 SCI 에서 하나
-만들고 그 이름을 여기 등록한다. 어떤 체크가 네이밍인지는 변형이 알고 있으므로
-우리 테이블에 체크를 열거하지 않는다.
-
-`fndactive` 가 공란이므로 화면 드롭다운에 Finding 이 나타나지 않고,
-OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
-
-`maxpriority = 2` 는 Prio 1 위반을 예외 대상에서 제외한다는 뜻이다
-(Priority 는 1 이 가장 심각하다).
-
-### Phase 2 추가 예시 — 코드 변경 없음
-
-| checkvariant | checkgroup | activeflg | fndactive | objactive | pkgactive | maxvalidmon |
-|---|---|---|---|---|---|---|
-| `Z_PERFORMANCE` | PERF | X | X | X | (공란) | 6 |
-| `Z_SECURITY` | SECURITY | X | X | (공란) | (공란) | 3 |
-
-> 성능·보안 체크는 라인별 판단이 본질이라 `FND` 를 열어야 한다.
-> 반대로 보안 체크를 `PCKG` 로 열면 그 패키지의 보안 검증이 통째로 꺼진다.
-> 체크마다 허용 범위가 정반대여야 하는 이유이며, 허용 플래그를 변형 단위로 둔 이유다.
-
-### 승인 권한은 여기 없다
-
-컨트롤 테이블에 승인 레벨 컬럼을 두지 않는다. 승인자는 표준 승인자 목록 `SATC_CI_APPROVER` 가 정한다.
 
 ## Action 구성
 
@@ -667,7 +558,7 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 | Determination | 엔티티 | 트리거 | 하는 일 |
 |---|---|---|---|
 | `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일 |
-| `deriveCheckGroup` | 요청서 | CheckVariant, CheckClass | 체크그룹 파생, 변형의 체크가 하나면 클래스 채움, 대상 줄에 클래스 복사 |
+| `deriveCheckClass` | 요청서 | CheckVariant, CheckClass | 변형의 체크가 하나면 클래스 채움, 대상 줄에 클래스 복사 |
 | `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName | 범위·규칙 범위, TADIR 패키지, 클래스 사본, 줄 번호 |
 
 **이력은 두 경로로 쓴다.** 생성 이력은 saver 가 DB 에 직접, 상태 전이 이력은 액션이 EML 로 남긴다.
@@ -676,10 +567,9 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 
 | Validation | 엔티티 | 검증 내용 | 메시지 |
 |---|---|---|---|
-| `validateVariant` | 요청서 | 관리 대상 변형인가 | 009 |
 | `validateValidity` | 요청서 | 기간 유효성 + 설정된 개월 상한 | 010, 011 |
 | `validateReason` | 요청서 | 사유 코드 + 근거 최소 길이 | 012 |
-| `validateTarget` | 대상 | ① 범위 허용 ② 필수 필드 ③ 고객 네임스페이스·실재 ④ 심각도 상한(현재 위반 기준) ⑤ 요청서 안 중복 ⑥ 다른 요청서와 중복 | 001, 002, 004, 006~008, 018, 022, 024, 013 |
+| `validateTarget` | 대상 | ① 필수 필드 ② 고객 네임스페이스·실재 ③ 심각도 상한(현재 위반 기준) ④ 요청서 안 중복 ⑤ 다른 요청서와 중복 | 002, 004, 006~008, 018, 022, 024, 013 |
 
 `validateTarget` 은 앞 단계가 실패하면 뒤를 보지 않는다. Draft 의 Prepare 에도 걸려 있다.
 
@@ -753,13 +643,12 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 
 ## Phase 2 (기타 ATC 체크 확장 — 확정)
 
-코드 변경 없이 되는 것:
-- `ztatccfg` 에 체크 변형 행 추가 (허용 플래그로 `FND` 활성화 포함)
-- 새 체크가 늘어나도 변형에 담기면 되므로 이 테이블은 손대지 않는다
+이미 되는 것:
+- 모든 변형·모든 체크의 위반이 대상 값 도움에 나온다. 체크가 늘어도 코드 변경이 없다
 
-이미 선반영된 것:
-- `lineno` / `resultid` / `itemid` / `checkrunindex` 컬럼
-- 설정 기반 동적 범위 목록
+필요해지면 추가할 것:
+- 체크별 정책(허용 범위·유효기간 상한). 체크 클래스를 키로 작은 테이블을 두고
+  `validateTarget` / `validateValidity` 에서 읽는다
 
 Phase 2 착수 전 풀어야 할 것:
 - **FND 스코프의 영구 식별자.** `resultid` + `itemid` + `checkrunindex` 는 ATC 실행

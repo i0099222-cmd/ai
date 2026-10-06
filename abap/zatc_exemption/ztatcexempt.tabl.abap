@@ -16,12 +16,8 @@ define table ztatcexempt {
   "! 요청 제목. 신청번호가 없으므로 목록에서 요청서를 부르는 이름이다.
   title             : abap.char(80);
 
-  "! 체크 변형. 이 요청에 어떤 정책(허용 범위, 유효기간 상한)이 적용되는지를
-  "! 결정하는 키다.
+  "! 체크 변형. 체크 클래스 값 도움을 거르는 데 쓴다.
   checkvariant      : abap.char(30);
-
-  "! 체크 그룹. ztatccfg 에서 파생. 예: NAMING / PERF / SECURITY
-  checkgroup        : abap.char(10);
 
   "! 대상 체크 클래스. 표준 create_exemption( i_check_class ) 에 넘기는 값이다.
   "! 요청서의 모든 대상에 같은 체크가 걸린다.
@@ -35,7 +31,7 @@ define table ztatcexempt {
 
   validfrom         : abap.dats;
 
-  "! 유효종료일. 필수이며 상한은 ztatccfg-maxvalidmon 으로 제한된다.
+  "! 유효종료일. 필수이며 상한은 zif_atc_exemption=>policy-maxvalidmon 이다.
   validto           : abap.dats;
 
   "! 10 초안 / 20 승인대기 / 30 승인 / 40 반려 / 50 철회 / 60 만료

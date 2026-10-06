@@ -1,20 +1,11 @@
-"! 테스트 데이터 생성/삭제.
+"! 테스트 데이터 생성/삭제. 개발/품질 시스템 전용이며 운영 이송 대상이 아니다.
 "!
-"! 운영 이송 대상이 아니다. 개발/품질 시스템에서만 실행한다.
-"!
-"! 만드는 것은 대장(ztatcexempt / ztatcexempti / ztatcexemptlog) 데이터다.
-"! ATC finding 은 만들 수 없다 - 그건 실제 ATC 실행 결과이므로, finding 목록
-"! 화면을 보려면 대상 패키지에 ATC 를 한 번 돌려야 한다.
-"! 이 데이터로 확인할 수 있는 것은 요청 목록, 오브젝트 페이지(대상 표), 상태별
-"! 버튼 노출, 이력 탭, 그리고 정합성 지표(ExemptionMismatch)다.
-"!
-"! 대상 오브젝트는 지어내지 않고 TADIR 에서 실제로 읽는다. 지어낸 이름을 쓰면
-"! 화면에서 승인/반려를 눌렀을 때 validateScope 가 "오브젝트 없음"으로 막아
-"! 정작 테스트하려던 상태 전이를 볼 수 없다.
+"! 대장(ztatcexempt / ztatcexempti / ztatcexemptlog) 데이터만 만든다. ATC finding 은
+"! 실제 실행 결과라 만들 수 없다 - 대상 값 도움에 위반이 보이려면 ATC 를 돌린다.
+"! 대상 오브젝트는 TADIR 에서 실제로 읽는다. 지어낸 이름은 대상 검증(008)에 걸린다.
 "!
 "! 테스트 행은 사유 텍스트가 '[TEST]' 로 시작하고, cleanup( ) 은 그것만 지운다.
-"! 표식을 reasoncode 에 둘 수 없는 이유: 그 필드는 표준이 값 목록을 가지며
-"! (SATC_CI_REASONS) 임의 값을 넣으면 표준 반영이 거부된다.
+"! 사유 코드는 표준이 값 목록을 가져서(SATC_CI_REASONS) 표식으로 쓸 수 없다.
 CLASS zcl_atc_exempt_testdata DEFINITION
   PUBLIC
   FINAL
@@ -25,20 +16,10 @@ CLASS zcl_atc_exempt_testdata DEFINITION
     "! 테스트 행 표식. 사유 텍스트의 접두어이고 cleanup( ) 의 유일한 기준이다.
     CONSTANTS c_marker TYPE string VALUE '[TEST]'.
 
-    "! 컨트롤 테이블 1행. 이게 없으면 ZI_AtcFinding 이 inner join 에서 전부
-    "! 걸러내므로 대상 값 도움이 빈 채로 뜬다. 가장 먼저 실행한다.
-    CLASS-METHODS setup_config
-      IMPORTING iv_checkvariant TYPE c.
-
-    "! 상태별 요청서 6건 + 대상 줄 + 이력.
-    "! iv_devclass 는 실재하는 커스텀 패키지여야 한다.
-    "! 승인대기 건의 신청자.
-    "!
-    "! 기본값(본인)으로 두면 그 건은 앱의 자기승인 금지(메시지 014)에 걸린다.
-    "!
-    "! 다만 이 데이터로 **표준까지 통과시키지는 못한다**. 승인대기 건의 대상 줄에는
-    "! 표준 ID 가 없어서 승인을 누르면 "표준 예외 없음" 으로 멈춘다. 승인까지 보려면
-    "! 계정 둘로 화면에서 직접 만든다 - A 로 요청서를 만들어 상신하고, B 로 승인한다.
+    "! 상태별 요청서 6건 + 대상 줄 + 이력. iv_devclass 는 오브젝트가 든 실재 패키지여야 한다.
+    "! iv_requester 는 승인대기 건의 신청자다. 본인으로 두면 자기승인 금지(014)에 걸린다.
+    "! 승인대기 건은 표준 ID 가 없어 승인하면 "표준 예외 없음" 으로 멈춘다. 승인까지 보려면
+    "! 계정 둘로 화면에서 직접 만든다 - A 로 상신하고 B 로 승인한다.
     CLASS-METHODS create_requests
       IMPORTING iv_checkvariant TYPE c
                 iv_devclass     TYPE devclass
@@ -56,11 +37,6 @@ CLASS zcl_atc_exempt_testdata DEFINITION
              objectname TYPE sobj_name,
            END OF ty_obj,
            tt_obj TYPE STANDARD TABLE OF ty_obj WITH EMPTY KEY.
-
-    "! 대상 패키지에서 실재하는 오브젝트를 읽어 온다.
-    CLASS-METHODS read_objects
-      IMPORTING iv_devclass   TYPE devclass
-      RETURNING VALUE(rt_obj) TYPE tt_obj.
 
     CLASS-METHODS insert_request
       IMPORTING iv_checkvariant TYPE c
@@ -97,43 +73,18 @@ ENDCLASS.
 
 CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
 
-  METHOD setup_config.
+  METHOD create_requests.
 
-    " 설정을 쓰는 곳은 zcl_atc_config_setup 하나다. 여기서 또 INSERT 하면
-    " 검증을 우회하게 되고, 두 곳의 기본값이 갈라진다.
-    DATA(ls_result) = zcl_atc_config_setup=>set_variant(
-                        iv_checkvariant = iv_checkvariant
-                        " 표준이 승인자를 필수로 받는다. 테스트는 본인으로 둔다.
-                        " 단, 본인이 신청한 건은 자기승인 금지(014)에 걸리므로
-                        " 승인 단계까지 보려면 계정이 둘 필요하다.
-                        iv_defapprover  = sy-uname ).
-
-    IF ls_result-success = abap_false.
-      " 설정이 없으면 나머지 테스트가 전부 빈 화면으로 끝난다. 조용히 넘기지 않는다.
-      ASSERT 1 = 0.
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD read_objects.
-
-    SELECT object AS objecttype,
-           obj_name AS objectname
+    " 대상 오브젝트는 지어내지 않고 그 패키지에서 실제로 읽는다.
+    DATA lt_obj TYPE tt_obj.
+    SELECT object AS objecttype, obj_name AS objectname
       FROM tadir
       WHERE pgmid    = 'R3TR'
         AND devclass = @iv_devclass
         AND delflag  = @abap_false
       ORDER BY object, obj_name
-      INTO CORRESPONDING FIELDS OF TABLE @rt_obj
+      INTO CORRESPONDING FIELDS OF TABLE @lt_obj
       UP TO 4 ROWS.
-
-  ENDMETHOD.
-
-
-  METHOD create_requests.
-
-    DATA(lt_obj) = read_objects( iv_devclass ).
 
     IF lt_obj IS INITIAL.
       " 지어낸 오브젝트로 만들지 않는다. 위 클래스 주석의 이유다.
@@ -286,7 +237,6 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       exemptuuid   = rv_uuid
       title        = iv_title
       checkvariant = iv_checkvariant
-      checkgroup   = 'NAMING'
       checkclass   = iv_checkclass
       " 표준이 받는 사유 코드다. c_marker 는 테스트 표식이라 여기 쓸 수 없다.
       reasoncode   = zif_atc_exemption=>reason-other

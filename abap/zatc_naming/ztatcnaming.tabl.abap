@@ -46,7 +46,7 @@ define table ztatcnaming {
 
   "! finding 우선순위. 1 이 가장 심각하다.
   "!   1 -> error / 2 -> warning / 3 -> note
-  "! 예외 앱의 ztatccfg-maxpriority 와 맞물린다. 거기서 2 로 막아두면
+  "! 예외 앱의 정책 maxpriority(zif_atc_exemption=>policy) 와 맞물린다. 거기서 2 로 막아두면
   "! 여기 1 로 둔 규칙은 예외 신청 자체가 되지 않는다.
   priority     : zatc_nameprio;
 

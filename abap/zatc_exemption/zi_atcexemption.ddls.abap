@@ -22,9 +22,6 @@ define view entity ZI_AtcExemption
       @EndUserText.label: 'Check Variant'
       checkvariant      as CheckVariant,
 
-      @EndUserText.label: 'Check Group'
-      checkgroup        as CheckGroup,
-
       @EndUserText.label: 'Check Class'
       checkclass        as CheckClass,
 

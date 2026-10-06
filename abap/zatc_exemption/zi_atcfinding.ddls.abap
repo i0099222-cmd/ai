@@ -7,9 +7,9 @@
   sizeCategory: #M,
   dataClass: #MIXED
 }
-// 신청 화면 값 도움(ZI_AtcFindingObjVH / ZI_AtcFindingPkgVH)과 영향도 계산
-// (zcl_atc_finding_reader)의 데이터 소스. 조회 앱은 없앴다 - 대상은 요청서의
-// 아이템에서 값 도움으로 고른다. 표준이 유효로 표시한 ATC 결과를 **라이브로** 읽는다.
+// 대상 값 도움(ZI_AtcFindingObjVH / ZI_AtcFindingPkgVH)과 영향도·우선순위 계산
+// (behavior pool 의 lcl_rules=>read_findings)의 데이터 소스. 모든 변형·모든 체크의
+// ATC 결과를 **라이브로** 읽는다.
 // 스냅샷 테이블을 두지 않는다 - 추세 리포팅이 요건에 없으므로 중간 적재 계층과
 // 배치, 보관 정책을 만들 이유가 없다.
 //
@@ -32,13 +32,6 @@
 define view entity ZI_AtcFinding
   as select from satc_api_findings as Finding
 
-  // 컨트롤 테이블에 활성으로 등록된 체크 변형의 결과만 앱의 대상이다.
-  // 체크가 여럿 든 변형(표준 기본 변형)은 맨 아래 where 에서 체크 클래스로 한 번 더 거른다.
-  // 체크 ID 를 뷰에 하드코딩하지 않는다 - 무엇을 다룰지는 컨트롤 테이블이 정한다.
-  inner join ztatccfg as Cfg
-    on  Cfg.checkvariant = Finding.checkvariant
-    and Cfg.activeflg    = 'X'
-
   // 오브젝트마다 최신 회차의 결과만 남긴다. 판정 기준은 ZI_AtcLatestRun 이 들고
   // 있고, 왜 표준 플래그를 못 쓰는지도 거기에 적혀 있다.
   // 최신 회차가 위반 0건이면 이 조인에 맞는 finding 이 없어서 고쳐진 위반이 빠진다.
@@ -48,7 +41,7 @@ define view entity ZI_AtcFinding
   inner join ZI_AtcLatestRun as Latest
     on  Latest.ObjectType   = Finding.objecttype
     and Latest.ObjectName   = Finding.objectname
-    and Latest.CheckGroup   = Cfg.checkgroup
+    and Latest.CheckVariant = Finding.checkvariant
     and Latest.LatestRunTs  = Hdr.scheduledontimestamp
 
   // SATC_API_FINDINGS 는 체크를 moduleid(RAW16) 로만 식별한다. 표준 예외 API 가
@@ -110,11 +103,10 @@ define view entity ZI_AtcFinding
       // 코드가 바뀌어도 유지되는 finding 식별자
       Finding.checksum           as Checksum,
 
-      Cfg.checkgroup             as CheckGroup,
       // priority 도 ENUMC3 다. 예외 상태 셋과 같은 함정이 있으니,
       // 직렬화가 여기서도 깨지면 cast 를 빼고 case 로 값을 대응시킨다.
       //   case Finding.priority when <열거값> then 1 ... end
-      // ztatccfg-maxpriority(INT1) 와 숫자로 비교하는 곳이 있어 INT1 로 둔다.
+      // 정책의 maxpriority 와 숫자로 비교하므로 INT1 로 둔다.
       cast( Finding.priority as abap.int1 ) as Priority,
       // 제목은 ATC 가 finding 코드마다 등록한 것(SATC_AC_MSGT)이다. 네이밍 체크는
       // 규칙마다 코드를 두고 그 규칙의 문장을 제목으로 등록하므로 그대로 쓴다.
@@ -191,8 +183,3 @@ define view entity ZI_AtcFinding
         else cast( '' as abap.char( 1 ) )
       end                        as ExemptionMismatch
 }
-// 변형에 체크 클래스가 지정돼 있으면 그 체크 건만 남긴다(ZTATCCFG-CHECKCLASS).
-// 표준 기본 변형은 체크가 여럿이라, 이게 없으면 네이밍 외 위반이 전부 뜬다.
-// 🔴 ci_id 와 checkclass 의 타입이 달라 비교가 안 되면 ci_id 쪽을 char(30) 으로 cast 한다.
-where Cfg.checkclass = ''
-   or Cfg.checkclass = Chm.ci_id

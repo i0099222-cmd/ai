@@ -77,14 +77,6 @@ annotate entity ZP_AtcExemption with
   @EndUserText.label: 'Check Class'
   CheckClass;
 
-  @UI: {
-    lineItem:       [{ position: 40, importance: #MEDIUM }],
-    identification: [{ position: 40 }],
-    selectionField: [{ position: 40 }]
-  }
-  @EndUserText.label: 'Check Group'
-  CheckGroup;
-
   @UI.fieldGroup: [{ qualifier: 'ReasonGroup', position: 10 }]
   @EndUserText.label: 'Reason Code'
   ReasonCode;

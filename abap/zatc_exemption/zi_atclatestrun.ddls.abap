@@ -26,14 +26,12 @@
 //   SATC_AC_OBJ_V    check_run_ix + object_ix           (실행별 검사 오브젝트)
 //   SATC_AC_RESULTH  check_run_ix -> display_id         (실행 헤더)
 //
-// 변형 단위가 아니라 **오브젝트 단위**로 최신을 잡는다. 같은 변형으로 패키지를
-// 나눠 돌리는 운영이 흔하고, 변형 단위로 잡으면 먼저 돌린 패키지의 위반이
-// 통째로 사라진다.
-//
-// 변형이 아니라 **체크 그룹(ZTATCCFG)** 으로 묶는다. 같은 오브젝트를 네이밍 변형
-// 두 개로 번갈아 돌리면 변형별로 최신이 따로 잡혀서, 고친 뒤 다른 변형으로 돌린
-// 실행이 예전 위반을 못 덮었다(확인함). 컨트롤 테이블에 없는 변형으로 돌린 실행은
-// 우리 체크를 돌린 게 아니므로 세지 않는다.
+// 오브젝트 + 변형 단위로 최신을 잡는다.
+//   오브젝트 단위인 이유: 같은 변형으로 패키지를 나눠 돌리는 운영이 흔하고, 변형
+//   단위로만 잡으면 먼저 돌린 패키지의 위반이 통째로 사라진다.
+//   변형도 키인 이유: 체크가 적은 변형으로 돌린 실행이 다른 변형의 위반을 지우면
+//   안 된다. 그 대가로 같은 체크를 변형 두 개로 번갈아 돌리면, 고친 뒤 다른 변형으로
+//   돌린 실행이 예전 위반을 못 덮는다(확인함) - 같은 변형으로 다시 돌리면 사라진다.
 define view entity ZI_AtcLatestRun
   as select from satc_ac_obj_v as RunObj
 
@@ -49,14 +47,10 @@ define view entity ZI_AtcLatestRun
   inner join satc_api_result_headers as Hdr
     on Hdr.resultid = Run.display_id
 
-  inner join ztatccfg as Cfg
-    on  Cfg.checkvariant = Hdr.checkvariant
-    and Cfg.activeflg    = 'X'
-
 {
   key Obj.obj_type     as ObjectType,
   key Obj.obj_name     as ObjectName,
-  key Cfg.checkgroup   as CheckGroup,
+  key Hdr.checkvariant as CheckVariant,
 
       // 🔴 scheduledontimestamp 가 실행 순서를 나타낸다고 본다.
       //   changedontimestamp 가 더 늦게 갱신되는 경우가 있으면 그것으로 바꾼다.
@@ -65,4 +59,4 @@ define view entity ZI_AtcLatestRun
 group by
   Obj.obj_type,
   Obj.obj_name,
-  Cfg.checkgroup
+  Hdr.checkvariant

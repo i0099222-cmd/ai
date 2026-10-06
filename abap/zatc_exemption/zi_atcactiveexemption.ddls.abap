@@ -20,9 +20,6 @@ define view entity ZI_AtcActiveExemption
       @EndUserText.label: 'Exemption Request UUID'
       Hdr.ExemptUuid,
 
-      @EndUserText.label: 'Check Group'
-      Hdr.CheckGroup,
-
       @EndUserText.label: 'Object Scope'
       Item.scopetype  as ScopeType,
 

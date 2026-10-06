@@ -65,14 +65,14 @@ ATC 실행(Run)      결과 = finding 목록
 3. 규칙 행 입력 (SM30). **체크보다 먼저 넣는다** - 규칙이 없으면 체크가
    돌아도 아무 일이 없어서 되는 건지 안 되는 건지 구분할 수 없다
 4. `CL_CI_ATC_CHECK_EXAMPLE` 을 복사해 `ZCL_ATC_CHECK_NAMING` 생성 →
-   검사 로직만 우리 것으로 교체 (`check_name( )` 부분)
+   검사 로직만 우리 것으로 교체 (`run( )` 부분)
 5. ADT `New → ABAP Repository Object` → **ATC Check Category** 생성.
    Description 이 체크 변형 화면에 분류명으로 뜬다. Parent Category 는 비움
 6. ADT `New → ATC Check` → 이름·설명·카테고리(5번)·구현 클래스(4번) → 활성화
 7. ADT `New → ATC Check Variant` → 5번 카테고리 아래에 뜬 6번 체크를 담고 활성화
 8. ADT 대상 패키지 우클릭 → `Run As → ABAP Test Cockpit` → 결과는 ATC Problems 뷰
-9. 예외 앱 연결: `ZTATCCFG` 에 그 변형명으로 1행 (`activeflg = X`,
-   `objactive = X`, `pkgactive = X`, `fndactive` 공란)
+9. 예외 앱은 별도 설정이 없다. 이 체크가 담긴 변형(표준 기본 변형 포함)으로 돌린
+   결과가 요청서의 대상 값 도움에 그대로 나온다
 
 ## 필드 라벨
 
@@ -260,17 +260,6 @@ SELECT object, obj_name FROM tadir
     AND delflag  = @abap_false
   ORDER BY object, obj_name
   INTO TABLE @DATA(lt_tadir).
-```
-
-### 규칙을 넣기 전에 확인하는 법
-
-ATC 를 돌리지 않고 콘솔에서 바로 대조할 수 있다. 규칙 하나 넣을 때마다
-ATC 를 돌리면 한 번에 몇 분씩 걸린다.
-
-```abap
-DATA(lt_violation) = NEW zcl_atc_check_naming( )->check_name(
-                       iv_objtype = 'CLAS'
-                       iv_objname = 'ZCL_FOO' ).
 ```
 
 ## 기존 오브젝트를 어떻게 할 것인가

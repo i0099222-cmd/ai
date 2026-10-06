@@ -1,17 +1,11 @@
-"! 예외 만료 처리 배치.
+"! 예외 만료 처리 배치. 일 1회 run( ) 을 스케줄한다.
 "!
-"! 유효기간이 조용히 지나면 어느 날 갑자기 TR 릴리즈가 막히고, 개발자는 이유를
-"! 모른 채 헤맨다. 그래서 만료 전환과 사전 알림을 이 배치가 담당한다.
+"! 유효기간이 조용히 지나면 어느 날 갑자기 TR 릴리즈가 막히고 개발자는 이유를 모른다.
+"! 그래서 만료 전환과 표준 예외 정리, 만료 임박 건수 집계를 여기서 한다.
 "!
-"! TODO 표준 예외의 set_notification_type( ) 이 무엇을 알려주는지 확인할 것.
-"!   표준 알림이 만료 예고까지 해 준다면 이 배치의 알림 부분은 중복이고,
-"!   상태 전환만 남기면 된다.
-"!
-"! TODO 스케줄링 연결. 일 1회 실행.
-"!   시스템의 Application Job 인터페이스(IF_APJ_DT_EXEC_OBJECT /
-"!   IF_APJ_RT_EXEC_OBJECT)를 이 클래스에 구현하고 run( ) 을 호출하거나,
-"!   클래식이면 리포트에서 run( ) 을 호출해 SM36 으로 건다.
-"!   릴리즈별로 인터페이스 시그니처가 다르므로 시스템에서 확인 후 붙일 것.
+"! TODO 스케줄링 연결. Application Job(IF_APJ_DT_EXEC_OBJECT / IF_APJ_RT_EXEC_OBJECT)을
+"!   붙이거나 클래식 리포트에서 run( ) 을 불러 SM36 으로 건다.
+"! TODO 만료 임박 알림 채널(메일 / 런치패드 알림)은 조직 결정 후 연결한다.
 CLASS zcl_atc_expiry_job DEFINITION
   PUBLIC
   FINAL
@@ -19,7 +13,7 @@ CLASS zcl_atc_expiry_job DEFINITION
 
   PUBLIC SECTION.
 
-    "! 만료 안내를 보낼 시점 (일 단위)
+    "! 만료 안내 기준 (일)
     CONSTANTS c_notify_days TYPE i VALUE 30.
 
     TYPES:
@@ -28,18 +22,8 @@ CLASS zcl_atc_expiry_job DEFINITION
         expiring TYPE i,
       END OF ty_result.
 
-    "! 배치 진입점
     METHODS run
       RETURNING VALUE(rs_result) TYPE ty_result.
-
-    "! 유효기간이 지난 승인 건을 만료 상태로 바꾼다.
-    METHODS expire_overdue
-      RETURNING VALUE(rv_count) TYPE i.
-
-    "! 만료 임박 건 목록. 알림 발송의 입력이 된다.
-    METHODS get_expiring_soon
-      IMPORTING iv_days          TYPE i DEFAULT c_notify_days
-      RETURNING VALUE(rt_exempt) TYPE zif_atc_exemption=>tt_exempt.
 
 ENDCLASS.
 
@@ -48,69 +32,35 @@ CLASS zcl_atc_expiry_job IMPLEMENTATION.
 
   METHOD run.
 
-    rs_result-expired = expire_overdue( ).
-
-    DATA(lt_soon) = get_expiring_soon( ).
-    rs_result-expiring = lines( lt_soon ).
-
-    " TODO 알림 채널 확정 후 연결 (메일 / 런치패드 알림 / 사내 메신저).
-    "   채널은 조직 결정 사항이라 임의로 고르지 않았다.
-    "   보낼 내용: 신청번호, 적용범위, 대상, 만료일, 연장 신청 링크
-    "   받는 사람: 신청자 + 승인자
-
-  ENDMETHOD.
-
-
-  METHOD expire_overdue.
-
-    " 면제 판정 자체는 이 배치가 없어도 풀린다. ZI_AtcActiveExemption 이
-    " 유효기간으로 거르고, 표준 예외에도 create 시 같은 validto 를 넘겨 두었다.
-    " 이 배치가 하는 일은 셋이다.
-    "   - 대장의 상태 값을 실제와 맞춘다
-    "   - 표준 예외를 명시적으로 지운다. 유효기간에만 기대면 set_validity_date 가
-    "     반영되지 않았을 때 두 저장소가 조용히 어긋난다
-    "   - 알림 대상을 만든다
-    SELECT exemptuuid, exemptstat
-      FROM ztatcexempt
+    " 면제 판정 자체는 이 배치가 없어도 풀린다(ZI_AtcActiveExemption 이 유효기간으로
+    " 거르고, 표준 예외에도 같은 validto 를 넘겼다). 표준 예외를 명시적으로 지우는
+    " 이유는 set_validity_date 가 반영되지 않았을 때 두 저장소가 조용히 어긋나기 때문이다.
+    SELECT * FROM ztatcexempt
       WHERE exemptstat = @zif_atc_exemption=>status-approved
         AND validto    < @sy-datum
       INTO TABLE @DATA(lt_overdue).
 
-    IF lt_overdue IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    " 표준 예외는 대상 줄마다 1건이다.
-    SELECT itemuuid, exemptuuid, extexemptid
-      FROM ztatcexempti
-      FOR ALL ENTRIES IN @lt_overdue
-      WHERE exemptuuid   = @lt_overdue-exemptuuid
-        AND extexemptid <> @space
-      INTO TABLE @DATA(lt_item).
-
     GET TIME STAMP FIELD DATA(lv_now).
-
-    DATA lt_log TYPE STANDARD TABLE OF ztatcexemptlog WITH EMPTY KEY.
-
-    DATA(lo_sync) = NEW zcl_atc_exempt_sync( ).
 
     LOOP AT lt_overdue INTO DATA(ls_overdue).
 
-      DATA(lv_note) = |유효기간 경과로 자동 만료|.
+      SELECT * FROM ztatcexempti
+        WHERE exemptuuid = @ls_overdue-exemptuuid
+        INTO TABLE @DATA(lt_item).
 
-      " 배치는 RAP 의 interaction phase 가 아니므로 여기서 표준을 직접 불러도 된다.
-      " 지운 줄은 ID 를 비운다. 못 지운 줄은 남겨 두고 이력에 사유를 적는다.
-      LOOP AT lt_item INTO DATA(ls_item) WHERE exemptuuid = ls_overdue-exemptuuid.
-        DATA(ls_revoked) = lo_sync->revoke_exemption( iv_extexemptid = ls_item-extexemptid
-                                                      iv_reason      = lv_note ).
-        IF ls_revoked-success = abap_true.
-          UPDATE ztatcexempti
-            SET extexemptid = @space,
-                stdstatus   = @zif_atc_exemption=>stdstatus-none
-            WHERE itemuuid = @ls_item-itemuuid.
-        ELSE.
-          lv_note = |{ lv_note } / { ls_item-extexemptid }: { ls_revoked-message }|.
-        ENDIF.
+      " 배치는 RAP 의 interaction phase 가 아니라서 표준 반영을 직접 돌려도 된다.
+      " 상신 철회와 같은 경로로 지운다. 못 지운 줄은 ID 가 남고 이력에 사유가 적힌다.
+      DATA(lo_sync) = NEW zcl_atc_exempt_sync( is_exemption = ls_overdue
+                                               it_item      = lt_item
+                                               iv_operation = zcl_atc_exempt_sync=>operation-withdraw ).
+      lo_sync->if_abap_parallel~do( ).
+      DATA(ls_sync) = lo_sync->get_result( ).
+
+      LOOP AT ls_sync-items INTO DATA(ls_res).
+        UPDATE ztatcexempti
+          SET extexemptid = @ls_res-extexemptid,
+              stdstatus   = @ls_res-stdstatus
+          WHERE itemuuid = @ls_res-itemuuid.
       ENDLOOP.
 
       UPDATE ztatcexempt
@@ -119,44 +69,35 @@ CLASS zcl_atc_expiry_job IMPLEMENTATION.
             loclastchgat = @lv_now
         WHERE exemptuuid = @ls_overdue-exemptuuid.
 
-      " 순번은 기존 이력 다음이다. 0 으로 고정하면 이력 탭 정렬이 무너진다.
+      " 이력이 있어야 "왜 갑자기 면제가 풀렸는지" 를 나중에 추적할 수 있다.
       SELECT MAX( seqnr ) FROM ztatcexemptlog
         WHERE exemptuuid = @ls_overdue-exemptuuid
         INTO @DATA(lv_max).
 
-      " 이력을 남겨야 "왜 갑자기 면제가 풀렸는지" 를 나중에 추적할 수 있다.
-      APPEND VALUE #(
+      INSERT ztatcexemptlog FROM @( VALUE #(
         loguuid    = cl_system_uuid=>create_uuid_x16_static( )
         exemptuuid = ls_overdue-exemptuuid
         seqnr      = lv_max + 1
         actioncode = zif_atc_exemption=>logaction-expire
         fromstat   = ls_overdue-exemptstat
         tostat     = zif_atc_exemption=>status-expired
-        commenttxt = lv_note
+        commenttxt = |유효기간 경과로 자동 만료 { ls_sync-message }|
         actionby   = sy-uname
-        actionat   = lv_now ) TO lt_log.
+        actionat   = lv_now ) ).
+
+      COMMIT WORK.
 
     ENDLOOP.
 
-    INSERT ztatcexemptlog FROM TABLE @lt_log.
+    rs_result-expired = lines( lt_overdue ).
 
-    rv_count = lines( lt_overdue ).
-
-    COMMIT WORK.
-
-  ENDMETHOD.
-
-
-  METHOD get_expiring_soon.
-
-    DATA(lv_limit) = CONV d( sy-datum + iv_days ).
-
-    SELECT *
-      FROM ztatcexempt
+    " 만료 임박 건수. 알림 채널이 정해지면 이 대상에게 보낸다(신청자 + 승인자).
+    DATA(lv_limit) = CONV d( sy-datum + c_notify_days ).
+    SELECT COUNT( * ) FROM ztatcexempt
       WHERE exemptstat = @zif_atc_exemption=>status-approved
         AND validto   >= @sy-datum
         AND validto   <= @lv_limit
-      INTO TABLE @rt_exempt.
+      INTO @rs_result-expiring.
 
   ENDMETHOD.
 

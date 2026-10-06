@@ -1,460 +1,278 @@
-"! 승인된 예외를 표준 ATC 예외 저장소에 반영하는 어댑터.
+"! 요청서 1건을 표준 ATC 예외 저장소에 반영한다. 대상 한 줄 = 표준 예외 1건.
 "!
-"! 설계 전제: 관리는 CBO, 실행은 표준.
-"!   - 신청/승인/이력/권한은 CBO 테이블이 원천이다 (감사 대응, 자사 통제).
-"!   - 억제 자체는 표준 메커니즘이 한다. 커스텀 체크 클래스는 만들지 않는다.
+"! 관리는 CBO, 실행은 표준. 신청·승인·이력은 CBO 테이블이 원천이고, 억제 자체는
+"! 표준 예외가 한다. 표준 진입점은 CL_SATC_API 의 예외 컨트롤러이고, 삭제만은
+"! 표준 앱의 Delete 와 같은 RAP BO SATC_CI_R_EXEMPTION 의 delete 를 쓴다.
 "!
-"! 표준 진입점: CL_SATC_API=>CREATE_API_FACTORY( )->GET_EXEMPTION_CONTROLLER( )
-"!   삭제(철회)만은 표준 RAP BO SATC_CI_R_EXEMPTION 의 delete 를 EML 로 부른다.
-"!   표준 Fiori 앱 "Approve ATC Exemptions" 도 결국 이 경로로 예외의 state 와
-"!   approver 를 바꾼다 (SATC_CI_R_EXEMPTION).
+"! 별도 LUW 에서 돈다. 표준 API 가 내부에서 COMMIT 을 해서 RAP 액션 안에서는
+"! 부를 수 없다. behavior pool 이 이 인스턴스를 cl_abap_parallel 로 돌리고,
+"! 만료 배치는 do( ) 를 직접 부른다.
+"! 🔴 다른 DB 세션이라 우리 테이블을 읽으면 안 된다. 필요한 값은 전부 받아 온다.
 "!
-"! 확인된 표준 API
-"!   controller->create_exemption( i_object_type, i_object_name,
-"!                                 i_check_class, i_check_code,
-"!                                 i_contact_person )
-"!     -> 예외 오브젝트를 돌려주고, 나머지는 setter 로 채운다
-"!          set_object_scope( )       SATC_CI_OBJ_SCOPE. FND / OBJ / PCKG
-"!          set_check_scope( )        MSG / CHK / ALL / FND
-"!          set_reason( )            i_reason(코드, 필수) / i_comment(서술)
-"!          set_validity_date( )
-"!          set_approver( )
-"!          set_notification_type( )  REJ / ALWS / NEVR
-"!          send_to_approver( )       승인 요청 제출
-"!          unlock( )                 잠금 해제
-"!          get_exemption_id( )       생성된 예외 ID
-"!   controller->get_exemption( <예외 ID> )
-"!     -> 기존 예외의 핸들. lock_and_refresh( ) 로 잠가야 delete( ) 가 된다.
-"!        delete( ) 는 아카이브다 (deleted = 'X').
-"!   controller->approve_exemptions_by_id( <구조체: exemption_id, assessment> )
-"!     -> 결과 테이블. 예외를 던지지 않고 message_kind / message 로 알린다.
-"!        'E' 면 거부된 것이다. 반드시 읽어야 한다.
-"!   controller->reject_exemptions_by_id( ... ) <- 쓰지 않는다.
-"!     반려도 우리는 예외를 지운다(아카이브). 결정은 CBO 대장이 들고 있고,
-"!     표준에 반려 상태로 남겨 두면 같은 사실이 두 군데 기록된다.
-"!
-"! set_object_scope 가 있으므로 패키지 스코프를 표준 예외 1건으로 넘길 수 있다.
-"! 오브젝트마다 예외를 전개할 필요가 없고, 예외 ID 는 요청서의 대상 한 줄에 1개다.
-"! 패키지는 create_exemption 의 i_package_name 으로 넘긴다. 패키지 대상은 오브젝트를
-"! 비워 넘기고, 저장 행의 obj_type / obj_name(DEVC / 패키지명)은 표준이 스스로 파생한다.
-"!
-"! 생성은 곧바로 승인 상태가 되지 않는다. send_to_approver( ) 로 승인 요청까지
-"! 간 뒤 approve_exemptions_by_if( ) 로 승인해야 한다. 그래서 두 호출을 한 번에
-"! 이어서 수행한다 - 중간 상태로 남겨두면 표준 Fiori 승인 앱에서 다른 사람이
-"! 먼저 결재할 수 있고, 그러면 CBO 대장을 거치지 않은 승인이 생긴다.
-"!
-"! 반영 시점을 "승인 시" 로 잡은 이유:
-"!   상신 시점에 표준 예외를 만들면 그 예외가 표준 승인 대기 상태로 남는다.
-"!   그러면 표준 Fiori 승인 앱에서 누군가 먼저 승인해 버릴 수 있고, CBO 대장을
-"!   거치지 않은 결재가 생긴다. 승인이 끝난 뒤에 승인 상태로 만들어 넣으면
-"!   표준 저장소에는 이미 결정된 예외만 존재하고, 결재 창구는 이 앱 하나로 남는다.
+"! 요청서 단위로 전부 성공해야 성공이다.
+"!   상신 : 한 줄이라도 실패하면 이번에 만든 표준 예외를 지워 되돌린다.
+"!   승인 / 반려 : 표준이 한 건씩 처리해서 이미 처리된 줄은 되돌릴 수 없다.
+"!          첫 실패에서 멈추고, 처리된 줄은 stdstatus 로 알려 다음 시도가 건너뛰게 한다.
+"!   철회 : 지울 수 있는 줄은 다 지운다. 남은 줄은 다음 시도가 지운다.
 CLASS zcl_atc_exempt_sync DEFINITION
   PUBLIC
+  INHERITING FROM cl_abap_parallel
   FINAL
   CREATE PUBLIC.
 
   PUBLIC SECTION.
 
-    TYPES:
-      BEGIN OF ty_result,
-        success     TYPE abap_boolean,
-        "! SATC_CI_EXEMPTION_ID 와 같은 타입
-        extexemptid TYPE sysuuid_c32,
-        message     TYPE string,
-      END OF ty_result.
+    CONSTANTS:
+      BEGIN OF operation,
+        register TYPE char10 VALUE 'REGISTER',
+        approve  TYPE char10 VALUE 'APPROVE',
+        reject   TYPE char10 VALUE 'REJECT',
+        withdraw TYPE char10 VALUE 'WITHDRAW',
+      END OF operation.
 
-    "! 상신된 예외를 표준 저장소에 **승인대기 상태로** 생성한다.
-    "! 표준의 모델이 "신청 시점에 행이 생기고 승인은 그 행의 상태를 바꾸는 것"
-    "! 이므로 우리도 같은 시점에 만든다. 그래야 승인자에게 표준 알림이 가고,
-    "! 개발자가 ADT/표준 앱에서도 자기 신청 건을 볼 수 있다.
-    "! 요청서(사유·기간·체크)와 대상 한 줄(범위·패키지·오브젝트·코드)로 1건을 만든다.
-    METHODS create_exemption
-      IMPORTING is_exemption     TYPE ztatcexempt
-                is_item          TYPE ztatcexempti
-      RETURNING VALUE(rs_result) TYPE ty_result.
+    "! is_exemption-approver : 상신 때 표준 예외에 넣을 승인자 (호출자가 정해 넘긴다)
+    METHODS constructor
+      IMPORTING is_exemption TYPE ztatcexempt
+                it_item      TYPE zif_atc_exemption=>tt_item
+                iv_operation TYPE char10.
 
-    "! 표준 저장소의 예외를 승인한다. 이 시점에 ATC 차단이 실제로 풀린다.
-    METHODS approve_exemption
-      IMPORTING iv_extexemptid   TYPE sysuuid_c32
-                iv_assessment    TYPE string OPTIONAL
-      RETURNING VALUE(rs_result) TYPE ty_result.
+    METHODS if_abap_parallel~do REDEFINITION.
 
-    "! 예외를 표준 저장소에서 없앤다. 신청자의 철회, 대장 철회, 만료가 모두 이 하나다.
-    "! 감사 흔적은 CBO 이력이 든다.
-    "!
-    "! 표준 앱의 Delete 와 같은 길로 지운다 - 표준 RAP BO SATC_CI_R_EXEMPTION 의
-    "! delete 다. 행이 실제로 없어진다.
-    "!
-    "! 예전에는 controller->get_exemption( )->delete( ) 를 썼다. 그것은 아카이브
-    "! (deleted = 'X')만 하고 state 는 그대로라, 철회한 건을 표준 앱에서 여전히
-    "! 승인할 수 있었다.
-    METHODS revoke_exemption
-      IMPORTING iv_extexemptid   TYPE sysuuid_c32
-                iv_reason        TYPE string OPTIONAL
-      RETURNING VALUE(rs_result) TYPE ty_result.
-
-    "! 승인자가 반려한다.
-    "!
-    "! 삭제가 아니라 표준의 반려 전이다. 상태가 REJ 로 남아야 신청자가 표준
-    "! 쪽에서도 반려 사실을 알 수 있고, 알림 유형 REJ(반려 시 통보)도 이
-    "! 전이에 걸린다. 지워 버리면 그 둘이 다 사라진다.
-    METHODS reject_exemption
-      IMPORTING iv_extexemptid   TYPE sysuuid_c32
-                iv_reason        TYPE string OPTIONAL
-      RETURNING VALUE(rs_result) TYPE ty_result.
-
-    "! ADT 에서 직접 올라온 신청을 CBO 대장으로 끌어온다.
-    "!
-    "! 신청 경로는 두 개이고 ADT 경로는 막을 수 없다. 동기화하지 않으면
-    "! CBO 대장이 실제 시스템 상태와 어긋나고, 반년 뒤 감사에서 드러난다.
-    "! 배치로 주기 실행한다.
-    METHODS sync_from_standard
-      RETURNING VALUE(rv_synced) TYPE i.
+    METHODS get_result
+      RETURNING VALUE(rs_result) TYPE zif_atc_exemption=>ty_batch_result.
 
     "! 현재 사용자가 표준 승인자 목록(SATC_CI_APPROVER)에 있는지.
+    "! 권한 오브젝트는 보지 않는다. S_Q_GOVERN 은 개발자 대부분이 가져서 가려내지 못한다.
     CLASS-METHODS is_approver
       RETURNING VALUE(rv_can) TYPE abap_boolean.
 
   PRIVATE SECTION.
 
-    "! 표준 예외 컨트롤러. 최초 호출 시 한 번만 만든다.
-    METHODS get_controller
-      RETURNING VALUE(ro_controller) TYPE REF TO object.
-
-    DATA mo_controller TYPE REF TO object.
+    DATA ms_exemption TYPE ztatcexempt.
+    DATA mt_item      TYPE zif_atc_exemption=>tt_item.
+    DATA mv_operation TYPE char10.
+    DATA ms_result    TYPE zif_atc_exemption=>ty_batch_result.
 
 ENDCLASS.
 
 
 CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
-  METHOD get_controller.
-
-    IF mo_controller IS NOT BOUND.
-      " TODO 반환 타입을 실제 인터페이스로 바꿀 것.
-      "   ADT 에서 GET_EXEMPTION_CONTROLLER( ) 의 RETURNING 타입을 확인해
-      "   REF TO object 대신 그 인터페이스로 선언하면 코드 완성과 구문 점검을
-      "   받을 수 있다. 지금은 메소드 시그니처를 모르는 상태라 느슨하게 둔다.
-      mo_controller = cl_satc_api=>create_api_factory( )->get_exemption_controller( ).
-    ENDIF.
-
-    ro_controller = mo_controller.
-
+  METHOD constructor.
+    super->constructor( ).
+    ms_exemption = is_exemption.
+    mt_item      = it_item.
+    mv_operation = iv_operation.
   ENDMETHOD.
 
 
-  METHOD create_exemption.
-
-    " 생성 -> 설정 -> 승인요청 -> 승인 까지를 한 번에 수행한다.
-    " 패키지 스코프도 출발점 오브젝트로 만든 뒤 set_object_scope( ) 로 넓힌다.
-    " ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것과 같은 순서다.
-
-    DATA(lo_controller) = get_controller( ).
-
-    DATA(ls_config) = zcl_atc_config=>get( )->get_config( is_exemption-checkvariant ).
-
-    " 승인자를 TRY 밖에서 정한다. 안에서 정하면 그 줄 이전에 예외가 났을 때
-    " 실패 메시지가 "승인자 비어 있음" 으로 잘못 나온다.
-    DATA(lv_approver) = COND syuname(
-      WHEN is_exemption-approver IS NOT INITIAL THEN is_exemption-approver
-      ELSE ls_config-defapprover ).
-
-    TRY.
-
-        " checkclass / checkcode 는 SATC_CI_R_EXEMPTION 과 같은 형태의 값이다.
-        "
-        " i_contact_person 은 넘겨도 표준이 쓰지 않는다. 표준은 신청자를
-        " **이 호출을 실행 중인 사용자**로 기록한다(확인함). 그래서 대장의
-        " requester 를 바꿔도 표준 쪽 신청자는 바뀌지 않는다. 값은 의도를
-        " 남기려고 그대로 넘긴다.
-        "
-        " 패키지는 i_package_name 으로 넘긴다. 오브젝트 자리에 넣는 것이 아니다.
-        " PCKG 스코프에서 표준은 저장 행의 obj_type / obj_name 을 스코프와
-        " i_package_name 에서 스스로 파생한다(DEVC / 패키지명).
-        "
-        " 앞서 세 번 틀렸다. 남겨 둔다.
-        "   1) 오브젝트명만 넘김        -> 예외가 아무것도 매칭하지 않음
-        "   2) 오브젝트명 자리에 패키지 -> R3TR <원래유형> <패키지명> 을 TADIR 에서
-        "      찾다가 "referred object ... does not exist anymore"
-        "   3) 유형까지 DEVC 로 바꿈    -> obj_type 은 DEVC 로 들어갔지만 obj_name 이
-        "      빈 채로 저장됐다. 표준이 i_package_name 에서 이름을 파생하는데 그
-        "      파라미터를 안 넘겼기 때문이다.
-        "
-        " 그래서 오브젝트는 위반이 난 오브젝트를 그대로 넘긴다. 대장도 같은 값을
-        " 들고 있다 - 어느 위반에서 신청이 나왔는지가 기록으로 남아야 하고,
-        " 뷰의 조인도 그 값을 쓴다.
-        IF  is_item-scopetype = zif_atc_exemption=>scope-pckg
-        AND is_item-devclass IS INITIAL.
-          " 패키지가 비어 있으면 만들지 않는다. 빈 패키지로도 행은 생기고 승인까지
-          " 되는데 아무것도 면제하지 않는다. 대장은 승인이고 ATC 는 계속 막는
-          " 상태가 조용히 만들어지므로 여기서 끊는다.
-          rs_result = VALUE #( success = abap_false
-                               message = |패키지 스코프인데 패키지가 비어 있다| ).
-          RETURN.
-        ENDIF.
-
-        " 패키지 대상은 오브젝트를 넘기지 않는다. 표준은 i_package_name 만으로 받는다
-        " (선등록 상신으로 확인함). 오브젝트 유형만 남아 있으면 TADIR 조회가 꼬인다.
-        DATA(lv_is_obj) = xsdbool( is_item-scopetype = zif_atc_exemption=>scope-obj ).
-        DATA(lo_exemption) = lo_controller->create_exemption(
-          i_object_type    = COND trobjtype( WHEN lv_is_obj = abap_true THEN is_item-objecttype )
-          i_object_name    = COND sobj_name( WHEN lv_is_obj = abap_true THEN is_item-objectname )
-          i_package_name   = is_item-devclass
-          i_check_class    = is_exemption-checkclass
-          i_check_code     = is_item-checkcode
-          i_contact_person = is_exemption-requester ).
-
-        " SATC_CI_OBJ_SCOPE 의 고정값이 우리 scopetype( FND / OBJ / PCKG )과
-        " 같음을 확인했으므로 변환 없이 넘긴다.
-        lo_exemption->set_object_scope( CONV #( is_item-scopetype ) ).
-
-        " 체크 축은 MSG / CHK / ALL / FND 중 하나다. 신청서는 MSG / CHK 만 쓴다.
-        lo_exemption->set_check_scope( CONV #( is_item-rulescope ) ).
-
-        " set_reason 은 코드와 서술을 따로 받는다.
-        "   i_reason  (필수) 사유 코드
-        "   i_comment        자유 서술
-        " 위치 인자로 넘기면 서술이 코드 자리로 들어간다. 이름으로 넘긴다.
-        "
-        " 🔴 확인 필요: i_reason 의 타입과 고정값 목록.
-        "   우리 reasoncode 는 CHAR4 이지만 값 목록을 정한 곳이 없다.
-        "   표준에 고정값이 있으면 그 값을 그대로 ztatcexempt-reasoncode 의
-        "   도메인 고정값으로 삼는다. 그래야 매핑 없이 양쪽이 같은 값을 쓰고,
-        "   Fiori 화면에도 별도 값 도움 뷰 없이 드롭다운이 생긴다.
-        lo_exemption->set_reason( i_reason  = CONV #( is_exemption-reasoncode )
-                                  i_comment = is_exemption-reasontext ).
-        lo_exemption->set_validity_date( is_exemption-validto ).
-        " 표준은 승인자 1명을 필수로 요구한다. 상신 시점에는 아직 결재자가
-        " 정해지지 않았으므로(우리 앱은 권한으로 판정한다) 설정의 기본 승인자를
-        " 쓴다. 승인이 끝나면 approve_exemption_by_id( ) 가 실제 결재자를 남긴다.
-        lo_exemption->set_approver( i_approver = lv_approver ).
-
-        " 알림 유형은 조직 정책이므로 컨트롤 테이블에서 읽는다.
-        lo_exemption->set_notification_type(
-          COND #( WHEN ls_config-notiftype IS NOT INITIAL
-                  THEN ls_config-notiftype
-                  ELSE zif_atc_exemption=>notification-never ) ).
-
-        " 승인 요청을 보낸 뒤 잠금을 푼다. 여기서 끝이다 - 승인은 별도다.
-        " 결재가 끝나기 전에 승인해 버리면 표준의 알림도 승인 상태도 무의미해진다.
-        lo_exemption->send_to_approver( ).
-        lo_exemption->unlock( ).
-
-        " SATC_CI_EXEMPTION_ID (SYSUUID_C32)
-        DATA(lv_exemption_id) = lo_exemption->get_exemption_id( ).
-
-        rs_result = VALUE #( success     = abap_true
-                             extexemptid = lv_exemption_id
-                             message     = |표준 예외 { lv_exemption_id } 생성(승인대기)| ).
-
-      CATCH cx_root INTO DATA(lo_error).
-        " 실패 경로에서도 잠금을 푼다. 열어 놓고 나가면 그 예외는 잠긴 채로
-        " 남고, 다음 시도는 상태가 아니라 잠금 때문에 실패한다. 무엇 때문에
-        " 실패했는지 두 번 헷갈리게 된다.
-        IF lo_exemption IS BOUND.
-          TRY.
-              lo_exemption->unlock( ).
-            CATCH cx_root ##NO_HANDLER.
-          ENDTRY.
-        ENDIF.
-
-        " 표준 반영이 실패해도 CBO 기록은 남긴다. 대장이 원천이고 표준 반영은
-        " 뒤따르는 구조이기 때문이다. 실패 사유는 이력에 적힌다.
-        "
-        " 승인자를 메시지에 같이 남긴다. 표준 오류 대부분이 승인자 때문인데,
-        " 값이 안 넘어간 것인지 그 사용자에게 권한이 없는 것인지를 로그만
-        " 보고 구분할 수 없으면 매번 디버깅해야 한다.
-        rs_result = VALUE #(
-          success = abap_false
-          message = |{ lo_error->get_text( ) } | &&
-                    |[승인자: { COND string( WHEN lv_approver IS INITIAL
-                                             THEN '(비어 있음)' ELSE lv_approver ) }, | &&
-                    |사유: { COND string( WHEN is_exemption-reasoncode IS INITIAL
-                                          THEN '(비어 있음)'
-                                          ELSE is_exemption-reasoncode ) }, | &&
-                    |서술 { strlen( is_exemption-reasontext ) }자]| ).
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD approve_exemption.
-
-    " 표준 예외를 승인한다. CBO 대장에서 결재가 끝난 뒤 그 결과를 표준에
-    " 반영하는 단계이고, ATC 가 실제로 이 건을 면제하기 시작하는 지점이다.
-    "
-    " 이 메서드는 예외를 던지지 않는다. 건별 결과를 테이블로 돌려주고,
-    " 권한 부족 같은 거부도 거기에 message_kind = 'E' 로 담긴다. 반환값을
-    " 보지 않으면 거부당한 것을 성공으로 기록하게 되는데, 그게 이 앱에서
-    " 제일 위험한 상태다 - 대장은 승인인데 ATC 는 계속 막는 건이 생긴다.
-
-    DATA lv_error TYPE string.
-
-    DATA(lo_controller) = get_controller( ).
-
-    TRY.
-
-        " 승인 직전에 이 예외의 승인자를 누른 사람으로 맞춘다.
-        "
-        " 표준은 지정된 승인자만 승인할 수 있게 한다. 상신 때 박히는 값은
-        " 설정의 기본 승인자 한 명(ztatccfg-defapprover)인데, 우리 앱의 결재
-        " 권한은 표준 승인자 목록(SATC_CI_APPROVER)이 정하므로 결재자는 여럿일 수 있다. 맞춰주지
-        " 않으면 기본 승인자가 아닌 사람이 누를 때마다
-        " "not authorized to approve exemption with id ..." 로 막힌다.
-        "
-        " 대리 승인이 아니다. approve_exemptions_by_id( ) 에는 사용자 파라미터가
-        " 없고 승인은 언제나 실행한 사용자의 행위로 기록되므로, 표준에도 실제로
-        " 누른 사람이 승인자로 남는 것이 맞다. 대장의 approver 와도 같은 값이다.
-        DATA(lo_exemption) = lo_controller->get_exemption( iv_extexemptid ).
-        lo_exemption->lock_and_refresh( ).
-        lo_exemption->set_approver( i_approver = sy-uname ).
-        lo_exemption->unlock( ).
-
-        DATA(lt_result) = lo_controller->approve_exemptions_by_id(
-          VALUE #( exemption_id = iv_extexemptid
-                   assessment   = iv_assessment ) ).
-
-        LOOP AT lt_result INTO DATA(ls_result).
-
-          " E 오류 / A 중단 / X 종료. 경고(W)와 정보(I)는 실패가 아니다.
-          IF ls_result-message_kind NA 'EAX'.
-            CONTINUE.
-          ENDIF.
-
-          lv_error = COND #( WHEN lv_error IS INITIAL
-                             THEN ls_result-message
-                             ELSE |{ lv_error } / { ls_result-message }| ).
-
-        ENDLOOP.
-
-        IF lv_error IS NOT INITIAL.
-          rs_result = VALUE #( success = abap_false
-                               message = |표준 승인 거부: { lv_error }| ).
-          RETURN.
-        ENDIF.
-
-        rs_result = VALUE #( success     = abap_true
-                             extexemptid = iv_extexemptid
-                             message     = |표준 예외 { iv_extexemptid } 승인| ).
-
-      CATCH cx_root INTO DATA(lo_error).
-        rs_result = VALUE #( success = abap_false
-                             message = lo_error->get_text( ) ).
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD reject_exemption.
-
-    IF iv_extexemptid IS INITIAL.
-      rs_result = VALUE #( success = abap_true
-                           message = |표준 예외 없음 - CBO 기록만 변경| ).
-      RETURN.
-    ENDIF.
-
-    DATA(lo_controller) = get_controller( ).
-
-    TRY.
-
-        DATA(lo_exemption) = lo_controller->get_exemption( iv_extexemptid ).
-
-        " get_exemption( ) 은 조회용 핸들을 준다. 잠가야 편집 계열이 된다.
-        lo_exemption->lock_and_refresh( ).
-
-        " 🔴 reject( ) 에 반려 사유 파라미터가 있으면 iv_reason 을 넘길 것.
-        lo_exemption->reject( ).
-        lo_exemption->unlock( ).
-
-        rs_result = VALUE #( success     = abap_true
-                             extexemptid = iv_extexemptid
-                             message     = |표준 예외 { iv_extexemptid } 반려 { iv_reason }| ).
-
-      CATCH cx_root INTO DATA(lo_error).
-        IF lo_exemption IS BOUND.
-          TRY.
-              lo_exemption->unlock( ).
-            CATCH cx_root ##NO_HANDLER.
-          ENDTRY.
-        ENDIF.
-
-        rs_result = VALUE #( success = abap_false
-                             message = |반려 실패: { lo_error->get_text( ) }| ).
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD revoke_exemption.
-
-    " 상신이 표준까지 가지 못한 건이면 지울 표준 건도 없다. 실패로 두면
-    " CBO 쪽 철회까지 막혀서, 표준에 없는 신청을 영구히 철회할 수 없게 된다.
-    IF iv_extexemptid IS INITIAL.
-      rs_result = VALUE #( success = abap_true
-                           message = |표준 예외 없음 - CBO 기록만 변경| ).
-      RETURN.
-    ENDIF.
-
-    " draft BO 라 활성 인스턴스를 지정한다.
-    " 🔴 키 필드명 확인: exemption_id 가 아니면 이 줄만 바꾼다.
-    MODIFY ENTITIES OF satc_ci_r_exemption
-      ENTITY satc_ci_r_exemption
-        DELETE FROM VALUE #( ( %is_draft    = if_abap_behv=>mk-off
-                               exemption_id = iv_extexemptid ) )
-      FAILED DATA(ls_failed)
-      REPORTED DATA(ls_reported).
-
-    " 표준이 준 메시지를 그대로 남긴다. 무엇 때문에 거부됐는지가 곧 원인이다.
-    DATA(lv_message) = |삭제 실패|.
-
-    IF ls_failed IS INITIAL.
-      " 이 메소드는 별도 세션(zcl_atc_exempt_parallel)에서 돈다. 그래서 여기서
-      " 커밋할 수 있다. 우리 BO 의 저장 시퀀스 안이었다면 막혔을 것이다.
-      COMMIT ENTITIES RESPONSE OF satc_ci_r_exemption
-        FAILED DATA(ls_commit_failed)
-        REPORTED DATA(ls_commit_reported).
-      IF ls_commit_failed IS INITIAL.
-        rs_result = VALUE #( success     = abap_true
-                             extexemptid = iv_extexemptid
-                             message     = |표준 예외 { iv_extexemptid } 삭제 { iv_reason }| ).
-        RETURN.
-      ENDIF.
-      LOOP AT ls_commit_reported-satc_ci_r_exemption INTO DATA(ls_commit_msg) WHERE %msg IS BOUND.
-        lv_message = |{ lv_message }: { ls_commit_msg-%msg->if_message~get_text( ) }|.
-      ENDLOOP.
-    ELSE.
-      LOOP AT ls_reported-satc_ci_r_exemption INTO DATA(ls_msg) WHERE %msg IS BOUND.
-        lv_message = |{ lv_message }: { ls_msg-%msg->if_message~get_text( ) }|.
-      ENDLOOP.
-    ENDIF.
-
-    ROLLBACK ENTITIES.
-    rs_result = VALUE #( success = abap_false
-                         message = lv_message ).
-
+  METHOD get_result.
+    rs_result = ms_result.
   ENDMETHOD.
 
 
   METHOD is_approver.
-
-    " 권한 오브젝트는 보지 않는다. S_Q_GOVERN 은 개발자 대부분이 가져서
-    " 승인자를 가려내지 못하고, 표준 승인자 목록이 그 역할을 한다.
     SELECT SINGLE @abap_true FROM satc_ci_approver
       WHERE approver = @sy-uname
       INTO @rv_can.
-
   ENDMETHOD.
 
 
-  METHOD sync_from_standard.
+  METHOD if_abap_parallel~do.
 
-    " TODO 구현. 읽기는 SATC_CI_R_EXEMPTION 뷰로 가능하다.
-    "   1) 표준 저장소에서 예외 목록을 읽는다.
-    "   2) ztatcexempti-extexemptid 에 없는 건을 CBO 대장에 등록한다
-    "      (출처를 구분할 수 있게 이력에 SYNC 로 남긴다).
-    "   3) CBO 에는 승인 상태인데 표준에 없는 건을 불일치로 리포트한다.
+    DATA(lo_controller) = cl_satc_api=>create_api_factory( )->get_exemption_controller( ).
 
-    rv_synced = 0.
+    " 결과는 들어온 상태에서 시작한다. 처리한 줄만 바꾼다.
+    ms_result-success = abap_true.
+    ms_result-items   = VALUE #( FOR ls_in IN mt_item
+                                 ( itemuuid    = ls_in-itemuuid
+                                   extexemptid = ls_in-extexemptid
+                                   stdstatus   = ls_in-stdstatus ) ).
+
+    LOOP AT mt_item INTO DATA(ls_item).
+
+      ASSIGN ms_result-items[ itemuuid = ls_item-itemuuid ] TO FIELD-SYMBOL(<ls_res>).
+      DATA(lv_target) = |{ ls_item-devclass }| &&
+                        COND string( WHEN ls_item-objectname IS NOT INITIAL
+                                     THEN | { ls_item-objecttype } { ls_item-objectname }| ).
+      DATA(lv_error) = VALUE string( ).
+
+      TRY.
+          CASE mv_operation.
+
+            WHEN operation-register.
+              " 앞선 상신에서 되돌리지 못하고 남은 줄이면 다시 만들지 않는다.
+              IF ls_item-extexemptid IS NOT INITIAL.
+                CONTINUE.
+              ENDIF.
+
+              " 패키지 대상은 오브젝트를 비워 넘긴다. 표준은 i_package_name 만으로
+              " 받고 저장 행의 DEVC / 패키지명을 스스로 파생한다(선등록 상신으로 확인함).
+              " 오브젝트 자리에 패키지를 넣으면 TADIR 조회가 실패한다(확인함).
+              " i_contact_person 은 넘겨도 표준이 쓰지 않는다. 신청자는 이 호출을
+              " 실행한 사용자로 기록된다(확인함).
+              DATA(lv_is_obj) = xsdbool( ls_item-scopetype = zif_atc_exemption=>scope-obj ).
+              DATA(lo_new) = lo_controller->create_exemption(
+                i_object_type    = COND trobjtype( WHEN lv_is_obj = abap_true THEN ls_item-objecttype )
+                i_object_name    = COND sobj_name( WHEN lv_is_obj = abap_true THEN ls_item-objectname )
+                i_package_name   = ls_item-devclass
+                i_check_class    = ms_exemption-checkclass
+                i_check_code     = ls_item-checkcode
+                i_contact_person = ms_exemption-requester ).
+
+              lo_new->set_object_scope( CONV #( ls_item-scopetype ) ).
+              lo_new->set_check_scope( CONV #( ls_item-rulescope ) ).
+              " 위치 인자로 넘기면 서술이 코드 자리로 들어간다. 이름으로 넘긴다.
+              lo_new->set_reason( i_reason  = CONV #( ms_exemption-reasoncode )
+                                  i_comment = ms_exemption-reasontext ).
+              lo_new->set_validity_date( ms_exemption-validto ).
+              " 표준은 승인자 1명이 있어야 승인대기로 올린다. 승인 때 실제로 누른 사람으로 바꾼다.
+              lo_new->set_approver( i_approver = ms_exemption-approver ).
+              lo_new->set_notification_type( zif_atc_exemption=>policy-notiftype ).
+              lo_new->send_to_approver( ).
+              lo_new->unlock( ).
+
+              <ls_res>-extexemptid = lo_new->get_exemption_id( ).
+              <ls_res>-stdstatus   = zif_atc_exemption=>stdstatus-pending.
+              CLEAR lo_new.
+
+            WHEN operation-approve.
+              IF ls_item-stdstatus = zif_atc_exemption=>stdstatus-approved.
+                CONTINUE.
+              ENDIF.
+              IF ls_item-extexemptid IS INITIAL.
+                lv_error = |표준 예외 없음 (상신 필요)|.
+              ELSE.
+                " 표준은 지정된 승인자만 승인하게 한다. 상신 때 넣은 사람이 아니어도
+                " 승인자 목록에 있으면 승인할 수 있게, 누른 사람으로 맞춘다.
+                DATA(lo_old) = lo_controller->get_exemption( ls_item-extexemptid ).
+                lo_old->lock_and_refresh( ).
+                lo_old->set_approver( i_approver = sy-uname ).
+                lo_old->unlock( ).
+                CLEAR lo_old.
+
+                " 예외를 던지지 않고 결과로 거부를 알린다. 반드시 읽는다.
+                " E 오류 / A 중단 / X 종료. 경고(W)와 정보(I)는 실패가 아니다.
+                DATA(lt_approved) = lo_controller->approve_exemptions_by_id(
+                                      VALUE #( exemption_id = ls_item-extexemptid
+                                               assessment   = ms_exemption-reasontext ) ).
+                LOOP AT lt_approved INTO DATA(ls_approved) WHERE message_kind CA 'EAX'.
+                  lv_error = |{ lv_error }{ ls_approved-message } |.
+                ENDLOOP.
+              ENDIF.
+              IF lv_error IS INITIAL.
+                <ls_res>-stdstatus = zif_atc_exemption=>stdstatus-approved.
+              ENDIF.
+
+            WHEN operation-reject.
+              IF ls_item-stdstatus = zif_atc_exemption=>stdstatus-rejected
+              OR ls_item-extexemptid IS INITIAL.
+                CONTINUE.
+              ENDIF.
+              " 삭제가 아니라 표준의 반려 전이다. REJ 로 남아야 표준 쪽에서도 반려를
+              " 알 수 있고 알림 유형 REJ 도 이 전이에 걸린다.
+              lo_old = lo_controller->get_exemption( ls_item-extexemptid ).
+              lo_old->lock_and_refresh( ).
+              lo_old->reject( ).
+              lo_old->unlock( ).
+              CLEAR lo_old.
+              <ls_res>-stdstatus = zif_atc_exemption=>stdstatus-rejected.
+
+            WHEN operation-withdraw.
+              IF ls_item-extexemptid IS INITIAL.
+                CONTINUE.
+              ENDIF.
+              " 표준 앱의 Delete 와 같은 길이다. 행이 실제로 없어진다. 컨트롤러의
+              " delete( ) 는 아카이브만 해서 철회한 건을 표준 앱에서 승인할 수 있었다.
+              " 🔴 키 필드명 확인: exemption_id 가 아니면 이 줄만 바꾼다.
+              MODIFY ENTITIES OF satc_ci_r_exemption
+                ENTITY satc_ci_r_exemption
+                  DELETE FROM VALUE #( ( %is_draft    = if_abap_behv=>mk-off
+                                         exemption_id = ls_item-extexemptid ) )
+                FAILED DATA(ls_del_failed)
+                REPORTED DATA(ls_del_reported).
+              IF ls_del_failed IS NOT INITIAL.
+                lv_error = |삭제 실패|.
+                LOOP AT ls_del_reported-satc_ci_r_exemption INTO DATA(ls_del_msg) WHERE %msg IS BOUND.
+                  lv_error = |{ lv_error }: { ls_del_msg-%msg->if_message~get_text( ) }|.
+                ENDLOOP.
+              ELSE.
+                " 별도 세션이라 여기서 커밋할 수 있다. 우리 BO 의 저장 시퀀스였다면 막혔다.
+                COMMIT ENTITIES RESPONSE OF satc_ci_r_exemption
+                  FAILED DATA(ls_commit_failed)
+                  REPORTED DATA(ls_commit_reported).
+                IF ls_commit_failed IS INITIAL.
+                  CLEAR: <ls_res>-extexemptid, <ls_res>-stdstatus.
+                ELSE.
+                  lv_error = |삭제 실패|.
+                  LOOP AT ls_commit_reported-satc_ci_r_exemption INTO DATA(ls_commit_msg) WHERE %msg IS BOUND.
+                    lv_error = |{ lv_error }: { ls_commit_msg-%msg->if_message~get_text( ) }|.
+                  ENDLOOP.
+                ENDIF.
+              ENDIF.
+
+          ENDCASE.
+
+        CATCH cx_root INTO DATA(lo_error).
+          " 실패해도 잠금은 푼다. 열어 두면 다음 시도가 상태가 아니라 잠금 때문에 실패한다.
+          lv_error = lo_error->get_text( ).
+          TRY.
+              IF lo_new IS BOUND.
+                lo_new->unlock( ).
+              ENDIF.
+              IF lo_old IS BOUND.
+                lo_old->unlock( ).
+              ENDIF.
+            CATCH cx_root ##NO_HANDLER.
+          ENDTRY.
+          CLEAR: lo_new, lo_old.
+      ENDTRY.
+
+      " 줄마다 확정한다. 표준은 한 건씩 바뀌므로 줄 단위로 맞춰 둬야 결과에 적은
+      " 상태와 실제가 같다. 실패한 줄은 표준이 중간까지 바꾼 것을 버린다.
+      IF lv_error IS INITIAL.
+        COMMIT WORK.
+        CONTINUE.
+      ENDIF.
+
+      ROLLBACK WORK.
+      ms_result-success = abap_false.
+      ms_result-message = |{ ms_result-message }{ lv_target }: { lv_error } |.
+
+      " 철회는 남은 줄도 계속 지운다. 나머지는 첫 실패에서 멈춘다.
+      IF mv_operation <> operation-withdraw.
+        EXIT.
+      ENDIF.
+
+    ENDLOOP.
+
+    " 상신 실패: 이번에 만든 표준 예외만 같은 클래스의 철회로 지워 상신 전으로 되돌린다.
+    " 처음부터 ID 가 있던 줄(앞선 실패의 잔재)은 건드리지 않는다.
+    IF mv_operation = operation-register AND ms_result-success = abap_false.
+      DATA lt_undo TYPE zif_atc_exemption=>tt_item.
+      LOOP AT ms_result-items INTO DATA(ls_created) WHERE extexemptid IS NOT INITIAL.
+        IF NOT line_exists( mt_item[ itemuuid = ls_created-itemuuid extexemptid = ls_created-extexemptid ] ).
+          DATA(ls_undo) = mt_item[ itemuuid = ls_created-itemuuid ].
+          ls_undo-extexemptid = ls_created-extexemptid.
+          APPEND ls_undo TO lt_undo.
+        ENDIF.
+      ENDLOOP.
+
+      IF lt_undo IS NOT INITIAL.
+        DATA(lo_undo) = NEW zcl_atc_exempt_sync( is_exemption = ms_exemption
+                                                 it_item      = lt_undo
+                                                 iv_operation = operation-withdraw ).
+        lo_undo->if_abap_parallel~do( ).
+        DATA(ls_undone) = lo_undo->get_result( ).
+        LOOP AT ls_undone-items INTO DATA(ls_back).
+          ms_result-items[ itemuuid = ls_back-itemuuid ]-extexemptid = ls_back-extexemptid.
+          ms_result-items[ itemuuid = ls_back-itemuuid ]-stdstatus   = ls_back-stdstatus.
+        ENDLOOP.
+        IF ls_undone-success = abap_false.
+          ms_result-message = |{ ms_result-message }/ 되돌리기 실패 - { ls_undone-message }|.
+        ENDIF.
+      ENDIF.
+    ENDIF.
 
   ENDMETHOD.
 

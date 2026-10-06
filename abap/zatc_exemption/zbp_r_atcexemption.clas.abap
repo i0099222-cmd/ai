@@ -3,9 +3,7 @@
 "! 요청서(헤더) + 대상(아이템) 구조. 대상 한 줄 = 표준 예외 1건이고,
 "! 상신·승인·반려·철회는 요청서 단위로 전부 성공해야 성공이다.
 "!
-"! 이 클래스에는 코드값 리터럴을 두지 않는다. 적용범위 허용 여부, 대상 체크,
-"! 유효기간 상한, 승인 레벨은 전부 zcl_atc_config 를 통해 설정 테이블에서 읽는다.
-"! ("IF scopetype = 'FND'" 같은 하드코딩은 Phase 2 확장 때 전부 되돌려야 한다)
+"! 정책 값(유효기간 상한, 우선순위 상한, 사유 필수)은 zif_atc_exemption=>policy 에 있다.
 CLASS zbp_r_atcexemption DEFINITION
   PUBLIC
   ABSTRACT
@@ -31,6 +29,19 @@ CLASS lcl_rules DEFINITION FINAL.
       IMPORTING is_header       TYPE ztatcexempt
                 is_item         TYPE ztatcexempti
       RETURNING VALUE(rv_found) TYPE abap_boolean.
+
+    TYPES: BEGIN OF ty_findings,
+             findings     TYPE i,
+             toppriority  TYPE int1,
+           END OF ty_findings.
+
+    "! 대상 한 줄이 지금 덮게 될 위반 건수와 그중 가장 심각한 우선순위(1 이 가장 심각).
+    "!   PCKG : 패키지 전체의 그 체크 위반 (향후 생성 오브젝트는 셀 수 없다)
+    "!   OBJ  : 그 오브젝트의 그 메시지 위반
+    CLASS-METHODS read_findings
+      IMPORTING is_header         TYPE ztatcexempt
+                is_item           TYPE ztatcexempti
+      RETURNING VALUE(rs_findings) TYPE ty_findings.
 
 ENDCLASS.
 
@@ -71,6 +82,30 @@ CLASS lcl_rules IMPLEMENTATION.
 
   ENDMETHOD.
 
+
+  METHOD read_findings.
+
+    DATA lr_objtype TYPE RANGE OF trobjtype.
+    DATA lr_objname TYPE RANGE OF sobj_name.
+    DATA lr_code    TYPE RANGE OF char10.
+
+    IF is_item-scopetype = zif_atc_exemption=>scope-obj.
+      lr_objtype = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-objecttype ) ).
+      lr_objname = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-objectname ) ).
+      lr_code    = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-checkcode ) ).
+    ENDIF.
+
+    SELECT COUNT( * ) AS findings, MIN( priority ) AS toppriority
+      FROM zi_atcfinding
+      WHERE checkclass  = @is_header-checkclass
+        AND devclass    = @is_item-devclass
+        AND objecttype IN @lr_objtype
+        AND objectname IN @lr_objname
+        AND checkcode  IN @lr_code
+      INTO CORRESPONDING FIELDS OF @rs_findings.
+
+  ENDMETHOD.
+
 ENDCLASS.
 
 
@@ -97,11 +132,8 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS setinitialvalues FOR DETERMINE ON MODIFY
       IMPORTING keys FOR exemption~setinitialvalues.
 
-    METHODS derivecheckgroup FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR exemption~derivecheckgroup.
-
-    METHODS validatevariant FOR VALIDATE ON SAVE
-      IMPORTING keys FOR exemption~validatevariant.
+    METHODS derivecheckclass FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR exemption~derivecheckclass.
 
     METHODS validatevalidity FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatevalidity.
@@ -148,7 +180,6 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING is_exemption     TYPE ztatcexempt
                 it_item          TYPE zif_atc_exemption=>tt_item
                 iv_operation     TYPE char10
-                iv_reason        TYPE string OPTIONAL
       RETURNING VALUE(rs_result) TYPE zif_atc_exemption=>ty_batch_result.
 
     METHODS new_error
@@ -303,11 +334,11 @@ CLASS lhc_exemption IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD derivecheckgroup.
+  METHOD derivecheckclass.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkvariant checkclass checkgroup )
+        FIELDS ( checkvariant checkclass )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption)
       ENTITY exemption BY \_Item
@@ -323,38 +354,29 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 체크 클래스가 비어 있고 그 변형의 체크가 하나뿐이면 채운다.
       " 둘 이상이면 고르게 둔다 - 값 도움이 변형으로 걸러 준다.
       DATA(lv_checkclass) = ls_exemption-checkclass.
-      IF lv_checkclass IS INITIAL.
+      IF lv_checkclass IS INITIAL AND ls_exemption-checkvariant IS NOT INITIAL.
         SELECT checkclass FROM zi_atccheckclassvh
           WHERE checkvariant = @ls_exemption-checkvariant
           INTO TABLE @DATA(lt_class)
           UP TO 2 ROWS.
         IF lines( lt_class ) = 1.
           lv_checkclass = lt_class[ 1 ]-checkclass.
+          APPEND VALUE #( %tky = ls_exemption-%tky checkclass = lv_checkclass ) TO lt_update.
         ENDIF.
-      ENDIF.
-
-      " 체크그룹은 사용자가 고르는 값이 아니라 변형 정책에서 파생된다.
-      DATA(lv_checkgroup) = zcl_atc_config=>get( )->get_config( ls_exemption-checkvariant )-checkgroup.
-
-      IF lv_checkclass <> ls_exemption-checkclass OR lv_checkgroup <> ls_exemption-checkgroup.
-        APPEND VALUE #( %tky       = ls_exemption-%tky
-                        checkgroup = lv_checkgroup
-                        checkclass = lv_checkclass ) TO lt_update.
       ENDIF.
 
       " 대상 줄의 체크 클래스는 값 도움 필터용 사본이다. 요청서와 같게 맞춘다.
       LOOP AT lt_item INTO DATA(ls_item)
            WHERE exemptuuid = ls_exemption-exemptuuid
              AND checkclass <> lv_checkclass.
-        APPEND VALUE #( %tky       = ls_item-%tky
-                        checkclass = lv_checkclass ) TO lt_item_update.
+        APPEND VALUE #( %tky = ls_item-%tky checkclass = lv_checkclass ) TO lt_item_update.
       ENDLOOP.
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( checkgroup checkclass )
+        UPDATE FIELDS ( checkclass )
         WITH lt_update
       ENTITY exemptionitem
         UPDATE FIELDS ( checkclass )
@@ -363,39 +385,11 @@ CLASS lhc_exemption IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD validatevariant.
-
-    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
-      ENTITY exemption
-        FIELDS ( checkvariant )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_exemption).
-
-    LOOP AT lt_exemption INTO DATA(ls_exemption).
-
-      " 컨트롤 테이블에 활성으로 등록된 변형만 신청할 수 있다.
-      IF zcl_atc_config=>get( )->get_config( ls_exemption-checkvariant )-activeflg = abap_true.
-        CONTINUE.
-      ENDIF.
-
-      APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
-      APPEND VALUE #( %tky                  = ls_exemption-%tky
-                      %state_area           = 'VALIDATE_VARIANT'
-                      %element-checkvariant = if_abap_behv=>mk-on
-                      %msg = new_error( iv_number = '009'
-                                        iv_v1     = ls_exemption-checkvariant ) )
-             TO reported-exemption.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
   METHOD validatevalidity.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkvariant validfrom validto )
+        FIELDS ( validfrom validto )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -414,16 +408,9 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 상한은 컨트롤 테이블의 변형별 설정값이다. 0 이면 제한 없음.
-      DATA(ls_config) = zcl_atc_config=>get( )->get_config( ls_exemption-checkvariant ).
-
-      IF ls_config-maxvalidmon <= 0.
-        CONTINUE.
-      ENDIF.
-
       " 개월 상한을 일수로 환산한다. 30일 근사로 충분하다.
       DATA(lv_max_date) = CONV d( ls_exemption-validfrom ).
-      lv_max_date = lv_max_date + ( ls_config-maxvalidmon * 30 ).
+      lv_max_date = lv_max_date + ( zif_atc_exemption=>policy-maxvalidmon * 30 ).
 
       IF ls_exemption-validto > lv_max_date.
         APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
@@ -431,7 +418,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                         %state_area      = 'VALIDATE_VALIDITY'
                         %element-validto = if_abap_behv=>mk-on
                         %msg = new_error( iv_number = '011'
-                                          iv_v1     = ls_config-maxvalidmon ) )
+                                          iv_v1     = zif_atc_exemption=>policy-maxvalidmon ) )
                TO reported-exemption.
       ENDIF.
 
@@ -444,7 +431,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( checkvariant reasoncode reasontext )
+        FIELDS ( reasoncode reasontext )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
@@ -460,15 +447,13 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 서술을 요구하는 경우는 둘이다.
       "   1) 표준이 그 사유에 요구한다 (require_comment: FPOS, OTHR).
       "      여기서 막지 않으면 표준 등록이 별도 LUW 에서 원인 없이 실패한다.
-      "   2) 우리 설정이 요구한다 (reasonreq).
-      DATA(lv_text_required) = xsdbool(
-        lv_require_comment = abap_true
-        OR zcl_atc_config=>get( )->get_config(
-             ls_exemption-checkvariant )-reasonreq = abap_true ).
+      "   2) 사내 정책이 요구한다 (policy-reasonreq).
+      DATA(lv_text_required) = xsdbool( lv_require_comment = abap_true
+                                        OR zif_atc_exemption=>policy-reasonreq = abap_true ).
 
       IF lv_known = abap_true
      AND ( lv_text_required = abap_false
-        OR strlen( ls_exemption-reasontext ) >= zif_atc_exemption=>min_reason_length ).
+        OR strlen( ls_exemption-reasontext ) >= zif_atc_exemption=>policy-minreason ).
         CONTINUE.
       ENDIF.
 
@@ -477,7 +462,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                       %state_area         = 'VALIDATE_REASON'
                       %element-reasontext = if_abap_behv=>mk-on
                       %msg = new_error( iv_number = '012'
-                                        iv_v1     = zif_atc_exemption=>min_reason_length ) )
+                                        iv_v1     = zif_atc_exemption=>policy-minreason ) )
              TO reported-exemption.
 
     ENDLOOP.
@@ -498,8 +483,6 @@ CLASS lhc_exemption IMPLEMENTATION.
     DATA lt_update      TYPE TABLE FOR UPDATE zr_atcexemption.
     DATA lt_item_update TYPE TABLE FOR UPDATE zr_atcexemption\\exemptionitem.
 
-    DATA(lo_reader) = NEW zcl_atc_finding_reader( ).
-
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
       " 상태가 맞지 않으면 조용히 건너뛰지 않고 거부한다.
@@ -512,17 +495,21 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 표준은 승인자 1명이 지정되어야 승인대기로 올릴 수 있다. 미리 막는다.
-      IF zcl_atc_config=>get( )->get_config( ls_exemption-checkvariant )-defapprover IS INITIAL.
+      DATA(ls_hdr) = CORRESPONDING ztatcexempt( ls_exemption MAPPING FROM ENTITY ).
+
+      " 표준은 승인자 1명이 있어야 승인대기로 올린다. 표준 승인자 목록에서 신청자가
+      " 아닌 사람을 넣는다(자기승인 금지). 승인 때 실제로 누른 사람으로 바뀌므로
+      " 누가 들어가든 결과는 같다.
+      SELECT SINGLE approver FROM satc_ci_approver
+        WHERE approver <> @ls_exemption-requester
+        INTO @ls_hdr-approver.
+      IF ls_hdr-approver IS INITIAL.
         APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
         APPEND VALUE #( %tky = ls_exemption-%tky
-                        %msg = new_error( iv_number = '021'
-                                          iv_v1     = ls_exemption-checkvariant ) )
-               TO reported-exemption.
+                        %msg = new_error( iv_number = '021' ) ) TO reported-exemption.
         CONTINUE.
       ENDIF.
 
-      DATA(ls_hdr) = CORRESPONDING ztatcexempt( ls_exemption MAPPING FROM ENTITY ).
       DATA(lt_target) = VALUE zif_atc_exemption=>tt_item(
                           FOR ls_i IN lt_item WHERE ( exemptuuid = ls_exemption-exemptuuid )
                           ( CORRESPONDING #( ls_i MAPPING FROM ENTITY ) ) ).
@@ -545,17 +532,7 @@ CLASS lhc_exemption IMPLEMENTATION.
           lv_overlap = |{ ls_target-devclass } { ls_target-objectname }|.
           EXIT.
         ENDIF.
-        lv_impact = lv_impact + lines( lo_reader->simulate_impact(
-                                         iv_checkvariant = ls_hdr-checkvariant
-                                         iv_scopetype    = ls_target-scopetype
-                                         iv_devclass     = ls_target-devclass
-                                         iv_objecttype   = ls_target-objecttype
-                                         iv_objectname   = ls_target-objectname
-                                         iv_checkclass   = ls_hdr-checkclass
-                                         iv_checkcode    = COND #( WHEN ls_target-rulescope =
-                                                                        zif_atc_exemption=>rulescope-check
-                                                                   THEN space
-                                                                   ELSE ls_target-checkcode ) ) ).
+        lv_impact = lv_impact + lcl_rules=>read_findings( is_header = ls_hdr is_item = ls_target )-findings.
       ENDLOOP.
 
       IF lv_overlap IS NOT INITIAL.
@@ -570,7 +547,7 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 대상 전부를 표준에 승인대기로 만든다. 하나라도 실패하면 만든 것을 지운다.
       DATA(ls_sync) = sync_standard( is_exemption = ls_hdr
                                      it_item      = lt_target
-                                     iv_operation = zcl_atc_exempt_parallel=>operation-register ).
+                                     iv_operation = zcl_atc_exempt_sync=>operation-register ).
 
       LOOP AT ls_sync-items INTO DATA(ls_res).
         APPEND VALUE #( %is_draft   = ls_exemption-%is_draft
@@ -650,8 +627,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                         is_exemption = CORRESPONDING #( ls_exemption MAPPING FROM ENTITY )
                         it_item      = VALUE #( FOR ls_i IN lt_item WHERE ( exemptuuid = ls_exemption-exemptuuid )
                                                 ( CORRESPONDING #( ls_i MAPPING FROM ENTITY ) ) )
-                        iv_operation = zcl_atc_exempt_parallel=>operation-withdraw
-                        iv_reason    = |신청자 철회| ).
+                        iv_operation = zcl_atc_exempt_sync=>operation-withdraw ).
 
       LOOP AT ls_sync-items INTO DATA(ls_res).
         APPEND VALUE #( %is_draft   = ls_exemption-%is_draft
@@ -738,7 +714,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                         is_exemption = CORRESPONDING #( ls_exemption MAPPING FROM ENTITY )
                         it_item      = VALUE #( FOR ls_i IN lt_item WHERE ( exemptuuid = ls_exemption-exemptuuid )
                                                 ( CORRESPONDING #( ls_i MAPPING FROM ENTITY ) ) )
-                        iv_operation = zcl_atc_exempt_parallel=>operation-approve ).
+                        iv_operation = zcl_atc_exempt_sync=>operation-approve ).
 
       LOOP AT ls_sync-items INTO DATA(ls_res).
         APPEND VALUE #( %is_draft   = ls_exemption-%is_draft
@@ -829,8 +805,7 @@ CLASS lhc_exemption IMPLEMENTATION.
                         is_exemption = CORRESPONDING #( ls_exemption MAPPING FROM ENTITY )
                         it_item      = VALUE #( FOR ls_i IN lt_item WHERE ( exemptuuid = ls_exemption-exemptuuid )
                                                 ( CORRESPONDING #( ls_i MAPPING FROM ENTITY ) ) )
-                        iv_operation = zcl_atc_exempt_parallel=>operation-reject
-                        iv_reason    = CONV #( ls_key-%param-rejectreason ) ).
+                        iv_operation = zcl_atc_exempt_sync=>operation-reject ).
 
       LOOP AT ls_sync-items INTO DATA(ls_res).
         APPEND VALUE #( %is_draft   = ls_exemption-%is_draft
@@ -951,8 +926,6 @@ CLASS lhc_exemption IMPLEMENTATION.
         ALL FIELDS WITH CORRESPONDING #( keys )
       RESULT DATA(lt_item).
 
-    DATA(lo_reader) = NEW zcl_atc_finding_reader( ).
-
     LOOP AT lt_exemption INTO DATA(ls_exemption).
 
       " 패키지 대상 승인의 안전장치. 이게 없으면 승인자는 자기가 무엇을 승인하는지
@@ -963,17 +936,9 @@ CLASS lhc_exemption IMPLEMENTATION.
         IF ls_item-scopetype = zif_atc_exemption=>scope-pckg.
           lv_pckg = lv_pckg + 1.
         ENDIF.
-        lv_count = lv_count + lines( lo_reader->simulate_impact(
-                                       iv_checkvariant = ls_exemption-checkvariant
-                                       iv_scopetype    = ls_item-scopetype
-                                       iv_devclass     = ls_item-devclass
-                                       iv_objecttype   = ls_item-objecttype
-                                       iv_objectname   = ls_item-objectname
-                                       iv_checkclass   = ls_exemption-checkclass
-                                       iv_checkcode    = COND #( WHEN ls_item-rulescope =
-                                                                      zif_atc_exemption=>rulescope-check
-                                                                 THEN space
-                                                                 ELSE ls_item-checkcode ) ) ).
+        lv_count = lv_count + lcl_rules=>read_findings(
+                                is_header = CORRESPONDING #( ls_exemption MAPPING FROM ENTITY )
+                                is_item   = CORRESPONDING #( ls_item MAPPING FROM ENTITY ) )-findings.
       ENDLOOP.
 
       DATA(lv_text) = |Approving this request exempts { lv_count } current finding(s).|.
@@ -1035,16 +1000,15 @@ CLASS lhc_exemption IMPLEMENTATION.
     DATA lt_task TYPE cl_abap_parallel=>t_in_inst.
 
     " 요청서 1건 = 태스크 1개. 태스크가 대상 줄을 차례로 처리하고 실패하면 되돌린다.
-    APPEND NEW zcl_atc_exempt_parallel( is_exemption = is_exemption
-                                        it_item      = it_item
-                                        iv_operation = iv_operation
-                                        iv_reason    = iv_reason ) TO lt_task.
+    APPEND NEW zcl_atc_exempt_sync( is_exemption = is_exemption
+                                    it_item      = it_item
+                                    iv_operation = iv_operation ) TO lt_task.
 
     NEW cl_abap_parallel( )->run_inst( EXPORTING p_in_tab  = lt_task
                                        IMPORTING p_out_tab = DATA(lt_done) ).
 
     LOOP AT lt_done INTO DATA(ls_done).
-      rs_result = CAST zcl_atc_exempt_parallel( ls_done-inst )->get_result( ).
+      rs_result = CAST zcl_atc_exempt_sync( ls_done-inst )->get_result( ).
     ENDLOOP.
 
     " 태스크가 돌아오지 못했으면(워크프로세스 부족, 덤프) 결과가 비어 있다.
@@ -1180,12 +1144,11 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
   METHOD validatetarget.
 
     " 대상 한 줄의 검증. 앞 단계가 실패하면 뒤는 보지 않는다.
-    "   1) 이 변형에서 그 범위를 쓸 수 있는가        -> 요건 "패키지/오브젝트 단위로만"
-    "   2) 범위에 맞는 필드가 채워졌는가
-    "   3) 대상이 실재하고 고객 네임스페이스인가
-    "   4) 예외로 덮을 수 없는 심각도의 위반이 있는가
-    "   5) 같은 요청서 안에 같은 대상이 또 있는가
-    "   6) 다른 요청서의 대기·승인 대상과 겹치는가
+    "   1) 범위에 맞는 필드가 채워졌는가
+    "   2) 대상이 실재하고 고객 네임스페이스인가
+    "   3) 예외로 덮을 수 없는 심각도의 위반이 있는가
+    "   4) 같은 요청서 안에 같은 대상이 또 있는가
+    "   5) 다른 요청서의 대기·승인 대상과 겹치는가
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemptionitem
         ALL FIELDS WITH CORRESPONDING #( keys )
@@ -1204,7 +1167,6 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
 
       DATA(ls_parent) = VALUE #( lt_parent[ exemptuuid = ls_item-exemptuuid ] OPTIONAL ).
       DATA(ls_link)   = VALUE #( lt_link[ source-itemuuid = ls_item-itemuuid ] OPTIONAL ).
-      DATA(ls_config) = zcl_atc_config=>get( )->get_config( ls_parent-checkvariant ).
       DATA(lv_target) = |{ ls_item-devclass }| &&
                         COND string( WHEN ls_item-objectname IS NOT INITIAL
                                      THEN | { ls_item-objecttype } { ls_item-objectname }| ).
@@ -1214,15 +1176,8 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       DATA lv_v2    TYPE string.
       CLEAR: lv_error, lv_v1, lv_v2.
 
-      " --- 1) 범위 허용 여부 --- 변형이 비어 있으면 요청서 검증이 막으므로 여기서는 넘긴다.
-      IF ls_parent-checkvariant IS NOT INITIAL
-     AND zcl_atc_config=>get( )->is_scope_allowed(
-           iv_checkvariant = ls_parent-checkvariant
-           iv_scopetype    = ls_item-scopetype ) = abap_false.
-        lv_error = '001'. lv_v1 = ls_item-scopetype. lv_v2 = ls_parent-checkvariant.
-
-      " --- 2) 필수 필드 ---
-      ELSEIF ls_item-devclass IS INITIAL.
+      " --- 1) 필수 필드 ---
+      IF ls_item-devclass IS INITIAL.
         lv_error = '002'.
       ELSEIF ls_item-scopetype = zif_atc_exemption=>scope-obj
          AND ls_item-objecttype IS INITIAL.
@@ -1232,7 +1187,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
         " 오브젝트 대상은 그 오브젝트가 어긴 규칙 하나(MSG)만 덮는다.
         lv_error = '022'.
 
-      " --- 3) 대상 실재 여부. 표준 패키지/오브젝트에 예외를 거는 것은 목적이 아니다.
+      " --- 2) 대상 실재 여부. 표준 패키지/오브젝트에 예외를 거는 것은 목적이 아니다.
       ELSEIF ls_item-devclass(1) <> 'Z'
          AND ls_item-devclass(1) <> 'Y'
          AND ls_item-devclass(1) <> '/'.
@@ -1261,32 +1216,18 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
         CLEAR lv_obj_exists.
       ENDIF.
 
-      " --- 4) 심각도 상한. 1 이 가장 심각하므로 상한보다 작은 값의 위반이 있으면 거부한다.
+      " --- 3) 심각도 상한. 1 이 가장 심각하므로 상한보다 작은 값의 위반이 있으면 거부한다.
       "     증빙을 저장하지 않으므로 지금 남아 있는 위반에서 본다.
-      IF lv_error IS INITIAL AND ls_config-maxpriority > 0.
-        DATA lr_objtype TYPE RANGE OF trobjtype.
-        DATA lr_objname TYPE RANGE OF sobj_name.
-        DATA lr_code    TYPE RANGE OF char10.
-        CLEAR: lr_objtype, lr_objname, lr_code.
-        IF ls_item-scopetype = zif_atc_exemption=>scope-obj.
-          lr_objtype = VALUE #( ( sign = 'I' option = 'EQ' low = ls_item-objecttype ) ).
-          lr_objname = VALUE #( ( sign = 'I' option = 'EQ' low = ls_item-objectname ) ).
-          lr_code    = VALUE #( ( sign = 'I' option = 'EQ' low = ls_item-checkcode ) ).
+      IF lv_error IS INITIAL.
+        DATA(lv_top_priority) = lcl_rules=>read_findings(
+                                  is_header = CORRESPONDING #( ls_parent MAPPING FROM ENTITY )
+                                  is_item   = CORRESPONDING #( ls_item MAPPING FROM ENTITY ) )-toppriority.
+        IF lv_top_priority > 0 AND lv_top_priority < zif_atc_exemption=>policy-maxpriority.
+          lv_error = '018'. lv_v1 = lv_top_priority. lv_v2 = zif_atc_exemption=>policy-maxpriority.
         ENDIF.
-        SELECT MIN( priority ) FROM zi_atcfinding
-          WHERE checkclass  = @ls_parent-checkclass
-            AND devclass    = @ls_item-devclass
-            AND objecttype IN @lr_objtype
-            AND objectname IN @lr_objname
-            AND checkcode  IN @lr_code
-          INTO @DATA(lv_top_priority).
-        IF lv_top_priority > 0 AND lv_top_priority < ls_config-maxpriority.
-          lv_error = '018'. lv_v1 = lv_top_priority. lv_v2 = ls_config-maxpriority.
-        ENDIF.
-        CLEAR lv_top_priority.
       ENDIF.
 
-      " --- 5) 같은 요청서 안 중복. 오브젝트는 코드가 다르면 다른 규칙이라 겹치지 않는다.
+      " --- 4) 같은 요청서 안 중복. 오브젝트는 코드가 다르면 다른 규칙이라 겹치지 않는다.
       IF lv_error IS INITIAL.
         LOOP AT lt_sibling INTO DATA(ls_sibling)
              WHERE exemptuuid = ls_item-exemptuuid
@@ -1303,7 +1244,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
         ENDLOOP.
       ENDIF.
 
-      " --- 6) 다른 요청서와의 중복. 어느 예외가 실제로 덮는지 추적할 수 없게 된다.
+      " --- 5) 다른 요청서와의 중복. 어느 예외가 실제로 덮는지 추적할 수 없게 된다.
       IF lv_error IS INITIAL
      AND lcl_rules=>has_overlap( is_header = CORRESPONDING #( ls_parent MAPPING FROM ENTITY )
                                  is_item   = CORRESPONDING #( ls_item MAPPING FROM ENTITY ) ) = abap_true.

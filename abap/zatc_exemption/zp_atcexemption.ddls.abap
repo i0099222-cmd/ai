@@ -18,9 +18,6 @@ define root view entity ZP_AtcExemption
       }]
       CheckVariant,
 
-      // 컨트롤 테이블에서 파생되는 값이라 사용자가 고르지 않는다.
-      CheckGroup,
-
       // 변형이 들어 있으면 그 변형의 체크만 보이고, 고르면 변형도 같이 채워진다.
       @Consumption.valueHelpDefinition: [{
         entity:            { name: 'ZI_AtcCheckClassVH', element: 'CheckClass' },

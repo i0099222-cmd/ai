@@ -26,7 +26,7 @@ import SimpleForm from "sap/ui/layout/form/SimpleForm";
 // 상태를 바꾸는 액션. 끝나면 목록을 다시 읽는다.
 // FE 는 액션이 돌려준 행($self)만 바꿔 끼우고 탭 필터를 다시 적용하지 않는다.
 // 그래서 Submit 후에도 Draft 탭에 상태만 Pending 인 행이 남는다.
-// preRegister 는 새 초안을 만들므로 목록을 다시 읽어야 보인다.
+// preRegister 는 새 신청을 만들고 상신하므로 목록을 다시 읽어야 보인다.
 // simulateImpact 는 데이터를 바꾸지 않으므로 넣지 않는다.
 const REFRESH_ACTIONS = /\.(submit|withdraw|approve|reject|extendValidity|preRegister)(\(|$)/;
 

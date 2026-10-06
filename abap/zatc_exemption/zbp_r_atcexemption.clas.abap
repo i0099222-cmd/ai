@@ -901,9 +901,9 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       " 표준 반영을 여기서 한다. 저장 시퀀스에서는 COMMIT 도 RFC 도 막혀
       " 부를 수 없기 때문이다. 그 대가와 대응은 sync_standard( ) 주석 참고.
-      SELECT SINGLE * FROM ztatcexempt
-        WHERE exemptuuid = @ls_exemption-exemptuuid
-        INTO @DATA(ls_db).
+      " DB 에서 다시 읽지 않고 버퍼 값을 테이블 모양으로 바꾼다. preRegister 가
+      " 방금 만든(아직 저장 전인) 건도 같은 액션 안에서 상신하기 때문이다.
+      DATA(ls_db) = CORRESPONDING ztatcexempt( ls_exemption MAPPING FROM ENTITY ).
 
       " 표준을 부르기 전에 중복을 확인한다. 부른 뒤 validateOverlap 이
       " 실패하면 우리만 롤백되고 표준에는 예외가 남는다.
@@ -1631,15 +1631,35 @@ CLASS lhc_exemption IMPLEMENTATION.
       ENDLOOP.
     ENDIF.
 
-    IF lt_mapped-exemption IS NOT INITIAL
-   AND lv_check_error = abap_false.
-      APPEND VALUE #( %cid = keys[ 1 ]-%cid
-                      %msg = new_message_with_text(
-                               severity = if_abap_behv_message=>severity-success
-                               text     = |{ lines( lt_mapped-exemption ) } exemption request(s) | &&
-                                          |created as draft. Select them in Draft and submit.| ) )
-             TO reported-exemption.
+    " 검증에 걸린 건이 하나라도 있으면 상신하지 않는다. 저장 단계가 전체를 막으므로
+    " 여기서 상신하면 표준에만 예외가 생기고 우리 대장에는 남지 않는다.
+    IF lt_mapped-exemption IS INITIAL
+    OR lv_check_error = abap_true.
+      RETURN.
     ENDIF.
+
+    " 만든 건을 바로 상신한다. 상신에서 걸린 건(승인자 없음, 중복 등)은 Draft 로
+    " 남고 메시지만 올라간다. failed 는 넘기지 않는다 - 넘기면 요청 전체가 롤백돼
+    " 이미 표준에 등록된 건까지 대장에서 사라진다.
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        EXECUTE submit FROM VALUE #( FOR ls_new IN lt_mapped-exemption
+                                     ( %tky = ls_new-%tky ) )
+      RESULT DATA(lt_submitted)
+      REPORTED DATA(lt_submit_reported).
+
+    APPEND LINES OF lt_submit_reported-exemption TO reported-exemption.
+
+    DATA(lv_left) = lines( lt_mapped-exemption ) - lines( lt_submitted ).
+    APPEND VALUE #( %cid = keys[ 1 ]-%cid
+                    %msg = new_message_with_text(
+                             severity = COND #( WHEN lv_left = 0
+                                                THEN if_abap_behv_message=>severity-success
+                                                ELSE if_abap_behv_message=>severity-warning )
+                             text     = |{ lines( lt_submitted ) } exemption request(s) submitted.| &&
+                                        COND string( WHEN lv_left > 0
+                                                     THEN | { lv_left } left in Draft - see messages.| ) ) )
+           TO reported-exemption.
 
   ENDMETHOD.
 

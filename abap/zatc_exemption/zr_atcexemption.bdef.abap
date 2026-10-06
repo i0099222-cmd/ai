@@ -109,7 +109,7 @@ etag master LocalLastChangedAt
   static factory action createFromFinding
     parameter ZD_AtcCreateFromFinding [1] result [1] $self;
 
-  // 위반이 없는 패키지나 오브젝트 여러 개를 한 번에 선등록한다. 대상마다 초안 신청서 1건.
+  // 위반이 없는 패키지나 오브젝트 여러 개를 한 번에 선등록한다. 대상마다 신청서 1건을 만들어 바로 상신한다.
   // Create 는 화면 하나가 신청서 1건이라 여러 대상을 받을 수 없어서 따로 둔다.
   static action preRegister deep parameter ZD_AtcPreRegister;
 

@@ -1,6 +1,6 @@
 @EndUserText.label: 'Pre-Register Exemptions'
 // 신청 목록의 [Pre-Register] 입력창. 위반이 아직 없는 패키지나 오브젝트 여러 개를
-// 한 번에 선등록한다. 대상마다 신청서가 하나씩 초안으로 생긴다.
+// 한 번에 선등록한다. 대상마다 신청서가 하나씩 생기고 바로 상신된다.
 //
 // 대상은 자식(ZD_AtcPreRegisterTgt)으로 여러 행을 받는다(deep parameter).
 // 동작 정의는 같은 이름의 abstract BDEF 에 있다.

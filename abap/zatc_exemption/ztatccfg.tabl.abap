@@ -38,6 +38,13 @@ define table ztatccfg {
   "! 이 안정적인 분류값을 쓴다. 권한 오브젝트의 CHECKGRP 필드와 짝이다.
   checkgroup      : abap.char(10);
 
+  "! 이 변형에서 앱이 다루는 체크 클래스. 공란이면 변형의 체크 전부.
+  "! 표준 기본 변형처럼 체크가 여럿 든 변형을 등록할 때 채운다.
+  "!   예: 기본 변형 + ZCL_ATC_CHECK_NAMING -> 기본 변형으로 돈 결과 중 네이밍 건만
+  "! 행 하나에 클래스 하나라서, 같은 변형의 다른 체크까지 다루려면(Phase 2)
+  "! 키에 체크 클래스를 넣어야 한다.
+  checkclass      : abap.char(30);
+
   "! 앱 취급 대상 여부. Phase 1 은 네이밍 변형 행만 X.
   activeflg       : abap_boolean;
 

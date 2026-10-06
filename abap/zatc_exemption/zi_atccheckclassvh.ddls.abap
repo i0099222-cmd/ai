@@ -32,3 +32,6 @@ define view entity ZI_AtcCheckClassVH
       @EndUserText.label: 'Check Class'
   key cast( Chm.ci_id as abap.char( 30 ) ) as CheckClass
 }
+// 조회 화면과 같은 기준. 변형에 체크 클래스가 지정돼 있으면 그 클래스만.
+where Cfg.checkclass = ''
+   or Cfg.checkclass = Chm.ci_id

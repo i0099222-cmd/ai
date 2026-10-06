@@ -121,6 +121,7 @@ INTERFACE zif_atc_exemption
     BEGIN OF ty_config,
       checkvariant TYPE char30,
       checkgroup   TYPE char10,
+      checkclass   TYPE char30,
       activeflg    TYPE abap_boolean,
       fndactive    TYPE abap_boolean,
       objactive    TYPE abap_boolean,

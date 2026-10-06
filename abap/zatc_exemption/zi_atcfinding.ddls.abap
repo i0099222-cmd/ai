@@ -32,8 +32,8 @@ define root view entity ZI_AtcFinding
   as select from satc_api_findings as Finding
 
   // 컨트롤 테이블에 활성으로 등록된 체크 변형의 결과만 앱의 대상이다.
-  // inner join 이라 요건 "네이밍 건만" 이 여기서 걸러지며, 체크 ID 를 뷰에
-  // 하드코딩하지 않아도 된다. 무엇이 네이밍 체크인지는 표준의 변형이 안다.
+  // 체크가 여럿 든 변형(표준 기본 변형)은 맨 아래 where 에서 체크 클래스로 한 번 더 거른다.
+  // 체크 ID 를 뷰에 하드코딩하지 않는다 - 무엇을 다룰지는 컨트롤 테이블이 정한다.
   inner join ztatccfg as Cfg
     on  Cfg.checkvariant = Finding.checkvariant
     and Cfg.activeflg    = 'X'
@@ -190,3 +190,8 @@ define root view entity ZI_AtcFinding
         else cast( '' as abap.char( 1 ) )
       end                        as ExemptionMismatch
 }
+// 변형에 체크 클래스가 지정돼 있으면 그 체크 건만 남긴다(ZTATCCFG-CHECKCLASS).
+// 표준 기본 변형은 체크가 여럿이라, 이게 없으면 네이밍 외 위반이 전부 뜬다.
+// 🔴 ci_id 와 checkclass 의 타입이 달라 비교가 안 되면 ci_id 쪽을 char(30) 으로 cast 한다.
+where Cfg.checkclass = ''
+   or Cfg.checkclass = Chm.ci_id

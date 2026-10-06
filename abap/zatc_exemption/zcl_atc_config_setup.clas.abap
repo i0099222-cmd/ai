@@ -35,12 +35,15 @@ CLASS zcl_atc_config_setup DEFINITION
     "!   - pkgactive  = X
     "!   - maxpriority = 2    우선순위 1(가장 심각)은 예외 불가
     "!
+    "! @parameter iv_checkclass | 표준 기본 변형을 등록할 때 다룰 체크 클래스.
+    "!   공란이면 변형의 체크 전부가 앱 대상이 된다.
     "! @parameter iv_defapprover | 표준 예외의 결재 요청을 받을 사용자.
     "!   실제 결재자는 우리 이력에 sy-uname 으로 남으므로 공용 계정이어도 된다.
     CLASS-METHODS set_variant
       IMPORTING iv_checkvariant  TYPE c
                 iv_defapprover   TYPE syuname
                 iv_checkgroup    TYPE c              DEFAULT 'NAMING'
+                iv_checkclass    TYPE c              DEFAULT space
                 iv_maxvalidmon   TYPE i              DEFAULT 12
                 iv_maxpriority   TYPE i              DEFAULT 2
                 iv_notiftype     TYPE c              DEFAULT 'REJ'
@@ -160,6 +163,7 @@ CLASS zcl_atc_config_setup IMPLEMENTATION.
     MODIFY ztatccfg FROM @( VALUE #(
       checkvariant = iv_checkvariant
       checkgroup   = iv_checkgroup
+      checkclass   = iv_checkclass
       activeflg    = iv_activeflg
       fndactive    = iv_fndactive
       objactive    = iv_objactive
@@ -243,7 +247,7 @@ CLASS zcl_atc_config_setup IMPLEMENTATION.
 
   METHOD list.
 
-    SELECT checkvariant, checkgroup, activeflg,
+    SELECT checkvariant, checkgroup, checkclass, activeflg,
            fndactive, objactive, pkgactive,
            maxvalidmon, reasonreq, notiftype, maxpriority, defapprover
       FROM ztatccfg

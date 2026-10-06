@@ -68,7 +68,7 @@ CLASS zcl_atc_config IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    SELECT checkvariant, checkgroup, activeflg,
+    SELECT checkvariant, checkgroup, checkclass, activeflg,
            fndactive, objactive, pkgactive,
            maxvalidmon, reasonreq, notiftype, maxpriority, defapprover
       FROM ztatccfg

@@ -3,6 +3,8 @@ import ExtensionAPI from "sap/fe/templates/ListReport/ExtensionAPI";
 import ODataModel from "sap/ui/model/odata/v4/ODataModel";
 import Context from "sap/ui/model/odata/v4/Context";
 import ODataListBinding from "sap/ui/model/odata/v4/ODataListBinding";
+import ODataContextBinding from "sap/ui/model/odata/v4/ODataContextBinding";
+import BusyIndicator from "sap/ui/core/BusyIndicator";
 import JSONModel from "sap/ui/model/json/JSONModel";
 import Filter from "sap/ui/model/Filter";
 import FilterOperator from "sap/ui/model/FilterOperator";
@@ -38,28 +40,31 @@ export default class ListReportExt extends ControllerExtension {
 	// @sapui5/types 에는 base 가 없다. FE 가 붙여 주는 컨트롤러의 모양만 선언한다.
 	declare base: {
 		getExtensionAPI(): ExtensionAPI;
-		editFlow: { invokeAction(name: string, parameters: object): Promise<unknown> };
+		messageHandler: { showMessageDialog(): Promise<void> };
 	};
 
 	static overrides = {
 		editFlow: {
 			// UI5 1.114 이상. actionName 은 "<네임스페이스>.submit" 형태다.
 			onAfterActionExecution(this: ListReportExt, actionName: string): void {
-				if (!REFRESH_ACTIONS.test(actionName)) {
-					return;
-				}
-				const extensionAPI = this.base.getExtensionAPI();
-				// 다중 뷰(탭): 지금 탭은 바로, 나머지 탭은 열 때 다시 읽고 건수도 갱신한다.
-				// 이 메소드가 없는 버전이면 Go 버튼을 누른 것과 같은 refresh 로 대신한다.
-				if (typeof extensionAPI.setTabContentToBeRefreshedOnNextOpening === "function") {
-					extensionAPI.setTabContentToBeRefreshedOnNextOpening();
-					extensionAPI.refreshTabsCount();
-				} else {
-					void extensionAPI.refresh();
+				if (REFRESH_ACTIONS.test(actionName)) {
+					this.refreshList();
 				}
 			}
 		}
 	};
+
+	// 다중 뷰(탭): 지금 탭은 바로, 나머지 탭은 열 때 다시 읽고 건수도 갱신한다.
+	// 이 메소드가 없는 버전이면 Go 버튼을 누른 것과 같은 refresh 로 대신한다.
+	private refreshList(): void {
+		const extensionAPI = this.base.getExtensionAPI();
+		if (typeof extensionAPI.setTabContentToBeRefreshedOnNextOpening === "function") {
+			extensionAPI.setTabContentToBeRefreshedOnNextOpening();
+			extensionAPI.refreshTabsCount();
+		} else {
+			void extensionAPI.refresh();
+		}
+	}
 
 	// [Pre-Register] 버튼. manifest 의 custom action 이 이 메소드를 부른다.
 	// FE 의 기본 입력창은 deep parameter(대상 여러 행)를 그리지 못해서 입력창을 직접 띄운다.
@@ -214,20 +219,28 @@ export default class ListReportExt extends ControllerExtension {
 		help.open("");
 	}
 
+	// editFlow.invokeAction 으로 부르면 FE 가 메타데이터의 파라미터마다 값이 왔는지 보고,
+	// 하나라도 못 맞추면 skipParameterDialog 를 줘도 자기 입력창(추상 엔티티 화면)을 다시 띄운다.
+	// deep parameter(_Targets)는 FE 가 맞추지 못하므로 모델로 직접 부른다.
 	private async invokePreRegister(parameters: Record<string, unknown>): Promise<void> {
 		const model = this.base.getExtensionAPI().getModel() as ODataModel;
 		// 액션 이름 앞의 네임스페이스는 서비스마다 다르다. 메타데이터의 컨테이너 이름에서 얻는다.
 		const container = model.getMetaModel().getObject("/$EntityContainer") as string;
 		const namespace = container.substring(0, container.lastIndexOf("."));
-		// static 액션은 엔티티셋 컬렉션에 묶인다. 그 컬렉션의 헤더 컨텍스트로 부른다.
-		const collection = model.bindList("/Exemption").getHeaderContext();
+		// static 액션은 엔티티셋 컬렉션에 묶인다. (...) 는 호출 전까지 실행하지 않는 operation 바인딩이다.
+		const operation = model.bindContext(`/Exemption/${namespace}.preRegister(...)`) as ODataContextBinding;
+		Object.keys(parameters).forEach((name) => operation.setParameter(name, parameters[name]));
 
-		// editFlow 로 부르면 메시지 표시·바쁨 표시·onAfterActionExecution(새로고침)을 FE 가 해 준다.
-		await this.base.editFlow.invokeAction(`${namespace}.preRegister`, {
-			model: model,
-			contexts: collection,
-			skipParameterDialog: true,
-			parameterValues: Object.keys(parameters).map((name) => ({ name: name, value: parameters[name] }))
-		});
+		BusyIndicator.show(0);
+		try {
+			await operation.execute();
+			this.refreshList();
+		} catch {
+			// 실패 사유는 백엔드 메시지로 온다. 아래 메시지 창이 보여 준다.
+		} finally {
+			BusyIndicator.hide();
+		}
+		// 백엔드가 올린 메시지(성공·경고·에러)를 FE 의 표준 메시지 창으로 보여 준다.
+		await this.base.messageHandler.showMessageDialog();
 	}
 }

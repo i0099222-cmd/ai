@@ -43,7 +43,9 @@ FE 는 bound 액션이 돌려준 행의 키가 원래 행과 같으면 그 행�
 
 백엔드 static 액션 `preRegister` 는 대상(패키지 또는 오브젝트)을 deep parameter(여러 행)로 받는다.
 FE 기본 입력창은 deep parameter 를 그리지 못해서, 컨트롤러 확장의 `onPreRegister` 가
-입력창을 직접 띄우고 `editFlow.invokeAction` 으로 같은 액션을 부른다.
+입력창을 직접 띄우고 OData 모델로 같은 액션을 직접 부른다. `editFlow.invokeAction` 은
+deep parameter 값을 맞추지 못해 FE 기본 입력창을 다시 띄우므로 쓰지 않는다.
+결과 메시지는 FE 표준 메시지 창(`messageHandler.showMessageDialog`)으로 보여 준다.
 
 - 위: Check Variant / Check Class / Reason Code (값 도움), Justification, Valid To
 - 아래 대상 표: 한 행 = 신청서 1건. 열은 Package / Object Type / Object Name / Check Message Code

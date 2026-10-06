@@ -40,7 +40,8 @@ define view entity ZI_AtcLatestRun
     on Run.check_run_ix = RunObj.check_run_ix
 
   // 실행 시각과 변형은 ZI_AtcFinding 과 같은 헤더에서 읽어야 서로 비교가 된다.
-  // 🔴 가정: SATC_AC_RESULTH.display_id 가 SATC_API_RESULT_HEADERS.resultid 다.
+  // SATC_AC_RESULTH.display_id 가 SATC_API_RESULT_HEADERS.resultid 다(확인함).
+  // obj_type 도 finding 의 objecttype 과 같은 R3TR 타입이다(확인함).
   inner join satc_api_result_headers as Hdr
     on Hdr.resultid = Run.display_id
 

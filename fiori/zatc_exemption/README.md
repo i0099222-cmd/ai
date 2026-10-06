@@ -39,33 +39,21 @@ FE 는 bound 액션이 돌려준 행의 키가 원래 행과 같으면 그 행�
 - 1.114 보다 낮으면 훅이 불리지 않는다. 오류는 나지 않고 지금처럼 새로고침만 안 된다.
 - Object Page 에서 누른 액션은 이 확장과 무관하다. 목록으로 돌아오면 FE 가 다시 읽는다.
 
-## Pre-Register 입력창
+## 요청서 화면 (Object Page)
 
-백엔드 static 액션 `preRegister` 는 대상(패키지 또는 오브젝트)을 deep parameter(여러 행)로 받는다.
-FE 기본 입력창은 deep parameter 를 그리지 못해서, 컨트롤러 확장의 `onPreRegister` 가
-입력창을 직접 띄우고 OData 모델로 같은 액션을 직접 부른다. `editFlow.invokeAction` 은
-deep parameter 값을 맞추지 못해 FE 기본 입력창을 다시 띄우므로 쓰지 않는다.
-결과 메시지는 FE 표준 메시지 창(`messageHandler.showMessageDialog`)으로 보여 준다.
+요청서 한 건에 대상을 여러 줄 넣는다. 별도 확장 없이 FE 기본 기능으로 동작한다.
 
-- 위: Check Variant / Check Class / Reason Code (값 도움), Justification, Valid To
-- 아래 대상 표: 한 행 = 신청서 1건. 열은 Package / Object Type / Object Name / Check Message Code
-  - Object Name 이 비면 패키지 신청, 있으면 오브젝트 신청(Object Type, Check Message Code 필수)
-  - 이름에 `*` 허용(예: `ZSD*`, `ZCL_CM*`). Package, Check Message Code 는 값 도움이 있다
+- 위: Title / Check Variant / Check Class, 사유와 유효기간
+- 아래 **Targets** 표: 초안에서 줄을 추가하고 칸에 바로 입력한다. 한 줄 = 표준 예외 1건.
+  - Package 만 넣으면 패키지 대상, Object Name 까지 넣으면 오브젝트 대상(Check Message Code 필수)
+  - Object Name 값 도움: 위반이 있는 오브젝트. 고르면 Object Type / Package / Check Message Code 가 같이 채워진다
+  - Package 값 도움: 위반이 있는 패키지. 두 번째 목록(All Customer Packages)에서 위반 없는 패키지도 고를 수 있다
+  - 값 도움은 요청서의 Check Class 로 걸러진다. Check Class 를 먼저 넣는다
 
-`manifest.json` 의 List Report `options.settings` 에 추가한다.
+## 예전 Pre-Register 버튼 / 위반 조회 앱 제거
 
-```json
-"controlConfiguration": {
-  "@com.sap.vocabularies.UI.v1.LineItem": {
-    "actions": {
-      "preRegister": {
-        "press": ".extension.zatcexemption.ext.controller.ListReportExt.onPreRegister",
-        "text": "Pre-Register",
-        "requiresSelection": false
-      }
-    }
-  }
-}
-```
+요청서 구조로 바뀌면서 둘 다 없어졌다. 대상 여러 개는 Targets 표에 넣고, 위반은 값 도움에서 고른다.
 
-`zatcexemption` 은 앱 ID 로 바꾼다. `controlConfiguration` 이 이미 있으면 그 안에 합친다.
+- `manifest.json` 에 넣었던 `controlConfiguration` 의 `preRegister` 액션을 지운다(남아 있으면 버튼이
+  없는 메소드를 불러 오류가 난다).
+- 위반 조회 앱(메인 = Finding)과 그 타일은 지운다. 서비스에 `Finding` / `FindingPackage` 가 더 이상 없다.

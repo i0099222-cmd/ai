@@ -34,10 +34,9 @@
 "!     표준에 반려 상태로 남겨 두면 같은 사실이 두 군데 기록된다.
 "!
 "! set_object_scope 가 있으므로 패키지 스코프를 표준 예외 1건으로 넘길 수 있다.
-"! 오브젝트마다 예외를 전개할 필요가 없고, 예외 ID 는 신청서(헤더)에 1개면 된다.
-"! 패키지는 create_exemption 의 i_package_name 으로 넘긴다. 오브젝트 파라미터는
-"! 위반이 난 오브젝트를 그대로 넣고, PCKG 스코프에서 저장 행의 obj_type /
-"! obj_name(DEVC / 패키지명)은 표준이 스스로 파생한다.
+"! 오브젝트마다 예외를 전개할 필요가 없고, 예외 ID 는 요청서의 대상 한 줄에 1개다.
+"! 패키지는 create_exemption 의 i_package_name 으로 넘긴다. 패키지 대상은 오브젝트를
+"! 비워 넘기고, 저장 행의 obj_type / obj_name(DEVC / 패키지명)은 표준이 스스로 파생한다.
 "!
 "! 생성은 곧바로 승인 상태가 되지 않는다. send_to_approver( ) 로 승인 요청까지
 "! 간 뒤 approve_exemptions_by_if( ) 로 승인해야 한다. 그래서 두 호출을 한 번에
@@ -68,8 +67,10 @@ CLASS zcl_atc_exempt_sync DEFINITION
     "! 표준의 모델이 "신청 시점에 행이 생기고 승인은 그 행의 상태를 바꾸는 것"
     "! 이므로 우리도 같은 시점에 만든다. 그래야 승인자에게 표준 알림이 가고,
     "! 개발자가 ADT/표준 앱에서도 자기 신청 건을 볼 수 있다.
+    "! 요청서(사유·기간·체크)와 대상 한 줄(범위·패키지·오브젝트·코드)로 1건을 만든다.
     METHODS create_exemption
       IMPORTING is_exemption     TYPE ztatcexempt
+                is_item          TYPE ztatcexempti
       RETURNING VALUE(rs_result) TYPE ty_result.
 
     "! 표준 저장소의 예외를 승인한다. 이 시점에 ATC 차단이 실제로 풀린다.
@@ -182,8 +183,8 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
         " 그래서 오브젝트는 위반이 난 오브젝트를 그대로 넘긴다. 대장도 같은 값을
         " 들고 있다 - 어느 위반에서 신청이 나왔는지가 기록으로 남아야 하고,
         " 뷰의 조인도 그 값을 쓴다.
-        IF  is_exemption-scopetype = zif_atc_exemption=>scope-pckg
-        AND is_exemption-devclass IS INITIAL.
+        IF  is_item-scopetype = zif_atc_exemption=>scope-pckg
+        AND is_item-devclass IS INITIAL.
           " 패키지가 비어 있으면 만들지 않는다. 빈 패키지로도 행은 생기고 승인까지
           " 되는데 아무것도 면제하지 않는다. 대장은 승인이고 ATC 는 계속 막는
           " 상태가 조용히 만들어지므로 여기서 끊는다.
@@ -192,20 +193,23 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
           RETURN.
         ENDIF.
 
+        " 패키지 대상은 오브젝트를 넘기지 않는다. 표준은 i_package_name 만으로 받는다
+        " (선등록 상신으로 확인함). 오브젝트 유형만 남아 있으면 TADIR 조회가 꼬인다.
+        DATA(lv_is_obj) = xsdbool( is_item-scopetype = zif_atc_exemption=>scope-obj ).
         DATA(lo_exemption) = lo_controller->create_exemption(
-          i_object_type    = is_exemption-objecttype
-          i_object_name    = is_exemption-objectname
-          i_package_name   = is_exemption-devclass
+          i_object_type    = COND trobjtype( WHEN lv_is_obj = abap_true THEN is_item-objecttype )
+          i_object_name    = COND sobj_name( WHEN lv_is_obj = abap_true THEN is_item-objectname )
+          i_package_name   = is_item-devclass
           i_check_class    = is_exemption-checkclass
-          i_check_code     = is_exemption-checkcode
+          i_check_code     = is_item-checkcode
           i_contact_person = is_exemption-requester ).
 
         " SATC_CI_OBJ_SCOPE 의 고정값이 우리 scopetype( FND / OBJ / PCKG )과
         " 같음을 확인했으므로 변환 없이 넘긴다.
-        lo_exemption->set_object_scope( CONV #( is_exemption-scopetype ) ).
+        lo_exemption->set_object_scope( CONV #( is_item-scopetype ) ).
 
         " 체크 축은 MSG / CHK / ALL / FND 중 하나다. 신청서는 MSG / CHK 만 쓴다.
-        lo_exemption->set_check_scope( CONV #( is_exemption-rulescope ) ).
+        lo_exemption->set_check_scope( CONV #( is_item-rulescope ) ).
 
         " set_reason 은 코드와 서술을 따로 받는다.
         "   i_reason  (필수) 사유 코드
@@ -446,7 +450,7 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
     " TODO 구현. 읽기는 SATC_CI_R_EXEMPTION 뷰로 가능하다.
     "   1) 표준 저장소에서 예외 목록을 읽는다.
-    "   2) ztatcexempt-extexemptid 에 없는 건을 CBO 대장에 등록한다
+    "   2) ztatcexempti-extexemptid 에 없는 건을 CBO 대장에 등록한다
     "      (출처를 구분할 수 있게 이력에 SYNC 로 남긴다).
     "   3) CBO 에는 승인 상태인데 표준에 없는 건을 불일치로 리포트한다.
 

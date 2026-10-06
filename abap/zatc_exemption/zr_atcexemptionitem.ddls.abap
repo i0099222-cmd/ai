@@ -1,34 +1,36 @@
 @AbapCatalog.viewEnhancementCategory: [#NONE]
 @AccessControl.authorizationCheck: #CHECK
-@EndUserText.label: 'ATC Exemption Request Item - BO'
+@EndUserText.label: 'ATC Exemption Request Target - BO'
 @Metadata.ignorePropagatedAnnotations: true
 @ObjectModel.usageType: {
   serviceQuality: #X,
   sizeCategory: #S,
   dataClass: #MIXED
 }
-// 아이템의 역할은 상위 요청의 ScopeType 에 따라 다르다.
-//   FND       : 면제 대상 그 자체 (1:1). Checksum 이 판정에 쓰인다.
-//   OBJ, PCKG : 신청 근거(증빙) 스냅샷. 효력은 오브젝트/패키지 전체이며
-//               여기 담긴 건에 한정되지 않는다.
-// 패키지와 체크 변형은 헤더에만 둔다. 한 요청의 증빙은 모두 같은 변형에서
-// 나오고 같은 패키지에 속하므로, 아이템에 또 두면 어긋날 여지만 생긴다.
+// 요청서의 대상 한 줄 = 표준 예외 1건.
+// Object Name 이 비면 패키지(PCKG), 있으면 오브젝트(OBJ) 대상이다.
 //
-// I 계층을 두지 않는 이유: BO 밖에서 아이템을 재사용하는 곳이 없다. 이름만
-// 바꿔 넘기는 뷰를 하나 더 두면 활성화 오브젝트와 유지보수 지점만 늘어난다.
+// I 계층을 두지 않는 이유: BO 밖에서는 ZI_AtcActiveExemption 만 아이템을 읽고,
+// 그 뷰는 테이블을 직접 조인한다.
 define view entity ZR_AtcExemptionItem
   as select from ztatcexempti
   association to parent ZR_AtcExemption as _Exemption
     on $projection.ExemptUuid = _Exemption.ExemptUuid
 {
-      @EndUserText.label: 'Exemption Item UUID'
+      @EndUserText.label: 'Target UUID'
   key itemuuid       as ItemUuid,
 
       @EndUserText.label: 'Exemption Request UUID'
       exemptuuid     as ExemptUuid,
 
-      @EndUserText.label: 'Item Number'
+      @EndUserText.label: 'No.'
       itemno         as ItemNo,
+
+      @EndUserText.label: 'Object Scope'
+      scopetype      as ScopeType,
+
+      @EndUserText.label: 'Package'
+      devclass       as Devclass,
 
       @EndUserText.label: 'Object Type'
       objecttype     as ObjectType,
@@ -36,20 +38,37 @@ define view entity ZR_AtcExemptionItem
       @EndUserText.label: 'Object Name'
       objectname     as ObjectName,
 
-      @EndUserText.label: 'Finding Checksum'
-      checksum       as Checksum,
-
       @EndUserText.label: 'Check Class'
       checkclass     as CheckClass,
 
       @EndUserText.label: 'Check Message Code'
       checkcode      as CheckCode,
 
-      @EndUserText.label: 'Priority'
-      priority       as Priority,
+      @EndUserText.label: 'Check Scope'
+      rulescope      as RuleScope,
 
-      @EndUserText.label: 'Message Text'
-      msgtext        as MessageText,
+      @EndUserText.label: 'Standard Exemption ID'
+      extexemptid    as ExtExemptId,
+
+      @EndUserText.label: 'Standard Status'
+      stdstatus      as StdStatus,
+
+      // 패키지 대상은 목록에서 눈에 띄게 둔다. 가장 넓고 향후 생성 오브젝트까지
+      // 덮는 범위라 무심코 승인되면 안 된다.
+      @EndUserText.label: 'Scope Criticality'
+      case scopetype
+        when 'PCKG' then 2
+        else 0
+      end            as ScopeCriticality,
+
+      // 표준 반영 색. 3 승인 / 2 승인대기 / 1 반려 / 0 아직 등록 전
+      @EndUserText.label: 'Standard Status Criticality'
+      case stdstatus
+        when 'A' then 3
+        when 'P' then 2
+        when 'R' then 1
+        else 0
+      end            as StdCriticality,
 
       @EndUserText.label: 'Created By'
       @Semantics.user.createdBy: true

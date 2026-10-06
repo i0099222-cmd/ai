@@ -143,4 +143,35 @@ INTERFACE zif_atc_exemption
 
   TYPES tt_exempt TYPE STANDARD TABLE OF ztatcexempt WITH EMPTY KEY.
 
+  "! 요청서의 대상 줄들
+  TYPES tt_item TYPE STANDARD TABLE OF ztatcexempti WITH EMPTY KEY.
+
+  "! 대상 한 줄의 표준 쪽 진행 상태 (ztatcexempti-stdstatus)
+  CONSTANTS:
+    BEGIN OF stdstatus,
+      none     TYPE char1 VALUE ' ',
+      pending  TYPE char1 VALUE 'P',
+      approved TYPE char1 VALUE 'A',
+      rejected TYPE char1 VALUE 'R',
+    END OF stdstatus.
+
+  "! 표준 반영 후 대상 한 줄의 상태. 처리 성공 여부와 무관하게 실제 상태를 담는다.
+  "! 호출자는 이 값으로 아이템을 갱신한다 - 요청서 처리가 실패해도 표준에서 이미
+  "! 바뀐 줄이 있으면 그 사실은 남겨야 다음 시도가 같은 줄을 두 번 처리하지 않는다.
+  TYPES:
+    BEGIN OF ty_item_result,
+      itemuuid    TYPE sysuuid_x16,
+      extexemptid TYPE sysuuid_c32,
+      stdstatus   TYPE char1,
+    END OF ty_item_result,
+    tt_item_result TYPE STANDARD TABLE OF ty_item_result WITH EMPTY KEY.
+
+  "! 요청서 1건의 표준 반영 결과. success 는 모든 대상이 성공했을 때만 X 다.
+  TYPES:
+    BEGIN OF ty_batch_result,
+      success TYPE abap_boolean,
+      message TYPE string,
+      items   TYPE tt_item_result,
+    END OF ty_batch_result.
+
 ENDINTERFACE.

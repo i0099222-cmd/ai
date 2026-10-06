@@ -7,7 +7,9 @@
   sizeCategory: #M,
   dataClass: #MIXED
 }
-// 조회 앱의 데이터 소스. 표준이 유효로 표시한 ATC 결과를 **라이브로** 읽는다.
+// 신청 화면 값 도움(ZI_AtcFindingObjVH / ZI_AtcFindingPkgVH)과 영향도 계산
+// (zcl_atc_finding_reader)의 데이터 소스. 조회 앱은 없앴다 - 대상은 요청서의
+// 아이템에서 값 도움으로 고른다. 표준이 유효로 표시한 ATC 결과를 **라이브로** 읽는다.
 // 스냅샷 테이블을 두지 않는다 - 추세 리포팅이 요건에 없으므로 중간 적재 계층과
 // 배치, 보관 정책을 만들 이유가 없다.
 //
@@ -26,9 +28,8 @@
 // 곧 정합성 문제다 - CBO 는 승인인데 표준에 반영이 안 된 건을 여기서 찾는다.
 //
 // 알려진 제약: 하위 패키지 포함(InclSubPkg) 은 CDS 조인으로 패키지 계층을 전개할 수
-//   없어 여기서는 패키지 직접 일치만 판정한다. Phase 1 은 화면에서 InclSubPkg 를
-//   읽기 전용으로 잠가 판정 로직과 어긋나지 않게 한다.
-define root view entity ZI_AtcFinding
+//   없어 여기서는 패키지 직접 일치만 판정한다. 요청서에는 하위 패키지 포함 옵션이 없다.
+define view entity ZI_AtcFinding
   as select from satc_api_findings as Finding
 
   // 컨트롤 테이블에 활성으로 등록된 체크 변형의 결과만 앱의 대상이다.

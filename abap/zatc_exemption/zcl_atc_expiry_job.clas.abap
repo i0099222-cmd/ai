@@ -67,11 +67,10 @@ CLASS zcl_atc_expiry_job IMPLEMENTATION.
     " 유효기간으로 거르고, 표준 예외에도 create 시 같은 validto 를 넘겨 두었다.
     " 이 배치가 하는 일은 셋이다.
     "   - 대장의 상태 값을 실제와 맞춘다
-    "   - 표준 예외를 명시적으로 무효화한다. 유효기간에만 기대지 않는 이유는,
-    "     set_validity_date 가 반영되지 않았을 때 두 저장소가 조용히 어긋나기
-    "     때문이다. 이 앱의 존재 이유가 그 어긋남을 없애는 것이다
+    "   - 표준 예외를 명시적으로 지운다. 유효기간에만 기대면 set_validity_date 가
+    "     반영되지 않았을 때 두 저장소가 조용히 어긋난다
     "   - 알림 대상을 만든다
-    SELECT exemptuuid, exemptstat, extexemptid
+    SELECT exemptuuid, exemptstat
       FROM ztatcexempt
       WHERE exemptstat = @zif_atc_exemption=>status-approved
         AND validto    < @sy-datum
@@ -80,6 +79,14 @@ CLASS zcl_atc_expiry_job IMPLEMENTATION.
     IF lt_overdue IS INITIAL.
       RETURN.
     ENDIF.
+
+    " 표준 예외는 대상 줄마다 1건이다.
+    SELECT itemuuid, exemptuuid, extexemptid
+      FROM ztatcexempti
+      FOR ALL ENTRIES IN @lt_overdue
+      WHERE exemptuuid   = @lt_overdue-exemptuuid
+        AND extexemptid <> @space
+      INTO TABLE @DATA(lt_item).
 
     GET TIME STAMP FIELD DATA(lv_now).
 
@@ -91,19 +98,25 @@ CLASS zcl_atc_expiry_job IMPLEMENTATION.
 
       DATA(lv_note) = |유효기간 경과로 자동 만료|.
 
-      " 표준 예외도 함께 닫는다. 배치는 RAP 의 interaction phase 가 아니므로
-      " 여기서 외부 호출을 해도 된다 (saver 를 거치지 않는 경로다).
-      IF ls_overdue-extexemptid IS NOT INITIAL.
-        DATA(ls_revoked) = lo_sync->revoke_exemption(
-                             iv_extexemptid = ls_overdue-extexemptid
-                             iv_reason      = lv_note ).
-        lv_note = |{ lv_note } / { ls_revoked-message }|.
-      ENDIF.
+      " 배치는 RAP 의 interaction phase 가 아니므로 여기서 표준을 직접 불러도 된다.
+      " 지운 줄은 ID 를 비운다. 못 지운 줄은 남겨 두고 이력에 사유를 적는다.
+      LOOP AT lt_item INTO DATA(ls_item) WHERE exemptuuid = ls_overdue-exemptuuid.
+        DATA(ls_revoked) = lo_sync->revoke_exemption( iv_extexemptid = ls_item-extexemptid
+                                                      iv_reason      = lv_note ).
+        IF ls_revoked-success = abap_true.
+          UPDATE ztatcexempti
+            SET extexemptid = @space,
+                stdstatus   = @zif_atc_exemption=>stdstatus-none
+            WHERE itemuuid = @ls_item-itemuuid.
+        ELSE.
+          lv_note = |{ lv_note } / { ls_item-extexemptid }: { ls_revoked-message }|.
+        ENDIF.
+      ENDLOOP.
 
       UPDATE ztatcexempt
-        SET exemptstat    = @zif_atc_exemption=>status-expired,
-            lastchangedat = @lv_now,
-            loclastchgat  = @lv_now
+        SET exemptstat   = @zif_atc_exemption=>status-expired,
+            changedat    = @lv_now,
+            loclastchgat = @lv_now
         WHERE exemptuuid = @ls_overdue-exemptuuid.
 
       " 순번은 기존 이력 다음이다. 0 으로 고정하면 이력 탭 정렬이 무너진다.

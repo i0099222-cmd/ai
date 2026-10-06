@@ -1,9 +1,29 @@
 # ATC 예외 관리 앱 (ZATC_EXEMPTION)
 
-ATC 위반 현황을 조회하고, 예외를 **패키지/오브젝트 단위로 신청 · 승인 · 반려**하는
-RAP 애플리케이션. 설계 배경과 의사결정은 [`docs/atc-exemption-app-design.md`](../../docs/atc-exemption-app-design.md) 참조.
+ATC 예외를 **패키지/오브젝트 단위로 신청 · 승인 · 반려**하는 RAP 애플리케이션.
+**요청서 한 건에 대상(패키지/오브젝트)을 여러 줄** 넣고, 승인·반려는 요청서 단위로 한 번에 한다. 설계 배경과 의사결정은 [`docs/atc-exemption-app-design.md`](../../docs/atc-exemption-app-design.md) 참조.
 
 ---
+
+## 요청서 구조
+
+```
+요청서(ztatcexempt)  제목 · 체크 변형/클래스 · 사유 · 유효기간 · 상태 · 신청자/승인자
+  └ 대상(ztatcexempti)  한 줄 = 표준 예외 1건
+       Package 만     -> 패키지 대상(PCKG, 체크 전체 CHK)
+       + Object Name  -> 오브젝트 대상(OBJ, 메시지 하나 MSG, Check Message Code 필수)
+  └ 이력(ztatcexemptlog)
+```
+
+- 대상은 요청서 화면의 Targets 표에 직접 넣는다. Object Name / Package 값 도움이
+  **위반이 있는 대상**을 보여 주고, 위반이 없는 대상(선등록)은 직접 입력한다.
+  별도 위반 조회 앱과 Pre-Register 버튼은 없다.
+- 상신·승인·반려·철회는 **요청서 단위로 전부 성공해야 성공**이다.
+  - 상신: 대상마다 표준 예외를 승인대기로 만든다. 한 줄이라도 실패하면 이번에 만든 것을 지우고 초안으로 남는다
+  - 승인/반려: 표준이 한 건씩 처리해서 이미 처리된 줄은 되돌릴 수 없다. 실패하면 멈추고
+    요청서 상태는 그대로다. 줄마다 표준 상태(`stdstatus`)를 기록하므로 다시 누르면 남은 줄만 처리한다
+  - 철회: 지울 수 있는 줄은 다 지운다. 남은 줄은 다시 누르면 지운다
+- 초안만 고칠 수 있다(Edit 는 초안에서만). 상신 뒤 대상이 바뀌면 표준 예외와 어긋난다.
 
 ## 언어 방침
 
@@ -221,9 +241,9 @@ lo_controller->approve_exemptions_by_if( exemptions_for_approval = ... ).
 실제로(그때는 심각도별 코드였다) 한 패키지 안에서 어떤 위반은
 `exemption_applies`, 어떤 위반은 `approval_missing` 이 됐다.
 
-`createFromFinding` 이 `PCKG` 면 `CHK`, 그 외는 `MSG` 를 넣는다. finding 쪽 그룹
-키도 `PCKG` 일 때 체크 코드를 빼야 한다 — `CHK` 가 코드를 안 가리므로, 코드별로
-신청서를 만들면 같은 범위를 덮는 신청서가 여러 장 생기고 중복 검증에 걸린다.
+대상 줄의 `deriveTarget` 이 `PCKG` 면 `CHK`, 그 외는 `MSG` 를 넣는다. 패키지 값 도움의
+키에도 체크 코드가 없다 — `CHK` 가 코드를 안 가리므로, 코드별로 줄을 만들면 같은 범위를
+덮는 줄이 여러 개 생기고 중복 검증에 걸린다.
 
 #### 미승인 신청이 승인된 예외를 가린다
 
@@ -319,30 +339,26 @@ ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것�
 
 | 테이블 | 분류 | Delivery Class | 용도 | 키 |
 |---|---|---|---|---|
-| `ztatcexempt` | 업무 데이터 | `A` | 예외 신청 헤더 (승인 대상) | `exemptuuid` |
-| `ztatcexempti` | 업무 데이터 | `A` | 신청 아이템 (근거 finding) | `itemuuid` |
+| `ztatcexempt` | 업무 데이터 | `A` | 요청서 (승인 단위) | `exemptuuid` |
+| `ztatcexempti` | 업무 데이터 | `A` | 요청서 대상 (한 줄 = 표준 예외 1건) | `itemuuid` |
 | `ztatcexemptlog` | 업무 데이터 | `A` | 상태 변경 이력 | `loguuid` |
 | `ztatccfg` | **컨트롤** | `C` | 앱 동작 규칙 (대상 변형 + 허용 범위) | `checkvariant` |
 
 ### 헤더와 아이템의 역할 구분
 
-겹쳐 보이는 필드가 4개(`objecttype` / `objectname` / `checkid` / `messageid`) 있는데,
-같은 값이 들어갈 때가 있어도 뜻이 다르다.
-
 ```
-헤더  = 무엇을 면제할 것인가 (적용 범위)
-아이템 = 무엇이 발견되었는가 (증빙)
-
-OBJ  스코프 : 두 값이 같다
-PCKG 스코프 : 헤더의 오브젝트는 비어 있고, 아이템에는 여러 오브젝트가 들어간다
+헤더  = 요청서. 사유·유효기간·체크(변형/클래스)·상태. 승인과 반려의 단위
+아이템 = 대상 한 줄. 범위(PCKG/OBJ)·패키지·오브젝트·메시지 코드. 표준 예외 1건의 단위
 ```
 
-헤더의 오브젝트를 아이템에서 유도하지 않는 이유는, 아이템이 신청 시점의 스냅샷이라
-나중에 지워지거나 갱신돼도 예외의 적용 범위는 흔들리면 안 되기 때문이다.
+범위(`scopetype`)와 규칙 범위(`rulescope`)는 사용자가 고르지 않는다. Object Name 이
+비면 PCKG/CHK, 있으면 OBJ/MSG 로 `deriveTarget` 이 정한다. 오브젝트 대상의 패키지는
+TADIR 에서 온다.
 
-패키지(`devclass`)와 체크 변형(`checkvariant`)은 **헤더에만** 둔다. 한 신청서의
-증빙은 모두 같은 변형에서 나오고 같은 패키지에 속하므로, 아이템에 또 두면 두 값이
-어긋날 여지만 생긴다.
+아이템의 `checkclass` 는 요청서 값의 사본이다. Fiori 값 도움은 같은 엔티티의 필드로만
+거를 수 있어서 둔다. 요청서의 체크 클래스가 바뀌면 `deriveCheckGroup` 이 같이 바꾼다.
+
+예전의 증빙(위반 스냅샷) 아이템은 없앴다. 위반은 값 도움과 영향도 계산에서 라이브로 읽는다.
 
 `ztatccfg` 는 업무 데이터가 아니라 **컨트롤 테이블**이다. 답하는 질문은 네 개다.
 
@@ -388,29 +404,30 @@ ZR_AtcExemption ─ composition ─► ZR_AtcExemptionItem ◄─────┘
 ZP_AtcExemption      ZP_AtcExemptionItem      ZP_AtcExemptionLog
 ```
 
-읽기 전용 뷰는 R 계층이 필요 없어 I → P 2계층이다.
+읽기 전용 뷰는 R 계층이 필요 없다.
 
 ```
 SATC_API_FINDINGS ⋈ SATC_AC_CHM(체크 클래스) ⋈ ztatccfg(활성 변형)
+                  ⋈ ZI_AtcLatestRun(오브젝트별 최신 실행)
                   ⋈ ZI_AtcActiveExemption ×2 (PCKG / OBJ)
      ▼  I
 ZI_AtcFinding      표준 스키마를 아는 유일한 오브젝트. 면제 여부 계산
-     ▼  P
-ZP_AtcFinding      키 = ATC 결과의 키 (ResultId/ItemId/CheckRunIndex)
+     ├► ZI_AtcFindingObjVH   대상 Object Name 값 도움 (미면제 위반이 있는 오브젝트 + 코드)
+     └► ZI_AtcFindingPkgVH   대상 Package 값 도움 (미면제 위반이 있는 패키지)
 
-ZI_AtcScopeVH     ztatccfg 의 허용 플래그를 union 으로 행으로 펼친 값 도움
-ZI_AtcVariantVH   활성 체크 변형 목록
-ZI_AtcPackageVH   패키지 값 도움
+ZI_AtcVariantVH / ZI_AtcCheckClassVH   변형 · 체크 클래스 값 도움
+ZI_AtcPackageVH   고객 패키지 전체 (대상 Package 의 두 번째 값 도움, 선등록용)
+ZI_AtcCheckCodeVH 메시지 코드 값 도움
 ZI_AtcReasonVH    사유 코드 값 도움 (표준 SATC_CI_REASONS, not_selectable 제외)
-ZD_AtcCreateFromFinding / ZD_AtcReject / ZD_AtcExtend   액션 파라미터(추상 엔터티)
+ZD_AtcReject / ZD_AtcExtend   액션 파라미터(추상 엔터티)
 ```
 
 | 분류 | 개수 |
 |---|---|
 | 트랜잭션 BO (I 1 + R 3 + P 3) | 7 |
-| 조회 (ZI/ZP_AtcFinding + ZI_AtcActiveExemption) | 3 |
-| 값 도움 | 3 |
-| 액션 파라미터 (추상 엔터티, 뷰 아님) | 3 |
+| 판정 (ZI_AtcFinding + ZI_AtcLatestRun + ZI_AtcActiveExemption) | 3 |
+| 값 도움 | 7 |
+| 액션 파라미터 (추상 엔터티, 뷰 아님) | 2 |
 
 **필드 레이블은 테이블을 직접 읽는 뷰에 둔다.** 헤더는 `ZI_AtcExemption`,
 아이템·이력은 `ZR_*` 다. 위 계층은 그대로 물려받으므로 한 곳만 고치면 되고,
@@ -482,10 +499,10 @@ zcl_atc_config_setup=>list( ).                          " 현재 설정 확인
 `zcl_atc_exempt_testdata` 로 대장 데이터를 만든다. 개발/품질 시스템 전용이다.
 
 ```abap
-" 1. 컨트롤 테이블 1행. 이게 없으면 조회 화면이 빈 채로 뜬다.
+" 1. 컨트롤 테이블 1행. 이게 없으면 대상 값 도움이 빈 채로 뜬다.
 zcl_atc_exempt_testdata=>setup_config( 'YOUR_NAMING_VARIANT' ).
 
-" 2. 상태별 신청서 7건 + 증빙 + 이력
+" 2. 상태별 요청서 6건 + 대상 줄 + 이력
 DATA(lv_n) = zcl_atc_exempt_testdata=>create_requests(
                iv_checkvariant = 'YOUR_NAMING_VARIANT'
                iv_devclass     = 'YOUR_PACKAGE' ).
@@ -494,26 +511,25 @@ DATA(lv_n) = zcl_atc_exempt_testdata=>create_requests(
 zcl_atc_exempt_testdata=>cleanup( ).
 ```
 
-만들어지는 7건:
+만들어지는 6건:
 
-| # | 상태 | 적용범위 | 확인 포인트 |
+| # | 상태 | 대상 | 확인 포인트 |
 |---|---|---|---|
-| 1 | 초안 | PCKG | 증빙 없음 → `PreRegFlag` = X |
-| 2 | 승인대기 | OBJ | 승인/반려 버튼이 보여야 함 |
-| 3 | 승인 | PCKG | `ExtExemptId` 채워짐 = 정상 |
-| 4 | 승인 | OBJ | `ExtExemptId` 비어 있음 → **`ExemptionMismatch` = X** |
+| 1 | 초안 | PCKG + OBJ 두 줄 | Edit / Submit / Delete 버튼, 대상 표 편집 |
+| 2 | 승인대기 | OBJ 두 줄 | 승인/반려 버튼. 표준 ID 가 없어 승인은 "표준 예외 없음" 으로 멈춘다 |
+| 3 | 승인 | PCKG | 대상 줄 `ExtExemptId` 채워짐, Standard Status = A |
+| 4 | 승인 | OBJ | 대상 줄 `ExtExemptId` 비어 있음 → **`ExemptionMismatch` = X** |
 | 5 | 반려 | OBJ | 반려 사유가 이력에 남음 |
-| 6 | 철회 | OBJ | |
-| 7 | 만료 | PCKG | `ValidTo` 가 과거 |
+| 6 | 만료 | PCKG | `ValidTo` 가 과거 |
 
 **대상 오브젝트는 지어내지 않고 `TADIR` 에서 실제로 읽는다.** 지어낸 이름을 쓰면
 화면에서 승인을 눌렀을 때 `validateScope` 가 "오브젝트 없음"으로 막아, 정작
 확인하려던 상태 전이를 볼 수 없다. 그래서 `iv_devclass` 는 오브젝트가 들어 있는
 실재 패키지여야 하고, 비어 있으면 아무것도 만들지 않는다.
 
-**ATC finding 은 만들 수 없다.** 그건 실제 ATC 실행 결과다. finding 목록 화면을
-보려면 대상 패키지에 ATC 를 한 번 돌려야 한다. 위 데이터로 확인되는 것은 신청
-목록, 오브젝트 페이지, 상태별 버튼, 증빙/이력 탭, 정합성 지표다.
+**ATC finding 은 만들 수 없다.** 그건 실제 ATC 실행 결과다. 대상 값 도움에 위반이
+보이려면 대상 패키지에 ATC 를 한 번 돌려야 한다. 위 데이터로 확인되는 것은 요청
+목록, 오브젝트 페이지(대상 표), 상태별 버튼, 이력 탭, 정합성 지표다.
 
 ---
 
@@ -526,6 +542,8 @@ ADT 에서 `ZR_AtcExemption` BDEF 의 draft table 이름에 커서를 두고 qui
 ```
 ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 ```
+요청서 구조로 바뀌면서 `ztatcexempt` / `ztatcexempti` 의 필드가 바뀌었다. 기존 draft 테이블
+두 개는 **지우고 quick fix 로 다시 만든다**(필드가 안 맞으면 활성화가 실패한다).
 
 ### 2. 메시지 클래스 `ZATC_EXEMPT`
 
@@ -537,7 +555,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 002 | Package is required for package scope |
 | 003 | ~~Package scope also requires an origin object~~ (사용 안 함 - 패키지는 `i_package_name` 으로 넘기므로 출발점 오브젝트가 필요 없다) |
 | 004 | Object scope requires object type and object name |
-| 005 | Finding scope requires object type and object name |
+| 005 | (사용 안 함) |
 | 006 | &1 is not a customer namespace package |
 | 007 | Package &1 does not exist |
 | 008 | Object &1 does not exist |
@@ -549,12 +567,14 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 014 | You cannot approve your own exemption request |
 | 015 | Enter a rejection reason |
 | 016 | New valid-to date must be later than the current one |
-| 017 | Finding not found |
+| 017 | (사용 안 함) |
 | 018 | Priority &1 findings cannot be exempted (allowed from &2) |
-| 019 | Check scope &1 is not allowed (use message or check) |
+| 019 | (사용 안 함 - 규칙 범위는 대상에서 자동으로 정해진다) |
 | 020 | Action not allowed for status &1 |
 | 021 | No approver is configured for check variant &1 |
 | 022 | Object scope requires a check message code |
+| 023 | Add at least one target before submitting the request |
+| 024 | Target &1 is entered more than once in this request |
 
 ### 3. 권한 - 커스텀 권한 오브젝트 없음
 
@@ -572,71 +592,21 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 ### 4. 배치 잡 1개
 `zcl_atc_expiry_job` 의 `run( )` 을 일 1회 스케줄 (만료 전환 + D-30 알림 대상 추출).
 
-### 5. 런치패드 타일 3개 (앱은 2개, 서비스는 1개)
+### 5. 런치패드 타일 2개 (앱 1개, 서비스 1개)
 
 앱 이름은 **ATC Exemption Management** (ATC 예외 관리).
 
 | 타일 | 한글 | 메인 엔터티 | 필터 프리셋 | 배치 역할 |
 |---|---|---|---|---|
-| Display ATC Findings | ATC 위반 조회 | Finding | 패키지 필수 | 개발자 |
-| My ATC Exemptions | 내 ATC 예외 신청 | Exemption | Requester = 본인 | 개발자 |
+| My ATC Exemptions | 내 ATC 예외 요청 | Exemption | Requester = 본인 | 개발자 |
 | Review ATC Exemptions | ATC 예외 결재 | Exemption | 상태 = 승인대기 | 승인자 |
 
-#### Display ATC Findings 의 탭 2개
+위반 조회 앱(Display ATC Findings)은 없앴다. 예전에 만든 앱과 타일, 시맨틱 오브젝트
+매핑은 지운다.
 
-| 탭 | 엔티티셋 | 한 줄 | 버튼 |
-|---|---|---|---|
-| By Object | `Finding` (`ZP_AtcFinding`) | 위반 1건 | Request Object Exemption → OBJ 신청 |
-| By Package | `FindingPackage` (`ZP_AtcFindingPkg`) | 변형 + 패키지 + 체크 클래스 | Request Package Exemption → PCKG 신청 |
-
-탭이 적용범위를 정하므로 신청 입력창에는 적용범위가 없다. 패키지 신청의 증빙에는
-그 패키지의 위반 전체가 붙는다. 필터 필드(Package, Check Variant, Check Group,
-Exemption Status)는 두 엔티티에서 이름을 맞춰 두어 두 탭에 같이 걸린다.
-
-앱 manifest 의 List Report `options.settings` 에 넣는다.
-
-```json
-"views": {
-  "paths": [
-    { "key": "byObject",
-      "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab" },
-    { "key": "byPackage", "entitySet": "FindingPackage",
-      "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab" }
-  ],
-  "showCounts": true
-}
-```
-
-세 번째를 **`Approve ATC Exemptions` 로 부르지 않는다** — 그것이 표준 Fiori 앱의
+두 번째를 **`Approve ATC Exemptions` 로 부르지 않는다** — 그것이 표준 Fiori 앱의
 이름이다. 런치패드에 나란히 뜨면 어디서 결재해야 하는지 알 수 없게 되고, 결재
 창구를 이 앱 하나로 남기는 것이 이 앱을 CBO 로 만든 이유다.
-
-#### 조회 → 신청 이동 (시맨틱 오브젝트)
-
-앱이 둘이라 앱 내부 navigation 이 아니다. 런치패드 대상 매핑이 있어야 버튼이
-살아난다.
-
-| 항목 | 값 |
-|---|---|
-| Semantic Object | `ZAtcExemption` |
-| Action | `display` |
-| 대상 | 앱 B (Exemption) |
-| 파라미터 | 없음 |
-
-`ZP_AtcFinding.ddlx` 의 툴바에 `#FOR_INTENT_BASED_NAVIGATION` 버튼
-(`My Exemption Requests`)이 있다. **파라미터를 넘기지 않는다** — 그 사람의 신청
-목록이 그냥 열린다.
-
-액션은 화면을 옮기지 못하므로 신청과 이동은 버튼 두 개다. 신청 → 메시지 확인 →
-이동. 자동으로 넘기려면 컨트롤러 확장(커스텀 UI5)이 필요하고, 그만한 값이 없다.
-
-**특정 신청서로 바로 가는 기능은 두지 않았다.** 키가 UUID 뿐이라 URL 과 필터에
-노출되고, 사람에게 보여줄 값이 아니다. `ZI_AtcFinding` 에 `ExemptUuid` 는
-남겨 두었으니(화면에서는 숨김) 자리는 준비돼 있다. 사람이 읽을 신청번호를
-도입할 때 그 번호로 파라미터를 걸면 된다.
-
-매핑을 만들기 전에는 버튼이 안 보이거나 눌러도 아무 일이 없다 — 앱이 깨지지는
-않는다.
 
 ---
 
@@ -675,100 +645,50 @@ OData 로 직접 밀어넣어도 `validateScope` 가 거부한다.
 
 ## Action 구성
 
-8개이며 상태 전이가 각각 달라 합칠 것이 없다. 공통으로 지키는 두 가지가 있다.
+모든 상태 전이 액션은 **요청서 단위**다. 공통으로 지키는 것:
 
-**① 상태가 맞지 않으면 거부한다 (조용히 건너뛰지 않는다)**
+- 상태가 맞지 않으면 거부한다(020). 조용히 건너뛰지 않는다.
+- `result` 에는 성공한 건만 담는다.
+- 표준 반영이 실패하면 **failed 를 올리지 않고 에러 메시지만** 낸다. failed 를 올리면 요청 전체가
+  롤백되어 이미 표준에서 바뀐 줄의 상태(`extexemptid` / `stdstatus`)까지 사라진다.
+  요청서 상태는 바꾸지 않으므로 전체 실패와 같다.
 
-```
-features 가 버튼을 비활성화하지만, OData 직접 호출이나 오래된 화면 상태로
-들어올 수 있다. 그냥 건너뛰면 액션이 성공한 것처럼 끝나서 사용자는
-왜 아무 일도 없었는지 알 수 없다. -> 메시지 020 으로 거부한다.
-```
-
-**② `result` 에는 성공한 건만 담는다**
-
-```
-keys 로 다시 읽으면 거부된 건까지 성공한 것처럼 돌려주게 된다.
--> 실제로 변경된 목록(lt_update)으로 다시 읽는다.
-```
-
-| Action | 허용 상태 | 추가 검증 |
-|---|---|---|
-| `submit` | 초안 | 상신 시 영향 건수를 근거 텍스트에 자동 기입 |
-| `withdraw` | 승인대기 | |
-| `approve` | 승인대기 | 자기승인 금지 (014) |
-| `reject` | 승인대기 · **승인** | 반려 사유 필수 (015). 표준이 승인된 예외에도 Reject 를 허용하며 그것이 무효화 경로다 |
-| `extendValidity` | 승인 | 연장일이 현재보다 뒤여야 함 (016). 승인대기로 되돌려 재승인 |
-| `simulateImpact` | (제한 없음) | 승인 판단 근거라 누구나 확인 가능 |
-| `createFromFinding` | (static factory) | 대상 finding 없으면 거부 (017). 화면에 노출하지 않고 `requestExemption` 이 EML 로 부른다 |
-
-조회 화면(`ZP_AtcFinding`)에도 액션이 하나 있다.
-
-| Action | 하는 일 |
-|---|---|
-| `requestExemption` | 고른 위반들로 신청서를 만든다. 적용범위가 `PCKG` 면 패키지+체크가 같은 선택 건들이 신청서 하나로 묶인다 |
-
-주 경로는 **조회 화면 → 위반 선택 → 예외 신청**이다. 신청 목록의 `Create` 는
-아직 ATC 를 돌리지 않은 대상을 미리 거는 선등록 전용이다.
+| Action | 허용 상태 | 표준 반영 | 추가 검증 |
+|---|---|---|---|
+| `submit` | 초안 | 대상마다 승인대기로 생성. 실패하면 만든 것 삭제 | 대상 1줄 이상(023), 승인자 설정(021), 중복 재확인(013). 영향 건수를 이력에 기록 |
+| `withdraw` | 승인대기 | 대상마다 삭제. 남은 줄은 재실행으로 | |
+| `approve` | 승인대기 | 승인 안 된 줄만 승인. 실패하면 멈춤 | 자기승인 금지(014) |
+| `reject` | 승인대기 · **승인** | 반려 안 된 줄만 반려. 실패하면 멈춤 | 반려 사유 필수(015) |
+| `extendValidity` | 승인 | (없음) | 연장일이 현재보다 뒤(016). 승인대기로 되돌려 재승인 |
+| `simulateImpact` | (제한 없음) | (없음) | 대상 전체가 덮는 현재 위반 건수 |
 
 ## Determination 구성
 
-셋 다 트리거가 달라 합칠 것이 없다. 합치면 바뀌지 않은 필드 때문에 TADIR 조회가
-헛도는 쪽이 오히려 손해다.
+| Determination | 엔티티 | 트리거 | 하는 일 |
+|---|---|---|---|
+| `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일 |
+| `deriveCheckGroup` | 요청서 | CheckVariant, CheckClass | 체크그룹 파생, 변형의 체크가 하나면 클래스 채움, 대상 줄에 클래스 복사 |
+| `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName | 범위·규칙 범위, TADIR 패키지, 클래스 사본, 줄 번호 |
 
-| Determination | 트리거 | 하는 일 |
-|---|---|---|
-| `setInitialValues` | create | 상태 = 초안, 신청자, 유효시작일, 규칙범위 기본값 |
-| `deriveCheckGroup` | CheckVariant | 컨트롤 테이블에서 체크그룹 파생 |
-| `derivePackage` | ObjectType, ObjectName | TADIR 에서 패키지 파생 |
-| `derivePreReg` | create (on save) | 증빙 아이템이 없으면 선등록(`PreRegFlag`)으로 판정 |
-
-파생값(`CheckGroup` / `Devclass`)을 CDS 조인으로 계산하지 않고 **저장**하는 이유:
-승인된 예외의 범위가 나중에 마스터 데이터를 따라 조용히 바뀌면 안 된다.
-오브젝트가 다른 패키지로 옮겨졌다고 승인된 패키지 예외의 적용 대상이 바뀌면
-결재를 거치지 않은 범위 변경이 된다. 신청 시점 값으로 고정한다.
-
-**이력은 두 경로로 쓴다.** 생성 이력은 saver 가, 상태 전이 이력은 액션이 남긴다.
-
-| 시점 | 방식 | 이유 |
-|---|---|---|
-| 생성 | saver 의 `append_log( )` — DB 직접 INSERT | 저장이 곧 신청의 성립이다. draft 를 만들었다 취소하면 남길 이력이 없다 |
-| 상태 전이 | 액션의 `write_log( )` — EML `CREATE BY \_Log` | 반려 사유·영향도 같은 코멘트를 액션만 알고 있어 saver 가 재구성할 수 없다 |
-
-순번(`SeqNr`)과 시각(`ActionAt`)은 각 헬퍼가 채운다. 호출부에서 넘기게 두면
-빠뜨린다 — 실제로 saver 쪽이 순번을 `0` 으로 고정하고 시각을 비워 두고 있었다.
-
-**표시용 신청번호를 두지 않는다.** 키는 `ExemptUuid` 이고, 사람이 이 신청서를
-부르는 이름은 `ScopeText`(패키지 스코프면 패키지, 아니면 오브젝트) + `CheckClass` 다.
-일련번호를 두려면 넘버레인지 오브젝트를 만들고 구간을 시스템마다 따로 관리해야 하는데,
-검증 `validateOverlap` 이 같은 범위·같은 체크의 유효한 예외를 이미 막고 있어
-유효 건에 한해서는 범위+체크가 자연키다.
+**이력은 두 경로로 쓴다.** 생성 이력은 saver 가 DB 에 직접, 상태 전이 이력은 액션이 EML 로 남긴다.
 
 ## Validation 구성
 
-같은 필드에 걸리는 검증은 한 메소드로 묶었다. 나눠 두면 같은 인스턴스를 여러 번
-읽을 뿐이고, **트리거가 다른 것만 따로 두어야** 바뀐 필드에 걸린 검증만 돈다.
-
-| Validation | 트리거 필드 | 검증 내용 | 메시지 |
+| Validation | 엔티티 | 검증 내용 | 메시지 |
 |---|---|---|---|
-| `validateScope` | ScopeType, CheckVariant, Devclass, ObjectType, ObjectName | ① 이 변형에서 그 범위를 쓸 수 있는가 ② 범위별 필수 필드 ③ 대상 실재 + 고객 네임스페이스 | 001~008 |
-| `validateVariant` | CheckVariant | ① 관리 대상 변형인가 ② 증빙의 Priority 가 상한 이내인가 | 009, 018 |
-| `validateRuleScope` | RuleScope | `MSG` / `CHK` 만 허용 (`ALL` 차단) | 019 |
-| `validateValidity` | ValidFrom, ValidTo | 기간 유효성 + 설정된 개월 상한 | 010, 011 |
-| `validateReason` | ReasonCode, ReasonText | 사유 코드 + 근거 최소 길이 | 012 |
-| `validateOverlap` | (항상) | 동일 범위의 유효 예외 중복 | 013 |
+| `validateVariant` | 요청서 | 관리 대상 변형인가 | 009 |
+| `validateValidity` | 요청서 | 기간 유효성 + 설정된 개월 상한 | 010, 011 |
+| `validateReason` | 요청서 | 사유 코드 + 근거 최소 길이 | 012 |
+| `validateTarget` | 대상 | ① 범위 허용 ② 필수 필드 ③ 고객 네임스페이스·실재 ④ 심각도 상한(현재 위반 기준) ⑤ 요청서 안 중복 ⑥ 다른 요청서와 중복 | 001, 002, 004, 006~008, 018, 022, 024, 013 |
 
-`validateScope` 는 앞 단계가 실패하면 뒤를 보지 않는다. 범위가 틀렸는데 필드 조합
-메시지까지 같이 나오면 무엇을 고쳐야 할지 흐려진다.
-
-`validateOverlap` 만 다른 레코드를 DB 조회한다. 무거워서 따로 둔다.
+`validateTarget` 은 앞 단계가 실패하면 뒤를 보지 않는다. Draft 의 Prepare 에도 걸려 있다.
 
 ## 동작 요약
 
 ### 상태 전이
 
 ```
-        [신규 / createFromFinding]
+        [신규 + 대상 줄 입력]
                  │
                  ▼
           초안(10) ──[Delete]──► (삭제, 초안만 가능)
@@ -812,7 +732,7 @@ keys 로 다시 읽으면 거부된 건까지 성공한 것처럼 돌려주게 �
 - 유효기간 필수 + 설정 기반 상한
 - `simulateImpact` 액션으로 승인 전 면제 건수 확인
 - 상신 시 영향 건수를 근거 텍스트에 자동 기입 → **표준 승인 앱에서 결재해도 승인자가 읽을 수 있다**
-- 목록에서 `PCKG` 행을 경고색으로 표시 (`ScopeCriticality`)
+- 대상 표에서 `PCKG` 줄을 경고색으로 표시 (`ScopeCriticality`)
 - 자기승인 금지
 
 ---
@@ -821,7 +741,9 @@ keys 로 다시 읽으면 거부된 건까지 성공한 것처럼 돌려주게 �
 
 | 제약 | 내용 | 대응 |
 |---|---|---|
-| 하위 패키지 포함 | CDS 조인으로 패키지 계층을 전개할 수 없어 면제 판정은 직접 패키지 일치만 본다 | Phase 1 은 `InclSubPkg` 를 읽기 전용으로 잠금. 필요해지면 전개 테이블 추가 |
+| 하위 패키지 포함 | CDS 조인으로 패키지 계층을 전개할 수 없어 면제 판정은 직접 패키지 일치만 본다 | 요청서에 하위 패키지 옵션을 두지 않았다. 필요해지면 전개 테이블 추가 |
+| 승인 도중 실패 | 표준이 한 건씩 승인해서 앞서 승인된 줄은 되돌릴 수 없다 | 요청서는 승인대기로 남고, 다시 승인하면 남은 줄만 처리(`stdstatus`) |
+| 유효기간 연장 | 연장 후 재승인해도 이미 승인된 표준 예외의 유효기간은 바뀌지 않는다(예전과 같음) | 필요해지면 승인 시 `set_validity_date` 를 다시 부르도록 추가 |
 | ADT 직접 신청 | 개발자가 ADT 에서 `FND` 로 신청하는 경로는 막을 수 없다 | `zcl_atc_exempt_sync~sync_from_standard` 로 CBO 대장에 끌어와 반려/관리 |
 | 이중 관리 | CBO 와 표준 저장소 양쪽에 예외가 존재 | `extexemptid` 로 연결 + 정합성 배치. **없으면 반년 뒤 대장과 실제가 어긋난다** |
 | 표준 승인 앱 | 이중 승인 창구가 되면 대장 신뢰도가 무너진다 | 표준 앱 권한을 회수해 이 앱을 단일 창구로 운영 권장 |
@@ -837,7 +759,6 @@ keys 로 다시 읽으면 거부된 건까지 성공한 것처럼 돌려주게 �
 
 이미 선반영된 것:
 - `lineno` / `resultid` / `itemid` / `checkrunindex` 컬럼
-- 아이템 의미의 스코프별 분기 (`FND` = 대상 / `OBJ`·`PCKG` = 증빙)
 - 설정 기반 동적 범위 목록
 
 Phase 2 착수 전 풀어야 할 것:

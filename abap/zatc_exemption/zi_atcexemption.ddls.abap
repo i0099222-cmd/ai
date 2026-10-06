@@ -9,11 +9,15 @@
 }
 // 재사용 계층. 테이블을 있는 그대로 노출하고 BO 구조(composition)는 갖지 않는다.
 // ZR_AtcExemption(BO 루트)과 ZI_AtcActiveExemption 이 이 뷰를 재사용한다.
+// 대상(패키지/오브젝트)은 요청서가 아니라 아이템(ztatcexempti)에 있다.
 define view entity ZI_AtcExemption
   as select from ztatcexempt
 {
       @EndUserText.label: 'Exemption Request UUID'
   key exemptuuid        as ExemptUuid,
+
+      @EndUserText.label: 'Title'
+      title             as Title,
 
       @EndUserText.label: 'Check Variant'
       checkvariant      as CheckVariant,
@@ -21,37 +25,8 @@ define view entity ZI_AtcExemption
       @EndUserText.label: 'Check Group'
       checkgroup        as CheckGroup,
 
-      @EndUserText.label: 'Object Scope'
-      scopetype         as ScopeType,
-
-      @EndUserText.label: 'Package'
-      devclass          as Devclass,
-
-      @EndUserText.label: 'Include Subpackages'
-      inclsubpkg        as InclSubPkg,
-
-      @EndUserText.label: 'Object Type'
-      objecttype        as ObjectType,
-
-      @EndUserText.label: 'Object Name'
-      objectname        as ObjectName,
-
-      // 신청번호를 두지 않으므로, 이 신청서를 사람이 부르는 이름이 이 값이다.
-      // 적용범위가 패키지면 패키지가, 오브젝트면 오브젝트가 그 대상이다.
-      @EndUserText.label: 'Scope'
-      case scopetype
-        when 'PCKG' then cast( devclass   as abap.char( 40 ) )
-        else             cast( objectname as abap.char( 40 ) )
-      end               as ScopeText,
-
       @EndUserText.label: 'Check Class'
       checkclass        as CheckClass,
-
-      @EndUserText.label: 'Check Message Code'
-      checkcode         as CheckCode,
-
-      @EndUserText.label: 'Check Scope'
-      rulescope         as RuleScope,
 
       @EndUserText.label: 'Reason Code'
       reasoncode        as ReasonCode,
@@ -77,12 +52,6 @@ define view entity ZI_AtcExemption
       @EndUserText.label: 'Approved At'
       approvedat        as ApprovedAt,
 
-      @EndUserText.label: 'Standard Exemption ID'
-      extexemptid       as ExtExemptId,
-
-      @EndUserText.label: 'Pre-Registered'
-      preregflag        as PreRegFlag,
-
       // --- ZSCM00010 (CBO common history structure) ---
       // managed 런타임이 자동으로 채운다.
       @EndUserText.label: 'Created By'
@@ -93,9 +62,6 @@ define view entity ZI_AtcExemption
       @Semantics.systemDateTime.createdAt: true
       createdat         as CreatedAt,
 
-      // TODO 확인 필요: ZSCM00010 의 변경자/변경일시 필드명.
-      //   changedby / changedat 로 가정했다. 다르면 이 두 줄과
-      //   ZR_AtcExemption, BDEF mapping 만 고치면 된다.
       @EndUserText.label: 'Changed By'
       @Semantics.user.lastChangedBy: true
       changedby         as LastChangedBy,

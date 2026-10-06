@@ -17,25 +17,43 @@
 // (확인함 - isinbaseline / isactiveresult 는 비어 있고 iscentralrun 만 채워진다).
 // 그래서 실행 시각으로 직접 고른다.
 //
+// 실행 목록은 finding 이 아니라 **실행별 검사 오브젝트(SATC_AC_OBJ_V)** 에서 뽑는다.
+// finding 에서 뽑으면 위반 0건으로 끝난 실행이 빠져서, 고친 오브젝트의 예전 위반이
+// 계속 최신으로 남는다(확인함). 이 테이블은 위반 유무와 상관없이 검사한 오브젝트를
+// 모두 들고 있어서 표준 체크의 고쳐진 위반도 같이 사라진다.
+//
+//   SATC_AC_OBJ      object_ix -> obj_type / obj_name   (오브젝트 번호표)
+//   SATC_AC_OBJ_V    check_run_ix + object_ix           (실행별 검사 오브젝트)
+//   SATC_AC_RESULTH  check_run_ix -> display_id         (실행 헤더)
+//
 // 변형 단위가 아니라 **오브젝트 단위**로 최신을 잡는다. 같은 변형으로 패키지를
 // 나눠 돌리는 운영이 흔하고, 변형 단위로 잡으면 먼저 돌린 패키지의 위반이
-// 통째로 사라진다.
+// 통째로 사라진다. 변형은 키에 같이 둔다 - 다른 변형으로 돌린 실행이 네이밍
+// 변형의 최신 회차를 덮으면 안 된다.
 define view entity ZI_AtcLatestRun
-  as select from satc_api_findings as Finding
+  as select from satc_ac_obj_v as RunObj
 
+  inner join satc_ac_obj as Obj
+    on Obj.object_ix = RunObj.object_ix
+
+  inner join satc_ac_resulth as Run
+    on Run.check_run_ix = RunObj.check_run_ix
+
+  // 실행 시각과 변형은 ZI_AtcFinding 과 같은 헤더에서 읽어야 서로 비교가 된다.
+  // 🔴 가정: SATC_AC_RESULTH.display_id 가 SATC_API_RESULT_HEADERS.resultid 다.
   inner join satc_api_result_headers as Hdr
-    on Hdr.resultid = Finding.resultid
+    on Hdr.resultid = Run.display_id
 
 {
-  key Finding.objecttype   as ObjectType,
-  key Finding.objectname   as ObjectName,
-  key Finding.checkvariant as CheckVariant,
+  key Obj.obj_type     as ObjectType,
+  key Obj.obj_name     as ObjectName,
+  key Hdr.checkvariant as CheckVariant,
 
       // 🔴 scheduledontimestamp 가 실행 순서를 나타낸다고 본다.
       //   changedontimestamp 가 더 늦게 갱신되는 경우가 있으면 그것으로 바꾼다.
       max( Hdr.scheduledontimestamp ) as LatestRunTs
 }
 group by
-  Finding.objecttype,
-  Finding.objectname,
-  Finding.checkvariant
+  Obj.obj_type,
+  Obj.obj_name,
+  Hdr.checkvariant

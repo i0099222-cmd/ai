@@ -99,15 +99,6 @@ CLASS zcl_atc_check_naming IMPLEMENTATION.
     DATA(lt_violation) = check_name( iv_objtype = object-type
                                      iv_objname = object-name ).
 
-    " 검사했다는 사실을 남긴다. 위반이 없어도 남긴다 - 고친 오브젝트는 ATC 결과에
-    " 행이 없어서, 이 기록이 없으면 조회 화면이 예전 위반을 계속 보여준다.
-    " 커밋은 ATC 작업 프로세스(RFC)가 끝날 때 같이 된다.
-    GET TIME STAMP FIELD DATA(lv_now).
-    MODIFY ztatcchklog FROM @( VALUE ztatcchklog( objtype    = object-type
-                                                  objname    = object-name
-                                                  lastcheck  = lv_now
-                                                  findingcnt = lines( lt_violation ) ) ).
-
     LOOP AT lt_violation INTO DATA(ls_violation).
 
       " 위치는 오브젝트까지만. 이름 검사라 줄/칼럼이 없다.

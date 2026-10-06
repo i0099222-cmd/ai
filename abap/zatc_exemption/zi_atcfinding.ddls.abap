@@ -40,6 +40,7 @@ define root view entity ZI_AtcFinding
 
   // 오브젝트마다 최신 회차의 결과만 남긴다. 판정 기준은 ZI_AtcLatestRun 이 들고
   // 있고, 왜 표준 플래그를 못 쓰는지도 거기에 적혀 있다.
+  // 최신 회차가 위반 0건이면 이 조인에 맞는 finding 이 없어서 고쳐진 위반이 빠진다.
   inner join satc_api_result_headers as Hdr
     on Hdr.resultid = Finding.resultid
 
@@ -61,11 +62,6 @@ define root view entity ZI_AtcFinding
   // 그 경우 CheckClass 가 비고, 신청 시 표준 반영이 막히는 것으로 드러난다.
   left outer join satc_ac_chm as Chm
     on Chm.module_id = Finding.moduleid
-
-  // 네이밍 체크가 남긴 오브젝트별 마지막 검사 기록. 아래 where 에서 쓴다.
-  left outer join ztatcchklog as ChkLog
-    on  ChkLog.objtype = Finding.objecttype
-    and ChkLog.objname = Finding.objectname
 
   left outer join ZI_AtcActiveExemption as PkgExempt
     on  PkgExempt.ScopeType  = 'PCKG'
@@ -194,11 +190,3 @@ define root view entity ZI_AtcFinding
         else cast( '' as abap.char( 1 ) )
       end                        as ExemptionMismatch
 }
-// 이미 고쳐진 위반을 뺀다. 오브젝트를 고쳐 다시 돌리면 그 실행에는 위반 행이 없어서
-// 예전 실행의 위반이 최신으로 남는다. 네이밍 체크의 마지막 검사가 위반 0건이고
-// 그 검사가 이 위반이 나온 실행보다 뒤면 숨긴다. 기록이 없는 체크(표준 체크)는
-// 그대로 보인다.
-// 🔴 scheduledontimestamp 와 lastcheck 의 타입이 다르면 같은 타입으로 cast 한다.
-where ChkLog.objname    is null
-   or ChkLog.findingcnt >  0
-   or ChkLog.lastcheck  <= Hdr.scheduledontimestamp

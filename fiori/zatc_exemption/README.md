@@ -57,6 +57,45 @@ List Report 의 `options.settings` 에 넣는다.
 }
 ```
 
+## 액션 버튼 묶기 (신청자 / 승인자)
+
+DDLX 에 낱개로 정의된 액션을 manifest 에서 메뉴 버튼 두 개로 묶는다. `<ns>` 는 서비스
+네임스페이스다(`$metadata` 의 `Schema Namespace`, 예 `com.sap.gateway.srvd.zui_atcexemption.v0001`).
+
+목록 - List Report `options.settings`:
+
+```json
+"controlConfiguration": {
+  "@com.sap.vocabularies.UI.v1.LineItem": {
+    "actions": {
+      "RequesterMenu": { "text": "Requester",
+        "menu": [ "DataFieldForAction::<ns>.submit", "DataFieldForAction::<ns>.withdraw" ] },
+      "ApproverMenu":  { "text": "Approver",
+        "menu": [ "DataFieldForAction::<ns>.approve", "DataFieldForAction::<ns>.reject" ] }
+    }
+  }
+}
+```
+
+요청서 헤더 - Object Page `options.settings`:
+
+```json
+"content": {
+  "header": {
+    "actions": {
+      "RequesterMenu": { "text": "Requester",
+        "menu": [ "DataFieldForAction::<ns>.submit", "DataFieldForAction::<ns>.withdraw",
+                  "DataFieldForAction::<ns>.extendValidity" ] },
+      "ApproverMenu":  { "text": "Approver",
+        "menu": [ "DataFieldForAction::<ns>.approve", "DataFieldForAction::<ns>.reject",
+                  "DataFieldForAction::<ns>.simulateImpact" ] }
+    }
+  }
+}
+```
+
+메뉴 안의 항목은 instance features 대로 활성/비활성된다. 메뉴 버튼 자체는 늘 보인다.
+
 ## 요청서 화면 (Object Page)
 
 요청서 한 건에 대상을 여러 줄 넣는다. 별도 확장 없이 FE 기본 기능으로 동작한다.

@@ -39,6 +39,24 @@ FE 는 bound 액션이 돌려준 행의 키가 원래 행과 같으면 그 행�
 - 1.114 보다 낮으면 훅이 불리지 않는다. 오류는 나지 않고 지금처럼 새로고침만 안 된다.
 - Object Page 에서 누른 액션은 이 확장과 무관하다. 목록으로 돌아오면 FE 가 다시 읽는다.
 
+## 목록의 상태별 탭
+
+DDLX(`ZP_AtcExemption`)에 탭 4개가 `SelectionPresentationVariant` 로 정의돼 있다
+(`#Draft` / `#Pending` / `#Approved` / `#Rejected`). manifest 가 이 한정자를 참조해야 탭이 생긴다.
+List Report 의 `options.settings` 에 넣는다.
+
+```json
+"views": {
+  "paths": [
+    { "key": "draft",    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Draft" },
+    { "key": "pending",  "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Pending" },
+    { "key": "approved", "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Approved" },
+    { "key": "rejected", "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Rejected" }
+  ],
+  "showCounts": true
+}
+```
+
 ## 요청서 화면 (Object Page)
 
 요청서 한 건에 대상을 여러 줄 넣는다. 별도 확장 없이 FE 기본 기능으로 동작한다.

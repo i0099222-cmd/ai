@@ -53,9 +53,23 @@ annotate entity ZP_AtcExemption with
   @UI.hidden: true
   ExemptUuid;
 
+  // 버튼은 요청서(헤더)의 액션이다. 대상 표(아이템)에는 액션이 없다.
+  //   목록 툴바    : 여러 건을 골라 한 번에 - Submit / Withdraw / Approve / Reject
+  //   Object Page : 한 건을 열어 보고 - 위 넷 + Extend Validity(입력창) + Simulate Impact
+  // 활성화 여부는 instance features 가 상태·신청자·승인자로 정한다.
   @UI: {
-    lineItem:       [{ position: 10, importance: #HIGH }],
-    identification: [{ position: 10 }],
+    lineItem:       [{ position: 10, importance: #HIGH },
+                     { type: #FOR_ACTION, dataAction: 'submit',   label: 'Submit' },
+                     { type: #FOR_ACTION, dataAction: 'withdraw', label: 'Withdraw' },
+                     { type: #FOR_ACTION, dataAction: 'approve',  label: 'Approve' },
+                     { type: #FOR_ACTION, dataAction: 'reject',   label: 'Reject' }],
+    identification: [{ position: 10 },
+                     { type: #FOR_ACTION, dataAction: 'submit',         label: 'Submit' },
+                     { type: #FOR_ACTION, dataAction: 'withdraw',       label: 'Withdraw' },
+                     { type: #FOR_ACTION, dataAction: 'approve',        label: 'Approve' },
+                     { type: #FOR_ACTION, dataAction: 'reject',         label: 'Reject' },
+                     { type: #FOR_ACTION, dataAction: 'extendValidity', label: 'Extend Validity' },
+                     { type: #FOR_ACTION, dataAction: 'simulateImpact', label: 'Simulate Impact' }],
     selectionField: [{ position: 10 }]
   }
   @EndUserText.label: 'Title'

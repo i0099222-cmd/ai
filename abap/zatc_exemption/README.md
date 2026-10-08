@@ -341,8 +341,8 @@ ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것�
 아이템 = 대상 한 줄. 범위(PCKG/OBJ)·패키지·오브젝트·메시지 코드. 표준 예외 1건의 단위
 ```
 
-범위(`scopetype`)와 규칙 범위(`rulescope`)는 사용자가 고르지 않는다. Object Name 이
-비면 PCKG/CHK, 있으면 OBJ/MSG 로 `deriveTarget` 이 정한다. 오브젝트 대상의 패키지는
+범위(`scopetype`)와 규칙 범위(`rulescope`)는 사용자가 고르지 않는다. 새 줄은 비어 있고,
+오브젝트(유형/이름)를 넣으면 OBJ/MSG, 패키지만 넣으면 PCKG/CHK 로 `deriveTarget` 이 정한다. 오브젝트 대상의 패키지는
 TADIR 에서 온다.
 
 아이템의 `checkclass` 는 요청서 값의 사본이다. Fiori 값 도움은 같은 엔티티의 필드로만

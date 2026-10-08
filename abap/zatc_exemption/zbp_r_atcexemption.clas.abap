@@ -1055,7 +1055,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
   METHOD derivetarget.
 
     " 사용자는 패키지와(필요하면) 오브젝트만 넣는다. 나머지는 여기서 정한다.
-    "   범위      : Object Name 이 비면 PCKG, 있으면 OBJ
+    "   범위      : 새 줄은 비어 있다. 오브젝트(유형/이름)를 넣으면 OBJ, 패키지만 넣으면 PCKG
     "   규칙 범위 : PCKG -> CHK(체크 전체), OBJ -> MSG(메시지 하나). 패키지를 MSG 로
     "               두면 규칙 수만큼 신청이 쪼개지고 일부 위반만 면제된다.
     "   패키지    : OBJ 면 TADIR 에서. 손으로 넣게 두면 오브젝트와 어긋난 예외가 생긴다.
@@ -1081,15 +1081,20 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
 
     LOOP AT lt_item INTO DATA(ls_item).
 
-      DATA(lv_scope) = COND #( WHEN ls_item-objectname IS NOT INITIAL
+      " 아무것도 넣지 않은 새 줄은 범위를 비워 둔다. 무엇을 넣었는지로만 정한다.
+      DATA(lv_scope) = COND #( WHEN ls_item-objecttype IS NOT INITIAL OR ls_item-objectname IS NOT INITIAL
                                THEN zif_atc_exemption=>scope-obj
-                               ELSE zif_atc_exemption=>scope-pckg ).
-      DATA(lv_rulescope) = COND #( WHEN lv_scope = zif_atc_exemption=>scope-pckg
-                                   THEN zif_atc_exemption=>rulescope-check
-                                   ELSE zif_atc_exemption=>rulescope-message ).
+                               WHEN ls_item-devclass IS NOT INITIAL
+                               THEN zif_atc_exemption=>scope-pckg ).
+      DATA(lv_rulescope) = COND #( WHEN lv_scope = zif_atc_exemption=>scope-obj
+                                   THEN zif_atc_exemption=>rulescope-message
+                                   WHEN lv_scope = zif_atc_exemption=>scope-pckg
+                                   THEN zif_atc_exemption=>rulescope-check ).
 
       DATA(lv_devclass) = ls_item-devclass.
-      IF lv_scope = zif_atc_exemption=>scope-obj AND ls_item-objecttype IS NOT INITIAL.
+      IF lv_scope = zif_atc_exemption=>scope-obj
+     AND ls_item-objecttype IS NOT INITIAL
+     AND ls_item-objectname IS NOT INITIAL.
         SELECT SINGLE devclass FROM tadir
           WHERE pgmid    = 'R3TR'
             AND object   = @ls_item-objecttype
@@ -1180,7 +1185,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       IF ls_item-devclass IS INITIAL.
         lv_error = '002'.
       ELSEIF ls_item-scopetype = zif_atc_exemption=>scope-obj
-         AND ls_item-objecttype IS INITIAL.
+         AND ( ls_item-objecttype IS INITIAL OR ls_item-objectname IS INITIAL ).
         lv_error = '004'.
       ELSEIF ls_item-scopetype = zif_atc_exemption=>scope-obj
          AND ls_item-checkcode IS INITIAL.

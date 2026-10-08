@@ -80,8 +80,6 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
 
   METHOD if_abap_parallel~do.
 
-    DATA(lo_controller) = cl_satc_api=>create_api_factory( )->get_exemption_controller( ).
-
     " 결과는 들어온 상태에서 시작한다. 처리한 줄만 바꾼다.
     ms_result-success = abap_true.
     ms_result-items   = VALUE #( FOR ls_in IN mt_item
@@ -90,6 +88,10 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
                                    stdstatus   = ls_in-stdstatus ) ).
 
     LOOP AT mt_item INTO DATA(ls_item).
+
+      " 컨트롤러는 줄마다 새로 받는다. 한 컨트롤러로 여러 줄을 처리하면 첫 줄을 커밋한 뒤
+      " 둘째 줄부터 "The operation cannot be executed in the current state" 로 실패했다.
+      DATA(lo_controller) = cl_satc_api=>create_api_factory( )->get_exemption_controller( ).
 
       ASSIGN ms_result-items[ itemuuid = ls_item-itemuuid ] TO FIELD-SYMBOL(<ls_res>).
       DATA(lv_target) = |{ ls_item-devclass }| &&

@@ -347,6 +347,9 @@ TADIR 에서 온다.
 
 아이템의 `checkclass` 는 요청서 값의 사본이다. Fiori 값 도움은 같은 엔티티의 필드로만
 거를 수 있어서 둔다. 요청서의 체크 클래스가 바뀌면 `deriveCheckClass` 가 같이 바꾼다.
+이 사본으로 거르는 것은 Object Name 값 도움뿐이다(메시지 코드가 체크에 속하므로).
+Package 값 도움은 체크로 거르지 않고 패키지당 한 줄이다. 체크별로 나누면 같은 패키지가
+체크 수만큼 나온다. 건수는 전체 체크 합계다.
 
 예전의 증빙(위반 스냅샷) 아이템은 없앴다. 위반은 값 도움과 영향도 계산에서 라이브로 읽는다.
 
@@ -384,7 +387,7 @@ SATC_API_FINDINGS ⋈ SATC_AC_CHM(체크 클래스)
      ▼  I
 ZI_AtcFinding      표준 스키마를 아는 유일한 오브젝트. 면제 여부 계산
      ├► ZI_AtcFindingObjVH   대상 Object Name 값 도움 (미면제 위반이 있는 오브젝트 + 코드)
-     └► ZI_AtcFindingPkgVH   대상 Package 값 도움 (미면제 위반이 있는 패키지)
+     └► ZI_AtcFindingPkgVH   대상 Package 값 도움 (미면제 위반이 있는 패키지, 패키지당 한 줄)
 
 ZI_AtcCheckClassVH   변형 · 체크 클래스 값 도움 (실제로 돈 ATC 결과에서 짝을 만든다)
 ZI_AtcPackageVH   고객 패키지 전체 (대상 Package 의 두 번째 값 도움, 선등록용)

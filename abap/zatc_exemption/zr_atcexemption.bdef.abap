@@ -119,7 +119,8 @@ etag master LocalLastChangedAt
   update;
   delete;
 
-  // Object Name 이 비면 PCKG, 있으면 OBJ. 오브젝트가 있으면 패키지는 TADIR 에서 온다.
+  // 새 줄은 범위가 비어 있다. 오브젝트(유형/이름)를 넣으면 OBJ, 패키지만 넣으면 PCKG.
+  // 오브젝트 유형과 이름이 다 있으면 패키지는 TADIR 에서 온다.
   determination deriveTarget on modify { create; field Devclass, ObjectType, ObjectName; }
 
   // 대상 한 줄 검증. 같은 요청서 안 중복과 다른 요청서와의 중복도 여기서 본다.

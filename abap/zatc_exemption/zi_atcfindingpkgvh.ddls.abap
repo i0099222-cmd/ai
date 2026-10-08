@@ -8,16 +8,14 @@
   dataClass: #MIXED
 }
 @Search.searchable: true
-// 요청서 대상의 Package 값 도움. 아직 면제되지 않은 위반이 있는 패키지를
-// 체크별로 한 줄씩 보여 준다. 패키지 대상은 체크 전체(CHK)를 덮으므로 코드는 키가 아니다.
+// 요청서 대상의 Package 값 도움. 아직 면제되지 않은 위반이 있는 패키지를 한 줄씩 보여 준다.
+// 체크 클래스는 넣지 않는다. 넣으면 같은 패키지가 체크 수만큼 나온다. 그래서 요청서의 체크로
+// 거르지 않고, 건수도 전체 체크 합계다. 다른 체크의 위반만 있는 패키지를 고르면 선등록과 같다.
 //
 // 위반이 없는 패키지(선등록)는 여기 없다. 그런 패키지는 직접 입력한다.
 define view entity ZI_AtcFindingPkgVH
   as select from ZI_AtcFinding
 {
-      @EndUserText.label: 'Check Class'
-  key CheckClass,
-
       @Search.defaultSearchElement: true
       @EndUserText.label: 'Package'
   key Devclass,
@@ -33,5 +31,4 @@ define view entity ZI_AtcFindingPkgVH
       min( Priority )              as TopPriority
 }
 where ExemptionStatus = 'O'
-group by CheckClass,
-         Devclass
+group by Devclass

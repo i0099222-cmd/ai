@@ -224,7 +224,11 @@ CLASS lhc_exemption IMPLEMENTATION.
         %action-edit           = COND #( WHEN lv_own_draft = abap_true
                                          THEN if_abap_behv=>fc-o-enabled ELSE if_abap_behv=>fc-o-disabled )
 
+        " 상신은 저장된 요청서에서만 한다. 편집 중(draft)에 누르면 저장 검증을 거치지 않은
+        " 대상(빈 줄, 잘못 친 오브젝트)이 그대로 표준으로 가고, 그 draft 를 버리면
+        " 표준에만 예외가 남는다.
         %action-submit         = COND #( WHEN lv_own_draft = abap_true
+                                          AND ls_exemption-%is_draft = if_abap_behv=>mk-off
                                          THEN if_abap_behv=>fc-o-enabled ELSE if_abap_behv=>fc-o-disabled )
 
         %action-withdraw       = COND #(

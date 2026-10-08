@@ -10,6 +10,7 @@
 }
 // 요청서의 'Targets' 표. 초안에서 줄을 추가하고 칸에 바로 입력한다.
 //   Package 만 넣으면 패키지 대상, Object Name 까지 넣으면 오브젝트 대상이다.
+//   오브젝트 대상에서 Check Message Code 를 비우면 그 체크의 모든 메시지(CHK)를 덮는다.
 //   값 도움에서 고르면 위반이 있는 대상, 직접 입력하면 위반이 없는 대상(선등록)도 된다.
 annotate entity ZP_AtcExemptionItem with
 {
@@ -63,10 +64,14 @@ annotate entity ZP_AtcExemptionItem with
     lineItem:       [{ position: 60, importance: #MEDIUM }],
     identification: [{ position: 60 }]
   }
-  @EndUserText.label: 'Check Message Code'
+  @EndUserText.label: 'Check Message Code (empty = all)'
   CheckCode;
 
-  @UI.identification: [{ position: 70 }]
+  // 코드를 비운 오브젝트 줄은 CHK 다. 승인자가 표에서 바로 알아보게 열로 둔다.
+  @UI: {
+    lineItem:       [{ position: 70, importance: #MEDIUM }],
+    identification: [{ position: 70 }]
+  }
   @EndUserText.label: 'Check Scope'
   RuleScope;
 

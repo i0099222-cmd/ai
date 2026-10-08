@@ -13,8 +13,8 @@ INTERFACE zif_atc_exemption
     END OF scope.
 
   "! 규칙 적용 축 (set_check_scope).
-  "!   message = 이 메시지만          (오브젝트 대상)
-  "!   check   = 이 체크의 모든 메시지  (패키지 대상)
+  "!   message = 이 메시지만          (코드를 넣은 오브젝트 대상)
+  "!   check   = 이 체크의 모든 메시지  (패키지 대상, 코드를 비운 오브젝트 대상)
   "! ALL(모든 체크)은 쓰지 않는다. 대상의 ATC 체크가 통째로 꺼진다.
   CONSTANTS:
     BEGIN OF rulescope,

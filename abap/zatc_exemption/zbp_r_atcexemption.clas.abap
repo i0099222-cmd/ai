@@ -37,7 +37,7 @@ CLASS lcl_rules DEFINITION FINAL.
 
     "! 대상 한 줄이 지금 덮게 될 위반 건수와 그중 가장 심각한 우선순위(1 이 가장 심각).
     "!   PCKG : 패키지 전체의 그 체크 위반 (향후 생성 오브젝트는 셀 수 없다)
-    "!   OBJ  : 그 오브젝트의 그 메시지 위반
+    "!   OBJ  : 그 오브젝트의 그 메시지 위반. 코드를 비운 줄(CHK)은 그 체크의 모든 위반
     CLASS-METHODS read_findings
       IMPORTING is_header         TYPE ztatcexempt
                 is_item           TYPE ztatcexempti
@@ -92,7 +92,10 @@ CLASS lcl_rules IMPLEMENTATION.
     IF is_item-scopetype = zif_atc_exemption=>scope-obj.
       lr_objtype = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-objecttype ) ).
       lr_objname = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-objectname ) ).
-      lr_code    = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-checkcode ) ).
+    ENDIF.
+
+    IF is_item-rulescope = zif_atc_exemption=>rulescope-message.
+      lr_code = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-checkcode ) ).
     ENDIF.
 
     SELECT COUNT( * ) AS findings, MIN( priority ) AS toppriority
@@ -1054,16 +1057,16 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
 
   METHOD derivetarget.
 
-    " 사용자는 패키지와(필요하면) 오브젝트만 넣는다. 나머지는 여기서 정한다.
+    " 사용자는 패키지와(필요하면) 오브젝트·코드만 넣는다. 나머지는 여기서 정한다.
     "   범위      : 새 줄은 비어 있다. 오브젝트(유형/이름)를 넣으면 OBJ, 패키지만 넣으면 PCKG
-    "   규칙 범위 : PCKG -> CHK(체크 전체), OBJ -> MSG(메시지 하나). 패키지를 MSG 로
-    "               두면 규칙 수만큼 신청이 쪼개지고 일부 위반만 면제된다.
+    "   규칙 범위 : PCKG -> CHK(체크 전체). OBJ 는 코드가 있으면 MSG(메시지 하나), 비우면 CHK.
+    "               패키지를 MSG 로 두면 규칙 수만큼 신청이 쪼개지고 일부 위반만 면제된다.
     "   패키지    : OBJ 면 TADIR 에서. 손으로 넣게 두면 오브젝트와 어긋난 예외가 생긴다.
     "   체크 클래스 : 요청서의 값 (값 도움 필터용 사본)
     "   번호      : 같은 요청서 안에서 다음 번호
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemptionitem
-        FIELDS ( exemptuuid itemno scopetype rulescope devclass objecttype objectname checkclass )
+        FIELDS ( exemptuuid itemno scopetype rulescope devclass objecttype objectname checkclass checkcode )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_item)
       ENTITY exemptionitem BY \_Exemption
@@ -1087,8 +1090,9 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
                                WHEN ls_item-devclass IS NOT INITIAL
                                THEN zif_atc_exemption=>scope-pckg ).
       DATA(lv_rulescope) = COND #( WHEN lv_scope = zif_atc_exemption=>scope-obj
+                                    AND ls_item-checkcode IS NOT INITIAL
                                    THEN zif_atc_exemption=>rulescope-message
-                                   WHEN lv_scope = zif_atc_exemption=>scope-pckg
+                                   WHEN lv_scope IS NOT INITIAL
                                    THEN zif_atc_exemption=>rulescope-check ).
 
       DATA(lv_devclass) = ls_item-devclass.
@@ -1187,10 +1191,6 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       ELSEIF ls_item-scopetype = zif_atc_exemption=>scope-obj
          AND ( ls_item-objecttype IS INITIAL OR ls_item-objectname IS INITIAL ).
         lv_error = '004'.
-      ELSEIF ls_item-scopetype = zif_atc_exemption=>scope-obj
-         AND ls_item-checkcode IS INITIAL.
-        " 오브젝트 대상은 그 오브젝트가 어긴 규칙 하나(MSG)만 덮는다.
-        lv_error = '022'.
 
       " --- 2) 대상 실재 여부. 표준 패키지/오브젝트에 예외를 거는 것은 목적이 아니다.
       ELSEIF ls_item-devclass(1) <> 'Z'
@@ -1233,6 +1233,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       ENDIF.
 
       " --- 4) 같은 요청서 안 중복. 오브젝트는 코드가 다르면 다른 규칙이라 겹치지 않는다.
+      "        CHK 줄(패키지, 코드를 비운 오브젝트)은 체크 전체를 덮어서 같은 대상의 어느 줄과도 겹친다.
       IF lv_error IS INITIAL.
         LOOP AT lt_sibling INTO DATA(ls_sibling)
              WHERE exemptuuid = ls_item-exemptuuid
@@ -1241,7 +1242,8 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
                AND devclass   = ls_item-devclass
                AND objecttype = ls_item-objecttype
                AND objectname = ls_item-objectname.
-          IF ls_item-scopetype = zif_atc_exemption=>scope-pckg
+          IF ls_item-rulescope    = zif_atc_exemption=>rulescope-check
+          OR ls_sibling-rulescope = zif_atc_exemption=>rulescope-check
           OR ls_sibling-checkcode = ls_item-checkcode.
             lv_error = '024'. lv_v1 = lv_target.
             EXIT.

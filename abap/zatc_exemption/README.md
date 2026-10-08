@@ -11,7 +11,8 @@ ATC 예외를 **패키지/오브젝트 단위로 신청 · 승인 · 반려**하
 요청서(ztatcexempt)  제목 · 체크 변형/클래스 · 사유 · 유효기간 · 상태 · 신청자/승인자
   └ 대상(ztatcexempti)  한 줄 = 표준 예외 1건
        Package 만     -> 패키지 대상(PCKG, 체크 전체 CHK)
-       + Object Name  -> 오브젝트 대상(OBJ, 메시지 하나 MSG, Check Message Code 필수)
+       + Object Name  -> 오브젝트 대상(OBJ). Check Message Code 가 있으면 그 메시지만(MSG),
+                         비우면 그 체크의 모든 메시지(CHK)
   └ 이력(ztatcexemptlog)
 ```
 
@@ -232,7 +233,10 @@ lo_controller->approve_exemptions_by_if( exemptions_for_approval = ... ).
 실제로(그때는 심각도별 코드였다) 한 패키지 안에서 어떤 위반은
 `exemption_applies`, 어떤 위반은 `approval_missing` 이 됐다.
 
-대상 줄의 `deriveTarget` 이 `PCKG` 면 `CHK`, 그 외는 `MSG` 를 넣는다. 패키지 값 도움의
+대상 줄의 `deriveTarget` 이 `PCKG` 면 `CHK` 를 넣는다. `OBJ` 는 Check Message Code 가 있으면
+`MSG`, 비우면 `CHK` 다. 코드가 여러 개인 오브젝트는 코드마다 한 줄을 넣거나, 코드를 비워
+한 줄로 그 체크 전체를 덮는다. `CHK` 줄은 같은 오브젝트의 다른 줄과 겹치므로 같은 요청서에
+같이 넣으면 024 로 막힌다. 패키지 값 도움의
 키에도 체크 코드가 없다 — `CHK` 가 코드를 안 가리므로, 코드별로 줄을 만들면 같은 범위를
 덮는 줄이 여러 개 생기고 중복 검증에 걸린다.
 
@@ -342,7 +346,8 @@ ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것�
 ```
 
 범위(`scopetype`)와 규칙 범위(`rulescope`)는 사용자가 고르지 않는다. 새 줄은 비어 있고,
-오브젝트(유형/이름)를 넣으면 OBJ/MSG, 패키지만 넣으면 PCKG/CHK 로 `deriveTarget` 이 정한다. 오브젝트 대상의 패키지는
+오브젝트(유형/이름)를 넣으면 OBJ(코드가 있으면 MSG, 비우면 CHK), 패키지만 넣으면 PCKG/CHK 로
+`deriveTarget` 이 정한다. 오브젝트 대상의 패키지는
 TADIR 에서 온다.
 
 아이템의 `checkclass` 는 요청서 값의 사본이다. Fiori 값 도움은 같은 엔티티의 필드로만
@@ -499,7 +504,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 019 | (사용 안 함 - 규칙 범위는 대상에서 자동으로 정해진다) |
 | 020 | Action not allowed for status &1 |
 | 021 | No approver is maintained in the ATC approver list |
-| 022 | Object scope requires a check message code |
+| 022 | (사용 안 함 - 코드를 비운 오브젝트 대상은 체크 전체(CHK)로 신청한다) |
 | 023 | Add at least one target before submitting the request |
 | 024 | Target &1 is entered more than once in this request |
 
@@ -562,7 +567,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 |---|---|---|---|
 | `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일 |
 | `deriveCheckClass` | 요청서 | CheckVariant, CheckClass | 변형의 체크가 하나면 클래스 채움, 대상 줄에 클래스 복사 |
-| `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName | 범위·규칙 범위, TADIR 패키지, 클래스 사본, 줄 번호 |
+| `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode | 범위·규칙 범위, TADIR 패키지, 클래스 사본, 줄 번호 |
 
 **이력은 두 경로로 쓴다.** 생성 이력은 saver 가 DB 에 직접, 상태 전이 이력은 액션이 EML 로 남긴다.
 
@@ -572,7 +577,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 |---|---|---|---|
 | `validateValidity` | 요청서 | 기간 유효성 + 설정된 개월 상한 | 010, 011 |
 | `validateReason` | 요청서 | 사유 코드 + 근거 최소 길이 | 012 |
-| `validateTarget` | 대상 | ① 필수 필드 ② 고객 네임스페이스·실재 ③ 심각도 상한(현재 위반 기준) ④ 요청서 안 중복 ⑤ 다른 요청서와 중복 | 002, 004, 006~008, 018, 022, 024, 013 |
+| `validateTarget` | 대상 | ① 필수 필드 ② 고객 네임스페이스·실재 ③ 심각도 상한(현재 위반 기준) ④ 요청서 안 중복 ⑤ 다른 요청서와 중복 | 002, 004, 006~008, 018, 024, 013 |
 
 `validateTarget` 은 앞 단계가 실패하면 뒤를 보지 않는다. Draft 의 Prepare 에도 걸려 있다.
 

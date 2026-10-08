@@ -37,7 +37,7 @@ define view entity ZP_AtcExemptionItem
       // 요청서의 체크 클래스 사본. Object Name 값 도움 필터용이라 읽기 전용이다.
       CheckClass,
 
-      // 오브젝트 대상에서 어긴 규칙 하나를 고른다. 패키지 대상은 비워 둔다.
+      // 오브젝트 대상에서 어긴 규칙 하나를 고른다. 비우면 그 체크의 모든 메시지(CHK). 패키지 대상은 비워 둔다.
       @Consumption.valueHelpDefinition: [{
         entity: { name: 'ZI_AtcCheckCodeVH', element: 'CheckCode' }
       }]

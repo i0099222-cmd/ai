@@ -120,8 +120,9 @@ etag master LocalLastChangedAt
   delete;
 
   // 새 줄은 범위가 비어 있다. 오브젝트(유형/이름)를 넣으면 OBJ, 패키지만 넣으면 PCKG.
+  // 규칙 범위는 PCKG 면 CHK, OBJ 면 코드가 있을 때 MSG 이고 비우면 CHK.
   // 오브젝트 유형과 이름이 다 있으면 패키지는 TADIR 에서 온다.
-  determination deriveTarget on modify { create; field Devclass, ObjectType, ObjectName; }
+  determination deriveTarget on modify { create; field Devclass, ObjectType, ObjectName, CheckCode; }
 
   // 대상 한 줄 검증. 같은 요청서 안 중복과 다른 요청서와의 중복도 여기서 본다.
   validation validateTarget on save { create; update; field Devclass, ObjectType, ObjectName, CheckCode; }

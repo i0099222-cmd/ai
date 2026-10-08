@@ -1164,8 +1164,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       RESULT DATA(lt_item)
       ENTITY exemptionitem BY \_Exemption
         ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_parent)
-      LINK DATA(lt_link).
+      RESULT DATA(lt_parent).
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption BY \_Item
@@ -1175,7 +1174,6 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
     LOOP AT lt_item INTO DATA(ls_item).
 
       DATA(ls_parent) = VALUE #( lt_parent[ exemptuuid = ls_item-exemptuuid ] OPTIONAL ).
-      DATA(ls_link)   = VALUE #( lt_link[ source-itemuuid = ls_item-itemuuid ] OPTIONAL ).
       DATA(lv_target) = |{ ls_item-devclass }| &&
                         COND string( WHEN ls_item-objectname IS NOT INITIAL
                                      THEN | { ls_item-objecttype } { ls_item-objectname }| ).
@@ -1265,7 +1263,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       APPEND VALUE #( %tky = ls_item-%tky ) TO failed-exemptionitem.
       APPEND VALUE #( %tky        = ls_item-%tky
                       %state_area = 'VALIDATE_TARGET'
-                      %path       = VALUE #( exemption-%tky = ls_link-target-%tky )
+                      %path       = VALUE #( exemption-%tky = ls_parent-%tky )
                       %msg        = new_message( id       = c_msgclass
                                                  number   = lv_error
                                                  severity = if_abap_behv_message=>severity-error

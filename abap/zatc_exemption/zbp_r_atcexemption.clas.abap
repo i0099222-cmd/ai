@@ -21,7 +21,7 @@ CLASS lcl_rules DEFINITION FINAL.
 
   PUBLIC SECTION.
 
-    "! 다른 요청서의 대기·승인 대상과 겹치는가.
+    "! 다른 요청서(초안·승인대기·승인)의 대상과 겹치는가. 반려·철회·만료된 요청서는 보지 않는다.
     "!   대상 : 같은 패키지 안에서 한쪽이라도 PCKG 면 겹친다(패키지가 그 오브젝트를 덮는다).
     "!          OBJ 끼리는 같은 오브젝트일 때만 겹친다.
     "!   코드 : 한쪽이라도 CHK 면 그 체크의 모든 코드를 덮는다. MSG 끼리는 같은 코드일 때만.
@@ -69,9 +69,12 @@ CLASS lcl_rules IMPLEMENTATION.
     SELECT SINGLE @abap_true
       FROM ztatcexempti AS item
       INNER JOIN ztatcexempt AS hdr ON hdr~exemptuuid = item~exemptuuid
+      " 자기 요청서는 뺀다. 한 번이라도 저장한 요청서는 자기 줄이 DB 에 초안으로 있어서,
+      " 빼지 않으면 다시 저장하거나 상신할 때 자기 줄과 겹친다.
       WHERE hdr~exemptuuid <> @is_header-exemptuuid
         AND hdr~checkclass  = @is_header-checkclass
-        AND hdr~exemptstat IN ( @zif_atc_exemption=>status-pending,
+        AND hdr~exemptstat IN ( @zif_atc_exemption=>status-draft,
+                                @zif_atc_exemption=>status-pending,
                                 @zif_atc_exemption=>status-approved )
         AND hdr~validto    >= @is_header-validfrom
         AND hdr~validfrom  <= @is_header-validto
@@ -1164,7 +1167,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
     "   2) 대상이 실재하고 고객 네임스페이스인가
     "   3) 예외로 덮을 수 없는 심각도의 위반이 있는가
     "   4) 같은 요청서 안에 같은 대상이 또 있는가
-    "   5) 다른 요청서의 대기·승인 대상과 겹치는가
+    "   5) 다른 요청서(초안·승인대기·승인)의 대상과 겹치는가
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemptionitem
         ALL FIELDS WITH CORRESPONDING #( keys )

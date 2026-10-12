@@ -22,8 +22,9 @@ CLASS lcl_rules DEFINITION FINAL.
   PUBLIC SECTION.
 
     "! 다른 요청서의 대기·승인 대상과 겹치는가.
-    "!   PCKG : 오브젝트를 비교하지 않는다.
-    "!   CHK  : 체크 코드를 비교하지 않는다. 한쪽이라도 CHK 면 그 체크의 모든 코드를 덮는다.
+    "!   대상 : 같은 패키지 안에서 한쪽이라도 PCKG 면 겹친다(패키지가 그 오브젝트를 덮는다).
+    "!          OBJ 끼리는 같은 오브젝트일 때만 겹친다.
+    "!   코드 : 한쪽이라도 CHK 면 그 체크의 모든 코드를 덮는다. MSG 끼리는 같은 코드일 때만.
     "! 빈 range 는 IN 에서 전부 통과하므로 "비교하지 않음" 이 된다.
     CLASS-METHODS has_overlap
       IMPORTING is_header       TYPE ztatcexempt
@@ -54,30 +55,32 @@ CLASS lcl_rules IMPLEMENTATION.
     DATA lr_objname TYPE RANGE OF ztatcexempti-objectname.
     DATA lr_code    TYPE RANGE OF ztatcexempti-checkcode.
 
-    IF is_item-scopetype <> zif_atc_exemption=>scope-pckg.
+    " 새 줄이 OBJ 면 상대는 같은 오브젝트이거나 그 패키지의 PCKG 여야 한다.
+    " 새 줄이 PCKG 면 range 가 비어 그 패키지의 줄은 범위와 상관없이 모두 걸린다.
+    IF is_item-scopetype = zif_atc_exemption=>scope-obj.
       lr_objtype = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-objecttype ) ).
       lr_objname = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-objectname ) ).
     ENDIF.
 
-    IF is_item-rulescope <> zif_atc_exemption=>rulescope-check.
+    IF is_item-rulescope = zif_atc_exemption=>rulescope-message.
       lr_code = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-checkcode ) ).
     ENDIF.
 
     SELECT SINGLE @abap_true
       FROM ztatcexempti AS item
       INNER JOIN ztatcexempt AS hdr ON hdr~exemptuuid = item~exemptuuid
-      WHERE hdr~exemptuuid  <> @is_header-exemptuuid
-        AND item~scopetype   = @is_item-scopetype
-        AND item~devclass    = @is_item-devclass
-        AND item~objecttype IN @lr_objtype
-        AND item~objectname IN @lr_objname
-        AND hdr~checkclass   = @is_header-checkclass
+      WHERE hdr~exemptuuid <> @is_header-exemptuuid
+        AND hdr~checkclass  = @is_header-checkclass
+        AND hdr~exemptstat IN ( @zif_atc_exemption=>status-pending,
+                                @zif_atc_exemption=>status-approved )
+        AND hdr~validto    >= @is_header-validfrom
+        AND hdr~validfrom  <= @is_header-validto
+        AND item~devclass   = @is_item-devclass
+        AND ( item~scopetype = @zif_atc_exemption=>scope-pckg
+           OR (     item~objecttype IN @lr_objtype
+                AND item~objectname IN @lr_objname ) )
         AND ( item~rulescope = @zif_atc_exemption=>rulescope-check
            OR item~checkcode IN @lr_code )
-        AND hdr~exemptstat  IN ( @zif_atc_exemption=>status-pending,
-                                 @zif_atc_exemption=>status-approved )
-        AND hdr~validto     >= @is_header-validfrom
-        AND hdr~validfrom   <= @is_header-validto
       INTO @rv_found.
 
   ENDMETHOD.
@@ -1234,19 +1237,20 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
         ENDIF.
       ENDIF.
 
-      " --- 4) 같은 요청서 안 중복. 오브젝트는 코드가 다르면 다른 규칙이라 겹치지 않는다.
-      "        CHK 줄(패키지, 코드를 비운 오브젝트)은 체크 전체를 덮어서 같은 대상의 어느 줄과도 겹친다.
+      " --- 4) 같은 요청서 안 중복. 다른 요청서와 같은 규칙이다(lcl_rules=>has_overlap).
+      "        같은 패키지에서 한쪽이 PCKG 이거나 같은 오브젝트이고, 한쪽이 CHK 이거나 같은 코드면 겹친다.
       IF lv_error IS INITIAL.
         LOOP AT lt_sibling INTO DATA(ls_sibling)
              WHERE exemptuuid = ls_item-exemptuuid
                AND itemuuid  <> ls_item-itemuuid
-               AND scopetype  = ls_item-scopetype
-               AND devclass   = ls_item-devclass
-               AND objecttype = ls_item-objecttype
-               AND objectname = ls_item-objectname.
-          IF ls_item-rulescope    = zif_atc_exemption=>rulescope-check
-          OR ls_sibling-rulescope = zif_atc_exemption=>rulescope-check
-          OR ls_sibling-checkcode = ls_item-checkcode.
+               AND devclass   = ls_item-devclass.
+          IF (    ls_item-scopetype    = zif_atc_exemption=>scope-pckg
+               OR ls_sibling-scopetype = zif_atc_exemption=>scope-pckg
+               OR (     ls_sibling-objecttype = ls_item-objecttype
+                    AND ls_sibling-objectname = ls_item-objectname ) )
+         AND (    ls_item-rulescope    = zif_atc_exemption=>rulescope-check
+               OR ls_sibling-rulescope = zif_atc_exemption=>rulescope-check
+               OR ls_sibling-checkcode = ls_item-checkcode ).
             lv_error = '024'. lv_v1 = lv_target.
             EXIT.
           ENDIF.

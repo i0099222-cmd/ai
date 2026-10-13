@@ -8,7 +8,7 @@ ATC 예외를 **패키지/오브젝트 단위로 신청 · 승인 · 반려**하
 ## 요청서 구조
 
 ```
-요청서(ztatcexempt)  제목 · 체크 변형/클래스 · 사유 · 유효기간 · 상태 · 신청자/승인자
+요청서(ztatcexempt)  요청 번호 · 체크 변형/클래스 · 사유 · 유효기간 · 상태 · 신청자/승인자
   └ 대상(ztatcexempti)  한 줄 = 표준 예외 1건
        Package 만     -> 패키지 대상(PCKG, 체크 전체 CHK)
        + Object Name  -> 오브젝트 대상(OBJ). Check Message Code 가 있으면 그 메시지만(MSG),
@@ -492,6 +492,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 ```
 요청서 구조로 바뀌면서 `ztatcexempt` / `ztatcexempti` 의 필드가 바뀌었다. 기존 draft 테이블
 두 개는 **지우고 quick fix 로 다시 만든다**(필드가 안 맞으면 활성화가 실패한다).
+요청서의 `title` 을 빼고 `reqnumber` 를 넣었을 때도 `ztatcexempt_d` 를 다시 만든다.
 
 ### 2. 메시지 클래스 `ZATC_EXEMPT`
 
@@ -540,7 +541,22 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 ### 4. 배치 잡 1개
 `zcl_atc_expiry_job` 의 `run( )` 을 일 1회 스케줄 (만료 전환 + 표준 예외 삭제 + D-30 건수).
 
-### 5. 런치패드 타일 2개 (앱 1개, 서비스 1개)
+### 5. 번호 범위 오브젝트 `ZATCEXREQ` (요청 번호)
+
+SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 구간 01 에서 받는다.
+구간이 없으면 저장은 되고 번호만 비며 경고가 뜬다.
+
+| 항목 | 값 |
+|---|---|
+| 오브젝트 | `ZATCEXREQ` (ATC 예외 요청 번호) |
+| 번호 길이 도메인 | NUMC 10 도메인 (없으면 `ZATC_REQNO` NUMC 10 을 만든다) |
+| 버퍼링 | 메인 메모리, 10개 (기본값). 빈 번호가 생길 수 있다 |
+| 구간 | `01` : 0000000001 ~ 9999999999, 내부 채번 |
+
+구간은 운송되지 않으니 시스템마다 SNRO 의 구간 관리에서 만든다.
+오브젝트 이름은 `zif_atc_exemption=>reqnumber` 에 있다.
+
+### 6. 런치패드 타일 2개 (앱 1개, 서비스 1개)
 
 앱 이름은 **ATC Exemption Management** (ATC 예외 관리).
 
@@ -582,6 +598,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | Determination | 엔티티 | 트리거 | 하는 일 |
 |---|---|---|---|
 | `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일 |
+| `setReqNumber` | 요청서 | 저장 시, create | 번호 범위 `ZATCEXREQ` 에서 요청 번호 채번 (처음 저장할 때 한 번) |
 | `deriveCheckClass` | 요청서 | CheckVariant, CheckClass | 변형의 체크가 하나면 클래스 채움, 대상 줄에 클래스 복사 |
 | `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode | 범위·규칙 범위, TADIR 패키지, 클래스 사본, 줄 번호 |
 

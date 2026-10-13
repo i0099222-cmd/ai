@@ -64,6 +64,13 @@ INTERFACE zif_atc_exemption
       notiftype   TYPE char4        VALUE 'REJ',
     END OF policy.
 
+  "! 요청 번호 번호 범위 (SNRO). 처음 저장할 때 구간 01 에서 받는다.
+  CONSTANTS:
+    BEGIN OF reqnumber,
+      object   TYPE nrobj VALUE 'ZATCEXREQ',
+      interval TYPE nrnr  VALUE '01',
+    END OF reqnumber.
+
   "! 이력 액션 코드
   CONSTANTS:
     BEGIN OF logaction,

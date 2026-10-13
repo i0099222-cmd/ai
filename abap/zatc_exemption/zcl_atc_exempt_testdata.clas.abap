@@ -40,7 +40,6 @@ CLASS zcl_atc_exempt_testdata DEFINITION
 
     CLASS-METHODS insert_request
       IMPORTING iv_checkvariant TYPE c
-                iv_title        TYPE c
                 iv_checkclass   TYPE c
                 iv_status       TYPE c
                 iv_validto      TYPE d
@@ -116,7 +115,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
 
     " --- 1. 초안. 패키지 대상 + 오브젝트 대상 두 줄.
     DATA(lv_u) = insert_request(
-      iv_checkvariant = iv_checkvariant  iv_title = '[TEST] Legacy package migration'
+      iv_checkvariant = iv_checkvariant
       iv_checkclass   = lv_cls
       iv_status       = zif_atc_exemption=>status-draft
       iv_validto      = lv_d180
@@ -134,7 +133,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
     " --- 2. 승인대기. 승인/반려 버튼이 보여야 하는 상태다.
     "     표준 ID 가 없어서 승인을 누르면 "표준 예외 없음" 으로 멈춘다. 버튼 확인용이다.
     lv_u = insert_request(
-      iv_checkvariant = iv_checkvariant  iv_title = '[TEST] Interface structure names'
+      iv_checkvariant = iv_checkvariant
       iv_checkclass   = lv_cls
       iv_status       = zif_atc_exemption=>status-pending
       iv_validto      = lv_d90
@@ -153,7 +152,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
 
     " --- 3. 승인 + 표준 반영 완료. 정상 상태의 기준선이다.
     lv_u = insert_request(
-      iv_checkvariant = iv_checkvariant  iv_title = '[TEST] Package postponed to refactoring'
+      iv_checkvariant = iv_checkvariant
       iv_checkclass   = lv_cls
       iv_status       = zif_atc_exemption=>status-approved
       iv_validto      = lv_d365
@@ -173,7 +172,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
     " --- 4. 승인했는데 대상 한 줄의 표준 ID 가 비어 있다(정합성 점검 대상).
     "     ZI_AtcFinding 의 ExemptionMismatch 가 'X' 로 잡혀야 한다.
     lv_u = insert_request(
-      iv_checkvariant = iv_checkvariant  iv_title = '[TEST] Approved but not in standard'
+      iv_checkvariant = iv_checkvariant
       iv_checkclass   = lv_cls
       iv_status       = zif_atc_exemption=>status-approved
       iv_validto      = lv_d200
@@ -190,7 +189,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
 
     " --- 5. 반려.
     lv_u = insert_request(
-      iv_checkvariant = iv_checkvariant  iv_title = '[TEST] New development, rejected'
+      iv_checkvariant = iv_checkvariant
       iv_checkclass   = lv_cls
       iv_status       = zif_atc_exemption=>status-rejected
       iv_validto      = lv_d30
@@ -209,7 +208,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
 
     " --- 6. 만료. validto 가 과거다. 만료 배치가 만든 결과와 같은 모양이다.
     lv_u = insert_request(
-      iv_checkvariant = iv_checkvariant  iv_title = '[TEST] Expired package exemption'
+      iv_checkvariant = iv_checkvariant
       iv_checkclass   = lv_cls
       iv_status       = zif_atc_exemption=>status-expired
       iv_validto      = lv_dpast
@@ -233,9 +232,20 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
 
     rv_uuid = cl_system_uuid=>create_uuid_x16_static( ).
 
+    " 요청 번호는 앱과 같은 번호 범위에서 받는다. 구간이 없으면 비워 둔다.
+    DATA lv_reqnumber TYPE ztatcexempt-reqnumber.
+    TRY.
+        cl_numberrange_runtime=>number_get(
+          EXPORTING nr_range_nr = zif_atc_exemption=>reqnumber-interval
+                    object      = zif_atc_exemption=>reqnumber-object
+          IMPORTING number      = DATA(lv_number) ).
+        lv_reqnumber = lv_number.
+      CATCH cx_number_ranges ##NO_HANDLER.
+    ENDTRY.
+
     INSERT ztatcexempt FROM @( VALUE #(
       exemptuuid   = rv_uuid
-      title        = iv_title
+      reqnumber    = lv_reqnumber
       checkvariant = iv_checkvariant
       checkclass   = iv_checkclass
       " 표준이 받는 사유 코드다. c_marker 는 테스트 표식이라 여기 쓸 수 없다.

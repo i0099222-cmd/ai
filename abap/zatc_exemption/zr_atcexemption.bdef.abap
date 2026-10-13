@@ -20,8 +20,9 @@ etag master LocalLastChangedAt
 {
   field ( numbering : managed, readonly ) ExemptUuid;
 
-  // 상태와 결재 정보는 액션으로만 바뀐다. 화면에서 직접 못 고친다.
-  field ( readonly ) ExemptStatus,
+  // 상태와 결재 정보는 액션으로만 바뀐다. 요청 번호는 저장할 때 채번된다. 화면에서 직접 못 고친다.
+  field ( readonly ) ReqNumber,
+                     ExemptStatus,
                      Requester,
                      Approver,
                      ApprovedAt,
@@ -31,7 +32,7 @@ etag master LocalLastChangedAt
                      LastChangedAt,
                      LocalLastChangedAt;
 
-  field ( mandatory ) Title, CheckVariant, CheckClass, ValidTo;
+  field ( mandatory ) CheckVariant, CheckClass, ValidTo;
 
   create;
   update;
@@ -67,6 +68,8 @@ etag master LocalLastChangedAt
   action ( features : instance ) simulateImpact result [1] $self;
 
   determination setInitialValues on modify { create; }
+  // 요청 번호는 처음 저장할 때 번호 범위에서 받는다. 만들다 버린 draft 는 번호를 쓰지 않는다.
+  determination setReqNumber on save { create; }
   // 변형의 체크가 하나면 체크 클래스를 채우고, 대상 줄에 내려 준다(값 도움 필터용).
   determination deriveCheckClass on modify { field CheckVariant, CheckClass; }
 
@@ -76,7 +79,7 @@ etag master LocalLastChangedAt
   mapping for ztatcexempt
   {
     ExemptUuid         = exemptuuid;
-    Title              = title;
+    ReqNumber          = reqnumber;
     CheckVariant       = checkvariant;
     CheckClass         = checkclass;
     ReasonCode         = reasoncode;

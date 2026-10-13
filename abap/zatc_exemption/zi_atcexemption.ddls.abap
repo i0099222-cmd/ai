@@ -16,8 +16,8 @@ define view entity ZI_AtcExemption
       @EndUserText.label: 'Exemption Request UUID'
   key exemptuuid        as ExemptUuid,
 
-      @EndUserText.label: 'Title'
-      title             as Title,
+      @EndUserText.label: 'Request No.'
+      reqnumber         as ReqNumber,
 
       @EndUserText.label: 'Check Variant'
       checkvariant      as CheckVariant,

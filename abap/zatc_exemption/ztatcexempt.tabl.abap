@@ -13,8 +13,9 @@ define table ztatcexempt {
   "! 요청서 GUID. RAP BO 키.
   key exemptuuid    : sysuuid_x16 not null;
 
-  "! 요청 제목. 신청번호가 없으므로 목록에서 요청서를 부르는 이름이다.
-  title             : abap.char(80);
+  "! 요청 번호. 처음 저장할 때 번호 범위 ZATCEXREQ 에서 받는다. 목록과 헤더에서 요청서를 부르는 이름이다.
+  "! 버퍼링 때문에 빈 번호가 생길 수 있다. 연속일 필요는 없다.
+  reqnumber         : abap.numc(10);
 
   "! 체크 변형. 체크 클래스 값 도움을 거르는 데 쓴다.
   checkvariant      : abap.char(30);

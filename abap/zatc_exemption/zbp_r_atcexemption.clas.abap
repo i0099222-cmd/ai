@@ -141,6 +141,9 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS setinitialvalues FOR DETERMINE ON MODIFY
       IMPORTING keys FOR exemption~setinitialvalues.
 
+    METHODS setreqnumber FOR DETERMINE ON SAVE
+      IMPORTING keys FOR exemption~setreqnumber.
+
     METHODS derivecheckclass FOR DETERMINE ON MODIFY
       IMPORTING keys FOR exemption~derivecheckclass.
 
@@ -343,6 +346,42 @@ CLASS lhc_exemption IMPLEMENTATION.
     " 여기서 쓰는 값은 방금 계산한 것이라, 실패한다면 사용자에게 보여줄 메시지가
     " 아니라 결함이다.
     ASSERT lt_init_failed IS INITIAL.
+
+  ENDMETHOD.
+
+
+  METHOD setreqnumber.
+
+    " 처음 저장할 때 번호 범위에서 요청 번호를 받는다. 이미 번호가 있으면 두고,
+    " 만들다 버린 draft 는 여기까지 오지 않으니 번호를 쓰지 않는다.
+    " 번호 범위 구간이 없으면 저장은 되고 번호만 비며, 경고로 알린다.
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        FIELDS ( reqnumber ) WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_exemption).
+
+    DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
+
+    LOOP AT lt_exemption INTO DATA(ls_exemption) WHERE reqnumber IS INITIAL.
+      TRY.
+          cl_numberrange_runtime=>number_get(
+            EXPORTING nr_range_nr = zif_atc_exemption=>reqnumber-interval
+                      object      = zif_atc_exemption=>reqnumber-object
+            IMPORTING number      = DATA(lv_number) ).
+          APPEND VALUE #( %tky = ls_exemption-%tky reqnumber = lv_number ) TO lt_update.
+        CATCH cx_number_ranges INTO DATA(lo_error).
+          APPEND VALUE #( %tky = ls_exemption-%tky
+                          %msg = new_message_with_text(
+                                   severity = if_abap_behv_message=>severity-warning
+                                   text     = |Request number not assigned: { lo_error->get_text( ) }| ) )
+                 TO reported-exemption.
+      ENDTRY.
+    ENDLOOP.
+
+    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        UPDATE FIELDS ( reqnumber )
+        WITH lt_update.
 
   ENDMETHOD.
 

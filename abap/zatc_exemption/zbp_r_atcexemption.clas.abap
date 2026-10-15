@@ -22,6 +22,7 @@ CLASS lcl_rules DEFINITION FINAL.
   PUBLIC SECTION.
 
     "! 다른 요청서(초안·승인대기·승인)의 대상과 겹치는가. 반려·철회·만료된 요청서는 보지 않는다.
+    "! 체크 클래스가 같은 줄끼리만 비교한다. 체크가 다르면 다른 예외다.
     "!   대상 : 같은 패키지 안에서 한쪽이라도 PCKG 면 겹친다(패키지가 그 오브젝트를 덮는다).
     "!          OBJ 끼리는 같은 오브젝트일 때만 겹친다.
     "!   코드 : 한쪽이라도 CHK 면 그 체크의 모든 코드를 덮는다. MSG 끼리는 같은 코드일 때만.
@@ -40,8 +41,7 @@ CLASS lcl_rules DEFINITION FINAL.
     "!   PCKG : 패키지 전체의 그 체크 위반 (향후 생성 오브젝트는 셀 수 없다)
     "!   OBJ  : 그 오브젝트의 그 메시지 위반. 코드를 비운 줄(CHK)은 그 체크의 모든 위반
     CLASS-METHODS read_findings
-      IMPORTING is_header         TYPE ztatcexempt
-                is_item           TYPE ztatcexempti
+      IMPORTING is_item           TYPE ztatcexempti
       RETURNING VALUE(rs_findings) TYPE ty_findings.
 
 ENDCLASS.
@@ -72,7 +72,7 @@ CLASS lcl_rules IMPLEMENTATION.
       " 자기 요청서는 뺀다. 한 번이라도 저장한 요청서는 자기 줄이 DB 에 초안으로 있어서,
       " 빼지 않으면 다시 저장하거나 상신할 때 자기 줄과 겹친다.
       WHERE hdr~exemptuuid <> @is_header-exemptuuid
-        AND hdr~checkclass  = @is_header-checkclass
+        AND item~checkclass = @is_item-checkclass
         AND hdr~exemptstat IN ( @zif_atc_exemption=>status-draft,
                                 @zif_atc_exemption=>status-pending,
                                 @zif_atc_exemption=>status-approved )
@@ -106,7 +106,7 @@ CLASS lcl_rules IMPLEMENTATION.
 
     SELECT COUNT( * ) AS findings, MIN( priority ) AS toppriority
       FROM zi_atcfinding
-      WHERE checkclass  = @is_header-checkclass
+      WHERE checkclass  = @is_item-checkclass
         AND devclass    = @is_item-devclass
         AND objecttype IN @lr_objtype
         AND objectname IN @lr_objname
@@ -143,9 +143,6 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     METHODS setreqnumber FOR DETERMINE ON SAVE
       IMPORTING keys FOR exemption~setreqnumber.
-
-    METHODS derivecheckclass FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR exemption~derivecheckclass.
 
     METHODS validatevalidity FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatevalidity.
@@ -386,57 +383,6 @@ CLASS lhc_exemption IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD derivecheckclass.
-
-    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
-      ENTITY exemption
-        FIELDS ( checkvariant checkclass )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_exemption)
-      ENTITY exemption BY \_Item
-        FIELDS ( exemptuuid checkclass )
-        WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_item).
-
-    DATA lt_update      TYPE TABLE FOR UPDATE zr_atcexemption.
-    DATA lt_item_update TYPE TABLE FOR UPDATE zr_atcexemption\\exemptionitem.
-
-    LOOP AT lt_exemption INTO DATA(ls_exemption).
-
-      " 체크 클래스가 비어 있고 그 변형의 체크가 하나뿐이면 채운다.
-      " 둘 이상이면 고르게 둔다 - 값 도움이 변형으로 걸러 준다.
-      DATA(lv_checkclass) = ls_exemption-checkclass.
-      IF lv_checkclass IS INITIAL AND ls_exemption-checkvariant IS NOT INITIAL.
-        SELECT checkclass FROM zi_atccheckclassvh
-          WHERE checkvariant = @ls_exemption-checkvariant
-          INTO TABLE @DATA(lt_class)
-          UP TO 2 ROWS.
-        IF lines( lt_class ) = 1.
-          lv_checkclass = lt_class[ 1 ]-checkclass.
-          APPEND VALUE #( %tky = ls_exemption-%tky checkclass = lv_checkclass ) TO lt_update.
-        ENDIF.
-      ENDIF.
-
-      " 대상 줄의 체크 클래스는 값 도움 필터용 사본이다. 요청서와 같게 맞춘다.
-      LOOP AT lt_item INTO DATA(ls_item)
-           WHERE exemptuuid = ls_exemption-exemptuuid
-             AND checkclass <> lv_checkclass.
-        APPEND VALUE #( %tky = ls_item-%tky checkclass = lv_checkclass ) TO lt_item_update.
-      ENDLOOP.
-
-    ENDLOOP.
-
-    MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
-      ENTITY exemption
-        UPDATE FIELDS ( checkclass )
-        WITH lt_update
-      ENTITY exemptionitem
-        UPDATE FIELDS ( checkclass )
-        WITH lt_item_update.
-
-  ENDMETHOD.
-
-
   METHOD validatevalidity.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
@@ -577,14 +523,16 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 표준을 부르기 전에 중복을 한 번 더 본다. 저장 검증이 있지만 그 뒤에
       " 다른 요청이 먼저 상신됐을 수 있다. 부른 뒤에 걸리면 표준에만 예외가 남는다.
       " 영향도(면제될 현재 위반 건수)는 이력에 남겨 승인자가 읽게 한다.
-      DATA(lv_overlap) = VALUE string( ).
-      DATA(lv_impact)  = 0.
+      DATA(lv_overlap)       = VALUE string( ).
+      DATA(lv_overlap_class) = VALUE string( ).
+      DATA(lv_impact)        = 0.
       LOOP AT lt_target INTO DATA(ls_target).
         IF lcl_rules=>has_overlap( is_header = ls_hdr is_item = ls_target ) = abap_true.
-          lv_overlap = |{ ls_target-devclass } { ls_target-objectname }|.
+          lv_overlap       = |{ ls_target-devclass } { ls_target-objectname }|.
+          lv_overlap_class = ls_target-checkclass.
           EXIT.
         ENDIF.
-        lv_impact = lv_impact + lcl_rules=>read_findings( is_header = ls_hdr is_item = ls_target )-findings.
+        lv_impact = lv_impact + lcl_rules=>read_findings( ls_target )-findings.
       ENDLOOP.
 
       IF lv_overlap IS NOT INITIAL.
@@ -592,7 +540,7 @@ CLASS lhc_exemption IMPLEMENTATION.
         APPEND VALUE #( %tky = ls_exemption-%tky
                         %msg = new_error( iv_number = '013'
                                           iv_v1     = lv_overlap
-                                          iv_v2     = ls_hdr-checkclass ) ) TO reported-exemption.
+                                          iv_v2     = lv_overlap_class ) ) TO reported-exemption.
         CONTINUE.
       ENDIF.
 
@@ -988,9 +936,7 @@ CLASS lhc_exemption IMPLEMENTATION.
         IF ls_item-scopetype = zif_atc_exemption=>scope-pckg.
           lv_pckg = lv_pckg + 1.
         ENDIF.
-        lv_count = lv_count + lcl_rules=>read_findings(
-                                is_header = CORRESPONDING #( ls_exemption MAPPING FROM ENTITY )
-                                is_item   = CORRESPONDING #( ls_item MAPPING FROM ENTITY ) )-findings.
+        lv_count = lv_count + lcl_rules=>read_findings( CORRESPONDING #( ls_item MAPPING FROM ENTITY ) )-findings.
       ENDLOOP.
 
       DATA(lv_text) = |Approving this request exempts { lv_count } current finding(s).|.
@@ -1106,20 +1052,23 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
 
   METHOD derivetarget.
 
-    " 사용자는 패키지와(필요하면) 오브젝트·코드만 넣는다. 나머지는 여기서 정한다.
+    " 사용자는 패키지와(필요하면) 오브젝트·코드, 체크를 넣는다. 나머지는 여기서 정한다.
     "   범위      : 새 줄은 비어 있다. 오브젝트(유형/이름)를 넣으면 OBJ, 패키지만 넣으면 PCKG
     "   규칙 범위 : PCKG -> CHK(체크 전체). OBJ 는 코드가 있으면 MSG(메시지 하나), 비우면 CHK.
     "               패키지를 MSG 로 두면 규칙 수만큼 신청이 쪼개지고 일부 위반만 면제된다.
     "   패키지    : OBJ 면 TADIR 에서. 손으로 넣게 두면 오브젝트와 어긋난 예외가 생긴다.
-    "   체크 클래스 : 요청서의 값 (값 도움 필터용 사본)
+    "   체크 클래스 : 비어 있고 변형의 체크가 하나뿐이면 그것으로 채운다. 둘 이상이면 고르게
+    "               둔다 - 값 도움이 변형으로 걸러 준다.
     "   번호      : 같은 요청서 안에서 다음 번호
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemptionitem
-        FIELDS ( exemptuuid itemno scopetype rulescope devclass objecttype objectname checkclass checkcode )
+        FIELDS ( exemptuuid itemno scopetype rulescope devclass objecttype objectname
+                 checkvariant checkclass checkcode )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_item)
+      " 형제 줄을 읽으려고 부모 키만 쓴다.
       ENTITY exemptionitem BY \_Exemption
-        FIELDS ( checkclass )
+        FIELDS ( reqnumber )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_parent).
 
@@ -1158,8 +1107,16 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
         ENDIF.
       ENDIF.
 
-      DATA(ls_parent)     = VALUE #( lt_parent[ exemptuuid = ls_item-exemptuuid ] OPTIONAL ).
-      DATA(lv_checkclass) = ls_parent-checkclass.
+      DATA(lv_checkclass) = ls_item-checkclass.
+      IF lv_checkclass IS INITIAL AND ls_item-checkvariant IS NOT INITIAL.
+        SELECT checkclass FROM zi_atccheckclassvh
+          WHERE checkvariant = @ls_item-checkvariant
+          INTO TABLE @DATA(lt_class)
+          UP TO 2 ROWS.
+        IF lines( lt_class ) = 1.
+          lv_checkclass = lt_class[ 1 ]-checkclass.
+        ENDIF.
+      ENDIF.
 
       " 새 줄이면 같은 요청서의 가장 큰 번호 다음. 같은 번에 여러 줄이 생기면
       " 앞서 매긴 번호도 형제에 넣어 겹치지 않게 한다.
@@ -1235,6 +1192,8 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       " --- 1) 필수 필드 ---
       IF ls_item-devclass IS INITIAL.
         lv_error = '002'.
+      ELSEIF ls_item-checkclass IS INITIAL.
+        lv_error = '025'.
       ELSEIF ls_item-scopetype = zif_atc_exemption=>scope-obj
          AND ( ls_item-objecttype IS INITIAL OR ls_item-objectname IS INITIAL ).
         lv_error = '004'.
@@ -1271,20 +1230,20 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       " --- 3) 심각도 상한. 1 이 가장 심각하므로 상한보다 작은 값의 위반이 있으면 거부한다.
       "     증빙을 저장하지 않으므로 지금 남아 있는 위반에서 본다.
       IF lv_error IS INITIAL.
-        DATA(lv_top_priority) = lcl_rules=>read_findings(
-                                  is_header = CORRESPONDING #( ls_parent MAPPING FROM ENTITY )
-                                  is_item   = CORRESPONDING #( ls_item MAPPING FROM ENTITY ) )-toppriority.
+        DATA(lv_top_priority) = lcl_rules=>read_findings( CORRESPONDING #( ls_item MAPPING FROM ENTITY ) )-toppriority.
         IF lv_top_priority > 0 AND lv_top_priority < zif_atc_exemption=>policy-maxpriority.
           lv_error = '018'. lv_v1 = lv_top_priority. lv_v2 = zif_atc_exemption=>policy-maxpriority.
         ENDIF.
       ENDIF.
 
       " --- 4) 같은 요청서 안 중복. 다른 요청서와 같은 규칙이다(lcl_rules=>has_overlap).
-      "        같은 패키지에서 한쪽이 PCKG 이거나 같은 오브젝트이고, 한쪽이 CHK 이거나 같은 코드면 겹친다.
+      "        같은 체크 클래스·같은 패키지에서 한쪽이 PCKG 이거나 같은 오브젝트이고,
+      "        한쪽이 CHK 이거나 같은 코드면 겹친다.
       IF lv_error IS INITIAL.
         LOOP AT lt_sibling INTO DATA(ls_sibling)
              WHERE exemptuuid = ls_item-exemptuuid
                AND itemuuid  <> ls_item-itemuuid
+               AND checkclass = ls_item-checkclass
                AND devclass   = ls_item-devclass.
           IF (    ls_item-scopetype    = zif_atc_exemption=>scope-pckg
                OR ls_sibling-scopetype = zif_atc_exemption=>scope-pckg
@@ -1303,7 +1262,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       IF lv_error IS INITIAL
      AND lcl_rules=>has_overlap( is_header = CORRESPONDING #( ls_parent MAPPING FROM ENTITY )
                                  is_item   = CORRESPONDING #( ls_item MAPPING FROM ENTITY ) ) = abap_true.
-        lv_error = '013'. lv_v1 = lv_target. lv_v2 = ls_parent-checkclass.
+        lv_error = '013'. lv_v1 = lv_target. lv_v2 = ls_item-checkclass.
       ENDIF.
 
       IF lv_error IS INITIAL.

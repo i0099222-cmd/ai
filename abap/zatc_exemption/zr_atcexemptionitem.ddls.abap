@@ -7,8 +7,8 @@
   sizeCategory: #S,
   dataClass: #MIXED
 }
-// 요청서의 대상 한 줄 = 표준 예외 1건.
-// Object Name 이 비면 패키지(PCKG), 있으면 오브젝트(OBJ) 대상이다.
+// 요청서의 대상 한 줄 = 표준 예외 1건 = 패키지 또는 오브젝트 하나 × 체크 클래스 하나.
+// 오브젝트(유형/이름)를 넣으면 오브젝트(OBJ), 패키지만 넣으면 패키지(PCKG) 대상이다.
 //
 // I 계층을 두지 않는 이유: BO 밖에서는 ZI_AtcActiveExemption 만 아이템을 읽고,
 // 그 뷰는 테이블을 직접 조인한다.
@@ -37,6 +37,9 @@ define view entity ZR_AtcExemptionItem
 
       @EndUserText.label: 'Object Name'
       objectname     as ObjectName,
+
+      @EndUserText.label: 'Check Variant'
+      checkvariant   as CheckVariant,
 
       @EndUserText.label: 'Check Class'
       checkclass     as CheckClass,

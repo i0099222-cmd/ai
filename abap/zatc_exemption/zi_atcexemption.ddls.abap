@@ -19,12 +19,6 @@ define view entity ZI_AtcExemption
       @EndUserText.label: 'Request No.'
       reqnumber         as ReqNumber,
 
-      @EndUserText.label: 'Check Variant'
-      checkvariant      as CheckVariant,
-
-      @EndUserText.label: 'Check Class'
-      checkclass        as CheckClass,
-
       @EndUserText.label: 'Reason Code'
       reasoncode        as ReasonCode,
 

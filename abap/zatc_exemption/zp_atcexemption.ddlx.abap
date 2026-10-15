@@ -4,7 +4,7 @@
     typeName:       'Exemption Request',
     typeNamePlural: 'Exemption Requests',
     title:          { type: #STANDARD, value: 'ReqNumber' },
-    description:    { value: 'CheckClass' }
+    description:    { value: 'Requester' }
   },
   // 요청 번호는 번호 범위 버퍼링 때문에 생성 순서와 어긋날 수 있다. 최신순은 생성 시각으로 정렬한다.
   // 한정자 없는 것은 기본 목록용, pvList 는 탭(다중 뷰)이 공유한다.
@@ -75,22 +75,6 @@ annotate entity ZP_AtcExemption with
   // 요청 번호. 처음 저장할 때 채번되는 읽기 전용 값이다. 액션 버튼도 이 필드에 달려 있다.
   @EndUserText.label: 'Request No.'
   ReqNumber;
-
-  @UI: {
-    lineItem:       [{ position: 20, importance: #MEDIUM }],
-    identification: [{ position: 20 }],
-    selectionField: [{ position: 20 }]
-  }
-  @EndUserText.label: 'Check Variant'
-  CheckVariant;
-
-  @UI: {
-    lineItem:       [{ position: 30, importance: #HIGH }],
-    identification: [{ position: 30 }],
-    selectionField: [{ position: 30 }]
-  }
-  @EndUserText.label: 'Check Class'
-  CheckClass;
 
   @UI.fieldGroup: [{ qualifier: 'ReasonGroup', position: 10 }]
   @EndUserText.label: 'Reason Code'

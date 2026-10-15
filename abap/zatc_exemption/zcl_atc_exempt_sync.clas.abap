@@ -118,7 +118,7 @@ CLASS zcl_atc_exempt_sync IMPLEMENTATION.
                 i_object_type    = COND trobjtype( WHEN lv_is_obj = abap_true THEN ls_item-objecttype )
                 i_object_name    = COND sobj_name( WHEN lv_is_obj = abap_true THEN ls_item-objectname )
                 i_package_name   = ls_item-devclass
-                i_check_class    = ms_exemption-checkclass
+                i_check_class    = ls_item-checkclass
                 i_check_code     = ls_item-checkcode
                 i_contact_person = ms_exemption-requester ).
 

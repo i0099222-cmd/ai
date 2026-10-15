@@ -16,8 +16,6 @@ define root view entity ZR_AtcExemption
   key ExemptUuid,
 
       ReqNumber,
-      CheckVariant,
-      CheckClass,
 
       ReasonCode,
       ReasonText,

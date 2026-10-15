@@ -4,8 +4,9 @@
 @AbapCatalog.deliveryClass : #A
 @AbapCatalog.dataMaintenance : #RESTRICTED
 // 요청서. 한 요청서에 대상(오브젝트/패키지)이 여러 줄 붙는다(ztatcexempti).
-// 사유·유효기간·체크·상태는 요청서 단위다. 승인/반려도 요청서 단위로 한 번에 한다.
-// 표준 예외는 대상 한 줄마다 1건이고, 그 ID 는 아이템이 든다.
+// 사유·유효기간·상태는 요청서 단위다. 승인/반려도 요청서 단위로 한 번에 한다.
+// 체크(변형/클래스)는 대상 줄마다 다를 수 있다. 표준 예외는 대상 한 줄마다 1건이고,
+// 그 ID 는 아이템이 든다.
 define table ztatcexempt {
 
   key client        : abap.clnt not null;
@@ -16,13 +17,6 @@ define table ztatcexempt {
   "! 요청 번호. 처음 저장할 때 번호 범위 ZATCEXREQ 에서 받는다. 목록과 헤더에서 요청서를 부르는 이름이다.
   "! 버퍼링 때문에 빈 번호가 생길 수 있다. 연속일 필요는 없다.
   reqnumber         : abap.numc(10);
-
-  "! 체크 변형. 체크 클래스 값 도움을 거르는 데 쓴다.
-  checkvariant      : abap.char(30);
-
-  "! 대상 체크 클래스. 표준 create_exemption( i_check_class ) 에 넘기는 값이다.
-  "! 요청서의 모든 대상에 같은 체크가 걸린다.
-  checkclass        : abap.char(30);
 
   "! 사유 코드. 표준 set_reason( i_reason ) 으로 그대로 넘어간다.
   reasoncode        : abap.char(4);

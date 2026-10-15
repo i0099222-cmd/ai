@@ -33,7 +33,7 @@ define view entity ZI_AtcActiveExemption
       Item.objectname as ObjectName,
 
       @EndUserText.label: 'Check Class'
-      Hdr.CheckClass,
+      Item.checkclass as CheckClass,
 
       @EndUserText.label: 'Check Message Code'
       Item.checkcode  as CheckCode,

@@ -8,8 +8,8 @@ ATC 예외를 **패키지/오브젝트 단위로 신청 · 승인 · 반려**하
 ## 요청서 구조
 
 ```
-요청서(ztatcexempt)  요청 번호 · 체크 변형/클래스 · 사유 · 유효기간 · 상태 · 신청자/승인자
-  └ 대상(ztatcexempti)  한 줄 = 표준 예외 1건
+요청서(ztatcexempt)  요청 번호 · 사유 · 유효기간 · 상태 · 신청자/승인자
+  └ 대상(ztatcexempti)  한 줄 = 표준 예외 1건 = 패키지/오브젝트 하나 × 체크 클래스 하나
        Package 만     -> 패키지 대상(PCKG, 체크 전체 CHK)
        + Object Name  -> 오브젝트 대상(OBJ). Check Message Code 가 있으면 그 메시지만(MSG),
                          비우면 그 체크의 모든 메시지(CHK)
@@ -357,8 +357,8 @@ ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것�
 ### 헤더와 아이템의 역할 구분
 
 ```
-헤더  = 요청서. 사유·유효기간·체크(변형/클래스)·상태. 승인과 반려의 단위
-아이템 = 대상 한 줄. 범위(PCKG/OBJ)·패키지·오브젝트·메시지 코드. 표준 예외 1건의 단위
+헤더  = 요청서. 사유·유효기간·상태. 승인과 반려의 단위
+아이템 = 대상 한 줄. 범위(PCKG/OBJ)·패키지·오브젝트·체크(변형/클래스)·메시지 코드. 표준 예외 1건의 단위
 ```
 
 범위(`scopetype`)와 규칙 범위(`rulescope`)는 사용자가 고르지 않는다. 새 줄은 비어 있고,
@@ -366,11 +366,15 @@ ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것�
 `deriveTarget` 이 정한다. 오브젝트 대상의 패키지는
 TADIR 에서 온다.
 
-아이템의 `checkclass` 는 요청서 값의 사본이다. Fiori 값 도움은 같은 엔티티의 필드로만
-거를 수 있어서 둔다. 요청서의 체크 클래스가 바뀌면 `deriveCheckClass` 가 같이 바꾼다.
-이 사본으로 거르는 것은 Object Name 값 도움뿐이다(메시지 코드가 체크에 속하므로).
-Package 값 도움은 체크로 거르지 않고 패키지당 한 줄이다. 체크별로 나누면 같은 패키지가
-체크 수만큼 나온다. 건수는 전체 체크 합계다.
+체크 클래스는 대상 줄마다 고른다(필수). 한 요청서에 여러 체크가 섞일 수 있고, 같은 오브젝트를
+두 체크에 대해 면제하려면 줄이 둘이 된다. 표준 예외가 체크 클래스 단위라서다
+(`create_exemption` 에는 변형을 넘기는 자리가 없다).
+- 체크 변형은 체크 클래스를 고르는 보조 값이다. 변형을 넣으면 체크 클래스 값 도움이 그 변형의
+  체크로 걸러지고, 그 변형의 체크가 하나뿐이면 `deriveTarget` 이 체크 클래스를 채운다.
+- Object Name 값 도움은 줄의 체크 클래스로 거른다. 비어 있으면 모든 체크의 위반이 나오고,
+  고르면 유형·패키지·코드와 함께 체크 클래스도 채워진다(`#FILTER_AND_RESULT`).
+- Package 값 도움은 체크로 거르지 않고 패키지당 한 줄이다. 체크별로 나누면 같은 패키지가
+  체크 수만큼 나온다. 건수는 전체 체크 합계다. 체크 클래스는 그 줄에서 따로 고른다.
 
 예전의 증빙(위반 스냅샷) 아이템은 없앴다. 위반은 값 도움과 영향도 계산에서 라이브로 읽는다.
 
@@ -524,6 +528,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 022 | (사용 안 함 - 코드를 비운 오브젝트 대상은 체크 전체(CHK)로 신청한다) |
 | 023 | Add at least one target before submitting the request |
 | 024 | Target &1 is entered more than once in this request |
+| 025 | Enter a check class for each target |
 
 ### 3. 권한 - 커스텀 권한 오브젝트 없음
 
@@ -599,8 +604,7 @@ SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 
 |---|---|---|---|
 | `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일 |
 | `setReqNumber` | 요청서 | 저장 시, create | 번호 범위 `ZATCEXREQ` 에서 요청 번호 채번 (처음 저장할 때 한 번) |
-| `deriveCheckClass` | 요청서 | CheckVariant, CheckClass | 변형의 체크가 하나면 클래스 채움, 대상 줄에 클래스 복사 |
-| `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode | 범위·규칙 범위, TADIR 패키지, 클래스 사본, 줄 번호 |
+| `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode, CheckVariant | 범위·규칙 범위, TADIR 패키지, 변형의 체크가 하나면 체크 클래스, 줄 번호 |
 
 **이력은 두 경로로 쓴다.** 생성 이력은 saver 가 DB 에 직접, 상태 전이 이력은 액션이 EML 로 남긴다.
 
@@ -610,7 +614,7 @@ SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 
 |---|---|---|---|
 | `validateValidity` | 요청서 | 기간 유효성 + 설정된 개월 상한 | 010, 011 |
 | `validateReason` | 요청서 | 사유 코드 + 근거 최소 길이 | 012 |
-| `validateTarget` | 대상 | ① 필수 필드 ② 고객 네임스페이스·실재 ③ 심각도 상한(현재 위반 기준) ④ 요청서 안 중복 ⑤ 다른 요청서와 중복 | 002, 004, 006~008, 018, 024, 013 |
+| `validateTarget` | 대상 | ① 필수 필드 ② 고객 네임스페이스·실재 ③ 심각도 상한(현재 위반 기준) ④ 요청서 안 중복 ⑤ 다른 요청서와 중복 | 002, 025, 004, 006~008, 018, 024, 013 |
 
 `validateTarget` 은 앞 단계가 실패하면 뒤를 보지 않는다. Draft 의 Prepare 에도 걸려 있다.
 

@@ -11,6 +11,7 @@
 // 요청서의 'Targets' 표. 초안에서 줄을 추가하고 칸에 바로 입력한다.
 //   Package 만 넣으면 패키지 대상, Object Name 까지 넣으면 오브젝트 대상이다.
 //   오브젝트 대상에서 Check Message Code 를 비우면 그 체크의 모든 메시지(CHK)를 덮는다.
+//   체크 클래스는 줄마다 고른다(필수). Object Name 값 도움에서 고르면 같이 채워진다.
 //   값 도움에서 고르면 위반이 있는 대상, 직접 입력하면 위반이 없는 대상(선등록)도 된다.
 annotate entity ZP_AtcExemptionItem with
 {
@@ -60,6 +61,21 @@ annotate entity ZP_AtcExemptionItem with
   @EndUserText.label: 'Object Name (empty = package)'
   ObjectName;
 
+  // 줄마다 체크를 고른다. 한 요청서에 여러 체크가 섞일 수 있다.
+  @UI: {
+    lineItem:       [{ position: 55, importance: #LOW }],
+    identification: [{ position: 55 }]
+  }
+  @EndUserText.label: 'Check Variant'
+  CheckVariant;
+
+  @UI: {
+    lineItem:       [{ position: 57, importance: #HIGH }],
+    identification: [{ position: 57 }]
+  }
+  @EndUserText.label: 'Check Class'
+  CheckClass;
+
   @UI: {
     lineItem:       [{ position: 60, importance: #MEDIUM }],
     identification: [{ position: 60 }]
@@ -89,8 +105,6 @@ annotate entity ZP_AtcExemptionItem with
   @EndUserText.label: 'Standard Exemption ID'
   ExtExemptId;
 
-  @UI.hidden: true
-  CheckClass;
   @UI.hidden: true
   ScopeCriticality;
   @UI.hidden: true

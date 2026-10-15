@@ -3,8 +3,8 @@
 @AbapCatalog.tableCategory : #TRANSPARENT
 @AbapCatalog.deliveryClass : #A
 @AbapCatalog.dataMaintenance : #RESTRICTED
-// 요청서의 대상 한 줄 = 표준 예외 1건.
-// Object Name 이 비면 패키지 대상(PCKG), 있으면 오브젝트 대상(OBJ)이다.
+// 요청서의 대상 한 줄 = 표준 예외 1건 = 패키지 또는 오브젝트 하나 × 체크 클래스 하나.
+// 오브젝트(유형/이름)를 넣으면 오브젝트 대상(OBJ), 패키지만 넣으면 패키지 대상(PCKG)이다.
 define table ztatcexempti {
 
   key client     : abap.clnt not null;
@@ -26,14 +26,16 @@ define table ztatcexempti {
   objecttype     : trobjtype;
   objectname     : sobj_name;
 
-  "! 요청서의 체크 클래스 사본. 값 도움을 그 체크로 거르기 위해 둔다.
-  "! Fiori 값 도움은 같은 엔티티의 필드로만 거를 수 있다. 헤더가 바뀌면 같이 바뀐다.
+  "! 체크 변형. 체크 클래스 값 도움을 거르는 보조 값이다. 표준 예외에는 넘기지 않는다.
+  checkvariant   : abap.char(30);
+
+  "! 체크 클래스. 표준 create_exemption( i_check_class ) 에 넘기는 값이다(필수).
   checkclass     : abap.char(30);
 
-  "! 대상 메시지 코드. OBJ 는 필수, PCKG 는 체크 전체(CHK)라 쓰지 않는다.
+  "! 대상 메시지 코드. 비우면 그 체크의 모든 메시지(CHK)다.
   checkcode      : abap.char(10);
 
-  "! 규칙 적용 축. PCKG -> CHK(체크 전체) / OBJ -> MSG(메시지 1개)
+  "! 규칙 적용 축. 코드가 있는 OBJ -> MSG(메시지 1개), 그 외 -> CHK(체크 전체)
   rulescope      : abap.char(3);
 
   "! 이 줄의 표준 예외 ID (SATC_CI_EXEMPTION_ID = SYSUUID_C32).

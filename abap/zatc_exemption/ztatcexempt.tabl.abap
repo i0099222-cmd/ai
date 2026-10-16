@@ -14,9 +14,10 @@ define table ztatcexempt {
   "! 요청서 GUID. RAP BO 키.
   key exemptuuid    : sysuuid_x16 not null;
 
-  "! 요청 번호. 처음 저장할 때 번호 범위 ZATCEXREQ 에서 받는다. 목록과 헤더에서 요청서를 부르는 이름이다.
+  "! 요청 번호(REQ-000012). 처음 저장할 때 번호 범위 ZATCEXREQ 에서 받아 zif_atc_exemption=>reqnumber
+  "! 의 접두어·자릿수로 만든다. 접두어 4자 + 번호 최대 10자리라 14자다. 목록과 헤더에서 요청서를 부르는 이름이다.
   "! 버퍼링 때문에 빈 번호가 생길 수 있다. 연속일 필요는 없다.
-  reqnumber         : abap.numc(10);
+  reqnumber         : abap.char(14);
 
   "! 사유 코드. 표준 set_reason( i_reason ) 으로 그대로 넘어간다.
   reasoncode        : abap.char(4);

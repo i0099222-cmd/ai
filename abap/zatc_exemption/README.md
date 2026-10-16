@@ -497,6 +497,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 요청서 구조로 바뀌면서 `ztatcexempt` / `ztatcexempti` 의 필드가 바뀌었다. 기존 draft 테이블
 두 개는 **지우고 quick fix 로 다시 만든다**(필드가 안 맞으면 활성화가 실패한다).
 요청서의 `title` 을 빼고 `reqnumber` 를 넣었을 때도 `ztatcexempt_d` 를 다시 만든다.
+`reqnumber` 를 NUMC 10 에서 CHAR 14 로 바꿨을 때도 `ztatcexempt_d` 의 타입을 같이 바꾼다(다시 만들어도 된다).
 
 ### 2. 메시지 클래스 `ZATC_EXEMPT`
 
@@ -548,7 +549,10 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 
 ### 5. 번호 범위 오브젝트 `ZATCEXREQ` (요청 번호)
 
-SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 구간 01 에서 받는다.
+SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 구간 01 에서 받아
+`REQ-000012` 처럼 접두어를 붙이고 최소 6자리로 0 을 채운다. 접두어·자릿수는
+`zif_atc_exemption=>reqnumber` 의 `prefix` / `digits` 이고, 저장된 번호는 나중에 바꿔도 그대로다.
+`ztatcexempt-reqnumber` 는 CHAR 14 (접두어 4자 + 번호 최대 10자리)다.
 오브젝트나 구간이 없으면 저장은 되고 번호만 비며 `Request number not assigned: ...` 경고가 뜬다
 (Fiori 는 이 경고를 보여 주고 계속할지 묻는다). 그 요청서는 SNRO 를 고친 뒤 다음에 바뀌어
 저장될 때(제출 등) 번호를 받는다.
@@ -606,7 +610,7 @@ SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대�
 | Determination | 엔티티 | 트리거 | 하는 일 |
 |---|---|---|---|
 | `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일 |
-| `setReqNumber` | 요청서 | 저장 시, create, update | 번호 범위 `ZATCEXREQ` 에서 요청 번호 채번 (번호가 비어 있을 때만) |
+| `setReqNumber` | 요청서 | 저장 시, create, update | 번호 범위 `ZATCEXREQ` 에서 받아 `REQ-000012` 모양으로 채번 (번호가 비어 있을 때만) |
 | `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode, CheckVariant | 범위·규칙 범위, TADIR 패키지, 변형의 체크가 하나면 체크 클래스, 줄 번호 |
 
 **이력은 두 경로로 쓴다.** 생성 이력은 saver 가 DB 에 직접, 상태 전이 이력은 액션이 EML 로 남긴다.

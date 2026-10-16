@@ -549,7 +549,9 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 ### 5. 번호 범위 오브젝트 `ZATCEXREQ` (요청 번호)
 
 SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 구간 01 에서 받는다.
-구간이 없으면 저장은 되고 번호만 비며 경고가 뜬다.
+오브젝트나 구간이 없으면 저장은 되고 번호만 비며 `Request number not assigned: ...` 경고가 뜬다
+(Fiori 는 이 경고를 보여 주고 계속할지 묻는다). 그 요청서는 SNRO 를 고친 뒤 다음에 바뀌어
+저장될 때(제출 등) 번호를 받는다.
 
 | 항목 | 값 |
 |---|---|
@@ -558,8 +560,9 @@ SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 
 | 버퍼링 | 메인 메모리, 10개 (기본값). 빈 번호가 생길 수 있다 |
 | 구간 | `01` : 0000000001 ~ 9999999999, 내부 채번 |
 
-구간은 운송되지 않으니 시스템마다 SNRO 의 구간 관리에서 만든다.
-오브젝트 이름은 `zif_atc_exemption=>reqnumber` 에 있다.
+구간은 클라이언트마다 따로 있고 오브젝트와 같이 운송되지 않으니, 앱을 쓰는 시스템·클라이언트마다
+SNRO 의 구간 관리에서 만든다. 오브젝트 이름은 `zif_atc_exemption=>reqnumber` 에 있다.
+SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대문자)으로 바꾼다.
 
 ### 6. 런치패드 타일 2개 (앱 1개, 서비스 1개)
 
@@ -603,7 +606,7 @@ SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 
 | Determination | 엔티티 | 트리거 | 하는 일 |
 |---|---|---|---|
 | `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일 |
-| `setReqNumber` | 요청서 | 저장 시, create | 번호 범위 `ZATCEXREQ` 에서 요청 번호 채번 (처음 저장할 때 한 번) |
+| `setReqNumber` | 요청서 | 저장 시, create, update | 번호 범위 `ZATCEXREQ` 에서 요청 번호 채번 (번호가 비어 있을 때만) |
 | `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode, CheckVariant | 범위·규칙 범위, TADIR 패키지, 변형의 체크가 하나면 체크 클래스, 줄 번호 |
 
 **이력은 두 경로로 쓴다.** 생성 이력은 saver 가 DB 에 직접, 상태 전이 이력은 액션이 EML 로 남긴다.

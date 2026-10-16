@@ -70,7 +70,8 @@ etag master LocalLastChangedAt
 
   determination setInitialValues on modify { create; }
   // 요청 번호는 처음 저장할 때 번호 범위에서 받는다. 만들다 버린 draft 는 번호를 쓰지 않는다.
-  determination setReqNumber on save { create; }
+  // 번호를 못 받고 저장된 요청서(SNRO 오브젝트·구간 없음)는 다음에 바뀌어 저장될 때(제출 등) 받는다.
+  determination setReqNumber on save { create; update; }
 
   validation validateValidity on save { field ValidFrom, ValidTo; create; update; }
   validation validateReason   on save { field ReasonCode, ReasonText; create; update; }

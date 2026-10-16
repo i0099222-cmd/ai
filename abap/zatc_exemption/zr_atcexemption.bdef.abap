@@ -1,7 +1,7 @@
 // ATC 예외 요청/승인 BO.
 //
 // 요청서(헤더) 한 건에 대상(아이템)이 여러 줄 붙는다. 대상 한 줄 = 표준 예외 1건.
-// 사유·유효기간·상태는 요청서 단위이고, 체크(변형/클래스)는 대상 줄마다 고른다.
+// 사유·유효기간·상태는 요청서 단위이고, 체크 클래스는 대상 줄마다 고른다.
 // 상신·승인·반려·철회는 요청서 단위로 한 번에 한다. 대상 하나라도 표준 반영에 실패하면
 // 그 요청서의 처리 전체를 실패로 본다.
 //
@@ -123,8 +123,7 @@ etag master LocalLastChangedAt
   // 새 줄은 범위가 비어 있다. 오브젝트(유형/이름)를 넣으면 OBJ, 패키지만 넣으면 PCKG.
   // 규칙 범위는 PCKG 면 CHK, OBJ 면 코드가 있을 때 MSG 이고 비우면 CHK.
   // 오브젝트 유형과 이름이 다 있으면 패키지는 TADIR 에서 온다.
-  // 체크 클래스가 비어 있는데 변형의 체크가 하나뿐이면 그것으로 채운다.
-  determination deriveTarget on modify { create; field Devclass, ObjectType, ObjectName, CheckCode, CheckVariant; }
+  determination deriveTarget on modify { create; field Devclass, ObjectType, ObjectName, CheckCode; }
 
   // 대상 한 줄 검증. 같은 요청서 안 중복과 다른 요청서와의 중복도 여기서 본다.
   validation validateTarget on save { create; update; field Devclass, ObjectType, ObjectName, CheckCode, CheckClass; }
@@ -140,7 +139,6 @@ etag master LocalLastChangedAt
     Devclass           = devclass;
     ObjectType         = objecttype;
     ObjectName         = objectname;
-    CheckVariant       = checkvariant;
     CheckClass         = checkclass;
     CheckCode          = checkcode;
     RuleScope          = rulescope;

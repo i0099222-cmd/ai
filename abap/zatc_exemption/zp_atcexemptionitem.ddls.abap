@@ -35,17 +35,10 @@ define view entity ZP_AtcExemptionItem
       }]
       ObjectName,
 
-      // 체크 변형. 체크 클래스를 고르는 보조 값이다. 변형-체크 짝에서 고르면 체크 클래스도 채워진다.
+      // 이 줄의 체크 클래스(필수). 오브젝트 대상은 Object Name 값 도움이 채운다.
+      // 직접 고를 때는 값 도움에서 변형 이름으로도 찾는다.
       @Consumption.valueHelpDefinition: [{
-        entity:            { name: 'ZI_AtcCheckClassVH', element: 'CheckVariant' },
-        additionalBinding: [{ localElement: 'CheckClass', element: 'CheckClass', usage: #RESULT }]
-      }]
-      CheckVariant,
-
-      // 이 줄의 체크 클래스(필수). 변형이 있으면 그 변형의 체크만 보이고, 고르면 변형도 채워진다.
-      @Consumption.valueHelpDefinition: [{
-        entity:            { name: 'ZI_AtcCheckClassVH', element: 'CheckClass' },
-        additionalBinding: [{ localElement: 'CheckVariant', element: 'CheckVariant' }]
+        entity: { name: 'ZI_AtcCheckClassVH', element: 'CheckClass' }
       }]
       CheckClass,
 

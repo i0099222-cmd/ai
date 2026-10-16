@@ -1060,13 +1060,10 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
     "   규칙 범위 : PCKG -> CHK(체크 전체). OBJ 는 코드가 있으면 MSG(메시지 하나), 비우면 CHK.
     "               패키지를 MSG 로 두면 규칙 수만큼 신청이 쪼개지고 일부 위반만 면제된다.
     "   패키지    : OBJ 면 TADIR 에서. 손으로 넣게 두면 오브젝트와 어긋난 예외가 생긴다.
-    "   체크 클래스 : 비어 있고 변형의 체크가 하나뿐이면 그것으로 채운다. 둘 이상이면 고르게
-    "               둔다 - 값 도움이 변형으로 걸러 준다.
     "   번호      : 같은 요청서 안에서 다음 번호
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemptionitem
-        FIELDS ( exemptuuid itemno scopetype rulescope devclass objecttype objectname
-                 checkvariant checkclass checkcode )
+        FIELDS ( exemptuuid itemno scopetype rulescope devclass objecttype objectname checkcode )
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_item)
       " 형제 줄을 읽으려고 부모 키만 쓴다.
@@ -1110,17 +1107,6 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
         ENDIF.
       ENDIF.
 
-      DATA(lv_checkclass) = ls_item-checkclass.
-      IF lv_checkclass IS INITIAL AND ls_item-checkvariant IS NOT INITIAL.
-        SELECT checkclass FROM zi_atccheckclassvh
-          WHERE checkvariant = @ls_item-checkvariant
-          INTO TABLE @DATA(lt_class)
-          UP TO 2 ROWS.
-        IF lines( lt_class ) = 1.
-          lv_checkclass = lt_class[ 1 ]-checkclass.
-        ENDIF.
-      ENDIF.
-
       " 새 줄이면 같은 요청서의 가장 큰 번호 다음. 같은 번에 여러 줄이 생기면
       " 앞서 매긴 번호도 형제에 넣어 겹치지 않게 한다.
       DATA(lv_itemno) = ls_item-itemno.
@@ -1134,26 +1120,24 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       ENDIF.
 
       " 바뀐 줄만 고친다. 같은 값을 다시 쓰면 이 determination 이 또 불린다.
-      IF lv_scope      = ls_item-scopetype
-     AND lv_rulescope  = ls_item-rulescope
-     AND lv_devclass   = ls_item-devclass
-     AND lv_checkclass = ls_item-checkclass
-     AND lv_itemno     = ls_item-itemno.
+      IF lv_scope     = ls_item-scopetype
+     AND lv_rulescope = ls_item-rulescope
+     AND lv_devclass  = ls_item-devclass
+     AND lv_itemno    = ls_item-itemno.
         CONTINUE.
       ENDIF.
 
-      APPEND VALUE #( %tky       = ls_item-%tky
-                      scopetype  = lv_scope
-                      rulescope  = lv_rulescope
-                      devclass   = lv_devclass
-                      checkclass = lv_checkclass
-                      itemno     = lv_itemno ) TO lt_update.
+      APPEND VALUE #( %tky      = ls_item-%tky
+                      scopetype = lv_scope
+                      rulescope = lv_rulescope
+                      devclass  = lv_devclass
+                      itemno    = lv_itemno ) TO lt_update.
 
     ENDLOOP.
 
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemptionitem
-        UPDATE FIELDS ( scopetype rulescope devclass checkclass itemno )
+        UPDATE FIELDS ( scopetype rulescope devclass itemno )
         WITH lt_update.
 
   ENDMETHOD.

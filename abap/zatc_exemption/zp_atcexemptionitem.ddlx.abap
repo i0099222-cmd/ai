@@ -63,13 +63,6 @@ annotate entity ZP_AtcExemptionItem with
 
   // 줄마다 체크를 고른다. 한 요청서에 여러 체크가 섞일 수 있다.
   @UI: {
-    lineItem:       [{ position: 55, importance: #LOW }],
-    identification: [{ position: 55 }]
-  }
-  @EndUserText.label: 'Check Variant'
-  CheckVariant;
-
-  @UI: {
     lineItem:       [{ position: 57, importance: #HIGH }],
     identification: [{ position: 57 }]
   }

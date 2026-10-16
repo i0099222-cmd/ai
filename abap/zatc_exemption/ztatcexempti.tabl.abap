@@ -26,9 +26,6 @@ define table ztatcexempti {
   objecttype     : trobjtype;
   objectname     : sobj_name;
 
-  "! 체크 변형. 체크 클래스 값 도움을 거르는 보조 값이다. 표준 예외에는 넘기지 않는다.
-  checkvariant   : abap.char(30);
-
   "! 체크 클래스. 표준 create_exemption( i_check_class ) 에 넘기는 값이다(필수).
   checkclass     : abap.char(30);
 

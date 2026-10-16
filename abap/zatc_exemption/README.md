@@ -358,7 +358,7 @@ ADT 에서 finding 을 우클릭해 "All Objects of Package" 를 고르는 것�
 
 ```
 헤더  = 요청서. 사유·유효기간·상태. 승인과 반려의 단위
-아이템 = 대상 한 줄. 범위(PCKG/OBJ)·패키지·오브젝트·체크(변형/클래스)·메시지 코드. 표준 예외 1건의 단위
+아이템 = 대상 한 줄. 범위(PCKG/OBJ)·패키지·오브젝트·체크 클래스·메시지 코드. 표준 예외 1건의 단위
 ```
 
 범위(`scopetype`)와 규칙 범위(`rulescope`)는 사용자가 고르지 않는다. 새 줄은 비어 있고,
@@ -369,8 +369,9 @@ TADIR 에서 온다.
 체크 클래스는 대상 줄마다 고른다(필수). 한 요청서에 여러 체크가 섞일 수 있고, 같은 오브젝트를
 두 체크에 대해 면제하려면 줄이 둘이 된다. 표준 예외가 체크 클래스 단위라서다
 (`create_exemption` 에는 변형을 넘기는 자리가 없다).
-- 체크 변형은 체크 클래스를 고르는 보조 값이다. 변형을 넣으면 체크 클래스 값 도움이 그 변형의
-  체크로 걸러지고, 그 변형의 체크가 하나뿐이면 `deriveTarget` 이 체크 클래스를 채운다.
+- 대상 줄에는 체크 변형이 없다. 예외는 변형과 상관없이 체크 클래스에 걸려서 저장할 의미가 없고,
+  오브젝트 대상은 Object Name 값 도움이 체크 클래스를 채워 변형을 넣을 일이 없다.
+  체크 클래스를 직접 고를 때는 값 도움(`ZI_AtcCheckClassVH`)에서 변형 이름으로 찾는다.
 - Object Name 값 도움은 줄의 체크 클래스로 거른다. 비어 있으면 모든 체크의 위반이 나오고,
   고르면 유형·패키지·코드와 함께 체크 클래스도 채워진다(`#FILTER_AND_RESULT`).
 - Package 값 도움은 체크로 거르지 않고 패키지당 한 줄이다. 체크별로 나누면 같은 패키지가
@@ -414,7 +415,7 @@ ZI_AtcFinding      표준 스키마를 아는 유일한 오브젝트. 면제 여
      ├► ZI_AtcFindingObjVH   대상 Object Name 값 도움 (미면제 위반이 있는 오브젝트 + 코드)
      └► ZI_AtcFindingPkgVH   대상 Package 값 도움 (미면제 위반이 있는 패키지, 패키지당 한 줄)
 
-ZI_AtcCheckClassVH   변형 · 체크 클래스 값 도움 (실제로 돈 ATC 결과에서 짝을 만든다)
+ZI_AtcCheckClassVH   체크 클래스 값 도움. 변형 이름으로도 찾는다 (실제로 돈 ATC 결과에서 짝을 만든다)
 ZI_AtcPackageVH   고객 패키지 전체 (대상 Package 의 두 번째 값 도움, 선등록용)
 ZI_AtcCheckCodeVH 메시지 코드 값 도움
 ZI_AtcReasonVH    사유 코드 값 도움 (표준 SATC_CI_REASONS, not_selectable 제외)
@@ -455,9 +456,7 @@ P 계층(`ZP_*`)만 노출하고 값 도움은 I 계층을 그대로 쓴다.
 
 ```abap
 " 1. 상태별 요청서 6건 + 대상 줄 + 이력
-DATA(lv_n) = zcl_atc_exempt_testdata=>create_requests(
-               iv_checkvariant = 'YOUR_NAMING_VARIANT'
-               iv_devclass     = 'YOUR_PACKAGE' ).
+DATA(lv_n) = zcl_atc_exempt_testdata=>create_requests( iv_devclass = 'YOUR_PACKAGE' ).
 
 " 2. 정리 (사유가 [TEST] 로 시작하는 행만 지운다)
 zcl_atc_exempt_testdata=>cleanup( ).
@@ -498,6 +497,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 두 개는 **지우고 quick fix 로 다시 만든다**(필드가 안 맞으면 활성화가 실패한다).
 요청서의 `title` 을 빼고 `reqnumber` 를 넣었을 때도 `ztatcexempt_d` 를 다시 만든다.
 `reqnumber` 를 NUMC 10 에서 CHAR 14 로 바꿨을 때도 `ztatcexempt_d` 의 타입을 같이 바꾼다(다시 만들어도 된다).
+대상 줄의 `checkvariant` 를 뺐을 때도 `ztatcexempti_d` 에서 그 필드를 지운다(다시 만들어도 된다).
 
 ### 2. 메시지 클래스 `ZATC_EXEMPT`
 
@@ -611,7 +611,7 @@ SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대�
 |---|---|---|---|
 | `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일 |
 | `setReqNumber` | 요청서 | 저장 시, create, update | 번호 범위 `ZATCEXREQ` 에서 받아 `REQ-000012` 모양으로 채번 (번호가 비어 있을 때만) |
-| `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode, CheckVariant | 범위·규칙 범위, TADIR 패키지, 변형의 체크가 하나면 체크 클래스, 줄 번호 |
+| `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode | 범위·규칙 범위, TADIR 패키지, 줄 번호 |
 
 **이력은 두 경로로 쓴다.** 생성 이력은 saver 가 DB 에 직접, 상태 전이 이력은 액션이 EML 로 남긴다.
 

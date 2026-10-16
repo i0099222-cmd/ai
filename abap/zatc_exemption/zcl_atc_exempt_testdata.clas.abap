@@ -21,9 +21,8 @@ CLASS zcl_atc_exempt_testdata DEFINITION
     "! 승인대기 건은 표준 ID 가 없어 승인하면 "표준 예외 없음" 으로 멈춘다. 승인까지 보려면
     "! 계정 둘로 화면에서 직접 만든다 - A 로 상신하고 B 로 승인한다.
     CLASS-METHODS create_requests
-      IMPORTING iv_checkvariant TYPE c
-                iv_devclass     TYPE devclass
-                iv_requester    TYPE syuname DEFAULT sy-uname
+      IMPORTING iv_devclass  TYPE devclass
+                iv_requester TYPE syuname DEFAULT sy-uname
       RETURNING VALUE(rv_count) TYPE i.
 
     "! 표식이 붙은 행만 지운다. 실제 신청 데이터는 건드리지 않는다.
@@ -52,7 +51,6 @@ CLASS zcl_atc_exempt_testdata DEFINITION
                 iv_itemno      TYPE i
                 iv_devclass    TYPE devclass
                 is_obj         TYPE ty_obj OPTIONAL
-                iv_checkvariant TYPE c OPTIONAL
                 iv_checkclass  TYPE c
                 iv_checkcode   TYPE c
                 iv_extexemptid TYPE c OPTIONAL
@@ -118,9 +116,9 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       iv_validto      = lv_d180
       iv_reasontext   = |[TEST] 레거시 이관 패키지. 개명 시 인터페이스 영향이 커 유예 신청.| ).
     insert_item( iv_exemptuuid = lv_u iv_itemno = 1 iv_devclass = iv_devclass
-                 iv_checkvariant = iv_checkvariant iv_checkclass = lv_cls iv_checkcode = space ).
+                 iv_checkclass = lv_cls iv_checkcode = space ).
     insert_item( iv_exemptuuid = lv_u iv_itemno = 2 iv_devclass = iv_devclass is_obj = ls_o1
-                 iv_checkvariant = iv_checkvariant iv_checkclass = lv_cls iv_checkcode = lv_code ).
+                 iv_checkclass = lv_cls iv_checkcode = lv_code ).
     insert_log( iv_exemptuuid = lv_u iv_seqnr = 1
                 iv_action = zif_atc_exemption=>logaction-create
                 iv_from = space iv_to = zif_atc_exemption=>status-draft
@@ -135,9 +133,9 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       iv_requester    = iv_requester
       iv_reasontext   = |[TEST] 표준 연동 구조체명을 상대 시스템 규격에 맞춰야 함.| ).
     insert_item( iv_exemptuuid = lv_u iv_itemno = 1 iv_devclass = iv_devclass is_obj = ls_o2
-                 iv_checkvariant = iv_checkvariant iv_checkclass = lv_cls iv_checkcode = lv_code ).
+                 iv_checkclass = lv_cls iv_checkcode = lv_code ).
     insert_item( iv_exemptuuid = lv_u iv_itemno = 2 iv_devclass = iv_devclass is_obj = ls_o3
-                 iv_checkvariant = iv_checkvariant iv_checkclass = lv_cls iv_checkcode = lv_code ).
+                 iv_checkclass = lv_cls iv_checkcode = lv_code ).
     insert_log( iv_exemptuuid = lv_u iv_seqnr = 1
                 iv_action = zif_atc_exemption=>logaction-submit
                 iv_from = zif_atc_exemption=>status-draft
@@ -152,7 +150,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       iv_approver     = sy-uname
       iv_reasontext   = |[TEST] 패키지 전체 유예. 차기 리팩토링 과제로 등록됨.| ).
     insert_item( iv_exemptuuid = lv_u iv_itemno = 1 iv_devclass = iv_devclass
-                 iv_checkvariant = iv_checkvariant iv_checkclass = lv_cls iv_checkcode = space
+                 iv_checkclass = lv_cls iv_checkcode = space
                  iv_extexemptid = '00000000000000000000000000000001'
                  iv_stdstatus   = zif_atc_exemption=>stdstatus-approved ).
     insert_log( iv_exemptuuid = lv_u iv_seqnr = 1
@@ -170,7 +168,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       iv_approver     = sy-uname
       iv_reasontext   = |[TEST] 승인은 되었으나 표준 반영이 빠진 건. 정합성 점검 대상.| ).
     insert_item( iv_exemptuuid = lv_u iv_itemno = 1 iv_devclass = iv_devclass is_obj = ls_o3
-                 iv_checkvariant = iv_checkvariant iv_checkclass = lv_cls iv_checkcode = lv_code ).
+                 iv_checkclass = lv_cls iv_checkcode = lv_code ).
     insert_log( iv_exemptuuid = lv_u iv_seqnr = 1
                 iv_action = zif_atc_exemption=>logaction-approve
                 iv_from = zif_atc_exemption=>status-pending
@@ -185,7 +183,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       iv_approver     = sy-uname
       iv_reasontext   = |[TEST] 신규 개발 건이라 규칙을 지킬 수 있다고 판단되어 반려.| ).
     insert_item( iv_exemptuuid = lv_u iv_itemno = 1 iv_devclass = iv_devclass is_obj = ls_o2
-                 iv_checkvariant = iv_checkvariant iv_checkclass = lv_cls iv_checkcode = lv_code
+                 iv_checkclass = lv_cls iv_checkcode = lv_code
                  iv_extexemptid = '00000000000000000000000000000003'
                  iv_stdstatus   = zif_atc_exemption=>stdstatus-rejected ).
     insert_log( iv_exemptuuid = lv_u iv_seqnr = 1
@@ -202,7 +200,7 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       iv_approver     = sy-uname
       iv_reasontext   = |[TEST] 유효기간이 지나 자동 만료된 건.| ).
     insert_item( iv_exemptuuid = lv_u iv_itemno = 1 iv_devclass = iv_devclass
-                 iv_checkvariant = iv_checkvariant iv_checkclass = lv_cls iv_checkcode = space ).
+                 iv_checkclass = lv_cls iv_checkcode = space ).
     insert_log( iv_exemptuuid = lv_u iv_seqnr = 1
                 iv_action = zif_atc_exemption=>logaction-expire
                 iv_from = zif_atc_exemption=>status-approved
@@ -263,7 +261,6 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
       devclass     = iv_devclass
       objecttype   = is_obj-objecttype
       objectname   = is_obj-objectname
-      checkvariant = iv_checkvariant
       checkclass   = iv_checkclass
       checkcode    = iv_checkcode
       rulescope    = COND #( WHEN lv_is_obj = abap_true AND iv_checkcode IS NOT INITIAL

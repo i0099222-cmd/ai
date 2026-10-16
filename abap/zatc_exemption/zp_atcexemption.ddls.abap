@@ -9,7 +9,7 @@ define root view entity ZP_AtcExemption
   key ExemptUuid,
 
       // 요청 번호. 처음 저장할 때 채번된다. 목록 검색은 번호 · 신청자로 한다.
-      // 체크(변형/클래스)는 대상 줄마다 고른다.
+      // 체크 클래스는 대상 줄마다 고른다.
       @Search.defaultSearchElement: true
       ReqNumber,
 

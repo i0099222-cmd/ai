@@ -38,9 +38,6 @@ define view entity ZR_AtcExemptionItem
       @EndUserText.label: 'Object Name'
       objectname     as ObjectName,
 
-      @EndUserText.label: 'Check Variant'
-      checkvariant   as CheckVariant,
-
       @EndUserText.label: 'Check Class'
       checkclass     as CheckClass,
 

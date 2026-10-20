@@ -352,8 +352,8 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD setreqnumber.
 
-    " 처음 저장할 때 번호 범위에서 요청 번호를 받아 REQ-000012 처럼 만든다. 이미 번호가 있으면 두고,
-    " 만들다 버린 draft 는 여기까지 오지 않으니 번호를 쓰지 않는다.
+    " 처음 저장할 때 번호 범위의 그해 구간에서 요청 번호를 받아 ATCX-2026000012 처럼 만든다.
+    " 이미 번호가 있으면 두고, 만들다 버린 draft 는 여기까지 오지 않으니 번호를 쓰지 않는다.
     " 번호 범위 구간이 없으면 저장은 되고 번호만 비며, 경고로 알린다.
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
@@ -367,6 +367,7 @@ CLASS lhc_exemption IMPLEMENTATION.
           cl_numberrange_runtime=>number_get(
             EXPORTING nr_range_nr = zif_atc_exemption=>reqnumber-interval
                       object      = zif_atc_exemption=>reqnumber-object
+                      toyear      = CONV #( sy-datum(4) )
             IMPORTING number      = DATA(lv_number) ).
           APPEND VALUE #( %tky      = ls_exemption-%tky
                           reqnumber = |{ zif_atc_exemption=>reqnumber-prefix }| &&

@@ -496,7 +496,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 요청서 구조로 바뀌면서 `ztatcexempt` / `ztatcexempti` 의 필드가 바뀌었다. 기존 draft 테이블
 두 개는 **지우고 quick fix 로 다시 만든다**(필드가 안 맞으면 활성화가 실패한다).
 요청서의 `title` 을 빼고 `reqnumber` 를 넣었을 때도 `ztatcexempt_d` 를 다시 만든다.
-`reqnumber` 를 NUMC 10 에서 CHAR 14 로 바꿨을 때도 `ztatcexempt_d` 의 타입을 같이 바꾼다(다시 만들어도 된다).
+`reqnumber` 를 NUMC 10 에서 CHAR 14, 다시 CHAR 15 로 바꿨을 때도 `ztatcexempt_d` 의 타입을 같이 바꾼다(다시 만들어도 된다).
 대상 줄의 `checkvariant` 를 뺐을 때도 `ztatcexempti_d` 에서 그 필드를 지운다(다시 만들어도 된다).
 
 ### 2. 메시지 클래스 `ZATC_EXEMPT`
@@ -549,10 +549,11 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 
 ### 5. 번호 범위 오브젝트 `ZATCEXREQ` (요청 번호)
 
-SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 구간 01 에서 받아
-`REQ-000012` 처럼 접두어를 붙이고 최소 6자리로 0 을 채운다. 접두어·자릿수는
-`zif_atc_exemption=>reqnumber` 의 `prefix` / `digits` 이고, 저장된 번호는 나중에 바꿔도 그대로다.
-`ztatcexempt-reqnumber` 는 CHAR 14 (접두어 4자 + 번호 최대 10자리)다.
+SNRO 에서 To-year flag 를 켜고 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 그해(`sy-datum`
+의 연도) 구간 01 에서 받아 `ATCX-2026000012` 처럼 접두어를 붙인다. 구간이 연도로 시작해서
+번호가 연도 4자리 + 일련번호 6자리가 되고, 해가 바뀌면 1부터 다시 센다.
+접두어·자릿수는 `zif_atc_exemption=>reqnumber` 의 `prefix` / `digits` 이고, 저장된 번호는 나중에 바꿔도 그대로다.
+`ztatcexempt-reqnumber` 는 CHAR 15 (접두어 5자 + 번호 10자리)다.
 오브젝트나 구간이 없으면 저장은 되고 번호만 비며 `Request number not assigned: ...` 경고가 뜬다
 (Fiori 는 이 경고를 보여 주고 계속할지 묻는다). 그 요청서는 SNRO 를 고친 뒤 다음에 바뀌어
 저장될 때(제출 등) 번호를 받는다.
@@ -562,8 +563,10 @@ SNRO 에서 만든다. 요청 번호는 처음 저장할 때 `setReqNumber` 가 
 | 오브젝트 | `ZATCEXREQ` (ATC 예외 요청 번호) |
 | 번호 길이 도메인 | NUMC 10 도메인 (없으면 `ZATC_REQNO` NUMC 10 을 만든다) |
 | 버퍼링 | 메인 메모리, 10개 (기본값). 빈 번호가 생길 수 있다 |
-| 구간 | `01` : 0000000001 ~ 9999999999, 내부 채번 |
+| To-year flag | 켠다. 구간이 이미 있으면 먼저 지워야 켤 수 있다 |
+| 구간 | 해마다 하나. `01` / 연도 2026 / 2026000001 ~ 2026999999, 내부 채번 (2027 은 2027000001 ~ 2027999999) |
 
+**다음 해 구간은 해가 바뀌기 전에 미리 만든다.** 없으면 그해 첫 요청서부터 번호 없이 저장되고 경고가 뜬다.
 구간은 클라이언트마다 따로 있고 오브젝트와 같이 운송되지 않으니, 앱을 쓰는 시스템·클라이언트마다
 SNRO 의 구간 관리에서 만든다. 오브젝트 이름은 `zif_atc_exemption=>reqnumber` 에 있다.
 SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대문자)으로 바꾼다.
@@ -610,7 +613,7 @@ SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대�
 | Determination | 엔티티 | 트리거 | 하는 일 |
 |---|---|---|---|
 | `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일, 초안 색(새 draft 는 CDS 의 상태 색 계산을 거치지 않는다) |
-| `setReqNumber` | 요청서 | 저장 시, create, update | 번호 범위 `ZATCEXREQ` 에서 받아 `REQ-000012` 모양으로 채번 (번호가 비어 있을 때만) |
+| `setReqNumber` | 요청서 | 저장 시, create, update | 번호 범위 `ZATCEXREQ` 의 그해 구간에서 받아 `ATCX-2026000012` 모양으로 채번 (번호가 비어 있을 때만) |
 | `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode | 범위·규칙 범위, TADIR 패키지, 줄 번호 |
 
 **이력은 두 경로로 쓴다.** 생성 이력은 saver 가 DB 에 직접, 상태 전이 이력은 액션이 EML 로 남긴다.

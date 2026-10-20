@@ -217,12 +217,14 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
 
     rv_uuid = cl_system_uuid=>create_uuid_x16_static( ).
 
-    " 요청 번호는 앱과 같은 번호 범위에서 받아 같은 모양(REQ-000012)으로 만든다. 구간이 없으면 비워 둔다.
+    " 요청 번호는 앱과 같은 번호 범위의 그해 구간에서 받아 같은 모양(ATCX-2026000012)으로 만든다.
+    " 구간이 없으면 비워 둔다.
     DATA lv_reqnumber TYPE ztatcexempt-reqnumber.
     TRY.
         cl_numberrange_runtime=>number_get(
           EXPORTING nr_range_nr = zif_atc_exemption=>reqnumber-interval
                     object      = zif_atc_exemption=>reqnumber-object
+                    toyear      = CONV #( sy-datum(4) )
           IMPORTING number      = DATA(lv_number) ).
         lv_reqnumber = |{ zif_atc_exemption=>reqnumber-prefix }| &&
                        |{ CONV int8( lv_number ) WIDTH = zif_atc_exemption=>reqnumber-digits ALIGN = RIGHT PAD = '0' }|.

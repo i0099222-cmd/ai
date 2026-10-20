@@ -220,13 +220,14 @@ CLASS zcl_atc_exempt_testdata IMPLEMENTATION.
     " 요청 번호는 앱과 같은 번호 범위의 그해 구간에서 받아 같은 모양(ATCX-2026000012)으로 만든다.
     " 구간이 없으면 비워 둔다.
     DATA lv_reqnumber TYPE ztatcexempt-reqnumber.
+    DATA(lv_year) = CONV gjahr( sy-datum(4) ).
     TRY.
         cl_numberrange_runtime=>number_get(
           EXPORTING nr_range_nr = zif_atc_exemption=>reqnumber-interval
                     object      = zif_atc_exemption=>reqnumber-object
-                    toyear      = CONV #( sy-datum(4) )
+                    toyear      = lv_year
           IMPORTING number      = DATA(lv_number) ).
-        lv_reqnumber = |{ zif_atc_exemption=>reqnumber-prefix }| &&
+        lv_reqnumber = |{ zif_atc_exemption=>reqnumber-prefix }{ lv_year }| &&
                        |{ CONV int8( lv_number ) WIDTH = zif_atc_exemption=>reqnumber-digits ALIGN = RIGHT PAD = '0' }|.
       CATCH cx_number_ranges ##NO_HANDLER.
     ENDTRY.

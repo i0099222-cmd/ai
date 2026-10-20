@@ -352,7 +352,8 @@ CLASS lhc_exemption IMPLEMENTATION.
 
   METHOD setreqnumber.
 
-    " 처음 저장할 때 번호 범위의 그해 구간에서 요청 번호를 받아 ATCX-2026000012 처럼 만든다.
+    " 처음 저장할 때 번호 범위의 그해 구간에서 일련번호를 받아 접두어와 연도를 붙인다(ATCX-2026000012).
+    " 연도를 구간 번호에 맡기지 않고 여기서 붙여서, 구간은 해마다 1 부터 시작하면 된다.
     " 이미 번호가 있으면 두고, 만들다 버린 draft 는 여기까지 오지 않으니 번호를 쓰지 않는다.
     " 번호 범위 구간이 없으면 저장은 되고 번호만 비며, 경고로 알린다.
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
@@ -361,16 +362,17 @@ CLASS lhc_exemption IMPLEMENTATION.
       RESULT DATA(lt_exemption).
 
     DATA lt_update TYPE TABLE FOR UPDATE zr_atcexemption.
+    DATA(lv_year) = CONV gjahr( sy-datum(4) ).
 
     LOOP AT lt_exemption INTO DATA(ls_exemption) WHERE reqnumber IS INITIAL.
       TRY.
           cl_numberrange_runtime=>number_get(
             EXPORTING nr_range_nr = zif_atc_exemption=>reqnumber-interval
                       object      = zif_atc_exemption=>reqnumber-object
-                      toyear      = CONV #( sy-datum(4) )
+                      toyear      = lv_year
             IMPORTING number      = DATA(lv_number) ).
           APPEND VALUE #( %tky      = ls_exemption-%tky
-                          reqnumber = |{ zif_atc_exemption=>reqnumber-prefix }| &&
+                          reqnumber = |{ zif_atc_exemption=>reqnumber-prefix }{ lv_year }| &&
                                       |{ CONV int8( lv_number ) WIDTH = zif_atc_exemption=>reqnumber-digits ALIGN = RIGHT PAD = '0' }| )
                  TO lt_update.
         CATCH cx_number_ranges INTO DATA(lo_error).

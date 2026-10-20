@@ -14,8 +14,8 @@ define table ztatcexempt {
   "! 요청서 GUID. RAP BO 키.
   key exemptuuid    : sysuuid_x16 not null;
 
-  "! 요청 번호(ATCX-2026000012). 처음 저장할 때 번호 범위 ZATCEXREQ 의 그해 구간에서 받아
-  "! zif_atc_exemption=>reqnumber 의 접두어를 붙인다. 접두어 5자 + 번호 10자리라 15자다.
+  "! 요청 번호(ATCX-2026000012). 처음 저장할 때 번호 범위 ZATCEXREQ 의 그해 구간에서 일련번호를
+  "! 받아 zif_atc_exemption=>reqnumber 의 접두어와 연도를 붙인다. 접두어 5자 + 연도 4 + 일련번호 6 = 15자.
   "! 목록과 헤더에서 요청서를 부르는 이름이다.
   "! 버퍼링 때문에 빈 번호가 생길 수 있다. 연속일 필요는 없다.
   reqnumber         : abap.char(15);

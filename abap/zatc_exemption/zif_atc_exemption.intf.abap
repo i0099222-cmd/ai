@@ -64,16 +64,16 @@ INTERFACE zif_atc_exemption
       notiftype   TYPE char4        VALUE 'REJ',
     END OF policy.
 
-  "! 요청 번호 번호 범위 (SNRO, To-year flag). 처음 저장할 때 그해의 구간 01 에서 받아 prefix 를
-  "! 붙인다. 구간이 연도로 시작하므로(2026000001 ~ 2026999999) 번호는 ATCX-2026000012 처럼
-  "! 연도 4자리 + 일련번호 6자리가 되고, 해가 바뀌면 1부터 다시 센다. digits 는 번호 전체 자리수다.
-  "! ztatcexempt-reqnumber 는 prefix 길이 + 번호 길이(NUMC 10)를 담아야 한다.
+  "! 요청 번호 번호 범위 (SNRO, To-year flag). 처음 저장할 때 그해의 구간 01 에서 일련번호를 받아
+  "! prefix + 연도 + digits 자리 일련번호로 만든다(ATCX-2026000012). 연도는 코드가 붙이므로 구간은
+  "! 해마다 1 부터 시작하면 되고(0000000001 ~ 0000999999), 해가 바뀌면 다시 1 부터 센다.
+  "! ztatcexempt-reqnumber(CHAR 15) = prefix 5자 + 연도 4자리 + 일련번호 6자리.
   CONSTANTS:
     BEGIN OF reqnumber,
       object   TYPE nrobj      VALUE 'ZATCEXREQ',
       interval TYPE nrnr       VALUE '01',
       prefix   TYPE c LENGTH 5 VALUE 'ATCX-',
-      digits   TYPE i          VALUE 10,
+      digits   TYPE i          VALUE 6,
     END OF reqnumber.
 
   "! 이력 액션 코드

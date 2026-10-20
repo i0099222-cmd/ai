@@ -100,7 +100,8 @@ DDLX 에 낱개로 정의된 액션을 manifest 에서 메뉴 버튼 두 개로 
 
 요청서 한 건에 대상을 여러 줄 넣는다. 별도 확장 없이 FE 기본 기능으로 동작한다.
 
-- 위: Request No., 사유와 유효기간 (체크는 대상 표의 줄마다 Check Class 로 고른다)
+- 머리글: 제목은 Request No., 그 아래 data point 로 Status(상태 색) / Requester / Approver / Approved At
+- 위: 사유와 유효기간 (체크는 대상 표의 줄마다 Check Class 로 고른다)
 - 아래 **Targets** 표: 초안에서 줄을 추가하고 칸에 바로 입력한다. 한 줄 = 표준 예외 1건.
   - Package 만 넣으면 패키지 대상, Object Name 까지 넣으면 오브젝트 대상. Check Message Code 를 비우면 그 체크의 모든 메시지다
   - Object Name 값 도움: 위반이 있는 오브젝트. 고르면 Object Type / Package / Check Class / Check Message Code 가 같이 채워진다.

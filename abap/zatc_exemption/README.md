@@ -609,7 +609,7 @@ SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대�
 
 | Determination | 엔티티 | 트리거 | 하는 일 |
 |---|---|---|---|
-| `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일 |
+| `setInitialValues` | 요청서 | create | 상태 = 초안, 신청자, 유효시작일, 초안 색(새 draft 는 CDS 의 상태 색 계산을 거치지 않는다) |
 | `setReqNumber` | 요청서 | 저장 시, create, update | 번호 범위 `ZATCEXREQ` 에서 받아 `REQ-000012` 모양으로 채번 (번호가 비어 있을 때만) |
 | `deriveTarget` | 대상 | create, Devclass, ObjectType, ObjectName, CheckCode | 범위·규칙 범위, TADIR 패키지, 줄 번호 |
 

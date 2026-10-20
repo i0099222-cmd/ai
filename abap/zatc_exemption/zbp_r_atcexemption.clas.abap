@@ -329,15 +329,18 @@ CLASS lhc_exemption IMPLEMENTATION.
         WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption).
 
+    " 상태 색(StatusCriticality)은 CDS 가 계산하지만 draft 는 그 계산을 거치지 않는다.
+    " 새 draft 가 처음부터 초안 색으로 보이도록 ZR_AtcExemption 의 초안 값(5)을 넣는다.
     MODIFY ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        UPDATE FIELDS ( exemptstatus requester validfrom )
+        UPDATE FIELDS ( exemptstatus requester validfrom statuscriticality )
         WITH VALUE #( FOR ls_exemption IN lt_exemption
-                      ( %tky         = ls_exemption-%tky
-                        exemptstatus = zif_atc_exemption=>status-draft
-                        requester    = sy-uname
-                        validfrom    = COND #( WHEN ls_exemption-validfrom IS INITIAL
-                                               THEN sy-datum ELSE ls_exemption-validfrom ) ) )
+                      ( %tky              = ls_exemption-%tky
+                        exemptstatus      = zif_atc_exemption=>status-draft
+                        requester         = sy-uname
+                        validfrom         = COND #( WHEN ls_exemption-validfrom IS INITIAL
+                                                    THEN sy-datum ELSE ls_exemption-validfrom )
+                        statuscriticality = 5 ) )
       FAILED DATA(lt_init_failed).
 
     " 여기서 쓰는 값은 방금 계산한 것이라, 실패한다면 사용자에게 보여줄 메시지가

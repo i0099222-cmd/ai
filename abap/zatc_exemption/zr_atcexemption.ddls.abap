@@ -29,9 +29,12 @@ define root view entity ZR_AtcExemption
       Approver,
       ApprovedAt,
 
-      // 상태 색. 3 승인(녹) / 2 승인대기(황) / 1 반려·철회·만료(적)
+      // 상태 색. 5 초안(청) / 3 승인(녹) / 2 승인대기(황) / 1 반려·철회·만료(적)
+      // draft 는 이 계산을 거치지 않고 draft 테이블 값을 읽는다. 새로 만든 draft 는
+      // setInitialValues 가 초안 색을 넣는다.
       @EndUserText.label: 'Status Criticality'
       case ExemptStatus
+        when '10' then 5
         when '30' then 3
         when '20' then 2
         when '40' then 1

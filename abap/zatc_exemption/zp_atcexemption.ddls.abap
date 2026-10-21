@@ -27,6 +27,10 @@ define root view entity ZP_AtcExemption
 
       @Search.defaultSearchElement: true
       Requester,
+      // 신청자가 고른다. 표준 승인자 목록에 있는 사람만 나온다.
+      @Consumption.valueHelpDefinition: [{
+        entity: { name: 'ZI_AtcApproverVH', element: 'Approver' }
+      }]
       Approver,
       ApprovedAt,
 

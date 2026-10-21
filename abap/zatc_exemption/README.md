@@ -73,7 +73,7 @@ ATC 예외를 **패키지/오브젝트 단위로 신청 · 승인 · 반려**하
 | `create_exemption` 파라미터 | `i_object_type` / `i_object_name` / **`i_package_name`** / `i_check_class` / `i_check_code` / `i_contact_person` | 체크·메시지 필수 → 신청서의 `CheckId`/`MessageId` 도 필수. **오브젝트 필수 → 패키지 스코프도 출발점 오브젝트를 보관.** 패키지는 `i_package_name` 이고, 오브젝트 자리에 넣으면 안 된다. 🔴 `i_package_name` 이 있으면 PCKG 에서 오브젝트를 비워도 되는지는 선등록 상신으로 확인 중 |
 | 예외 오브젝트 API | `set_object_scope`(타입 `SATC_CI_OBJ_SCOPE`) / `set_check_scope` / `set_reason` / `set_validity_date` / `set_approver` / `set_notification_type` / `send_to_approver` / `unlock` / `get_exemption_id` | **`set_object_scope` 덕분에 패키지 스코프를 표준 예외 1건으로 넘길 수 있다** → 예외 ID 는 헤더에 1개, 오브젝트별 전개 불필요. 유효기간도 표준에 넘어간다 |
 | 알림 유형 | `REJ` 반려 시 / `ALWS` 승인·반려 모두 / `NEVR` 없음 | `zif_atc_exemption=>policy-notiftype` 상수 |
-| 표준 승인자 | 표준은 승인자 1명을 필수로 요구한다 | 표준 승인자 목록(`SATC_CI_APPROVER`)에서 신청자가 아닌 사람을 넣는다. 목록이 비어 있으면 상신이 막힌다(메시지 021) |
+| 표준 승인자 | 표준은 승인자 1명을 필수로 요구한다 | 신청자가 고른 승인자를 넣는다. 승인자 칸이 빈 예전 요청서는 표준 승인자 목록(`SATC_CI_APPROVER`)에서 신청자가 아닌 사람을 넣고, 목록이 비어 있으면 상신이 막힌다(메시지 021) |
 | 반려 API | `reject_exemptions_by_id( exemption_id, assessment )` | 철회·만료 시 표준 무효화 경로로 사용 |
 | `checksum` | 필드명 동일, 타입 `int4` | 아이템 컬럼을 `char(32)` → `int4` 로 수정 |
 | `SATC_CI_OBJ_SCOPE` 고정값 | `FND` / `OBJ` / `PCKG` — 우리 값과 동일 | 변환 없이 그대로 전달 |
@@ -416,6 +416,7 @@ ZI_AtcFinding      표준 스키마를 아는 유일한 오브젝트. 면제 여
      └► ZI_AtcFindingPkgVH   대상 Package 값 도움 (미면제 위반이 있는 패키지, 패키지당 한 줄)
 
 ZI_AtcCheckClassVH   체크 클래스 값 도움. 변형 이름으로도 찾는다 (실제로 돈 ATC 결과에서 짝을 만든다)
+ZI_AtcApproverVH  요청서 Approver 값 도움 (표준 승인자 목록 SATC_CI_APPROVER + 이름)
 ZI_AtcPackageVH   고객 패키지 전체 (대상 Package 의 두 번째 값 도움, 선등록용)
 ZI_AtcCheckCodeVH 메시지 코드 값 도움
 ZI_AtcReasonVH    사유 코드 값 도움 (표준 SATC_CI_REASONS, not_selectable 제외)
@@ -426,7 +427,7 @@ ZD_AtcReject / ZD_AtcExtend   액션 파라미터(추상 엔터티)
 |---|---|
 | 트랜잭션 BO (I 1 + R 3 + P 3) | 7 |
 | 판정 (ZI_AtcFinding + ZI_AtcLatestRun + ZI_AtcActiveExemption) | 3 |
-| 값 도움 | 6 |
+| 값 도움 | 7 |
 | 액션 파라미터 (추상 엔터티, 뷰 아님) | 2 |
 
 **필드 레이블은 테이블을 직접 읽는 뷰에 둔다.** 헤더는 `ZI_AtcExemption`,
@@ -530,6 +531,10 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 023 | Add at least one target before submitting the request |
 | 024 | Target &1 is entered more than once in this request |
 | 025 | Enter a check class for each target |
+| 026 | Only the selected approver &1 can approve or reject this request |
+| 027 | Select an approver |
+| 028 | &1 is not in the ATC approver list |
+| 029 | You cannot select yourself as approver |
 
 ### 3. 권한 - 커스텀 권한 오브젝트 없음
 
@@ -537,9 +542,11 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 |---|---|
 | 신청(생성) | 누구나 |
 | 수정·삭제·상신·회수 | 신청자 본인 |
-| 승인·반려 | 표준 승인자 목록 `SATC_CI_APPROVER` 에 있음, 본인 신청 건 제외 |
+| 승인·반려 | 신청자가 고른 승인자 본인(표준 승인자 목록 `SATC_CI_APPROVER` 에 있어야 함). 승인자 칸이 빈 예전 요청서는 목록의 승인자 누구나. 본인 신청 건은 `policy-selfapprove` 를 따른다 |
 
 승인자는 표준 ATC 승인자 목록에 등록하면 된다. 권한 오브젝트와 PFCG 작업이 필요 없다.
+신청자는 요청서의 Approver 칸에서 그 목록의 사람을 고른다(값 도움 `ZI_AtcApproverVH`). 상신하면
+그 사람이 표준 예외의 승인자로 들어가고, 그 사람만 결재 버튼이 켜진다.
 `S_Q_GOVERN` 은 개발자 역할 대부분이 갖고 있어 승인자를 가려내지 못하므로 보지 않는다.
 단, 표준 approve 는 `S_Q_GOVERN` 을 직접 검사하므로 목록에 있는 승인자에게 그 권한이
 없으면 승인 시 표준이 거부하고 메시지로 알린다.
@@ -603,8 +610,8 @@ SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대�
 |---|---|---|---|
 | `submit` | 초안 | 대상마다 승인대기로 생성. 실패하면 만든 것 삭제 | 대상 1줄 이상(023), 승인자 설정(021), 중복 재확인(013). 영향 건수를 이력에 기록 |
 | `withdraw` | 승인대기 | 대상마다 삭제. 남은 줄은 재실행으로 | |
-| `approve` | 승인대기 | 승인 안 된 줄만 승인. 실패하면 멈춤 | 자기 요청은 `policy-selfapprove` 가 꺼져 있으면 금지(014) |
-| `reject` | 승인대기 · **승인** | 반려 안 된 줄만 반려. 실패하면 멈춤 | 반려 사유 필수(015) |
+| `approve` | 승인대기 | 승인 안 된 줄만 승인. 실패하면 멈춤 | 고른 승인자만(026). 자기 요청은 `policy-selfapprove` 가 꺼져 있으면 금지(014) |
+| `reject` | 승인대기 · **승인** | 반려 안 된 줄만 반려. 실패하면 멈춤 | 고른 승인자만(026). 반려 사유 필수(015) |
 | `extendValidity` | 승인 | (없음) | 연장일이 현재보다 뒤(016). 승인대기로 되돌려 재승인 |
 | `simulateImpact` | (제한 없음) | (없음) | 대상 전체가 덮는 현재 위반 건수 |
 
@@ -624,6 +631,7 @@ SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대�
 |---|---|---|---|
 | `validateValidity` | 요청서 | 기간 유효성 + 설정된 개월 상한 | 010, 011 |
 | `validateReason` | 요청서 | 사유 코드 + 근거 최소 길이 | 012 |
+| `validateApprover` | 요청서 | 승인자 필수, 표준 승인자 목록에 있음, 본인은 `policy-selfapprove` 일 때만 (create, Approver 변경 시) | 027, 028, 029 |
 | `validateTarget` | 대상 | ① 필수 필드 ② 고객 네임스페이스·실재 ③ 심각도 상한(현재 위반 기준) ④ 요청서 안 중복 ⑤ 다른 요청서와 중복 | 002, 025, 004, 006~008, 018, 024, 013 |
 
 `validateTarget` 은 앞 단계가 실패하면 뒤를 보지 않는다. Draft 의 Prepare 에도 걸려 있다.

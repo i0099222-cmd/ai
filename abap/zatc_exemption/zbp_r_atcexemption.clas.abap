@@ -159,6 +159,9 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS validatereason FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validatereason.
 
+    METHODS validateapprover FOR VALIDATE ON SAVE
+      IMPORTING keys FOR exemption~validateapprover.
+
     METHODS submit FOR MODIFY
       IMPORTING keys FOR ACTION exemption~submit RESULT result.
 
@@ -216,7 +219,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
       ENTITY exemption
-        FIELDS ( exemptstatus requester ) WITH CORRESPONDING #( keys )
+        FIELDS ( exemptstatus requester approver ) WITH CORRESPONDING #( keys )
       RESULT DATA(lt_exemption)
       FAILED failed.
 
@@ -228,8 +231,11 @@ CLASS lhc_exemption IMPLEMENTATION.
       DATA(lv_is_requester) = xsdbool( ls_exemption-requester = sy-uname ).
       DATA(lv_own_draft)    = xsdbool( ls_exemption-exemptstatus = zif_atc_exemption=>status-draft
                                        AND lv_is_requester = abap_true ).
-      " 승인·반려할 수 있는 사람. 자기 요청은 policy-selfapprove 가 켜져 있을 때만 된다.
+      " 승인·반려할 수 있는 사람. 신청자가 고른 승인자만 된다(승인자 칸이 비어 있는 예전
+      " 요청서는 승인자 누구나). 자기 요청은 policy-selfapprove 가 켜져 있을 때만 된다.
       DATA(lv_can_decide)   = xsdbool( lv_is_approver = abap_true
+                                       AND ( ls_exemption-approver IS INITIAL
+                                          OR ls_exemption-approver = sy-uname )
                                        AND ( lv_is_requester = abap_false
                                           OR zif_atc_exemption=>policy-selfapprove = abap_true ) ).
 
@@ -489,6 +495,53 @@ CLASS lhc_exemption IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD validateapprover.
+
+    " 승인자는 신청자가 고른다. 표준 예외에 승인자로 넣을 수 있는 사람은 표준 승인자 목록
+    " (SATC_CI_APPROVER)에 있는 사람뿐이다. 본인은 policy-selfapprove 가 켜져 있을 때만 된다.
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption
+        FIELDS ( approver requester )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_exemption).
+
+    LOOP AT lt_exemption INTO DATA(ls_exemption).
+
+      DATA lv_error TYPE symsgno.
+      CLEAR lv_error.
+
+      IF ls_exemption-approver IS INITIAL.
+        lv_error = '027'.
+      ELSEIF ls_exemption-approver = ls_exemption-requester
+         AND zif_atc_exemption=>policy-selfapprove = abap_false.
+        lv_error = '029'.
+      ELSE.
+        SELECT SINGLE @abap_true FROM satc_ci_approver
+          WHERE approver = @ls_exemption-approver
+          INTO @DATA(lv_in_list).
+        IF lv_in_list <> abap_true.
+          lv_error = '028'.
+        ENDIF.
+        CLEAR lv_in_list.
+      ENDIF.
+
+      IF lv_error IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+      APPEND VALUE #( %tky              = ls_exemption-%tky
+                      %state_area       = 'VALIDATE_APPROVER'
+                      %element-approver = if_abap_behv=>mk-on
+                      %msg = new_error( iv_number = lv_error
+                                        iv_v1     = ls_exemption-approver ) )
+             TO reported-exemption.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
   METHOD submit.
 
     READ ENTITIES OF zr_atcexemption IN LOCAL MODE
@@ -516,11 +569,14 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       DATA(ls_hdr) = CORRESPONDING ztatcexempt( ls_exemption MAPPING FROM ENTITY ).
 
-      " 표준은 승인자 1명이 있어야 승인대기로 올린다. 표준 승인자 목록에서 신청자가
-      " 아닌 사람을 넣는다. 승인 때 실제로 누른 사람으로 바뀌므로 누가 들어가든 결과는 같다.
-      SELECT SINGLE approver FROM satc_ci_approver
-        WHERE approver <> @ls_exemption-requester
-        INTO @ls_hdr-approver.
+      " 표준은 승인자 1명이 있어야 승인대기로 올린다. 신청자가 고른 승인자를 넣는다.
+      " 승인자 칸이 생기기 전에 만든 요청서는 비어 있으니, 표준 승인자 목록에서 신청자가
+      " 아닌 사람을 넣는다.
+      IF ls_hdr-approver IS INITIAL.
+        SELECT SINGLE approver FROM satc_ci_approver
+          WHERE approver <> @ls_exemption-requester
+          INTO @ls_hdr-approver.
+      ENDIF.
       IF ls_hdr-approver IS INITIAL.
         APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
         APPEND VALUE #( %tky = ls_exemption-%tky
@@ -733,6 +789,16 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      " 신청자가 고른 승인자만 결재한다. 승인자 칸이 비어 있는 예전 요청서는 승인자 누구나.
+      IF ls_exemption-approver IS NOT INITIAL
+     AND ls_exemption-approver <> sy-uname.
+        APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_exemption-%tky
+                        %msg = new_error( iv_number = '026'
+                                          iv_v1     = ls_exemption-approver ) ) TO reported-exemption.
+        CONTINUE.
+      ENDIF.
+
       " 대상 전부를 승인한다. 표준은 한 건씩 승인해서 중간에 실패하면 앞서 승인된
       " 줄은 되돌릴 수 없다. 요청서는 승인대기로 남고, 다시 누르면 남은 줄만 승인한다.
       DATA(ls_sync) = sync_standard(
@@ -815,6 +881,17 @@ CLASS lhc_exemption IMPLEMENTATION.
                         %msg = new_error( iv_number = '020'
                                           iv_v1     = ls_exemption-exemptstatus ) )
                TO reported-exemption.
+        CONTINUE.
+      ENDIF.
+
+      " 신청자가 고른 승인자(승인 건은 승인한 사람)만 반려한다. 승인자 칸이 비어 있는 예전
+      " 요청서는 승인자 누구나.
+      IF ls_exemption-approver IS NOT INITIAL
+     AND ls_exemption-approver <> sy-uname.
+        APPEND VALUE #( %tky = ls_key-%tky ) TO failed-exemption.
+        APPEND VALUE #( %tky = ls_key-%tky
+                        %msg = new_error( iv_number = '026'
+                                          iv_v1     = ls_exemption-approver ) ) TO reported-exemption.
         CONTINUE.
       ENDIF.
 

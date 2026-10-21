@@ -22,10 +22,10 @@ etag master LocalLastChangedAt
   field ( numbering : managed, readonly ) ExemptUuid;
 
   // 상태와 결재 정보는 액션으로만 바뀐다. 요청 번호는 저장할 때 채번된다. 화면에서 직접 못 고친다.
+  // 승인자(Approver)만 예외다. 신청자가 초안에서 고르고, 결재하면 결재한 사람으로 남는다.
   field ( readonly ) ReqNumber,
                      ExemptStatus,
                      Requester,
-                     Approver,
                      ApprovedAt,
                      CreatedBy,
                      CreatedAt,
@@ -33,7 +33,7 @@ etag master LocalLastChangedAt
                      LastChangedAt,
                      LocalLastChangedAt;
 
-  field ( mandatory ) ValidTo;
+  field ( mandatory ) ValidTo, Approver;
 
   create;
   update;
@@ -49,6 +49,7 @@ etag master LocalLastChangedAt
   {
     validation validateValidity;
     validation validateReason;
+    validation validateApprover;
     validation ExemptionItem~validateTarget;
   }
 
@@ -75,6 +76,9 @@ etag master LocalLastChangedAt
 
   validation validateValidity on save { field ValidFrom, ValidTo; create; update; }
   validation validateReason   on save { field ReasonCode, ReasonText; create; update; }
+  // 승인자 칸이 생기기 전에 만든 요청서는 비어 있다. 다른 필드를 고칠 때마다 막지 않도록
+  // 만들 때와 승인자를 바꿀 때만 본다.
+  validation validateApprover on save { field Approver; create; }
 
   mapping for ztatcexempt
   {

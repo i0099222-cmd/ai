@@ -50,7 +50,7 @@ annotate entity ZP_AtcExemption with
     { id: 'HdrApprovedAt', purpose: #HEADER, type: #DATAPOINT_REFERENCE,
       targetQualifier: 'ApprovedAt', position: 40 },
     { id: 'Reason',  purpose: #STANDARD, type: #FIELDGROUP_REFERENCE,
-      label: 'Reason and Validity', position: 20, targetQualifier: 'ReasonGroup' },
+      label: 'Request Details', position: 20, targetQualifier: 'ReasonGroup' },
     { id: 'Targets', purpose: #STANDARD, type: #LINEITEM_REFERENCE,
       label: 'Targets', position: 30, targetElement: '_Item' },
     { id: 'Log',     purpose: #STANDARD, type: #LINEITEM_REFERENCE,
@@ -122,9 +122,11 @@ annotate entity ZP_AtcExemption with
   @EndUserText.label: 'Requester'
   Requester;
 
+  // 신청자가 초안에서 고르는 승인자. 그 사람만 결재할 수 있고, 결재하면 결재한 사람으로 남는다.
   @UI: {
-    lineItem:  [{ position: 80, importance: #MEDIUM }],
-    dataPoint: { qualifier: 'Approver', title: 'Approver' }
+    lineItem:   [{ position: 80, importance: #MEDIUM }],
+    fieldGroup: [{ qualifier: 'ReasonGroup', position: 50 }],
+    dataPoint:  { qualifier: 'Approver', title: 'Approver' }
   }
   @EndUserText.label: 'Approver'
   Approver;

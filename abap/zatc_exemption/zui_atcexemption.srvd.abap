@@ -22,4 +22,5 @@ define service ZUI_AtcExemption {
   expose ZI_AtcFindingObjVH  as FindingObjectVH;
   expose ZI_AtcFindingPkgVH  as FindingPackageVH;
   expose ZI_AtcPackageVH     as PackageVH;
+  expose ZI_AtcApproverVH    as ApproverVH;
 }

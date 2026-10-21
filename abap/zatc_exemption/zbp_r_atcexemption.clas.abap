@@ -508,15 +508,9 @@ CLASS lhc_exemption IMPLEMENTATION.
 
       " 표준은 승인자 1명이 있어야 승인대기로 올린다. 표준 승인자 목록에서 신청자가
       " 아닌 사람을 넣는다. 승인 때 실제로 누른 사람으로 바뀌므로 누가 들어가든 결과는 같다.
-      " 자기 승인을 허용하면, 다른 승인자가 없을 때 승인 권한이 있는 신청자 본인을 넣는다.
       SELECT SINGLE approver FROM satc_ci_approver
         WHERE approver <> @ls_exemption-requester
         INTO @ls_hdr-approver.
-      IF ls_hdr-approver IS INITIAL
-     AND zif_atc_exemption=>policy-selfapprove = abap_true
-     AND zcl_atc_exempt_sync=>is_approver( ) = abap_true.
-        ls_hdr-approver = ls_exemption-requester.
-      ENDIF.
       IF ls_hdr-approver IS INITIAL.
         APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
         APPEND VALUE #( %tky = ls_exemption-%tky

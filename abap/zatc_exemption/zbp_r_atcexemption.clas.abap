@@ -218,11 +218,15 @@ CLASS lhc_exemption IMPLEMENTATION.
       DATA(lv_is_requester) = xsdbool( ls_exemption-requester = sy-uname ).
       DATA(lv_own_draft)    = xsdbool( ls_exemption-exemptstatus = zif_atc_exemption=>status-draft
                                        AND lv_is_requester = abap_true ).
+      " 승인·반려할 수 있는 사람. 자기 요청은 policy-selfapprove 가 켜져 있을 때만 된다.
+      DATA(lv_can_decide)   = xsdbool( lv_is_approver = abap_true
+                                       AND ( lv_is_requester = abap_false
+                                          OR zif_atc_exemption=>policy-selfapprove = abap_true ) ).
 
       " 버튼 활성화 규칙. 같은 화면에서 신청자와 승인자를 구분하는 지점이다.
       "   신청자 : 본인 초안에서만 Edit/Submit/Delete, 승인대기에서 Withdraw
       "   승인자 : 승인대기에서 Approve/Reject, 승인 건에서도 Reject
-      "   자기승인은 금지한다.
+      "   자기 요청의 승인·반려는 policy-selfapprove 를 따른다.
       APPEND VALUE #(
         %tky                   = ls_exemption-%tky
 
@@ -244,8 +248,7 @@ CLASS lhc_exemption IMPLEMENTATION.
 
         %action-approve        = COND #(
           WHEN ls_exemption-exemptstatus = zif_atc_exemption=>status-pending
-           AND lv_is_approver = abap_true
-           AND lv_is_requester = abap_false
+           AND lv_can_decide = abap_true
           THEN if_abap_behv=>fc-o-enabled ELSE if_abap_behv=>fc-o-disabled )
 
         " 승인 건에서도 반려할 수 있다. 표준이 승인된 예외에 Reject 를 허용하고,
@@ -253,8 +256,7 @@ CLASS lhc_exemption IMPLEMENTATION.
         %action-reject         = COND #(
           WHEN ( ls_exemption-exemptstatus = zif_atc_exemption=>status-pending
               OR ls_exemption-exemptstatus = zif_atc_exemption=>status-approved )
-           AND lv_is_approver = abap_true
-           AND lv_is_requester = abap_false
+           AND lv_can_decide = abap_true
           THEN if_abap_behv=>fc-o-enabled ELSE if_abap_behv=>fc-o-disabled )
 
         %action-extendvalidity = COND #(
@@ -505,11 +507,16 @@ CLASS lhc_exemption IMPLEMENTATION.
       DATA(ls_hdr) = CORRESPONDING ztatcexempt( ls_exemption MAPPING FROM ENTITY ).
 
       " 표준은 승인자 1명이 있어야 승인대기로 올린다. 표준 승인자 목록에서 신청자가
-      " 아닌 사람을 넣는다(자기승인 금지). 승인 때 실제로 누른 사람으로 바뀌므로
-      " 누가 들어가든 결과는 같다.
+      " 아닌 사람을 넣는다. 승인 때 실제로 누른 사람으로 바뀌므로 누가 들어가든 결과는 같다.
+      " 자기 승인을 허용하면, 다른 승인자가 없을 때 승인 권한이 있는 신청자 본인을 넣는다.
       SELECT SINGLE approver FROM satc_ci_approver
         WHERE approver <> @ls_exemption-requester
         INTO @ls_hdr-approver.
+      IF ls_hdr-approver IS INITIAL
+     AND zif_atc_exemption=>policy-selfapprove = abap_true
+     AND zcl_atc_exempt_sync=>is_approver( ) = abap_true.
+        ls_hdr-approver = ls_exemption-requester.
+      ENDIF.
       IF ls_hdr-approver IS INITIAL.
         APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
         APPEND VALUE #( %tky = ls_exemption-%tky
@@ -709,8 +716,10 @@ CLASS lhc_exemption IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 자기승인 금지. features 에서도 막지만 OData 를 직접 부르는 경로가 있다.
-      IF ls_exemption-requester = sy-uname.
+      " 자기 요청은 policy-selfapprove 가 꺼져 있으면 승인할 수 없다. features 에서도 막지만
+      " OData 를 직접 부르는 경로가 있다.
+      IF ls_exemption-requester = sy-uname
+     AND zif_atc_exemption=>policy-selfapprove = abap_false.
         APPEND VALUE #( %tky = ls_exemption-%tky ) TO failed-exemption.
         APPEND VALUE #( %tky = ls_exemption-%tky
                         %msg = new_error( iv_number = '014' ) ) TO reported-exemption.

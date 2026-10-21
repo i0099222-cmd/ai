@@ -55,6 +55,7 @@ INTERFACE zif_atc_exemption
   "!   reasonreq   : 사유 서술 필수. 표준이 요구하지 않는 사유에도 받는다
   "!   minreason   : 사유 서술 최소 길이. 한 줄짜리 형식적 사유를 막는다
   "!   notiftype   : 표준 예외 메일 알림 (REJ 반려 시 / ALWS 항상 / NEVR 안 보냄)
+  "!   selfapprove : 승인 권한이 있는 사람은 자기 요청도 승인·반려할 수 있다. 끄면 다른 승인자가 해야 한다
   CONSTANTS:
     BEGIN OF policy,
       maxvalidmon TYPE i            VALUE 12,
@@ -62,6 +63,7 @@ INTERFACE zif_atc_exemption
       reasonreq   TYPE abap_boolean VALUE abap_true,
       minreason   TYPE i            VALUE 20,
       notiftype   TYPE char4        VALUE 'REJ',
+      selfapprove TYPE abap_boolean VALUE abap_true,
     END OF policy.
 
   "! 요청 번호 번호 범위 (SNRO, To-year flag). 처음 저장할 때 그해의 구간 01 에서 일련번호를 받아

@@ -518,7 +518,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 011 | Validity period must not exceed &1 months |
 | 012 | Enter a reason code and a justification of at least &1 characters |
 | 013 | A valid exemption for &1 / &2 already exists |
-| 014 | You cannot approve your own exemption request |
+| 014 | You cannot approve your own exemption request (`policy-selfapprove` 가 꺼져 있을 때) |
 | 015 | Enter a rejection reason |
 | 016 | New valid-to date must be later than the current one |
 | 017 | (사용 안 함) |
@@ -603,7 +603,7 @@ SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대�
 |---|---|---|---|
 | `submit` | 초안 | 대상마다 승인대기로 생성. 실패하면 만든 것 삭제 | 대상 1줄 이상(023), 승인자 설정(021), 중복 재확인(013). 영향 건수를 이력에 기록 |
 | `withdraw` | 승인대기 | 대상마다 삭제. 남은 줄은 재실행으로 | |
-| `approve` | 승인대기 | 승인 안 된 줄만 승인. 실패하면 멈춤 | 자기승인 금지(014) |
+| `approve` | 승인대기 | 승인 안 된 줄만 승인. 실패하면 멈춤 | 자기 요청은 `policy-selfapprove` 가 꺼져 있으면 금지(014) |
 | `reject` | 승인대기 · **승인** | 반려 안 된 줄만 반려. 실패하면 멈춤 | 반려 사유 필수(015) |
 | `extendValidity` | 승인 | (없음) | 연장일이 현재보다 뒤(016). 승인대기로 되돌려 재승인 |
 | `simulateImpact` | (제한 없음) | (없음) | 대상 전체가 덮는 현재 위반 건수 |
@@ -678,7 +678,7 @@ SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대�
 - `simulateImpact` 액션으로 승인 전 면제 건수 확인
 - 상신 시 영향 건수를 근거 텍스트에 자동 기입 → **표준 승인 앱에서 결재해도 승인자가 읽을 수 있다**
 - 대상 표에서 `PCKG` 줄을 경고색으로 표시 (`ScopeCriticality`)
-- 자기승인 금지
+- 자기 승인은 정책 스위치(`policy-selfapprove`)로 정한다. 켜면 승인 권한이 있는 사람은 자기 요청도 승인·반려한다
 
 ---
 

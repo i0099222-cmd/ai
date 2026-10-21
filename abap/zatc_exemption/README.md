@@ -517,7 +517,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 010 | Valid-to date must be later than valid-from date |
 | 011 | Validity period must not exceed &1 months |
 | 012 | Enter a reason code and a justification of at least &1 characters |
-| 013 | A valid exemption for &1 / &2 already exists |
+| 013 | A valid exemption for &1 / &2 already exists in request &3 |
 | 014 | You cannot approve your own exemption request (`policy-selfapprove` 가 꺼져 있을 때) |
 | 015 | Enter a rejection reason |
 | 016 | New valid-to date must be later than the current one |

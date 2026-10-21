@@ -27,10 +27,11 @@ CLASS lcl_rules DEFINITION FINAL.
     "!          OBJ 끼리는 같은 오브젝트일 때만 겹친다.
     "!   코드 : 한쪽이라도 CHK 면 그 체크의 모든 코드를 덮는다. MSG 끼리는 같은 코드일 때만.
     "! 빈 range 는 IN 에서 전부 통과하므로 "비교하지 않음" 이 된다.
-    CLASS-METHODS has_overlap
-      IMPORTING is_header       TYPE ztatcexempt
-                is_item         TYPE ztatcexempti
-      RETURNING VALUE(rv_found) TYPE abap_boolean.
+    "! 겹치는 요청서가 있으면 사용자가 찾아갈 수 있게 그 번호와 상태를 돌려준다(없으면 빈 값).
+    CLASS-METHODS find_overlap
+      IMPORTING is_header         TYPE ztatcexempt
+                is_item           TYPE ztatcexempti
+      RETURNING VALUE(rv_request) TYPE string.
 
     TYPES: BEGIN OF ty_findings,
              findings     TYPE i,
@@ -49,7 +50,7 @@ ENDCLASS.
 
 CLASS lcl_rules IMPLEMENTATION.
 
-  METHOD has_overlap.
+  METHOD find_overlap.
 
     DATA lr_objtype TYPE RANGE OF ztatcexempti-objecttype.
     DATA lr_objname TYPE RANGE OF ztatcexempti-objectname.
@@ -66,7 +67,7 @@ CLASS lcl_rules IMPLEMENTATION.
       lr_code = VALUE #( ( sign = 'I' option = 'EQ' low = is_item-checkcode ) ).
     ENDIF.
 
-    SELECT SINGLE @abap_true
+    SELECT SINGLE hdr~reqnumber, hdr~exemptstat
       FROM ztatcexempti AS item
       INNER JOIN ztatcexempt AS hdr ON hdr~exemptuuid = item~exemptuuid
       " 자기 요청서는 뺀다. 한 번이라도 저장한 요청서는 자기 줄이 DB 에 초안으로 있어서,
@@ -84,7 +85,15 @@ CLASS lcl_rules IMPLEMENTATION.
                 AND item~objectname IN @lr_objname ) )
         AND ( item~rulescope = @zif_atc_exemption=>rulescope-check
            OR item~checkcode IN @lr_code )
-      INTO @rv_found.
+      INTO @DATA(ls_hit).
+
+    IF sy-subrc = 0.
+      DATA(lv_status) = SWITCH string( ls_hit-exemptstat
+                                       WHEN zif_atc_exemption=>status-draft   THEN `Draft`
+                                       WHEN zif_atc_exemption=>status-pending THEN `Pending`
+                                       ELSE `Approved` ).
+      rv_request = |{ ls_hit-reqnumber } ({ lv_status })|.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -195,6 +204,7 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING iv_number     TYPE symsgno
                 iv_v1         TYPE any OPTIONAL
                 iv_v2         TYPE any OPTIONAL
+                iv_v3         TYPE any OPTIONAL
       RETURNING VALUE(ro_msg) TYPE REF TO if_abap_behv_message.
 
 ENDCLASS.
@@ -533,11 +543,13 @@ CLASS lhc_exemption IMPLEMENTATION.
       " 표준을 부르기 전에 중복을 한 번 더 본다. 저장 검증이 있지만 그 뒤에
       " 다른 요청이 먼저 상신됐을 수 있다. 부른 뒤에 걸리면 표준에만 예외가 남는다.
       " 영향도(면제될 현재 위반 건수)는 이력에 남겨 승인자가 읽게 한다.
-      DATA(lv_overlap)       = VALUE string( ).
-      DATA(lv_overlap_class) = VALUE string( ).
-      DATA(lv_impact)        = 0.
+      DATA(lv_overlap)         = VALUE string( ).
+      DATA(lv_overlap_class)   = VALUE string( ).
+      DATA(lv_overlap_request) = VALUE string( ).
+      DATA(lv_impact)          = 0.
       LOOP AT lt_target INTO DATA(ls_target).
-        IF lcl_rules=>has_overlap( is_header = ls_hdr is_item = ls_target ) = abap_true.
+        lv_overlap_request = lcl_rules=>find_overlap( is_header = ls_hdr is_item = ls_target ).
+        IF lv_overlap_request IS NOT INITIAL.
           lv_overlap       = |{ ls_target-devclass } { ls_target-objectname }|.
           lv_overlap_class = ls_target-checkclass.
           EXIT.
@@ -550,7 +562,8 @@ CLASS lhc_exemption IMPLEMENTATION.
         APPEND VALUE #( %tky = ls_exemption-%tky
                         %msg = new_error( iv_number = '013'
                                           iv_v1     = lv_overlap
-                                          iv_v2     = lv_overlap_class ) ) TO reported-exemption.
+                                          iv_v2     = lv_overlap_class
+                                          iv_v3     = lv_overlap_request ) ) TO reported-exemption.
         CONTINUE.
       ENDIF.
 
@@ -1037,7 +1050,8 @@ CLASS lhc_exemption IMPLEMENTATION.
                           number   = iv_number
                           severity = if_abap_behv_message=>severity-error
                           v1       = iv_v1
-                          v2       = iv_v2 ).
+                          v2       = iv_v2
+                          v3       = iv_v3 ).
 
   ENDMETHOD.
 
@@ -1183,7 +1197,8 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       DATA lv_error TYPE symsgno.
       DATA lv_v1    TYPE string.
       DATA lv_v2    TYPE string.
-      CLEAR: lv_error, lv_v1, lv_v2.
+      DATA lv_v3    TYPE string.
+      CLEAR: lv_error, lv_v1, lv_v2, lv_v3.
 
       " --- 1) 필수 필드 ---
       IF ls_item-devclass IS INITIAL.
@@ -1232,7 +1247,7 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
         ENDIF.
       ENDIF.
 
-      " --- 4) 같은 요청서 안 중복. 다른 요청서와 같은 규칙이다(lcl_rules=>has_overlap).
+      " --- 4) 같은 요청서 안 중복. 다른 요청서와 같은 규칙이다(lcl_rules=>find_overlap).
       "        같은 체크 클래스·같은 패키지에서 한쪽이 PCKG 이거나 같은 오브젝트이고,
       "        한쪽이 CHK 이거나 같은 코드면 겹친다.
       IF lv_error IS INITIAL.
@@ -1255,10 +1270,13 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
       ENDIF.
 
       " --- 5) 다른 요청서와의 중복. 어느 예외가 실제로 덮는지 추적할 수 없게 된다.
-      IF lv_error IS INITIAL
-     AND lcl_rules=>has_overlap( is_header = CORRESPONDING #( ls_parent MAPPING FROM ENTITY )
-                                 is_item   = CORRESPONDING #( ls_item MAPPING FROM ENTITY ) ) = abap_true.
-        lv_error = '013'. lv_v1 = lv_target. lv_v2 = ls_item-checkclass.
+      "        겹친 요청서 번호와 상태를 &3 으로 보여 준다.
+      IF lv_error IS INITIAL.
+        lv_v3 = lcl_rules=>find_overlap( is_header = CORRESPONDING #( ls_parent MAPPING FROM ENTITY )
+                                         is_item   = CORRESPONDING #( ls_item MAPPING FROM ENTITY ) ).
+        IF lv_v3 IS NOT INITIAL.
+          lv_error = '013'. lv_v1 = lv_target. lv_v2 = ls_item-checkclass.
+        ENDIF.
       ENDIF.
 
       IF lv_error IS INITIAL.
@@ -1273,7 +1291,8 @@ CLASS lhc_exemptionitem IMPLEMENTATION.
                                                  number   = lv_error
                                                  severity = if_abap_behv_message=>severity-error
                                                  v1       = lv_v1
-                                                 v2       = lv_v2 ) )
+                                                 v2       = lv_v2
+                                                 v3       = lv_v3 ) )
              TO reported-exemptionitem.
 
     ENDLOOP.

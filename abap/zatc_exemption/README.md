@@ -446,9 +446,7 @@ P 의 ddlx 는 화면 배치(위치·중요도·facet)만 담당한다.
 
 ### 접근 제어 (DCL)
 ```
-ZP_ATCEXEMPTION      요청서: 신청자 = 나 또는 승인자 = 나
-ZP_ATCEXEMPTIONITEM  대상: 그 요청서 조건을 _Exemption 으로 따른다
-ZP_ATCEXEMPTIONLOG   이력: 그 요청서 조건을 _Exemption 으로 따른다
+ZP_ATCEXEMPTION      요청서: 신청자 = 나 또는 승인자 = 나 (대상·이력은 요청서를 통해서만 연다)
 ```
 
 ### 서비스
@@ -552,7 +550,8 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 승인·반려 | 신청자가 고른 승인자 본인(표준 승인자 목록 `SATC_CI_APPROVER` 에 있어야 함). 승인자 칸이 빈 예전 요청서는 목록의 승인자 누구나. 본인 신청 건은 `policy-selfapprove` 를 따른다 |
 
 **보이는 범위는 DCL 로 정한다.** 요청서는 신청자 본인과 그 요청서에 지정된 승인자 본인에게만 보인다
-(`ZP_ATCEXEMPTION`, 대상·이력은 `ZP_ATCEXEMPTIONITEM` / `ZP_ATCEXEMPTIONLOG` 가 같은 조건).
+(`ZP_ATCEXEMPTION`). 대상·이력은 요청서를 열어야 볼 수 있어 따로 두지 않았다. OData 로
+`ExemptionItem` / `ExemptionLog` 를 직접 부르면 걸리지 않는다.
 화면과 CDS 조회에만 걸리고, BO 로직과 테이블을 직접 읽는 중복 검사·배치는 그대로 전체를 본다.
 승인자 칸이 빈 예전 요청서는 신청자에게만 보인다.
 

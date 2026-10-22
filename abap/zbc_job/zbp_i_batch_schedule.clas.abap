@@ -197,6 +197,22 @@ CLASS lhc_schedule IMPLEMENTATION.
     LOOP AT keys INTO DATA(ls_key).
       DATA(ls_p) = ls_key-%param.
 
+*     JobName / JobCount 는 APJ 잡의 키라 둘 다 있어야 한다.
+*     반복 잡은 한 이름에 회차마다 카운트가 생기므로 이름만으로는
+*     어느 회차인지 정할 수 없다. 호출자가 scheduleJob 응답에서
+*     받은 값을 그대로 넘긴다.
+      IF ls_key-%param-jobname IS INITIAL OR ls_key-%param-jobcount IS INITIAL.
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %fail-cause = if_abap_behv=>cause-unspecific )
+               TO failed-batchschedule.
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %msg = new_message_with_text(
+                                 severity = if_abap_behv_message=>severity-error
+                                 text     = 'JobName 과 JobCount 가 모두 필요하다' ) )
+               TO reported-batchschedule.
+        CONTINUE.
+      ENDIF.
+
       " 외부 호출자는 RunUuid 를 모르고 SM37 잡 이름을 들고 있다.
       " ENDED_AT 이 빈 행만 살아 있는 잡이다.
       " 무엇을 돌릴지(템플릿/텍스트/파라미터)는 요청에 없고 행이 갖고 있다.
@@ -336,6 +352,22 @@ CLASS lhc_schedule IMPLEMENTATION.
 
     LOOP AT keys INTO DATA(ls_key).
 
+*     JobName / JobCount 는 APJ 잡의 키라 둘 다 있어야 한다.
+*     반복 잡은 한 이름에 회차마다 카운트가 생기므로 이름만으로는
+*     어느 회차인지 정할 수 없다. 호출자가 scheduleJob 응답에서
+*     받은 값을 그대로 넘긴다.
+      IF ls_key-%param-jobname IS INITIAL OR ls_key-%param-jobcount IS INITIAL.
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %fail-cause = if_abap_behv=>cause-unspecific )
+               TO failed-batchschedule.
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %msg = new_message_with_text(
+                                 severity = if_abap_behv_message=>severity-error
+                                 text     = 'JobName 과 JobCount 가 모두 필요하다' ) )
+               TO reported-batchschedule.
+        CONTINUE.
+      ENDIF.
+
       SELECT SINGLE run_uuid, jobname, jobcount
         FROM ztbatch_sched
         WHERE jobname  = @ls_key-%param-jobname
@@ -414,6 +446,22 @@ CLASS lhc_schedule IMPLEMENTATION.
     DATA(lo_adapter) = NEW zcl_batch_apj_adapter( ).
 
     LOOP AT keys INTO DATA(ls_key).
+
+*     JobName / JobCount 는 APJ 잡의 키라 둘 다 있어야 한다.
+*     반복 잡은 한 이름에 회차마다 카운트가 생기므로 이름만으로는
+*     어느 회차인지 정할 수 없다. 호출자가 scheduleJob 응답에서
+*     받은 값을 그대로 넘긴다.
+      IF ls_key-%param-jobname IS INITIAL OR ls_key-%param-jobcount IS INITIAL.
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %fail-cause = if_abap_behv=>cause-unspecific )
+               TO failed-batchschedule.
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %msg = new_message_with_text(
+                                 severity = if_abap_behv_message=>severity-error
+                                 text     = 'JobName 과 JobCount 가 모두 필요하다' ) )
+               TO reported-batchschedule.
+        CONTINUE.
+      ENDIF.
 
       SELECT SINGLE run_uuid
         FROM ztbatch_sched

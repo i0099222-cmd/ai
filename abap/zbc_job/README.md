@@ -599,6 +599,24 @@ POST {base}/BatchSchedule/com...v0001.changeJob
 `sinfo` CHAR(10) 도 SM37 의 상태 필터(Scheduled/Released/Active/Finished/
 Cancelled)일 가능성이 있는데 확인 전에는 매핑하지 않는다.
 
+### `JobName` / `JobCount` 는 둘 다 필수다
+
+`changeJob` / `cancelJob` / `refreshStatus` 가 받는 두 값은 **APJ 잡의 키**다.
+하나라도 비면 액션이 실패한다.
+
+이름만으로 카운트를 찾아주지 않는 이유는 **1:1 이 아니기 때문**이다.
+반복 잡은 회차마다 같은 `jobname` 에 새 `jobcount` 가 생긴다. 하나를 임의로
+고르면 엉뚱한 회차를 취소하게 된다.
+
+호출자는 `scheduleJob` 응답의 값을 그대로 보관했다 쓰거나, 등록부에서 읽는다:
+
+```http
+GET {base}/BatchSchedule?$filter=IsCanceled eq false&$orderby=StartDateTime
+```
+
+표준 Application Jobs 앱은 `jobcount` 를 보여주지 않는다. 사람이 직접 취소·조회할
+화면이 필요하면 이 엔티티 위에 목록 앱을 붙이는 쪽이 맞다.
+
 ### 목록 조회
 
 ```http

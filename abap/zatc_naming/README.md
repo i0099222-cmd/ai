@@ -179,7 +179,7 @@ ATC 가 다시 읽지 않는다(위 "finding 코드는 규칙마다 하나다" �
 
 | objtype | seqnr | pattern | prio | msgtext |
 |---|---|---|---|---|
-| `TABL` | 010 | `^Z[TS][A-Z]{4}[0-9]{5}D?$` | 2 | `Please check naming rule (TABLE / STRUCTURE)` |
+| `TABL` | 010 | `^Z[TS][A-Z]{2}[A-Z]{2,3}[0-9]{5}D?$` | 2 | `Please check naming rule (TABLE / STRUCTURE)` |
 | `TTYP` | 010 | `^ZY[A-Z]{4}[0-9]{5}$` | 2 | `Please check naming rule (TABLE TYPE)` |
 | `DTEL` | 010 | `^ZDE[A-Z]{2}_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Please check naming rule (DATA ELEMENT)` |
 | `DOMA` | 010 | `^ZDMO[A-Z]{2}_[A-Z0-9]+(_[A-Z0-9]+)*$` | 2 | `Please check naming rule (DOMAIN)` |
@@ -187,6 +187,9 @@ ATC 가 다시 읽지 않는다(위 "finding 코드는 규칙마다 하나다" �
 | `SRVD` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)$` | 2 | `Please check naming rule (SERVICE DEFINITION)` |
 | `SRVB` | 010 | `^Z[A-Z]{4}_P_[A-Z0-9]+(_[A-Z0-9]+)*_(UI\|API)_O[24]$` | 2 | `Please check naming rule (SERVICE BINDING)` |
 | `DEVC` | 010 | `^ZD?[A-Z]{2}(-[A-Z0-9]{2}(-[A-Z0-9]{2}-[A-Z0-9]{3}(_D[0-9]{3,4})?)?)?$` | 2 | `Please check naming rule (PACKAGE)` |
+
+`TABL` 은 `Z` + `T`/`S` + 모듈 2자 + 서브모듈 2~3자 + 번호 5자리 (+ `D`) 다. 서브모듈이 3자일 수 있어
+`[A-Z]{2}[A-Z]{2,3}` 로 둔다(예: `ZTCMIF00020D`, `ZTCMIFX00020D`).
 
 `CLAS` 는 보류. 커스텀 엔티티 클래스, BDEF 클래스, 예외 클래스 등 유형이 많아
 한 패턴으로 묶으면 메시지가 무의미해진다. 유형이 정리된 뒤에 정한다.

@@ -3,35 +3,31 @@
 @EndUserText.label: 'ATC Check Message Code Value Help'
 @Metadata.ignorePropagatedAnnotations: true
 @ObjectModel.usageType: {
-  serviceQuality: #D,
-  sizeCategory: #S,
-  dataClass: #CUSTOMIZING
+  serviceQuality: #C,
+  sizeCategory: #M,
+  dataClass: #MIXED
 }
 @Search.searchable: true
-// 신청서의 체크 메시지 코드 값 도움. 오브젝트 신청(MSG)은 어긴 규칙 하나를 고른다.
+// 대상 줄의 Check Message Code 값 도움. 모든 체크(표준·네이밍)의 메시지 코드를 체크 클래스와
+// 메시지 제목과 함께 한 줄씩 보여 준다. 줄에 체크 클래스가 있으면 그 체크의 코드만 나온다.
 //
-// Phase 1 은 네이밍 체크만 다루므로 규칙 테이블에서 바로 만든다. 네이밍 체크는
-// 규칙마다 finding 코드가 있고 그 형식이 N + 오브젝트 유형 + 순번이다
-// (zcl_atc_check_naming=>rule_code). 형식을 바꾸면 여기도 같이 바꾼다.
-// 규칙 문장이 같이 보여서 코드를 외우지 않고 고를 수 있다.
-//
-// 다른 체크가 들어오면(Phase 2) 표준 메시지 테이블(SATC_AC_MSG / SATC_AC_MSGT)로
-// 넓힌다.
+// ATC 결과(ZI_AtcFinding)에서 만든다. 그래서 최근 실행 결과에 한 번이라도 나온 코드만 있다.
+// 아직 위반이 난 적 없는 코드로 미리 신청하려면 코드를 직접 입력한다.
+// 예전에는 네이밍 규칙 테이블(ZTATCNAMING)에서 만들어 네이밍 체크 코드만 나왔다.
 define view entity ZI_AtcCheckCodeVH
-  as select from ztatcnaming
+  as select from ZI_AtcFinding
 {
       @Search.defaultSearchElement: true
-      @EndUserText.label: 'Check Message Code'
-  key cast( concat( 'N', concat( objtype, cast( seqnr as abap.char( 3 ) ) ) ) as abap.char( 10 ) ) as CheckCode,
-
-      @EndUserText.label: 'Object Type'
-      objtype                                                                                    as ObjectType,
+      @EndUserText.label: 'Check Class'
+  key CheckClass,
 
       @Search.defaultSearchElement: true
-      @EndUserText.label: 'Rule'
-      msgtext                                                                                    as RuleText,
+      @EndUserText.label: 'Check Message Code'
+  key CheckCode,
 
-      @EndUserText.label: 'Priority'
-      priority                                                                                   as Priority
+      // 같은 코드라도 결과마다 제목이 조금 다를 수 있어 하나만 고른다.
+      @EndUserText.label: 'Message'
+      max( MessageText ) as MessageText
 }
-where active = 'X'
+group by CheckClass,
+         CheckCode

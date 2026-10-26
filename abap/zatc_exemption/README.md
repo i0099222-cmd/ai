@@ -418,7 +418,7 @@ ZI_AtcFinding      표준 스키마를 아는 유일한 오브젝트. 면제 여
 ZI_AtcCheckClassVH   체크 클래스 값 도움. 변형 이름으로도 찾는다 (실제로 돈 ATC 결과에서 짝을 만든다)
 ZI_AtcApproverVH  요청서 Approver 값 도움 (표준 승인자 목록 SATC_CI_APPROVER + 이름)
 ZI_AtcPackageVH   고객 패키지 전체 (대상 Package 의 두 번째 값 도움, 선등록용)
-ZI_AtcCheckCodeVH 메시지 코드 값 도움
+ZI_AtcCheckCodeVH 메시지 코드 값 도움 (모든 체크, ATC 결과에 나온 체크 클래스 + 코드 + 제목. 줄의 체크 클래스로 거름)
 ZI_AtcReasonVH    사유 코드 값 도움 (표준 SATC_CI_REASONS, not_selectable 제외)
 ZD_AtcReject / ZD_AtcExtend   액션 파라미터(추상 엔터티)
 ```

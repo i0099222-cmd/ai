@@ -43,8 +43,10 @@ define view entity ZP_AtcExemptionItem
       CheckClass,
 
       // 오브젝트 대상에서 어긴 규칙 하나를 고른다. 비우면 그 체크의 모든 메시지(CHK). 패키지 대상은 비워 둔다.
+      // 줄의 체크 클래스로 거르고, 체크 클래스가 비어 있으면 고른 코드의 체크 클래스가 채워진다.
       @Consumption.valueHelpDefinition: [{
-        entity: { name: 'ZI_AtcCheckCodeVH', element: 'CheckCode' }
+        entity:            { name: 'ZI_AtcCheckCodeVH', element: 'CheckCode' },
+        additionalBinding: [{ localElement: 'CheckClass', element: 'CheckClass', usage: #FILTER_AND_RESULT }]
       }]
       CheckCode,
 

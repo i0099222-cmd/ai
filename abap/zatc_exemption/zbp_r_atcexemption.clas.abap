@@ -162,6 +162,9 @@ CLASS lhc_exemption DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS validateapprover FOR VALIDATE ON SAVE
       IMPORTING keys FOR exemption~validateapprover.
 
+    METHODS validatetargets FOR VALIDATE ON SAVE
+      IMPORTING keys FOR exemption~validatetargets.
+
     METHODS submit FOR MODIFY
       IMPORTING keys FOR ACTION exemption~submit RESULT result.
 
@@ -488,6 +491,32 @@ CLASS lhc_exemption IMPLEMENTATION.
                       %element-reasontext = if_abap_behv=>mk-on
                       %msg = new_error( iv_number = '012'
                                         iv_v1     = zif_atc_exemption=>policy-minreason ) )
+             TO reported-exemption.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD validatetargets.
+
+    " 대상이 없는 요청서는 저장하지 않는다. 대상 한 줄이 표준 예외 1건이라
+    " 대상 없는 요청서는 상신해도 할 일이 없다.
+    READ ENTITIES OF zr_atcexemption IN LOCAL MODE
+      ENTITY exemption BY \_Item
+        FIELDS ( itemuuid ) WITH CORRESPONDING #( keys )
+      LINK DATA(lt_link).
+
+    LOOP AT keys INTO DATA(ls_key).
+
+      IF line_exists( lt_link[ source-%tky = ls_key-%tky ] ).
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #( %tky = ls_key-%tky ) TO failed-exemption.
+      APPEND VALUE #( %tky        = ls_key-%tky
+                      %state_area = 'VALIDATE_TARGETS'
+                      %msg        = new_error( iv_number = '023' ) )
              TO reported-exemption.
 
     ENDLOOP.

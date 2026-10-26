@@ -50,6 +50,7 @@ etag master LocalLastChangedAt
     validation validateValidity;
     validation validateReason;
     validation validateApprover;
+    validation validateTargets;
     validation ExemptionItem~validateTarget;
   }
 
@@ -79,6 +80,9 @@ etag master LocalLastChangedAt
   // 승인자 칸이 생기기 전에 만든 요청서는 비어 있다. 다른 필드를 고칠 때마다 막지 않도록
   // 만들 때와 승인자를 바꿀 때만 본다.
   validation validateApprover on save { field Approver; create; }
+  // 대상이 한 줄도 없는 요청서는 저장하지 않는다. 대상 줄만 지우고 헤더를 안 고친 경우는
+  // 여기서 못 잡지만, 상신할 때 한 번 더 막는다(023).
+  validation validateTargets  on save { create; update; }
 
   mapping for ztatcexempt
   {

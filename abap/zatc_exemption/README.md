@@ -533,7 +533,7 @@ ztatcexempt_d / ztatcexempti_d / ztatcexemptlog_d
 | 020 | Action not allowed for status &1 |
 | 021 | No approver is maintained in the ATC approver list |
 | 022 | (사용 안 함 - 코드를 비운 오브젝트 대상은 체크 전체(CHK)로 신청한다) |
-| 023 | Add at least one target before submitting the request |
+| 023 | Add at least one target to the request |
 | 024 | Target &1 is entered more than once in this request |
 | 025 | Enter a check class for each target |
 | 026 | Only the selected approver &1 can approve or reject this request |
@@ -642,6 +642,7 @@ SNRO 에서 다른 이름으로 만들었으면 이 상수를 같은 이름(대�
 |---|---|---|---|
 | `validateValidity` | 요청서 | 기간 유효성 + 설정된 개월 상한 | 010, 011 |
 | `validateReason` | 요청서 | 사유 코드 + 근거 최소 길이 | 012 |
+| `validateTargets` | 요청서 | 대상이 한 줄 이상 (create, update. 대상만 지운 경우는 상신 때 다시 막음) | 023 |
 | `validateApprover` | 요청서 | 승인자 필수, 표준 승인자 목록에 있음, 본인은 `policy-selfapprove` 일 때만 (create, Approver 변경 시) | 027, 028, 029 |
 | `validateTarget` | 대상 | ① 필수 필드 ② 고객 네임스페이스·실재 ③ 심각도 상한(현재 위반 기준) ④ 요청서 안 중복 ⑤ 다른 요청서와 중복 | 002, 025, 004, 006~008, 018, 024, 013 |
 

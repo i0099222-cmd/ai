@@ -1,0 +1,25 @@
+projection;
+strict ( 2 );
+use draft;
+
+define behavior for ZC_CMSM_Req alias Request
+use etag
+{
+  use create;
+  use update;
+  use delete;
+
+  use action Edit;
+  use action Activate;
+  use action Discard;
+  use action Resume;
+  use action Prepare;
+
+  use association _Hist { with draft; }
+}
+
+define behavior for ZC_CMSM_ReqHist alias RequestHistory
+use etag
+{
+  use association _Req { with draft; }
+}

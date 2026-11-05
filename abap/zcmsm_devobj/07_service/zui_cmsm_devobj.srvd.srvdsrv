@@ -1,0 +1,10 @@
+@EndUserText.label: '개발 오브젝트 통합관리'
+define service ZUI_CMSM_DEVOBJ {
+  expose ZC_CMSM_Req     as Request;
+  expose ZC_CMSM_ReqHist as RequestHistory;
+  expose ZC_CMSM_Map     as Mapping;
+  expose ZC_CMSM_Vh      as ValueHelp;
+  expose ZC_CMSM_VhSrc   as ValueHelpSource;
+  expose ZC_CMSM_Sb      as ODataService;
+  expose ZC_CMSM_Debt    as TechDebt;
+}

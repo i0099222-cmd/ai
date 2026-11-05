@@ -1,0 +1,41 @@
+managed implementation in class zbp_r_cmsm_map unique;
+strict ( 2 );
+with draft;
+
+define behavior for ZR_CMSM_Map alias Mapping
+persistent table ztcmsm00190
+draft table ztcmsm00190_d
+etag master LocalLastChangedAt
+lock master total etag LastChangedAt
+authorization master ( global )
+{
+  field ( readonly )
+      MapUuid,
+      MapId,
+      CreatedBy,
+      CreatedAt,
+      LastChangedBy,
+      LastChangedAt,
+      LocalLastChangedAt;
+
+  field ( numbering : managed )
+      MapUuid;
+
+  field ( mandatory )
+      MapKind,
+      TobeType,
+      TobeName,
+      SapModule;
+
+  create;
+  update;
+  delete;
+
+  draft action Edit;
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Resume;
+  draft determine action Prepare;
+
+  mapping for ztcmsm00190 corresponding;
+}

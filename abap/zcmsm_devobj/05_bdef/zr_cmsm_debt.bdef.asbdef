@@ -1,0 +1,40 @@
+managed implementation in class zbp_r_cmsm_debt unique;
+strict ( 2 );
+with draft;
+
+define behavior for ZR_CMSM_Debt alias TechDebt
+persistent table ztcmsm00230
+draft table ztcmsm00230_d
+etag master LocalLastChangedAt
+lock master total etag LastChangedAt
+authorization master ( global )
+{
+  field ( readonly )
+      DebtUuid,
+      DebtId,
+      CreatedBy,
+      CreatedAt,
+      LastChangedBy,
+      LastChangedAt,
+      LocalLastChangedAt;
+
+  field ( numbering : managed )
+      DebtUuid;
+
+  field ( mandatory )
+      DevObj,
+      DebtLevel,
+      SapModule;
+
+  create;
+  update;
+  delete;
+
+  draft action Edit;
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Resume;
+  draft determine action Prepare;
+
+  mapping for ztcmsm00230 corresponding;
+}

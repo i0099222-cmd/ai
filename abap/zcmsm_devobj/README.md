@@ -13,6 +13,8 @@
 | `05_bdef` | BDEF — `ZR_CMSM_*` (managed + draft) 5개, `ZC_CMSM_*` (projection) 5개 | 10 |
 | `06_class` | 행위 풀 `ZBP_R_CMSM_*` (전역 클래스 + 로컬 핸들러) | 5 |
 | `07_service` | 서비스 정의 `ZUI_CMSM_DEVOBJ` | 1 |
+| `08_mde` | 메타데이터 익스텐션 — `ZC_CMSM_*` 7개 (이름 = CDS 이름) | 7 |
+| `09_app` | Fiori 앱 manifest의 routing 예시 (탭 + 상세 화면) | 1 |
 
 ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔VhSrc)은 서로 참조하니 **같이 선택해서 한 번에 활성화**한다. 전부 만든 뒤 한꺼번에 활성화해도 된다.
 
@@ -47,7 +49,7 @@ ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔Vh
 
 ## 일부러 안 넣은 것 (다음 단계)
 
-- UI 어노테이션 → 메타데이터 익스텐션(MDE)
+- 조건부 숨김 (예: To-Be가 T-code일 때만 UI 섹션, UI 종류별 입력 필드) — 계산 필드 + `@UI.hidden` 참조로 다음 단계에서
 - 권한 → 지금은 전부 `#NOT_REQUIRED`. DCL 만들 때 C 뷰를 `#CHECK`로
 - 액션, determination, validation (표시 번호 채번, 기본값, 상태 변경, 이력 기록 등)
 - 서비스 바인딩 (ADT에서 `ZUI_CMSM_DEVOBJ` 우클릭 → OData V4 - UI)
@@ -83,3 +85,42 @@ ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔Vh
 - `DoneDate`, `VhImpl`, `TestBy`/`TestAt` 자동 채움
 - 요청 이력 기록, 요청자/담당자별 필드 제어, 상태 변경 액션
 - `mapping … corresponding;`에서 문법 에러가 나면 `corresponding { }` 형태로 바꾼다
+
+## MDE
+
+ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같게 → 붙여넣고 활성화. 레이어는 `#CORE`.
+
+### 목록 (탭) 컬럼
+
+| 탭 | 컬럼 | 필터 |
+| --- | --- | --- |
+| 요청 | 요청번호, 제목, 모듈, 상태, 담당자, 요청자, 요청 일시, 완료일 | 모듈, 상태, 담당자, 요청자 |
+| As-Is/To-Be | 등록번호, 구분, As-Is 오브젝트, To-Be 유형, To-Be 오브젝트, UI 종류, 모듈, 담당자 | 모듈, 구분, To-Be 유형, UI 종류, 담당자 |
+| Value Help | 등록번호, VH 이름, 구현 방식, 모듈, 설명, 담당자, 요청번호 | 모듈, 구현 방식, 담당자 |
+| OData 서비스 | 등록번호, Service Binding, 모듈, 설명, 담당자, 요청번호 | 모듈, 담당자 |
+| 기술부채 | ID, 모듈, 개발 오브젝트, 비released 대상, Debt Level, 래핑 여부, 개선상태, 업무담당자 | 모듈, Debt Level, 개선상태, 래핑 여부, 업무담당자 |
+
+- 정렬: 등록 일시 내림차순. 탭마다 `@UI.selectionPresentationVariant` `#Tab` (탭 이름 포함)
+- 고정값 코드(상태·모듈·유형 등)는 텍스트만 (`#TEXT_ONLY`), 사람·시스템은 "이름 (ID)"
+- 텍스트 보조 필드(`…Text`, `…Name`)와 UUID, 마임 타입·파일명은 숨김 → 테이블 설정에서도 안 보인다
+
+### 상세 화면 섹션
+
+| 엔티티 | 제목 / 부제 | 헤더 | 섹션 |
+| --- | --- | --- | --- |
+| 요청 | 제목 / 요청번호 | 상태, 담당자, 요청자, 요청 일시 | 요청 내용 · 처리 · 변경 이력(표) · 관리 정보 |
+| 매핑 | To-Be 오브젝트 / 등록번호 | 구분, 모듈, 담당자 | As-Is · To-Be · UI (T-code일 때) · 기본 정보 · 관리 정보 |
+| Value Help | VH 이름 / 등록번호 | 구현 방식, 모듈, 담당자 | 기본 정보 · 데이터 소스(표) · 테스트 · 관리 정보 |
+| OData 서비스 | Service Binding / 등록번호 | 모듈, 담당자 | 기본 정보 · 테스트 · 관리 정보 |
+| 기술부채 | 개발 오브젝트 / ID | Debt Level, 개선상태, 업무담당자 | 대상 오브젝트 · 비released 사용 · 판단·개선 · 관리 정보 |
+
+헤더는 요약이라 같은 필드가 섹션에도 있다. 그래서 **manifest에서 Object Page마다 `editableHeaderContent: false`** 로 둔다 (안 그러면 편집 모드에서 헤더에도 입력칸이 생겨 같은 필드가 두 번 나온다).
+
+### 앱 (manifest)
+
+`09_app/manifest.routing.sample.json`은 Fiori 생성기(List Report, 서비스 `ZUI_CMSM_DEVOBJ`, 메인 엔티티 `Request`)로 만든 앱의 `sap.ui5.routing`을 바꿔 넣는 예시.
+
+- List Report 하나에 탭 5개 (`views.paths`, 탭마다 `entitySet`), 탭별 건수 표시
+- 탭마다 상세 화면 route (`navigation`)
+- 변경 이력·데이터 소스 행은 상세로 안 넘어간다 (route 없음). 데이터 소스는 표에서 바로 추가 (`creationMode: Inline`)
+- 필터바는 탭 전체가 하나를 쓴다 (메인 엔티티 `Request` 기준). 모듈은 다섯 엔티티 모두 같은 이름이라 공통으로 걸리고, 나머지 필터는 그 필드가 있는 탭에만 해당. 탭마다 필터를 따로 두려면 FPM 커스텀 페이지로

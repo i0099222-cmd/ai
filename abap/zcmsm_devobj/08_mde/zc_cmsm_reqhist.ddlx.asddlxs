@@ -1,0 +1,50 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: '변경 이력',
+    typeNamePlural: '변경 이력',
+    title:       { type: #STANDARD, value: 'FieldName' }
+  },
+  presentationVariant: [{ sortOrder: [{ by: 'ChangedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] }]
+}
+annotate entity ZC_CMSM_ReqHist with
+{
+  @UI.hidden: true
+  HistUuid;
+
+  @UI.hidden: true
+  ReqUuid;
+
+  @UI.lineItem: [{ position: 10, importance: #HIGH }]
+  ChangedAt;
+
+  @UI.lineItem: [{ position: 20, importance: #HIGH }]
+  ChangedBy;
+
+  @UI.hidden: true
+  ChangedByName;
+
+  @UI: {
+    lineItem:       [{ position: 30 }],
+    textArrangement: #TEXT_ONLY
+  }
+  HistKind;
+
+  @UI.hidden: true
+  HistKindText;
+
+  @UI.lineItem: [{ position: 40, importance: #HIGH }]
+  FieldName;
+
+  @UI.lineItem: [{ position: 50 }]
+  OldValue;
+
+  @UI.lineItem: [{ position: 60 }]
+  NewValue;
+
+  @UI.lineItem: [{ position: 70 }]
+  HistNote;
+
+  @UI.hidden: true
+  LocalLastChangedAt;
+}

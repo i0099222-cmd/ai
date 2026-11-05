@@ -1,0 +1,125 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: '요청',
+    typeNamePlural: '요청',
+    title:       { type: #STANDARD, value: 'Title' },
+    description: { type: #STANDARD, value: 'ReqId' }
+  },
+  presentationVariant: [
+    { sortOrder: [{ by: 'CreatedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] },
+    { qualifier: 'Tab', sortOrder: [{ by: 'CreatedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] }
+  ],
+  selectionVariant: [{ qualifier: 'Tab', text: '요청' }],
+  selectionPresentationVariant: [{ qualifier: 'Tab', text: '요청',
+                                   presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
+}
+annotate entity ZC_CMSM_Req with
+{
+  @UI.facet: [
+    { id: 'Header', purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
+    { id: 'Request', type: #FIELDGROUP_REFERENCE, label: '요청 내용', targetQualifier: 'Request', position: 10 },
+    { id: 'Process', type: #FIELDGROUP_REFERENCE, label: '처리', targetQualifier: 'Process', position: 20 },
+    { id: 'Hist', type: #LINEITEM_REFERENCE, label: '변경 이력', targetElement: '_Hist', position: 30 },
+    { id: 'Admin', type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 40 }
+  ]
+  @UI.hidden: true
+  ReqUuid;
+
+  @UI.lineItem: [{ position: 10, importance: #HIGH }]
+  ReqId;
+
+  @UI: {
+    lineItem:       [{ position: 20, importance: #HIGH }],
+    fieldGroup:     [{ qualifier: 'Request', position: 10 }]
+  }
+  Title;
+
+  @UI: {
+    fieldGroup:     [{ qualifier: 'Request', position: 40 }],
+    multiLineText: true
+  }
+  ReqText;
+
+  @UI: {
+    lineItem:       [{ position: 30 }],
+    selectionField: [{ position: 10 }],
+    fieldGroup:     [{ qualifier: 'Request', position: 20 }],
+    textArrangement: #TEXT_ONLY
+  }
+  SapModule;
+
+  @UI.hidden: true
+  SapModuleText;
+
+  @UI: {
+    lineItem:       [{ position: 50 }],
+    selectionField: [{ position: 30 }],
+    fieldGroup:     [{ qualifier: 'Request', position: 30 },
+                     { qualifier: 'Header', position: 20 }]
+  }
+  Assignee;
+
+  @UI.hidden: true
+  AssigneeName;
+
+  @UI: {
+    lineItem:       [{ position: 40, importance: #HIGH }],
+    selectionField: [{ position: 20 }],
+    fieldGroup:     [{ qualifier: 'Process', position: 10 },
+                     { qualifier: 'Header', position: 10 }],
+    textArrangement: #TEXT_ONLY
+  }
+  ReqStatus;
+
+  @UI.hidden: true
+  ReqStatusText;
+
+  @UI: {
+    fieldGroup:     [{ qualifier: 'Process', position: 20 }],
+    multiLineText: true
+  }
+  ProcResult;
+
+  @UI.fieldGroup: [{ qualifier: 'Process', position: 30 }]
+  RelNo;
+
+  @UI: {
+    lineItem:       [{ position: 80 }],
+    fieldGroup:     [{ qualifier: 'Process', position: 40 }]
+  }
+  DoneDate;
+
+  @UI: {
+    fieldGroup:     [{ qualifier: 'Process', position: 50 }],
+    multiLineText: true
+  }
+  CloseReason;
+
+  @UI: {
+    lineItem:       [{ position: 60 }],
+    selectionField: [{ position: 40 }],
+    fieldGroup:     [{ qualifier: 'Header', position: 30 },
+                     { qualifier: 'Admin', position: 10 }]
+  }
+  CreatedBy;
+
+  @UI.hidden: true
+  CreatedByName;
+
+  @UI: {
+    lineItem:       [{ position: 70 }],
+    fieldGroup:     [{ qualifier: 'Header', position: 40 },
+                     { qualifier: 'Admin', position: 20 }]
+  }
+  CreatedAt;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 30 }]
+  LastChangedBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 40 }]
+  LastChangedAt;
+
+  @UI.hidden: true
+  LocalLastChangedAt;
+}

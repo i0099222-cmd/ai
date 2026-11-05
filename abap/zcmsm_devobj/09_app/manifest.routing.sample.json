@@ -1,0 +1,175 @@
+{
+  "sap.ui5": {
+    "routing": {
+      "config": {},
+      "routes": [
+        {
+          "pattern": ":?query:",
+          "name": "MainList",
+          "target": "MainList"
+        },
+        {
+          "pattern": "Request({key}):?query:",
+          "name": "RequestObjectPage",
+          "target": "RequestObjectPage"
+        },
+        {
+          "pattern": "Mapping({key}):?query:",
+          "name": "MappingObjectPage",
+          "target": "MappingObjectPage"
+        },
+        {
+          "pattern": "ValueHelp({key}):?query:",
+          "name": "ValueHelpObjectPage",
+          "target": "ValueHelpObjectPage"
+        },
+        {
+          "pattern": "ODataService({key}):?query:",
+          "name": "ODataServiceObjectPage",
+          "target": "ODataServiceObjectPage"
+        },
+        {
+          "pattern": "TechDebt({key}):?query:",
+          "name": "TechDebtObjectPage",
+          "target": "TechDebtObjectPage"
+        }
+      ],
+      "targets": {
+        "MainList": {
+          "type": "Component",
+          "id": "MainList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "contextPath": "/Request",
+              "variantManagement": "Page",
+              "initialLoad": "Enabled",
+              "navigation": {
+                "Request": {
+                  "detail": {
+                    "route": "RequestObjectPage"
+                  }
+                },
+                "Mapping": {
+                  "detail": {
+                    "route": "MappingObjectPage"
+                  }
+                },
+                "ValueHelp": {
+                  "detail": {
+                    "route": "ValueHelpObjectPage"
+                  }
+                },
+                "ODataService": {
+                  "detail": {
+                    "route": "ODataServiceObjectPage"
+                  }
+                },
+                "TechDebt": {
+                  "detail": {
+                    "route": "TechDebtObjectPage"
+                  }
+                }
+              },
+              "views": {
+                "paths": [
+                  {
+                    "key": "req",
+                    "entitySet": "Request",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab"
+                  },
+                  {
+                    "key": "map",
+                    "entitySet": "Mapping",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab"
+                  },
+                  {
+                    "key": "vh",
+                    "entitySet": "ValueHelp",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab"
+                  },
+                  {
+                    "key": "sb",
+                    "entitySet": "ODataService",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab"
+                  },
+                  {
+                    "key": "debt",
+                    "entitySet": "TechDebt",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab"
+                  }
+                ],
+                "showCounts": true
+              }
+            }
+          }
+        },
+        "RequestObjectPage": {
+          "type": "Component",
+          "id": "RequestObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "contextPath": "/Request",
+              "editableHeaderContent": false
+            }
+          }
+        },
+        "MappingObjectPage": {
+          "type": "Component",
+          "id": "MappingObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "contextPath": "/Mapping",
+              "editableHeaderContent": false
+            }
+          }
+        },
+        "ValueHelpObjectPage": {
+          "type": "Component",
+          "id": "ValueHelpObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "contextPath": "/ValueHelp",
+              "editableHeaderContent": false,
+              "controlConfiguration": {
+                "_Src/@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable",
+                    "creationMode": {
+                      "name": "Inline"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ODataServiceObjectPage": {
+          "type": "Component",
+          "id": "ODataServiceObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "contextPath": "/ODataService",
+              "editableHeaderContent": false
+            }
+          }
+        },
+        "TechDebtObjectPage": {
+          "type": "Component",
+          "id": "TechDebtObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "contextPath": "/TechDebt",
+              "editableHeaderContent": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

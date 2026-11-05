@@ -1,0 +1,154 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: '기술부채',
+    typeNamePlural: '기술부채',
+    title:       { type: #STANDARD, value: 'DevObj' },
+    description: { type: #STANDARD, value: 'DebtId' }
+  },
+  presentationVariant: [
+    { sortOrder: [{ by: 'CreatedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] },
+    { qualifier: 'Tab', sortOrder: [{ by: 'CreatedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] }
+  ],
+  selectionVariant: [{ qualifier: 'Tab', text: '기술부채' }],
+  selectionPresentationVariant: [{ qualifier: 'Tab', text: '기술부채',
+                                   presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
+}
+annotate entity ZC_CMSM_Debt with
+{
+  @UI.facet: [
+    { id: 'Header', purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
+    { id: 'Target', type: #FIELDGROUP_REFERENCE, label: '대상 오브젝트', targetQualifier: 'Target', position: 10 },
+    { id: 'Std', type: #FIELDGROUP_REFERENCE, label: '비released 사용', targetQualifier: 'Std', position: 20 },
+    { id: 'Judge', type: #FIELDGROUP_REFERENCE, label: '판단·개선', targetQualifier: 'Judge', position: 30 },
+    { id: 'Admin', type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 40 }
+  ]
+  @UI.hidden: true
+  DebtUuid;
+
+  @UI.lineItem: [{ position: 10, importance: #HIGH }]
+  DebtId;
+
+  @UI: {
+    lineItem:       [{ position: 20 }],
+    selectionField: [{ position: 10 }],
+    fieldGroup:     [{ qualifier: 'Target', position: 10 }],
+    textArrangement: #TEXT_ONLY
+  }
+  SapModule;
+
+  @UI.hidden: true
+  SapModuleText;
+
+  @UI.fieldGroup: [{ qualifier: 'Target', position: 20 }]
+  DevId;
+
+  @UI: {
+    fieldGroup:     [{ qualifier: 'Target', position: 30 }],
+    textArrangement: #TEXT_ONLY
+  }
+  ObjType;
+
+  @UI.hidden: true
+  ObjTypeText;
+
+  @UI: {
+    lineItem:       [{ position: 30, importance: #HIGH }],
+    fieldGroup:     [{ qualifier: 'Target', position: 40 }]
+  }
+  DevObj;
+
+  @UI: {
+    lineItem:       [{ position: 60 }],
+    selectionField: [{ position: 40 }],
+    fieldGroup:     [{ qualifier: 'Target', position: 50 }],
+    textArrangement: #TEXT_ONLY
+  }
+  WrapType;
+
+  @UI.hidden: true
+  WrapTypeText;
+
+  @UI: {
+    fieldGroup:     [{ qualifier: 'Std', position: 10 }],
+    textArrangement: #TEXT_ONLY
+  }
+  StdType;
+
+  @UI.hidden: true
+  StdTypeText;
+
+  @UI: {
+    lineItem:       [{ position: 40, importance: #HIGH }],
+    fieldGroup:     [{ qualifier: 'Std', position: 20 }]
+  }
+  StdName;
+
+  @UI.fieldGroup: [{ qualifier: 'Target', position: 60 }]
+  SysId;
+
+  @UI.hidden: true
+  SysText;
+
+  @UI: {
+    fieldGroup:     [{ qualifier: 'Std', position: 30 }],
+    multiLineText: true
+  }
+  DebtDesc;
+
+  @UI: {
+    lineItem:       [{ position: 50, importance: #HIGH }],
+    selectionField: [{ position: 20 }],
+    fieldGroup:     [{ qualifier: 'Judge', position: 10 },
+                     { qualifier: 'Header', position: 10 }],
+    textArrangement: #TEXT_ONLY
+  }
+  DebtLevel;
+
+  @UI.hidden: true
+  DebtLevelText;
+
+  @UI: {
+    lineItem:       [{ position: 70 }],
+    selectionField: [{ position: 30 }],
+    fieldGroup:     [{ qualifier: 'Judge', position: 20 },
+                     { qualifier: 'Header', position: 20 }],
+    textArrangement: #TEXT_ONLY
+  }
+  ImproveStatus;
+
+  @UI.hidden: true
+  ImproveStatusText;
+
+  @UI: {
+    fieldGroup:     [{ qualifier: 'Judge', position: 30 }],
+    multiLineText: true
+  }
+  DebtReason;
+
+  @UI: {
+    lineItem:       [{ position: 80 }],
+    selectionField: [{ position: 50 }],
+    fieldGroup:     [{ qualifier: 'Judge', position: 40 },
+                     { qualifier: 'Header', position: 30 }]
+  }
+  BizOwner;
+
+  @UI.hidden: true
+  BizOwnerName;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 10 }]
+  CreatedBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 20 }]
+  CreatedAt;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 30 }]
+  LastChangedBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 40 }]
+  LastChangedAt;
+
+  @UI.hidden: true
+  LocalLastChangedAt;
+}

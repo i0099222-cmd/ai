@@ -1,0 +1,116 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: 'OData 서비스',
+    typeNamePlural: 'OData 서비스',
+    title:       { type: #STANDARD, value: 'SrvbName' },
+    description: { type: #STANDARD, value: 'SbId' }
+  },
+  presentationVariant: [
+    { sortOrder: [{ by: 'CreatedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] },
+    { qualifier: 'Tab', sortOrder: [{ by: 'CreatedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] }
+  ],
+  selectionVariant: [{ qualifier: 'Tab', text: 'OData 서비스' }],
+  selectionPresentationVariant: [{ qualifier: 'Tab', text: 'OData 서비스',
+                                   presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
+}
+annotate entity ZC_CMSM_Sb with
+{
+  @UI.facet: [
+    { id: 'Header', purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
+    { id: 'General', type: #FIELDGROUP_REFERENCE, label: '기본 정보', targetQualifier: 'General', position: 10 },
+    { id: 'Test', type: #FIELDGROUP_REFERENCE, label: '테스트', targetQualifier: 'Test', position: 20 },
+    { id: 'Admin', type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 30 }
+  ]
+  @UI.hidden: true
+  SbUuid;
+
+  @UI.lineItem: [{ position: 10, importance: #HIGH }]
+  SbId;
+
+  @UI: {
+    lineItem:       [{ position: 20, importance: #HIGH }],
+    fieldGroup:     [{ qualifier: 'General', position: 10 }]
+  }
+  SrvbName;
+
+  @UI.fieldGroup: [{ qualifier: 'General', position: 20 }]
+  SysId;
+
+  @UI.hidden: true
+  SysText;
+
+  @UI: {
+    lineItem:       [{ position: 30 }],
+    selectionField: [{ position: 10 }],
+    fieldGroup:     [{ qualifier: 'General', position: 30 },
+                     { qualifier: 'Header', position: 10 }],
+    textArrangement: #TEXT_ONLY
+  }
+  SapModule;
+
+  @UI.hidden: true
+  SapModuleText;
+
+  @UI: {
+    lineItem:       [{ position: 40 }],
+    fieldGroup:     [{ qualifier: 'General', position: 40 }]
+  }
+  Description;
+
+  @UI: {
+    lineItem:       [{ position: 50 }],
+    selectionField: [{ position: 20 }],
+    fieldGroup:     [{ qualifier: 'General', position: 50 },
+                     { qualifier: 'Header', position: 20 }]
+  }
+  OwnerId;
+
+  @UI.hidden: true
+  OwnerName;
+
+  @UI.fieldGroup: [{ qualifier: 'General', position: 60 }]
+  ObjCreator;
+
+  @UI: {
+    lineItem:       [{ position: 60 }],
+    fieldGroup:     [{ qualifier: 'General', position: 70 }]
+  }
+  ReqId;
+
+  @UI.hidden: true
+  ReqTitle;
+
+  @UI.fieldGroup: [{ qualifier: 'Test', position: 10 }]
+  TestFile;
+
+  @UI.hidden: true
+  TestMimeType;
+
+  @UI.hidden: true
+  TestFileName;
+
+  @UI.fieldGroup: [{ qualifier: 'Test', position: 20 }]
+  TestBy;
+
+  @UI.hidden: true
+  TestByName;
+
+  @UI.fieldGroup: [{ qualifier: 'Test', position: 30 }]
+  TestAt;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 10 }]
+  CreatedBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 20 }]
+  CreatedAt;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 30 }]
+  LastChangedBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 40 }]
+  LastChangedAt;
+
+  @UI.hidden: true
+  LocalLastChangedAt;
+}

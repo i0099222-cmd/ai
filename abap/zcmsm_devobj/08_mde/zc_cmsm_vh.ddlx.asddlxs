@@ -1,0 +1,129 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: 'Value Help',
+    typeNamePlural: 'Value Help',
+    title:       { type: #STANDARD, value: 'VhName' },
+    description: { type: #STANDARD, value: 'VhId' }
+  },
+  presentationVariant: [
+    { sortOrder: [{ by: 'CreatedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] },
+    { qualifier: 'Tab', sortOrder: [{ by: 'CreatedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] }
+  ],
+  selectionVariant: [{ qualifier: 'Tab', text: 'Value Help' }],
+  selectionPresentationVariant: [{ qualifier: 'Tab', text: 'Value Help',
+                                   presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
+}
+annotate entity ZC_CMSM_Vh with
+{
+  @UI.facet: [
+    { id: 'Header', purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
+    { id: 'General', type: #FIELDGROUP_REFERENCE, label: '기본 정보', targetQualifier: 'General', position: 10 },
+    { id: 'Src', type: #LINEITEM_REFERENCE, label: '데이터 소스', targetElement: '_Src', position: 20 },
+    { id: 'Test', type: #FIELDGROUP_REFERENCE, label: '테스트', targetQualifier: 'Test', position: 30 },
+    { id: 'Admin', type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 40 }
+  ]
+  @UI.hidden: true
+  VhUuid;
+
+  @UI.lineItem: [{ position: 10, importance: #HIGH }]
+  VhId;
+
+  @UI: {
+    lineItem:       [{ position: 20, importance: #HIGH }],
+    fieldGroup:     [{ qualifier: 'General', position: 10 }]
+  }
+  VhName;
+
+  @UI: {
+    lineItem:       [{ position: 30 }],
+    selectionField: [{ position: 20 }],
+    fieldGroup:     [{ qualifier: 'General', position: 20 },
+                     { qualifier: 'Header', position: 10 }],
+    textArrangement: #TEXT_ONLY
+  }
+  VhImpl;
+
+  @UI.hidden: true
+  VhImplText;
+
+  @UI.fieldGroup: [{ qualifier: 'General', position: 30 }]
+  SysId;
+
+  @UI.hidden: true
+  SysText;
+
+  @UI: {
+    lineItem:       [{ position: 40 }],
+    selectionField: [{ position: 10 }],
+    fieldGroup:     [{ qualifier: 'General', position: 40 },
+                     { qualifier: 'Header', position: 20 }],
+    textArrangement: #TEXT_ONLY
+  }
+  SapModule;
+
+  @UI.hidden: true
+  SapModuleText;
+
+  @UI: {
+    lineItem:       [{ position: 50 }],
+    fieldGroup:     [{ qualifier: 'General', position: 50 }]
+  }
+  Description;
+
+  @UI: {
+    lineItem:       [{ position: 60 }],
+    selectionField: [{ position: 30 }],
+    fieldGroup:     [{ qualifier: 'General', position: 60 },
+                     { qualifier: 'Header', position: 30 }]
+  }
+  OwnerId;
+
+  @UI.hidden: true
+  OwnerName;
+
+  @UI.fieldGroup: [{ qualifier: 'General', position: 70 }]
+  ObjCreator;
+
+  @UI: {
+    lineItem:       [{ position: 70 }],
+    fieldGroup:     [{ qualifier: 'General', position: 80 }]
+  }
+  ReqId;
+
+  @UI.hidden: true
+  ReqTitle;
+
+  @UI.fieldGroup: [{ qualifier: 'Test', position: 10 }]
+  TestFile;
+
+  @UI.hidden: true
+  TestMimeType;
+
+  @UI.hidden: true
+  TestFileName;
+
+  @UI.fieldGroup: [{ qualifier: 'Test', position: 20 }]
+  TestBy;
+
+  @UI.hidden: true
+  TestByName;
+
+  @UI.fieldGroup: [{ qualifier: 'Test', position: 30 }]
+  TestAt;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 10 }]
+  CreatedBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 20 }]
+  CreatedAt;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 30 }]
+  LastChangedBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 40 }]
+  LastChangedAt;
+
+  @UI.hidden: true
+  LocalLastChangedAt;
+}

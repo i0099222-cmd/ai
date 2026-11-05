@@ -1,0 +1,38 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: '데이터 소스',
+    typeNamePlural: '데이터 소스',
+    title:       { type: #STANDARD, value: 'SrcName' }
+  }
+}
+annotate entity ZC_CMSM_VhSrc with
+{
+  @UI.facet: [
+    { id: 'Src', type: #IDENTIFICATION_REFERENCE, label: '데이터 소스', position: 10 }
+  ]
+  @UI.hidden: true
+  SrcUuid;
+
+  @UI.hidden: true
+  VhUuid;
+
+  @UI: {
+    lineItem:       [{ position: 10, importance: #HIGH }],
+    identification: [{ position: 10 }],
+    textArrangement: #TEXT_ONLY
+  }
+  SrcKind;
+
+  @UI.hidden: true
+  SrcKindText;
+
+  @UI: {
+    lineItem:       [{ position: 20, importance: #HIGH }],
+    identification: [{ position: 20 }]
+  }
+  SrcName;
+
+  @UI.hidden: true
+  LocalLastChangedAt;
+}

@@ -51,7 +51,7 @@ authorization master ( global )
 
   validation validateMandatory on save { create; field Title, SapModule, Assignee; }
 
-  draft action ( features : instance ) Edit;
+  draft action Edit;
   draft action Activate optimized;
   draft action Discard;
   draft action Resume;

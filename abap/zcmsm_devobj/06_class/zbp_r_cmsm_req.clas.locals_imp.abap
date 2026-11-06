@@ -146,8 +146,7 @@ CLASS lhc_request IMPLEMENTATION.
 
       APPEND VALUE #(
         %tky                    = ls_req-%tky
-        %update                 = lv_edit
-        %action-Edit            = lv_edit
+        %update                 = lv_edit   " 화면의 Edit 버튼도 이 값을 따른다
         %delete                 = COND #( WHEN lv_requester_edit = abap_true
                                           THEN if_abap_behv=>fc-o-enabled
                                           ELSE if_abap_behv=>fc-o-disabled )

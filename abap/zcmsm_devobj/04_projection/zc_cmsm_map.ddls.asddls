@@ -20,7 +20,7 @@ define root view entity ZC_CMSM_Map
       SrcSysId,
       @EndUserText.label: '소스 시스템 설명'
       _SrcSys.Description as SrcSysText,
-      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_ObjTypeVH', element: 'Value' } }]
+      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_AsisTypeVH', element: 'Value' } }]
       @ObjectModel.text.element: [ 'AsisTypeText' ]
       AsisType,
       @EndUserText.label: 'As-Is 유형 내역'
@@ -32,7 +32,7 @@ define root view entity ZC_CMSM_Map
       TgtSysId,
       @EndUserText.label: '타겟 시스템 설명'
       _TgtSys.Description as TgtSysText,
-      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_ObjTypeVH', element: 'Value' } }]
+      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_TobeTypeVH', element: 'Value' } }]
       @ObjectModel.text.element: [ 'TobeTypeText' ]
       TobeType,
       @EndUserText.label: 'To-Be 유형 내역'

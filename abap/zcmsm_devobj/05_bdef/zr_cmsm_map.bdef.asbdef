@@ -27,15 +27,49 @@ authorization master ( global )
       TobeName,
       SapModule;
 
+  // 구분이 신규면 As-Is 잠금 / To-Be가 T-code일 때만 UI / UI 종류별로 입력칸
+  field ( features : instance )
+      SrcSysId,
+      AsisType,
+      AsisName,
+      UiKind,
+      UiUri,
+      FioriAppId,
+      SemObjAction,
+      ReactApp;
+
   create;
   update;
   delete;
+
+  // 새 매핑: 구분 = 매핑, 담당자 = 등록한 사람 / 조건이 바뀌면 안 쓰는 값 비우기 / 저장할 때 MP- 채번
+  determination setInitialValues  on modify { create; }
+  determination clearUnusedFields on modify { field MapKind, TobeType, UiKind; }
+  determination setMapId          on save   { create; }
+
+  validation validateMandatory  on save { create; field MapKind, TobeType, TobeName, SapModule, SrcSysId, AsisType, AsisName,
+                                                       UiKind, UiUri, SemObjAction, ReactApp; }
+  validation validateObjectType on save { create; field AsisType, TobeType; }
+  validation validateDuplicate  on save { create; field MapKind, SrcSysId, AsisType, AsisName, TobeType, TobeName; }
+
+  // 조건 필드를 바꾸면 비워진 값이 화면에 바로 보이게
+  side effects
+  {
+    field MapKind  affects field SrcSysId, field AsisType, field AsisName;
+    field TobeType affects field UiKind, field UiUri, field FioriAppId, field SemObjAction, field ReactApp;
+    field UiKind   affects field UiUri, field FioriAppId, field SemObjAction, field ReactApp;
+  }
 
   draft action Edit;
   draft action Activate optimized;
   draft action Discard;
   draft action Resume;
-  draft determine action Prepare;
+  draft determine action Prepare
+  {
+    validation validateMandatory;
+    validation validateObjectType;
+    validation validateDuplicate;
+  }
 
   mapping for ztcmsm00190 corresponding;
 }

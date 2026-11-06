@@ -170,3 +170,41 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 5. `ZC_CMSM_Req` BDEF 교체 → 활성화
 6. MDE `ZC_CMSM_Req` 교체 → 활성화 (버튼 추가)
 7. 앱 새로고침. 이미 만든 요청은 요청번호가 비어 있으니 테스트 데이터는 지우고 새로 만든다
+
+## 매핑 트랜잭션
+
+### 입력 규칙 (instance feature control + 검증)
+
+| 조건 | 열리는 칸 (필수 = *) | 잠기고 비워지는 칸 |
+| --- | --- | --- |
+| 구분 = 매핑 (기본값) | 소스 시스템*, As-Is 유형*, As-Is 오브젝트* | |
+| 구분 = 신규 | | 소스 시스템, As-Is 유형, As-Is 오브젝트 |
+| To-Be 유형 = T-code | UI 종류* | |
+| To-Be 유형 ≠ T-code | | UI 종류, URI, Fiori 앱 ID, Semantic Object-Action, React 앱 이름 |
+| UI 종류 = Fiori | Semantic Object-Action*, Fiori 앱 ID, URI | React 앱 이름 |
+| UI 종류 = React | React 앱 이름*, URI* | Fiori 앱 ID, Semantic Object-Action |
+| UI 종류 = WebGUI | URI | Fiori 앱 ID, Semantic Object-Action, React 앱 이름 |
+
+항상 필수: 구분, To-Be 유형, To-Be 오브젝트, 모듈.
+
+### 자동 처리·검증
+
+| 이름 | 시점 | 내용 |
+| --- | --- | --- |
+| `setInitialValues` | 생성 | 구분 = 매핑, 담당자 = 등록한 사람 |
+| `clearUnusedFields` | 구분·To-Be 유형·UI 종류 변경 | 위 표의 "잠기고 비워지는 칸"을 비움. side effects로 화면에 바로 반영 |
+| `setMapId` | 저장 (생성) | MP-nnnn 채번 (번호 범위 구간 02) |
+| `validateMandatory` | 저장, Prepare | 위 표의 필수 |
+| `validateObjectType` | 저장, Prepare | As-Is 유형은 `ZI_CMSM_AsisTypeVH`(RFC·FM·PROXY·TABLE·TCODE·CLASS·CDS), To-Be 유형은 `ZI_CMSM_TobeTypeVH`(VH·SRVB 제외)에 있는 값만. 드롭다운도 같은 뷰 |
+| `validateDuplicate` | 저장, Prepare | 구분·소스 시스템·As-Is 유형·As-Is·To-Be 유형·To-Be가 모두 같은 저장된 매핑이 있으면 에러 (N:1, 1:N은 허용) |
+
+수정·삭제는 누구나 가능 (요청처럼 사람별 제한 없음).
+
+### 만드는 순서
+
+1. 번호 범위 `ZCMSM_DOID` 구간 `02`가 있는지 확인
+2. `ZI_CMSM_AsisTypeVH`, `ZI_CMSM_TobeTypeVH` (`01_vh`) 새로 만들고 활성화
+3. `ZC_CMSM_Map` (`04_projection`) — As-Is·To-Be 유형 VH 이름 두 줄 교체
+4. `ZR_CMSM_Map` BDEF 교체 → `ZBP_R_CMSM_MAP` 로컬 핸들러 교체 → 같이 활성화
+5. `ZC_CMSM_Map` BDEF 교체 (`use side effects;` 추가) → 활성화
+6. side effects에서 문법 에러가 나면 (S/4 버전에 따라 미지원) BDEF의 `side effects { … }` 블록과 프로젝션의 `use side effects;`를 지운다. 그러면 비워진 값과 잠금 상태는 저장 후 다시 열 때 반영된다

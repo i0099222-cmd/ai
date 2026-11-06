@@ -9,6 +9,11 @@ use etag
   use update;
   use delete;
 
+  use action acceptRequest;
+  use action completeRequest;
+  use action rejectRequest;
+  use action cancelRequest;
+
   use action Edit;
   use action Activate;
   use action Discard;

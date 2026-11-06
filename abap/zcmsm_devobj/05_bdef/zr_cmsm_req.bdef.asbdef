@@ -9,10 +9,13 @@ etag master LocalLastChangedAt
 lock master total etag LastChangedAt
 authorization master ( global )
 {
+  // 상태·사유·완료일은 액션으로만 바뀐다
   field ( readonly )
       ReqUuid,
       ReqId,
+      ReqStatus,
       DoneDate,
+      CloseReason,
       CreatedBy,
       CreatedAt,
       LastChangedBy,
@@ -22,20 +25,40 @@ authorization master ( global )
   field ( numbering : managed )
       ReqUuid;
 
-  field ( mandatory )
+  // 요청자: 요청(R)일 때 제목·내용·모듈·담당자 / 담당자: 진행 중(I)일 때 처리 내용·관련 번호
+  field ( features : instance )
       Title,
+      ReqText,
       SapModule,
-      Assignee;
+      Assignee,
+      ProcResult,
+      RelNo;
 
   create;
-  update;
-  delete;
+  update ( features : instance );
+  delete ( features : instance );
 
-  draft action Edit;
+  // 상태 변경
+  action ( features : instance ) acceptRequest   result [1] $self;
+  action ( features : instance ) completeRequest result [1] $self;
+  action ( features : instance ) rejectRequest   parameter ZA_CMSM_CloseReason result [1] $self;
+  action ( features : instance ) cancelRequest   parameter ZA_CMSM_CloseReason result [1] $self;
+
+  // 새 요청은 상태 R, 저장할 때 요청번호 채번, 변경 내용은 이력으로
+  determination setInitialValues on modify { create; }
+  determination setReqId         on save   { create; }
+  determination recordHistory    on save   { create; field Title, ReqText, SapModule, Assignee, ReqStatus, ProcResult, RelNo; }
+
+  validation validateMandatory on save { create; field Title, SapModule, Assignee; }
+
+  draft action ( features : instance ) Edit;
   draft action Activate optimized;
   draft action Discard;
   draft action Resume;
-  draft determine action Prepare;
+  draft determine action Prepare
+  {
+    validation validateMandatory;
+  }
 
   // 이력은 BO가 직접 쓴다 (사용자 생성 불가)
   association _Hist { internal create; with draft; }

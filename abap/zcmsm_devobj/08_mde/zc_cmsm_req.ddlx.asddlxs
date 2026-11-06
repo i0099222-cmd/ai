@@ -63,8 +63,17 @@ annotate entity ZC_CMSM_Req with
   @UI.hidden: true
   AssigneeName;
 
+  // 상태 변경 버튼: lineItem = 목록 툴바(행 선택), identification = 상세 화면 헤더
   @UI: {
-    lineItem:       [{ position: 40, importance: #HIGH }],
+    lineItem:       [{ position: 40, importance: #HIGH },
+                     { type: #FOR_ACTION, dataAction: 'acceptRequest',   label: '접수' },
+                     { type: #FOR_ACTION, dataAction: 'completeRequest', label: '완료' },
+                     { type: #FOR_ACTION, dataAction: 'rejectRequest',   label: '반려' },
+                     { type: #FOR_ACTION, dataAction: 'cancelRequest',   label: '요청 취소' }],
+    identification: [{ type: #FOR_ACTION, dataAction: 'acceptRequest',   label: '접수',      position: 10 },
+                     { type: #FOR_ACTION, dataAction: 'completeRequest', label: '완료',      position: 20 },
+                     { type: #FOR_ACTION, dataAction: 'rejectRequest',   label: '반려',      position: 30 },
+                     { type: #FOR_ACTION, dataAction: 'cancelRequest',   label: '요청 취소', position: 40 }],
     selectionField: [{ position: 20 }],
     fieldGroup:     [{ qualifier: 'Process', position: 10 },
                      { qualifier: 'Header', position: 10 }],

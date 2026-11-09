@@ -52,12 +52,15 @@ authorization master ( global )
   validation validateObjectType on save { create; field AsisType, TobeType; }
   validation validateDuplicate  on save { create; field MapKind, SrcSysId, AsisType, AsisName, TobeType, TobeName; }
 
-  // 조건 필드를 바꾸면 비워진 값이 화면에 바로 보이게
+  // 조건 필드를 바꾸면 바로 반영: field = 비워진 값, permissions = 잠금·필수 (get_instance_features 다시 읽기)
   side effects
   {
-    field MapKind  affects field SrcSysId, field AsisType, field AsisName;
-    field TobeType affects field UiKind, field UiUri, field FioriAppId, field SemObjAction, field ReactApp;
-    field UiKind   affects field UiUri, field FioriAppId, field SemObjAction, field ReactApp;
+    field MapKind  affects field SrcSysId, field AsisType, field AsisName,
+                           permissions ( field SrcSysId, field AsisType, field AsisName );
+    field TobeType affects field UiKind, field UiUri, field FioriAppId, field SemObjAction, field ReactApp,
+                           permissions ( field UiKind, field UiUri, field FioriAppId, field SemObjAction, field ReactApp );
+    field UiKind   affects field UiUri, field FioriAppId, field SemObjAction, field ReactApp,
+                           permissions ( field UiUri, field FioriAppId, field SemObjAction, field ReactApp );
   }
 
   draft action Edit;

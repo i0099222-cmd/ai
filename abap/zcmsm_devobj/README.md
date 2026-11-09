@@ -208,3 +208,27 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 4. `ZR_CMSM_Map` BDEF 교체 → `ZBP_R_CMSM_MAP` 로컬 핸들러 교체 → 같이 활성화
 5. `ZC_CMSM_Map` BDEF 교체 (`use side effects;` 추가) → 활성화
 6. side effects에서 문법 에러가 나면 (S/4 버전에 따라 미지원) BDEF의 `side effects { … }` 블록과 프로젝션의 `use side effects;`를 지운다. 그러면 비워진 값과 잠금 상태는 저장 후 다시 열 때 반영된다
+
+## Value Help 트랜잭션
+
+| 이름 | 시점 | 내용 |
+| --- | --- | --- |
+| `setInitialValues` | 생성 | 담당자 = 등록한 사람 |
+| `detectVhImpl` | 생성, VH 이름 변경 | 구현 방식 자동 판별: CDS(데이터 정의)면 C, Search Help면 S, 못 찾으면 빈 값. side effects로 바로 표시 |
+| `setTestInfo` | 테스트 파일 올림·삭제 | 올린 사람·일시 채움 / 파일 지우면 비움 |
+| `setVhId` | 저장 (생성) | VH-nnnn 채번 (번호 범위 구간 03) |
+| `validateMandatory` | 저장, Prepare | VH 이름·모듈 필수 |
+| `validateVhName` | 저장, Prepare | 같은 시스템 ID·같은 VH 이름이 이미 저장돼 있으면 에러. 구현 방식을 못 찾았으면 경고(저장은 됨) |
+| `validateTestFile` | 저장, Prepare | 테스트 파일 10MB 초과 에러 |
+| `ValueHelpSource~validateSource` | 저장, Prepare | 데이터 소스 유형·이름 필수 (메시지는 VH 화면 데이터 소스 행에 표시) |
+
+구현 방식 판별 (`detect_impl` 메서드 하나에 모아 둠)
+- CDS: XCO `xco_cp_abap_repository=>object->ddls->for( 이름 )->exists( )`
+- Search Help: released 뷰 `I_CustABAPObjDirectoryEntry` (고객 오브젝트 TADIR)에서 SHLP 조회. 이 뷰가 없거나 권한으로 막히면 S 판별만 안 되고 나머지는 동작. 이 메서드만 고치면 된다
+
+### 만드는 순서
+
+1. 번호 범위 `ZCMSM_DOID` 구간 `03` 확인
+2. `ZR_CMSM_Vh` BDEF 교체 → `ZBP_R_CMSM_VH` 로컬 핸들러 교체 (부모·자식 핸들러 둘 다) → 같이 활성화
+3. `ZC_CMSM_Vh` BDEF 교체 (`use side effects;` 추가) → 활성화
+4. `setTestInfo`·`validateTestFile` 트리거에 `TestFile`(RAWSTRING)이 있다. 활성화 에러가 나면 트리거에서 `TestFile`을 빼고 `TestFileName`만 남긴다 (side effects의 `field TestFile`도 같이)

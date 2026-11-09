@@ -9,6 +9,7 @@ etag master LocalLastChangedAt
 lock master total etag LastChangedAt
 authorization master ( global )
 {
+  // 구현 방식·올린 사람·올린 일시는 자동
   field ( readonly )
       VhUuid,
       VhId,
@@ -32,11 +33,34 @@ authorization master ( global )
   update;
   delete;
 
+  // 새 VH: 담당자 = 등록한 사람 / VH 이름 → 구현 방식 판별 / 파일 올리면 올린 사람·일시 / 저장할 때 VH- 채번
+  determination setInitialValues on modify { create; }
+  determination detectVhImpl     on modify { create; field VhName; }
+  determination setTestInfo      on modify { field TestFile, TestFileName; }
+  determination setVhId          on save   { create; }
+
+  validation validateMandatory on save { create; field VhName, SapModule; }
+  validation validateVhName    on save { create; field VhName, SysId; }
+  validation validateTestFile  on save { field TestFile, TestFileName; }
+
+  // 자동으로 채운 값이 화면에 바로 보이게
+  side effects
+  {
+    field VhName   affects field VhImpl;
+    field TestFile affects field TestBy, field TestAt;
+  }
+
   draft action Edit;
   draft action Activate optimized;
   draft action Discard;
   draft action Resume;
-  draft determine action Prepare;
+  draft determine action Prepare
+  {
+    validation validateMandatory;
+    validation validateVhName;
+    validation validateTestFile;
+    validation ValueHelpSource~validateSource;
+  }
 
   association _Src { create; with draft; }
 
@@ -64,6 +88,8 @@ authorization dependent by _Vh
 
   update;
   delete;
+
+  validation validateSource on save { create; field SrcKind, SrcName; }
 
   association _Vh { with draft; }
 

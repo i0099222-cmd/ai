@@ -85,7 +85,7 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
 
 
   METHOD build_rows.
-    DATA lt_value TYPE zif_cmup_user_api=>tt_code_text.
+    DATA lt_value TYPE zcl_cmup_value_help=>tt_value.
     DATA(lt_setting) = zcl_cmup_user_api=>create( )->get_settings( iv_user ).
 
     " 포털 항목만, 설정 안 한 항목도 빈 값으로 한 줄씩 (웹 화면 칸이 항상 다 나오게)
@@ -93,10 +93,14 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
     LOOP AT lt_item INTO DATA(ls_item).
       DATA(lv_value) = VALUE zif_cmup_user_api=>ty_value( lt_setting[ item_id = ls_item-item_id ]-value OPTIONAL ).
 
-      " 값 텍스트 (1000 → 서울 본사). 사용자정보 항목은 목록이 없어 빈 값
+      " 값 텍스트 (1000 → 서울 본사). 파라미터만, 사용자정보는 빈 값
       CLEAR lt_value.
-      IF lv_value IS NOT INITIAL.
-        lt_value = zcl_cmup_value_help=>read_source( ls_item-item_id ).
+      IF ls_item-category = zcl_cmup_config=>c_category-parameter AND lv_value IS NOT INITIAL.
+        TRY.
+            lt_value = zcl_cmup_value_help=>read_source( ls_item-item_id ).
+          CATCH zcx_cmup_query.
+            " VH 가 없는 파라미터면 텍스트만 비운다
+        ENDTRY.
       ENDIF.
 
       APPEND VALUE #( userid     = iv_user

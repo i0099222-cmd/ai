@@ -1,7 +1,7 @@
 "! 포털에 노출할 항목 목록 + 사용자 범위 설정
 "!
 "! 항목 추가/삭제/이름 변경은 get_items 한 곳만 고친다.
-"! 파라미터 ID 를 새로 넣으면 zcl_cmup_value_help 의 read_source 에 VH 출처도 같이 넣는다.
+"! 파라미터 ID 는 zcl_cmup_value_help=>c_param 에 있는 것 (VH 출처와 같이 관리).
 CLASS zcl_cmup_config DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     TYPES:
@@ -21,15 +21,6 @@ CLASS zcl_cmup_config DEFINITION PUBLIC FINAL CREATE PUBLIC.
         user_info TYPE ty_category VALUE 'USERINFO',   " SU3 기본값 탭
         parameter TYPE ty_category VALUE 'PARAM',      " SU3 파라미터 탭
       END OF c_category,
-
-      "! 파라미터 ID (TPARA)
-      BEGIN OF c_param,
-        company_code     TYPE zif_cmup_user_api=>ty_item VALUE 'BUK',
-        controlling_area TYPE zif_cmup_user_api=>ty_item VALUE 'CAC',
-        purchasing_org   TYPE zif_cmup_user_api=>ty_item VALUE 'EKO',
-        sales_org        TYPE zif_cmup_user_api=>ty_item VALUE 'VKO',
-        plant            TYPE zif_cmup_user_api=>ty_item VALUE 'WRK',
-      END OF c_param,
 
       "! abap_true  = 로그온 사용자 본인 것만 조회/변경
       "!              (포털 사용자 그대로 SAP 에 로그온 = Principal Propagation)
@@ -69,11 +60,11 @@ CLASS zcl_cmup_config IMPLEMENTATION.
       ( item_id = zif_cmup_user_api=>c_default-timefm category = c_category-user_info area_name = '사용자정보' item_name = '시간 형식'   sort_no = 40 )
       ( item_id = zif_cmup_user_api=>c_default-tzone  category = c_category-user_info area_name = '사용자정보' item_name = '타임존'      sort_no = 50 )
       " ── 자주 쓰는 파라미터 (SU3 파라미터 탭)
-      ( item_id = c_param-company_code     category = c_category-parameter area_name = '재무'      item_name = '회사코드'     sort_no = 110 )
-      ( item_id = c_param-controlling_area category = c_category-parameter area_name = '관리회계'  item_name = '관리회계영역' sort_no = 120 )
-      ( item_id = c_param-purchasing_org   category = c_category-parameter area_name = '구매'      item_name = '구매조직'     sort_no = 130 )
-      ( item_id = c_param-sales_org        category = c_category-parameter area_name = '영업'      item_name = '판매조직'     sort_no = 140 )
-      ( item_id = c_param-plant            category = c_category-parameter area_name = '생산/물류' item_name = '플랜트'       sort_no = 150 ) ).
+      ( item_id = zcl_cmup_value_help=>c_param-company_code     category = c_category-parameter area_name = '재무'      item_name = '회사코드'     sort_no = 110 )
+      ( item_id = zcl_cmup_value_help=>c_param-controlling_area category = c_category-parameter area_name = '관리회계'  item_name = '관리회계영역' sort_no = 120 )
+      ( item_id = zcl_cmup_value_help=>c_param-purchasing_org   category = c_category-parameter area_name = '구매'      item_name = '구매조직'     sort_no = 130 )
+      ( item_id = zcl_cmup_value_help=>c_param-sales_org        category = c_category-parameter area_name = '영업'      item_name = '판매조직'     sort_no = 140 )
+      ( item_id = zcl_cmup_value_help=>c_param-plant            category = c_category-parameter area_name = '생산/물류' item_name = '플랜트'       sort_no = 150 ) ).
   ENDMETHOD.
 
 

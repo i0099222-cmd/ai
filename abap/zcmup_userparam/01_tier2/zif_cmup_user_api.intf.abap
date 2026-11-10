@@ -10,20 +10,12 @@ INTERFACE zif_cmup_user_api PUBLIC.
     "! 항목 ID = 기본값 필드명(DATFM 등) 또는 파라미터 ID(BUK 등, TPARA-PARAMID 20자리)
     ty_item  TYPE c LENGTH 20,
     ty_value TYPE c LENGTH 40,
-    ty_text  TYPE c LENGTH 80,
 
     BEGIN OF ty_setting,
       item_id TYPE ty_item,
       value   TYPE ty_value,
     END OF ty_setting,
-    tt_setting TYPE SORTED TABLE OF ty_setting WITH UNIQUE KEY item_id,
-
-    "! Value Help 한 줄 (코드 + 텍스트)
-    BEGIN OF ty_code_text,
-      code TYPE ty_value,
-      text TYPE ty_text,
-    END OF ty_code_text,
-    tt_code_text TYPE STANDARD TABLE OF ty_code_text WITH EMPTY KEY.
+    tt_setting TYPE SORTED TABLE OF ty_setting WITH UNIQUE KEY item_id.
 
   CONSTANTS:
     "! SU3 기본값 탭 항목. 이 5개가 아니면 전부 파라미터 ID 로 본다.

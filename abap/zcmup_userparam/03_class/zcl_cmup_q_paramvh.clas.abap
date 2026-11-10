@@ -1,7 +1,7 @@
 "! ② Value Help 조회 · ZCE_CMUP_ParamVH
 "!
 "!   GET ParamValueHelp(p_itemid='BUK')/Set?$search=서울&$top=50&$skip=0&$count=true
-"!   p_itemid = 파라미터 ID (사용자정보 항목은 팝업 대상이 아님)
+"!   p_itemid = 파라미터 ID (zcl_cmup_value_help=>c_param 에 있는 것만)
 "!   $search  = 코드·텍스트에 포함된 것 (대소문자 무시)
 "!   $orderby 는 받지 않는다 (코드 순 고정)
 CLASS zcl_cmup_q_paramvh DEFINITION PUBLIC FINAL CREATE PUBLIC.
@@ -14,24 +14,20 @@ CLASS zcl_cmup_q_paramvh IMPLEMENTATION.
 
   METHOD if_rap_query_provider~select.
     TYPES tt_row TYPE STANDARD TABLE OF zce_cmup_paramvh WITH EMPTY KEY.
-    DATA lv_item_id TYPE zif_cmup_user_api=>ty_item.
+    DATA lv_param_id TYPE zcl_cmup_value_help=>ty_param_id.
 
-    " 파라미터 p_itemid (필수)
+    " 파라미터 p_itemid
     DATA(lt_param) = io_request->get_parameters( ).
     LOOP AT lt_param INTO DATA(ls_param).
       IF to_upper( ls_param-parameter_name ) = 'P_ITEMID'.
-        lv_item_id = to_upper( ls_param-value ).
+        lv_param_id = to_upper( ls_param-value ).
       ENDIF.
     ENDLOOP.
 
-    IF zcl_cmup_config=>get_item( lv_item_id )-category <> zcl_cmup_config=>c_category-parameter.
-      RAISE EXCEPTION TYPE zcx_cmup_query
-        EXPORTING
-          iv_text = |{ lv_item_id } 는 Value Help 대상 파라미터가 아닙니다|.
-    ENDIF.
+    " 목록 (지원하지 않는 파라미터 ID 면 zcx_cmup_query → OData 에러 응답)
+    DATA(lt_value) = zcl_cmup_value_help=>read_source( lv_param_id ).
 
-    " 목록 + 검색어 ($search, 따옴표 제거 / CS = 대소문자 구분 없는 '포함' 비교)
-    DATA(lt_value)  = zcl_cmup_value_help=>read_source( lv_item_id ).
+    " 검색어 ($search, 따옴표 제거 / CS = 대소문자 구분 없는 '포함' 비교)
     DATA(lv_search) = io_request->get_search_expression( ).
     REPLACE ALL OCCURRENCES OF `"` IN lv_search WITH ``.
     CONDENSE lv_search.
@@ -40,7 +36,7 @@ CLASS zcl_cmup_q_paramvh IMPLEMENTATION.
     ENDIF.
 
     DATA(lt_row) = VALUE tt_row( FOR ls_value IN lt_value
-                                 ( itemid     = lv_item_id
+                                 ( itemid     = lv_param_id
                                    paramvalue = ls_value-code
                                    valuetext  = ls_value-text ) ).
 

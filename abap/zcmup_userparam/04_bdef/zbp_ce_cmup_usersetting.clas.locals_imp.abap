@@ -121,9 +121,16 @@ CLASS lhc_usersetting IMPLEMENTATION.
         READ TABLE lcl_buffer=>gt_change INTO DATA(ls_change)
              WITH TABLE KEY user_id = lv_user item_id = ls_member-ItemId.
         IF sy-subrc = 0.
-          DATA(lt_value) = zcl_cmup_value_help=>read_source( ls_row-itemid ).
           ls_row-paramvalue = ls_change-value.
-          ls_row-valuetext  = VALUE #( lt_value[ code = ls_change-value ]-text OPTIONAL ).
+          CLEAR ls_row-valuetext.
+          IF ls_row-category = zcl_cmup_config=>c_category-parameter.
+            TRY.
+                DATA(lt_value) = zcl_cmup_value_help=>read_source( ls_row-itemid ).
+                ls_row-valuetext = VALUE #( lt_value[ code = ls_change-value ]-text OPTIONAL ).
+              CATCH zcx_cmup_query.
+                " VH 가 없는 파라미터면 텍스트만 비운다
+            ENDTRY.
+          ENDIF.
         ENDIF.
 
         APPEND CORRESPONDING #( ls_row ) TO result.
@@ -167,7 +174,12 @@ CLASS lhc_usersetting IMPLEMENTATION.
     ENDIF.
 
     " SU3·BAPI 는 파라미터 값을 마스터와 대조하지 않으므로 여기서 막는다
-    DATA(lt_value) = zcl_cmup_value_help=>read_source( iv_item_id ).
+    TRY.
+        DATA(lt_value) = zcl_cmup_value_help=>read_source( iv_item_id ).
+      CATCH zcx_cmup_query INTO DATA(lx_vh).
+        rv_error = lx_vh->get_text( ).
+        RETURN.
+    ENDTRY.
     IF NOT line_exists( lt_value[ code = iv_value ] ).
       rv_error = |{ ls_item-item_name }: { iv_value } 는 고를 수 없는 값입니다|.
     ENDIF.

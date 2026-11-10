@@ -32,7 +32,7 @@
 | `03_class` | ABAP Cloud | 항목 설정, Value Help 출처, 쿼리 클래스 2개, 예외 |
 | `04_bdef` | ABAP Cloud | BDEF (unmanaged, update만) + 행위 풀 → **같이 활성화** |
 | `05_service` | ABAP Cloud | 서비스 정의 `ZAPI_CMUP_USERPARAM` |
-| `99_test` | ABAP Cloud | 래퍼 테스트 classrun `zcl_cmup_test_user_api` (조회 → 변경 → 확인 → 복구) |
+| `99_test` | ABAP Cloud | classrun 테스트: `zcl_cmup_test_user_api` (래퍼 조회 → 변경 → 확인 → 복구), `zcl_cmup_test_vh` (Value Help 목록) |
 
 마지막에 서비스 바인딩을 만듭니다. ADT에서 `ZAPI_CMUP_USERPARAM` 우클릭 → New Service Binding
 → 이름 `ZAPI_CMUP_USERPARAM_O4`, 유형 **OData V4 - Web API** → Publish.
@@ -114,7 +114,7 @@ x-csrf-token: <GET 할 때 x-csrf-token: fetch 로 받은 값>
 ## 항목 추가하는 법 (확정 목록 23개가 오면)
 
 1. `zcl_cmup_config=>get_items` 에 한 줄 추가 (항목 ID, 구분, 업무영역, 항목명, 순서)
-2. 파라미터면 `zcl_cmup_config=>c_param` 에 상수 추가
+2. 파라미터면 `zcl_cmup_value_help=>c_param` 에 상수 추가
 3. `zcl_cmup_value_help=>read_source` 에 VH 출처 추가 (릴리스된 CDS 우선, 없으면 Tier 2 래퍼에 메서드 추가)
 4. 사용자정보 중 기본값 5개 외의 필드(출력장치 SPLD 등)는 `zif_cmup_user_api=>c_default` 와 래퍼의 get/change 둘 다 추가
 

@@ -32,6 +32,7 @@
 | `03_class` | ABAP Cloud | 항목 설정, Value Help 출처, 쿼리 클래스 2개, 공통 처리, 예외 |
 | `04_bdef` | ABAP Cloud | BDEF (unmanaged, update만) + 행위 풀 → **같이 활성화** |
 | `05_service` | ABAP Cloud | 서비스 정의 `ZAPI_CMUP_USERPARAM` |
+| `99_test` | ABAP Cloud | 래퍼 테스트 classrun `zcl_cmup_test_user_api` (조회 → 변경 → 확인 → 복구) |
 
 마지막에 서비스 바인딩을 만듭니다. ADT에서 `ZAPI_CMUP_USERPARAM` 우클릭 → New Service Binding
 → 이름 `ZAPI_CMUP_USERPARAM_O4`, 유형 **OData V4 - Web API** → Publish.

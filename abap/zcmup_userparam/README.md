@@ -29,7 +29,7 @@
 | --- | --- | --- |
 | `01_tier2` | **classic** (Standard ABAP) | `zif_cmup_user_api`, `zcl_cmup_user_api`, `zcx_cmup_user_api` → 3개 모두 **C1 release** |
 | `02_cds` | ABAP Cloud | custom entity 2개 |
-| `03_class` | ABAP Cloud | 항목 설정, Value Help 출처, 쿼리 클래스 2개, 공통 처리, 예외 |
+| `03_class` | ABAP Cloud | 항목 설정, Value Help 출처, 쿼리 클래스 2개, 예외 |
 | `04_bdef` | ABAP Cloud | BDEF (unmanaged, update만) + 행위 풀 → **같이 활성화** |
 | `05_service` | ABAP Cloud | 서비스 정의 `ZAPI_CMUP_USERPARAM` |
 | `99_test` | ABAP Cloud | 래퍼 테스트 classrun `zcl_cmup_test_user_api` (조회 → 변경 → 확인 → 복구) |
@@ -52,7 +52,6 @@ Use System-Internally (Contract C1) 추가 → **Use in Cloud Development** 체�
 | `03_class/zcl_cmup_value_help` | `read_source` 하나. 파라미터별 고를 수 있는 값 → ② 목록, ①의 값 텍스트, ③의 검증이 같이 쓴다 |
 | `03_class/zcl_cmup_q_usersetting` | ① 쿼리 |
 | `03_class/zcl_cmup_q_paramvh` | ② 쿼리 |
-| `03_class/zcl_cmup_query_util` | 필터·검색·정렬·건수·페이징 공통 처리 |
 | `04_bdef/zce_cmup_usersetting` | ③ BDEF |
 | `04_bdef/zbp_ce_cmup_usersetting` | ③ 검증 → 버퍼 → 저장 (locals_imp) |
 

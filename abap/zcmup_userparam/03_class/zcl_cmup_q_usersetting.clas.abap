@@ -3,6 +3,7 @@
 "!   GET UserSetting                            → 로그온 사용자 본인
 "!   GET UserSetting?$filter=UserId eq 'HONG'   → 그 사용자 (c_self_only = abap_false 일 때)
 "!   지원 필터: UserId (eq 하나), ItemId (키로 한 건 조회할 때 넘어온다)
+"!   $top / $skip / $orderby 는 받지 않는다 (항목 수십 개, 정렬 순서 고정)
 CLASS zcl_cmup_q_usersetting DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES if_rap_query_provider.
@@ -24,7 +25,15 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
           lt_item_rng TYPE if_rap_query_filter=>tt_range_option.
 
     " 필터
-    DATA(lt_filter) = zcl_cmup_query_util=>get_ranges( io_request ).
+    TRY.
+        DATA(lt_filter) = io_request->get_filter( )->get_as_ranges( ).
+      CATCH cx_rap_query_filter_no_range INTO DATA(lx_range).
+        RAISE EXCEPTION TYPE zcx_cmup_query
+          EXPORTING
+            iv_text  = `필터는 eq / 범위 조건만 지원합니다`
+            previous = lx_range.
+    ENDTRY.
+
     LOOP AT lt_filter INTO DATA(ls_filter).
       CASE ls_filter-name.
         WHEN 'USERID'.
@@ -65,9 +74,13 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
 
     DELETE lt_row WHERE itemid NOT IN lt_item_rng.
 
-    zcl_cmup_query_util=>respond( EXPORTING io_request  = io_request
-                                            io_response = io_response
-                                  CHANGING  ct_data     = lt_row ).
+    " 응답
+    IF io_request->is_total_numb_of_rec_requested( ).
+      io_response->set_total_number_of_records( lines( lt_row ) ).
+    ENDIF.
+    IF io_request->is_data_requested( ).
+      io_response->set_data( lt_row ).
+    ENDIF.
   ENDMETHOD.
 
 

@@ -1,0 +1,5 @@
+@EndUserText.label: '사용자 파라미터 (SU3) API'
+define service ZAPI_CMUP_USERPARAM {
+  expose ZCE_CMUP_UserSetting as UserSetting;
+  expose ZCE_CMUP_ParamVH     as ParamValueHelp;
+}

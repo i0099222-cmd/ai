@@ -1,0 +1,20 @@
+unmanaged implementation in class zbp_ce_cmup_usersetting unique;
+strict ( 2 );
+
+// ③ 수정 (PATCH) 만. 조회는 custom entity 쿼리 zcl_cmup_q_usersetting.
+// 여러 항목은 웹이 $batch changeset 하나로 보낸다 → 한 트랜잭션 → 사용자당 BAPI 1번.
+define behavior for ZCE_CMUP_UserSetting alias UserSetting
+lock master
+authorization master ( global )
+{
+  field ( readonly )
+      UserId,
+      ItemId,
+      Category,
+      AreaName,
+      ItemName,
+      ValueText,
+      SortOrder;
+
+  update;
+}

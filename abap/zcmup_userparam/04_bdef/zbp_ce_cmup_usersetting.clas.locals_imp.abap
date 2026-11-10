@@ -8,7 +8,7 @@
 "! 검증
 "!   사용자 : zcl_cmup_config=>c_self_only 기준 + 존재 여부
 "!   항목   : zcl_cmup_config=>get_items 에 있는 것만
-"!   값     : Value Help 목록에 있는 값만 (파라미터는 빈 값 = 삭제 허용)
+"!   값     : 파라미터는 Value Help 목록에 있는 값만 (빈 값 = 삭제 허용), 사용자정보는 BAPI 에 맡김
 
 "! 상호작용 단계 → 저장 단계로 넘기는 변경분
 CLASS lcl_buffer DEFINITION FINAL.
@@ -121,9 +121,9 @@ CLASS lhc_usersetting IMPLEMENTATION.
         READ TABLE lcl_buffer=>gt_change INTO DATA(ls_change)
              WITH TABLE KEY user_id = lv_user item_id = ls_member-ItemId.
         IF sy-subrc = 0.
+          DATA(lt_value) = zcl_cmup_value_help=>read_source( ls_row-itemid ).
           ls_row-paramvalue = ls_change-value.
-          ls_row-valuetext  = zcl_cmup_value_help=>get_text( iv_item_id = ls_row-itemid
-                                                             iv_value   = ls_change-value ).
+          ls_row-valuetext  = VALUE #( lt_value[ code = ls_change-value ]-text OPTIONAL ).
         ENDIF.
 
         APPEND CORRESPONDING #( ls_row ) TO result.
@@ -160,13 +160,15 @@ CLASS lhc_usersetting IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " 사용자정보는 목록이 없다 → 값 검증은 BAPI 에 맡긴다
     " 파라미터는 빈 값 = 그 파라미터 삭제
-    IF iv_value IS INITIAL AND ls_item-category = zcl_cmup_config=>c_category-parameter.
+    IF ls_item-category <> zcl_cmup_config=>c_category-parameter OR iv_value IS INITIAL.
       RETURN.
     ENDIF.
 
-    IF zcl_cmup_value_help=>exists( iv_item_id = iv_item_id
-                                    iv_value   = iv_value ) = abap_false.
+    " SU3·BAPI 는 파라미터 값을 마스터와 대조하지 않으므로 여기서 막는다
+    DATA(lt_value) = zcl_cmup_value_help=>read_source( iv_item_id ).
+    IF NOT line_exists( lt_value[ code = iv_value ] ).
       rv_error = |{ ls_item-item_name }: { iv_value } 는 고를 수 없는 값입니다|.
     ENDIF.
   ENDMETHOD.

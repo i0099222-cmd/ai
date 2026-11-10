@@ -1,8 +1,8 @@
 "! ① 현재 설정 조회 · ZCE_CMUP_UserSetting
 "!
-"!   GET UserSetting?$filter=UserId eq 'HONG'   → 그 사용자의 항목 전체
 "!   GET UserSetting                            → 로그온 사용자 본인
-"!   지원 필터: UserId (eq 하나), ItemId, Category
+"!   GET UserSetting?$filter=UserId eq 'HONG'   → 그 사용자 (c_self_only = abap_false 일 때)
+"!   지원 필터: UserId (eq 하나), ItemId (키로 한 건 조회할 때 넘어온다)
 CLASS zcl_cmup_q_usersetting DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES if_rap_query_provider.
@@ -21,8 +21,7 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
 
   METHOD if_rap_query_provider~select.
     DATA: lv_user     TYPE zif_cmup_user_api=>ty_user,
-          lt_item_rng TYPE if_rap_query_filter=>tt_range_option,
-          lt_cat_rng  TYPE if_rap_query_filter=>tt_range_option.
+          lt_item_rng TYPE if_rap_query_filter=>tt_range_option.
 
     " 필터
     DATA(lt_filter) = zcl_cmup_query_util=>get_ranges( io_request ).
@@ -39,8 +38,6 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
           lv_user = to_upper( ls_filter-range[ 1 ]-low ).
         WHEN 'ITEMID'.
           lt_item_rng = ls_filter-range.
-        WHEN 'CATEGORY'.
-          lt_cat_rng = ls_filter-range.
         WHEN OTHERS.
           RAISE EXCEPTION TYPE zcx_cmup_query
             EXPORTING
@@ -66,7 +63,7 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
             previous = lx_api.
     ENDTRY.
 
-    DELETE lt_row WHERE itemid NOT IN lt_item_rng OR category NOT IN lt_cat_rng.
+    DELETE lt_row WHERE itemid NOT IN lt_item_rng.
 
     zcl_cmup_query_util=>respond( EXPORTING io_request  = io_request
                                             io_response = io_response
@@ -75,6 +72,7 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
 
 
   METHOD build_rows.
+    DATA lt_value TYPE zif_cmup_user_api=>tt_code_text.
     DATA(lt_setting) = zcl_cmup_user_api=>create( )->get_settings( iv_user ).
 
     " 포털 항목만, 설정 안 한 항목도 빈 값으로 한 줄씩 (웹 화면 칸이 항상 다 나오게)
@@ -82,14 +80,19 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
     LOOP AT lt_item INTO DATA(ls_item).
       DATA(lv_value) = VALUE zif_cmup_user_api=>ty_value( lt_setting[ item_id = ls_item-item_id ]-value OPTIONAL ).
 
+      " 값 텍스트 (1000 → 서울 본사). 사용자정보 항목은 목록이 없어 빈 값
+      CLEAR lt_value.
+      IF lv_value IS NOT INITIAL.
+        lt_value = zcl_cmup_value_help=>read_source( ls_item-item_id ).
+      ENDIF.
+
       APPEND VALUE #( userid     = iv_user
                       itemid     = ls_item-item_id
                       category   = ls_item-category
                       areaname   = ls_item-area_name
                       itemname   = ls_item-item_name
                       paramvalue = lv_value
-                      valuetext  = zcl_cmup_value_help=>get_text( iv_item_id = ls_item-item_id
-                                                                  iv_value   = lv_value )
+                      valuetext  = VALUE #( lt_value[ code = lv_value ]-text OPTIONAL )
                       sortorder  = ls_item-sort_no ) TO rt_row.
     ENDLOOP.
 

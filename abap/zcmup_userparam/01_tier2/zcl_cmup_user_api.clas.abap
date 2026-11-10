@@ -145,31 +145,6 @@ CLASS zcl_cmup_user_api IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_cmup_user_api~get_languages.
-    " 설치된 언어만 보여줘야 하면 여기에 조건을 추가한다
-    SELECT l~laiso AS code, t~sptxt AS text
-      FROM t002 AS l
-        LEFT OUTER JOIN t002t AS t
-          ON  t~sprsl = l~spras
-          AND t~spras = @sy-langu
-      WHERE l~laiso <> @space
-      ORDER BY l~laiso
-      INTO CORRESPONDING FIELDS OF TABLE @rt_list.
-  ENDMETHOD.
-
-
-  METHOD zif_cmup_user_api~get_time_zones.
-    SELECT z~tzone AS code, t~descript AS text
-      FROM ttzz AS z
-        LEFT OUTER JOIN ttzzt AS t
-          ON  t~tzone = z~tzone
-          AND t~langu = @sy-langu
-      WHERE z~flagactive = @abap_true
-      ORDER BY z~tzone
-      INTO CORRESPONDING FIELDS OF TABLE @rt_list.
-  ENDMETHOD.
-
-
   METHOD raise_on_error.
     LOOP AT it_return INTO DATA(ls_return) WHERE type CA 'EAX'.
       RAISE EXCEPTION TYPE zcx_cmup_user_api

@@ -2,7 +2,7 @@
 @ObjectModel.query.implementedBy: 'ABAP:ZCL_CMUP_Q_PARAMVH'
 @Search.searchable: true
 // ② Value Help (GET) · 검색 버튼 팝업 목록
-// p_itemid = 항목 ID (BUK, WRK, DATFM, TZONE ...) → 그 항목에서 고를 수 있는 값 목록
+// p_itemid = 파라미터 ID (BUK, WRK ...) → 그 파라미터에서 고를 수 있는 값 목록
 define custom entity ZCE_CMUP_ParamVH
   with parameters
     @EndUserText.label: '항목 ID'

@@ -49,12 +49,4 @@ INTERFACE zif_cmup_user_api PUBLIC.
               it_setting TYPE tt_setting
     RAISING   zcx_cmup_user_api.
 
-  "! 로그온 언어 목록 (T002 / T002T) · 코드 = ISO
-  METHODS get_languages
-    RETURNING VALUE(rt_list) TYPE tt_code_text.
-
-  "! 타임존 목록 (TTZZ 활성 / TTZZT)
-  METHODS get_time_zones
-    RETURNING VALUE(rt_list) TYPE tt_code_text.
-
 ENDINTERFACE.

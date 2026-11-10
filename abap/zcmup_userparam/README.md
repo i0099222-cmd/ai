@@ -45,11 +45,11 @@ Use System-Internally (Contract C1) 추가 → **Use in Cloud Development** 체�
 | 파일 | 역할 |
 | --- | --- |
 | `01_tier2/zif_cmup_user_api` | 래퍼 인터페이스. 타입(항목 ID, 값, 코드+텍스트)과 기본값 항목 상수 |
-| `01_tier2/zcl_cmup_user_api` | BAPI 호출, 파라미터 병합, 언어(T002)·타임존(TTZZ) 목록 |
+| `01_tier2/zcl_cmup_user_api` | BAPI 호출, 파라미터 병합 |
 | `02_cds/zce_cmup_usersetting` | ① 현재 설정 (root custom entity, 키: UserId + ItemId) |
 | `02_cds/zce_cmup_paramvh` | ② Value Help (파라미터 `p_itemid`, 검색 가능) |
 | `03_class/zcl_cmup_config` | **포털 항목 목록**(업무영역·항목명·순서)과 **본인만 허용** 설정 |
-| `03_class/zcl_cmup_value_help` | 항목별 고를 수 있는 값. ②, ①의 값 텍스트, ③의 검증이 같이 쓴다 |
+| `03_class/zcl_cmup_value_help` | `read_source` 하나. 파라미터별 고를 수 있는 값 → ② 목록, ①의 값 텍스트, ③의 검증이 같이 쓴다 |
 | `03_class/zcl_cmup_q_usersetting` | ① 쿼리 |
 | `03_class/zcl_cmup_q_paramvh` | ② 쿼리 |
 | `03_class/zcl_cmup_query_util` | 필터·검색·정렬·건수·페이징 공통 처리 |
@@ -71,13 +71,14 @@ GET UserSetting                              ← UserId 없으면 로그온 사�
 ```json
 { "value": [
   { "UserId": "HONG", "ItemId": "DATFM", "Category": "USERINFO", "AreaName": "사용자정보",
-    "ItemName": "날짜 형식", "ParamValue": "4", "ValueText": "YYYY.MM.DD", "SortOrder": 20 },
+    "ItemName": "날짜 형식", "ParamValue": "4", "ValueText": "", "SortOrder": 20 },
   { "UserId": "HONG", "ItemId": "BUK", "Category": "PARAM", "AreaName": "재무",
     "ItemName": "회사코드", "ParamValue": "1000", "ValueText": "서울 본사", "SortOrder": 110 }
 ] }
 ```
 
 - 설정 안 한 항목도 `ParamValue: ""`로 한 줄씩 나옵니다 (화면 칸이 항상 다 나오게).
+- `ValueText`(코드 옆 이름)는 파라미터만 채워집니다. 사용자정보는 빈 값입니다.
 - `AreaName` / `ItemName` / `SortOrder` 로 웹 3-1 업무영역, 3-2 파라미터명, 배치 순서를 그릴 수 있습니다.
 
 ### ② Value Help
@@ -93,7 +94,7 @@ GET ParamValueHelp(p_itemid='BUK')/Set?$search=서울&$top=50&$skip=0&$count=tru
 ] }
 ```
 
-- `p_itemid` 에는 파라미터 ID(BUK, WRK …)와 사용자정보 항목(DATFM, DCPFM, TIMEFM, TZONE, LANGU) 모두 됩니다.
+- `p_itemid` 에는 파라미터 ID(BUK, WRK …)만 됩니다. 사용자정보(언어·타임존 등)는 팝업 대상이 아닙니다.
 - `$search` 는 코드·텍스트에 포함된 것 (대소문자 무시).
 
 ### ③ 수정
@@ -125,7 +126,7 @@ x-csrf-token: <GET 할 때 x-csrf-token: fetch 로 받은 값>
 | 포털 사용자가 그대로 SAP 에 로그온 (본인 것만) | `zcl_cmup_config=>c_self_only` → 기술 사용자 + UserId 방식이면 `abap_false`, 기술 사용자에 `S_USER_GRP` 03/02 (보안 검토) |
 | 항목은 초안 10개 (사용자정보 5 + 파라미터 5) | `zcl_cmup_config=>get_items` |
 | 파라미터 VH 출처 = `I_CompanyCode`, `I_ControllingArea`, `I_PurchasingOrganization`, `I_SalesOrganization`(+`Text`), `I_Plant` | `zcl_cmup_value_help=>read_source` |
-| 날짜·소수점·시간 형식 고정값 = 도메인 XUDATFM / XUDCPFM / XUTIMEFM | 같은 메서드의 고정값 (일본·이슬람력 등 7~C 는 뺐음) |
+| 사용자정보 값은 웹이 정해서 보내고 검증은 BAPI 에 맡김 | `check_value` (행위 클래스) |
 | "신청" = 즉시 반영 (승인 없음) | 승인이 있으면 신청 내역 Z테이블 + 승인 후 반영 로직 추가 |
 
 ## 실제 시스템에서 꼭 확인할 것
@@ -135,7 +136,7 @@ x-csrf-token: <GET 할 때 x-csrf-token: fetch 로 받은 값>
 - [ ] BAPI 구조 필드명: `BAPIDEFAUL-TIMEFM`, `BAPIDEFAX-TIMEFM`, `BAPIPARAX-PARID/PARVA`, `BAPILOGONX-TZONE` (SE11)
 - [ ] 저장 단계 `save` 에서 `reported` 를 쓸 수 있는 릴리스인지 (안 되면 그 줄을 로그 기록으로 바꿈)
 - [ ] 위 CDS 들의 릴리스 상태(C1)·필드명, 그리고 DCL 때문에 포털 사용자에게 목록이 비어 보이지 않는지
-- [ ] 타임존 텍스트(TTZZT)·언어 텍스트(T002T) 필드명
+- [ ] SU3·BAPI 가 파라미터 값을 마스터와 대조하지 않는지 (없는 값 `ZZZZ` 로 테스트 → 그대로 저장되면 `check_value` 검증 유지)
 
 ## 일부러 안 넣은 것 (다음 단계)
 

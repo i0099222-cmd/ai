@@ -106,7 +106,6 @@ CLASS zcl_cmup_q_usersetting IMPLEMENTATION.
       APPEND VALUE #( userid     = iv_user
                       itemid     = ls_item-item_id
                       category   = ls_item-category
-                      areaname   = ls_item-area_name
                       itemname   = ls_item-item_name
                       paramvalue = lv_value
                       valuetext  = VALUE #( lt_value[ code = lv_value ]-text OPTIONAL )

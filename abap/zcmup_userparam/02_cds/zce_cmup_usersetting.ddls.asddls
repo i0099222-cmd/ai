@@ -10,8 +10,6 @@ define root custom entity ZCE_CMUP_UserSetting
   key ItemId     : abap.char(20);
       @EndUserText.label: '구분'
       Category   : abap.char(10);
-      @EndUserText.label: '업무영역'
-      AreaName   : abap.char(40);
       @EndUserText.label: '항목명'
       ItemName   : abap.char(60);
       @EndUserText.label: '값'

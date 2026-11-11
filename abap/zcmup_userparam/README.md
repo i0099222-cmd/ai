@@ -48,7 +48,7 @@ Use System-Internally (Contract C1) 추가 → **Use in Cloud Development** 체�
 | `01_tier2/zcl_cmup_user_api` | BAPI 호출, 파라미터 병합 |
 | `02_cds/zce_cmup_usersetting` | ① 현재 설정 (root custom entity, 키: UserId + ItemId) |
 | `02_cds/zce_cmup_paramvh` | ② Value Help (파라미터 `p_itemid`, 검색 가능) |
-| `03_class/zcl_cmup_config` | **포털 항목 목록**(업무영역·항목명·순서)과 **본인만 허용** 설정 |
+| `03_class/zcl_cmup_config` | **포털 항목 목록**(구분·항목명·순서)과 **본인만 허용** 설정 |
 | `03_class/zcl_cmup_value_help` | `read_source` 하나. 파라미터별 고를 수 있는 값 → ② 목록, ①의 값 텍스트, ③의 검증이 같이 쓴다 |
 | `03_class/zcl_cmup_q_usersetting` | ① 쿼리 |
 | `03_class/zcl_cmup_q_paramvh` | ② 쿼리 |
@@ -69,16 +69,16 @@ GET UserSetting                              ← UserId 없으면 로그온 사�
 
 ```json
 { "value": [
-  { "UserId": "HONG", "ItemId": "DATFM", "Category": "USERINFO", "AreaName": "사용자정보",
+  { "UserId": "HONG", "ItemId": "DATFM", "Category": "USERINFO",
     "ItemName": "날짜 형식", "ParamValue": "4", "ValueText": "", "SortOrder": 20 },
-  { "UserId": "HONG", "ItemId": "BUK", "Category": "PARAM", "AreaName": "재무",
+  { "UserId": "HONG", "ItemId": "BUK", "Category": "PARAM",
     "ItemName": "회사코드", "ParamValue": "1000", "ValueText": "서울 본사", "SortOrder": 110 }
 ] }
 ```
 
 - 설정 안 한 항목도 `ParamValue: ""`로 한 줄씩 나옵니다 (화면 칸이 항상 다 나오게).
 - `ValueText`(코드 옆 이름)는 파라미터만 채워집니다. 사용자정보는 빈 값입니다.
-- `AreaName` / `ItemName` / `SortOrder` 로 웹 3-1 업무영역, 3-2 파라미터명, 배치 순서를 그릴 수 있습니다.
+- `ItemName` / `SortOrder` 로 화면에 보일 항목 이름과 배치 순서를 그릴 수 있습니다. `Category` 로 사용자정보와 파라미터를 나눕니다.
 
 ### ② Value Help
 
@@ -113,7 +113,7 @@ x-csrf-token: <GET 할 때 x-csrf-token: fetch 로 받은 값>
 
 ## 항목 추가하는 법 (확정 목록 23개가 오면)
 
-1. `zcl_cmup_config=>get_items` 에 한 줄 추가 (항목 ID, 구분, 업무영역, 항목명, 순서)
+1. `zcl_cmup_config=>get_items` 에 한 줄 추가 (항목 ID, 구분, 항목명, 순서)
 2. 파라미터면 `zcl_cmup_value_help=>c_param` 에 상수 추가
 3. `zcl_cmup_value_help=>read_source` 에 VH 출처 추가 (릴리스된 CDS 우선, 없으면 Tier 2 래퍼에 메서드 추가)
 4. 사용자정보 중 기본값 5개 외의 필드(출력장치 SPLD 등)는 `zif_cmup_user_api=>c_default` 와 래퍼의 get/change 둘 다 추가

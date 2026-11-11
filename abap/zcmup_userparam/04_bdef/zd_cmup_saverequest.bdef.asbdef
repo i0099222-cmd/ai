@@ -1,0 +1,13 @@
+abstract;
+strict ( 2 );
+with hierarchy;
+
+// ③ 저장 액션 파라미터의 계층 (요청 1 : 항목 N)
+define behavior for ZD_CMUP_SaveRequest alias Request
+{
+  association _Items;
+}
+
+define behavior for ZD_CMUP_SaveItem alias Item
+{
+}

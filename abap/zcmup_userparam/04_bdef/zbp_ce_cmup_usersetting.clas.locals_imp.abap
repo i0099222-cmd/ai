@@ -1,14 +1,15 @@
-"! 사용자 설정 수정 (PATCH) · ZCE_CMUP_UserSetting
+"! ③ 수정 (PATCH) · ZCE_CMUP_UserSetting
 "!
 "! 흐름
 "!   update  (상호작용 단계) : 검증 → 버퍼에 쌓기. 에러는 바로 PATCH 응답으로 나간다.
-"!   save    (저장 단계)     : 사용자별로 모아 Tier 2 래퍼 → BAPI_USER_CHANGE 1번
+"!   save    (저장 단계)     : 사용자별로 모아 래퍼 → BAPI_USER_CHANGE 1번
 "!   cleanup                 : 버퍼 비우기
 "!
 "! 검증
-"!   사용자 : zcl_cmup_config=>c_self_only 기준 + 존재 여부
-"!   항목   : zcl_cmup_config=>get_items 에 있는 것만
-"!   값     : 파라미터는 Value Help 목록에 있는 값만 (빈 값 = 삭제 허용), 사용자정보는 BAPI 에 맡김
+"!   사용자 : 로그온 사용자 본인만
+"!   항목   : zcl_cmup_value_help 가 아는 항목만 (get_item_ids)
+"!   값     : 빈 값은 그대로 BAPI 로 (파라미터 = 삭제, 기본값 항목 = BAPI 가 판단)
+"!            그 외는 Value Help 목록에 있는 값만
 
 "! 상호작용 단계 → 저장 단계로 넘기는 변경분
 CLASS lcl_buffer DEFINITION FINAL.
@@ -43,13 +44,9 @@ CLASS lhc_usersetting DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING keys FOR LOCK UserSetting.
 
     "! 문제 없으면 빈 값, 있으면 에러 문구
-    METHODS check_user
+    METHODS check
       IMPORTING iv_user         TYPE zif_cmup_user_api=>ty_user
-      RETURNING VALUE(rv_error) TYPE string.
-
-    "! 문제 없으면 빈 값, 있으면 에러 문구
-    METHODS check_value
-      IMPORTING iv_item_id      TYPE zif_cmup_user_api=>ty_item
+                iv_item_id      TYPE zif_cmup_user_api=>ty_item
                 iv_value        TYPE zif_cmup_user_api=>ty_value
       RETURNING VALUE(rv_error) TYPE string.
 ENDCLASS.
@@ -74,12 +71,9 @@ CLASS lhc_usersetting IMPLEMENTATION.
       ENDIF.
 
       DATA(lv_value) = CONV zif_cmup_user_api=>ty_value( to_upper( ls_entity-ParamValue ) ).
-
-      DATA(lv_error) = check_user( ls_entity-UserId ).
-      IF lv_error IS INITIAL.
-        lv_error = check_value( iv_item_id = ls_entity-ItemId
-                                iv_value   = lv_value ).
-      ENDIF.
+      DATA(lv_error) = check( iv_user    = ls_entity-UserId
+                              iv_item_id = ls_entity-ItemId
+                              iv_value   = lv_value ).
 
       IF lv_error IS NOT INITIAL.
         APPEND VALUE #( %tky = ls_entity-%tky ) TO failed-usersetting.
@@ -102,11 +96,22 @@ CLASS lhc_usersetting IMPLEMENTATION.
   METHOD read.
     " PATCH 응답 등에서 프레임워크가 읽는다. 저장 전 바꾼 값이 있으면 그 값을 보여준다.
     DATA lt_row TYPE zcl_cmup_q_usersetting=>tt_row.
+    DATA(lv_me) = CONV zif_cmup_user_api=>ty_user( cl_abap_context_info=>get_user_technical_name( ) ).
 
     LOOP AT keys INTO DATA(ls_key) GROUP BY ls_key-UserId INTO DATA(lv_user).
+
+      " 다른 사용자 것은 읽지 않는다
+      IF lv_user <> lv_me.
+        LOOP AT GROUP lv_user INTO DATA(ls_other).
+          APPEND VALUE #( %tky        = ls_other-%tky
+                          %fail-cause = if_abap_behv=>cause-unauthorized ) TO failed-usersetting.
+        ENDLOOP.
+        CONTINUE.
+      ENDIF.
+
       TRY.
           lt_row = zcl_cmup_q_usersetting=>build_rows( lv_user ).
-        CATCH zcx_cmup_user_api.
+        CATCH zcx_cmup_user_api zcx_cmup_query.
           CLEAR lt_row.
       ENDTRY.
 
@@ -122,15 +127,12 @@ CLASS lhc_usersetting IMPLEMENTATION.
              WITH TABLE KEY user_id = lv_user item_id = ls_member-ItemId.
         IF sy-subrc = 0.
           ls_row-paramvalue = ls_change-value.
-          CLEAR ls_row-valuetext.
-          IF ls_row-category = zcl_cmup_config=>c_category-parameter.
-            TRY.
-                DATA(lt_value) = zcl_cmup_value_help=>read_source( ls_row-itemid ).
-                ls_row-valuetext = VALUE #( lt_value[ code = ls_change-value ]-text OPTIONAL ).
-              CATCH zcx_cmup_query.
-                " VH 가 없는 파라미터면 텍스트만 비운다
-            ENDTRY.
-          ENDIF.
+          TRY.
+              DATA(lt_value) = zcl_cmup_value_help=>read_source( ls_row-itemid ).
+              ls_row-valuetext = VALUE #( lt_value[ code = ls_change-value ]-text OPTIONAL ).
+            CATCH zcx_cmup_query.
+              CLEAR ls_row-valuetext.
+          ENDTRY.
         ENDIF.
 
         APPEND CORRESPONDING #( ls_row ) TO result.
@@ -141,47 +143,31 @@ CLASS lhc_usersetting IMPLEMENTATION.
 
   METHOD lock.
     " 잠금은 BAPI_USER_CHANGE 가 저장할 때 직접 건다 (SU01 에서 같은 사용자를 열고 있으면 그때 에러).
-    " 미리 잠그려면 Tier 2 래퍼에 사용자 잠금 메서드를 추가해서 여기서 호출한다.
   ENDMETHOD.
 
 
-  METHOD check_user.
-    IF zcl_cmup_config=>is_user_allowed( iv_user ) = abap_false.
+  METHOD check.
+    IF iv_user <> cl_abap_context_info=>get_user_technical_name( ).
       rv_error = |다른 사용자({ iv_user })의 설정은 바꿀 수 없습니다|.
       RETURN.
     ENDIF.
 
-    " 없는 사용자면 저장 단계에서 BAPI 에러가 나므로 미리 확인
+    " 이 API 가 다루는 항목인지 (모르는 항목이면 read_source 가 예외)
     TRY.
-        zcl_cmup_user_api=>create( )->get_settings( iv_user ).
-      CATCH zcx_cmup_user_api INTO DATA(lx_api).
-        rv_error = lx_api->get_text( ).
+        DATA(lt_value) = zcl_cmup_value_help=>read_source( iv_item_id ).
+      CATCH zcx_cmup_query.
+        rv_error = |{ iv_item_id } 는 수정할 수 없는 항목입니다|.
+        RETURN.
     ENDTRY.
-  ENDMETHOD.
 
-
-  METHOD check_value.
-    DATA(ls_item) = zcl_cmup_config=>get_item( iv_item_id ).
-    IF ls_item IS INITIAL.
-      rv_error = |{ iv_item_id } 는 포털에서 바꿀 수 없는 항목입니다|.
-      RETURN.
-    ENDIF.
-
-    " 사용자정보는 목록이 없다 → 값 검증은 BAPI 에 맡긴다
-    " 파라미터는 빈 값 = 그 파라미터 삭제
-    IF ls_item-category <> zcl_cmup_config=>c_category-parameter OR iv_value IS INITIAL.
+    " 빈 값: 파라미터는 삭제, 기본값 항목은 BAPI 가 판단
+    IF iv_value IS INITIAL.
       RETURN.
     ENDIF.
 
     " SU3·BAPI 는 파라미터 값을 마스터와 대조하지 않으므로 여기서 막는다
-    TRY.
-        DATA(lt_value) = zcl_cmup_value_help=>read_source( iv_item_id ).
-      CATCH zcx_cmup_query INTO DATA(lx_vh).
-        rv_error = lx_vh->get_text( ).
-        RETURN.
-    ENDTRY.
     IF NOT line_exists( lt_value[ code = iv_value ] ).
-      rv_error = |{ ls_item-item_name }: { iv_value } 는 고를 수 없는 값입니다|.
+      rv_error = |{ iv_item_id }: { iv_value } 는 고를 수 없는 값입니다|.
     ENDIF.
   ENDMETHOD.
 

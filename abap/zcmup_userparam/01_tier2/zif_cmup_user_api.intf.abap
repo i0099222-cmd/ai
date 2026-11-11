@@ -20,7 +20,7 @@ INTERFACE zif_cmup_user_api PUBLIC.
   CONSTANTS:
     "! SU3 기본값 탭 항목. 이 5개가 아니면 전부 파라미터 ID 로 본다.
     BEGIN OF c_default,
-      langu  TYPE ty_item VALUE 'LANGU',    " 로그온 언어 (ISO 코드 KO, EN 으로 주고받는다)
+      langu  TYPE ty_item VALUE 'LANGU',    " 로그온 언어 (SAP 언어 키 3, E … 그대로)
       datfm  TYPE ty_item VALUE 'DATFM',    " 날짜 형식
       dcpfm  TYPE ty_item VALUE 'DCPFM',    " 소수점 표기
       timefm TYPE ty_item VALUE 'TIMEFM',   " 시간 형식

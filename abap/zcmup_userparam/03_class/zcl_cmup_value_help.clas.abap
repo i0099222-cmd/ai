@@ -1,13 +1,14 @@
 "! Value Help 출처 · 항목 ID 별로 고를 수 있는 값 (코드 + 텍스트)
 "!
 "! ② Value Help 목록, ① 현재값 텍스트(ValueText), ③ 수정 값 검증이 이 목록을 같이 쓴다.
+"! 이 API 가 다루는 항목 = get_item_ids (① 조회 대상 = ③ 수정 허용 대상).
 "!
 "! 출처
 "!   사용자정보 날짜·소수점·시간 형식 : 고정값 (도메인 XUDATFM / XUDCPFM / XUTIMEFM 기준)
 "!   사용자정보 로그온 언어·타임존     : Tier 2 zcl_cmup_vh_tier2 (T002 / TTZZ 는 미공개 테이블)
 "!   파라미터                         : 릴리스된 CDS → 그 CDS 의 DCL 권한이 적용된다
 "!
-"! 항목을 추가하면 상수(c_userinfo / c_param)와 read_source 의 WHEN 을 같이 넣는다.
+"! 항목을 추가하면 상수(c_userinfo / c_param), get_item_ids, read_source 의 WHEN 을 같이 넣는다.
 "! 건수가 많은 마스터(자재, 거래처 등)를 넣을 때는 전체를 읽지 말고 검색어를 SQL 조건으로 내린다.
 CLASS zcl_cmup_value_help DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
@@ -19,7 +20,9 @@ CLASS zcl_cmup_value_help DEFINITION PUBLIC FINAL CREATE PUBLIC.
         code TYPE c LENGTH 40,
         text TYPE c LENGTH 80,
       END OF ty_value,
-      tt_value TYPE STANDARD TABLE OF ty_value WITH EMPTY KEY.
+      tt_value TYPE STANDARD TABLE OF ty_value WITH EMPTY KEY,
+
+      tt_param_id TYPE STANDARD TABLE OF ty_param_id WITH EMPTY KEY.
 
     CONSTANTS:
       "! 사용자정보 항목 (SU3 기본값 탭)
@@ -40,6 +43,10 @@ CLASS zcl_cmup_value_help DEFINITION PUBLIC FINAL CREATE PUBLIC.
         plant            TYPE ty_param_id VALUE 'WRK',
       END OF c_param.
 
+    "! 이 API 가 다루는 항목 전체 (① 조회 대상 = ③ 수정 허용 대상)
+    CLASS-METHODS get_item_ids
+      RETURNING VALUE(rt_item_id) TYPE tt_param_id.
+
     "! 지원하지 않는 항목 ID 면 예외
     CLASS-METHODS read_source
       IMPORTING iv_param_id     TYPE ty_param_id
@@ -49,6 +56,20 @@ ENDCLASS.
 
 
 CLASS zcl_cmup_value_help IMPLEMENTATION.
+
+  METHOD get_item_ids.
+    rt_item_id = VALUE #( ( c_userinfo-langu )
+                          ( c_userinfo-datfm )
+                          ( c_userinfo-dcpfm )
+                          ( c_userinfo-timefm )
+                          ( c_userinfo-tzone )
+                          ( c_param-company_code )
+                          ( c_param-controlling_area )
+                          ( c_param-purchasing_org )
+                          ( c_param-sales_org )
+                          ( c_param-plant ) ).
+  ENDMETHOD.
+
 
   METHOD read_source.
     DATA(lv_langu) = cl_abap_context_info=>get_user_language_abap_format( ).

@@ -19,15 +19,6 @@ CLASS zcl_cmup_user_api DEFINITION PUBLIC FINAL CREATE PRIVATE.
     METHODS raise_on_error
       IMPORTING it_return TYPE tt_return
       RAISING   zcx_cmup_user_api.
-
-    METHODS to_iso_language
-      IMPORTING iv_spras        TYPE spras
-      RETURNING VALUE(rv_laiso) TYPE laiso.
-
-    METHODS to_sap_language
-      IMPORTING iv_laiso        TYPE zif_cmup_user_api=>ty_value
-      RETURNING VALUE(rv_spras) TYPE spras
-      RAISING   zcx_cmup_user_api.
 ENDCLASS.
 
 
@@ -57,7 +48,7 @@ CLASS zcl_cmup_user_api IMPLEMENTATION.
 
     " 기본값 탭 (타임존만 LOGONDATA 에 있다)
     rt_setting = VALUE #(
-      ( item_id = zif_cmup_user_api=>c_default-langu  value = to_iso_language( ls_defaults-langu ) )
+      ( item_id = zif_cmup_user_api=>c_default-langu  value = ls_defaults-langu )
       ( item_id = zif_cmup_user_api=>c_default-datfm  value = ls_defaults-datfm )
       ( item_id = zif_cmup_user_api=>c_default-dcpfm  value = ls_defaults-dcpfm )
       ( item_id = zif_cmup_user_api=>c_default-timefm value = ls_defaults-timefm )
@@ -98,7 +89,7 @@ CLASS zcl_cmup_user_api IMPLEMENTATION.
     LOOP AT it_setting INTO DATA(ls_setting).
       CASE ls_setting-item_id.
         WHEN zif_cmup_user_api=>c_default-langu.
-          ls_defaults-langu  = to_sap_language( ls_setting-value ).
+          ls_defaults-langu  = ls_setting-value.
           ls_defaultsx-langu = abap_true.
         WHEN zif_cmup_user_api=>c_default-datfm.
           ls_defaults-datfm  = ls_setting-value.
@@ -151,22 +142,6 @@ CLASS zcl_cmup_user_api IMPLEMENTATION.
         EXPORTING
           iv_text = CONV #( ls_return-message ).
     ENDLOOP.
-  ENDMETHOD.
-
-
-  METHOD to_iso_language.
-    SELECT SINGLE laiso FROM t002 WHERE spras = @iv_spras INTO @rv_laiso.
-  ENDMETHOD.
-
-
-  METHOD to_sap_language.
-    DATA(lv_laiso) = CONV laiso( iv_laiso ).
-    SELECT SINGLE spras FROM t002 WHERE laiso = @lv_laiso INTO @rv_spras.
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE zcx_cmup_user_api
-        EXPORTING
-          iv_text = |언어 코드 { iv_laiso } 가 없습니다|.
-    ENDIF.
   ENDMETHOD.
 
 ENDCLASS.

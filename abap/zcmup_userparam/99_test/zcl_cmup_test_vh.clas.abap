@@ -1,6 +1,6 @@
 "! Value Help 테스트 · ADT 에서 F9 (Run As → ABAP Application (Console))
 "!
-"! 지원하는 파라미터 전부 + 없는 파라미터(ZZZ) 하나를 읽어서 건수와 앞 10건을 보여준다.
+"! 지원하는 항목 전부(사용자정보 + 파라미터) + 없는 항목(ZZZ) 하나를 읽어서 건수와 앞 10건을 보여준다.
 "! ZZZ 는 에러 메시지가 나와야 정상.
 CLASS zcl_cmup_test_vh DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
@@ -11,7 +11,8 @@ ENDCLASS.
 CLASS zcl_cmup_test_vh IMPLEMENTATION.
 
   METHOD if_oo_adt_classrun~main.
-    DATA(lt_param_id) = VALUE string_table( ( `BUK` ) ( `CAC` ) ( `EKO` ) ( `VKO` ) ( `WRK` ) ( `ZZZ` ) ).
+    DATA(lt_param_id) = VALUE string_table( ( `LANGU` ) ( `DATFM` ) ( `DCPFM` ) ( `TIMEFM` ) ( `TZONE` )
+                                            ( `BUK` ) ( `CAC` ) ( `EKO` ) ( `VKO` ) ( `WRK` ) ( `ZZZ` ) ).
 
     LOOP AT lt_param_id INTO DATA(lv_param_id).
       TRY.

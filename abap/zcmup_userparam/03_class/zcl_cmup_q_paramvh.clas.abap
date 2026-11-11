@@ -1,7 +1,7 @@
 "! ② Value Help 조회 · ZCE_CMUP_ParamVH
 "!
 "!   GET ParamValueHelp(p_itemid='BUK')/Set?$search=서울&$top=50&$skip=0&$count=true
-"!   p_itemid = 파라미터 ID (zcl_cmup_value_help=>c_param 에 있는 것만)
+"!   p_itemid = 항목 ID: 파라미터(BUK …) 또는 사용자정보(DATFM, TZONE …) · zcl_cmup_value_help 상수에 있는 것만
 "!   $search  = 코드·텍스트에 포함된 것 (대소문자 무시)
 "!   $orderby 는 받지 않는다 (코드 순 고정)
 CLASS zcl_cmup_q_paramvh DEFINITION PUBLIC FINAL CREATE PUBLIC.

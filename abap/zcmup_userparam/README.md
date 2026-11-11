@@ -46,10 +46,11 @@ Use System-Internally (Contract C1) 추가 → **Use in Cloud Development** 체�
 | --- | --- |
 | `01_tier2/zif_cmup_user_api` | 래퍼 인터페이스. 타입(항목 ID, 값, 코드+텍스트)과 기본값 항목 상수 |
 | `01_tier2/zcl_cmup_user_api` | BAPI 호출, 파라미터 병합 |
+| `01_tier2/zcl_cmup_vh_tier2` | 사용자정보 Value Help 중 로그온 언어(T002)·타임존(TTZZ) 목록 → **C1 release** |
 | `02_cds/zce_cmup_usersetting` | ① 현재 설정 (root custom entity, 키: UserId + ItemId) |
 | `02_cds/zce_cmup_paramvh` | ② Value Help (파라미터 `p_itemid`, 검색 가능) |
 | `03_class/zcl_cmup_config` | **포털 항목 목록**(구분·항목명·순서)과 **본인만 허용** 설정 |
-| `03_class/zcl_cmup_value_help` | `read_source` 하나. 파라미터별 고를 수 있는 값 → ② 목록, ①의 값 텍스트, ③의 검증이 같이 쓴다 |
+| `03_class/zcl_cmup_value_help` | `read_source` 하나. 항목별 고를 수 있는 값 (사용자정보 + 파라미터) → ② 목록, ①의 값 텍스트, ③의 검증이 같이 쓴다 |
 | `03_class/zcl_cmup_q_usersetting` | ① 쿼리 |
 | `03_class/zcl_cmup_q_paramvh` | ② 쿼리 |
 | `04_bdef/zce_cmup_usersetting` | ③ BDEF |
@@ -93,7 +94,7 @@ GET ParamValueHelp(p_itemid='BUK')/Set?$search=서울&$top=50&$skip=0&$count=tru
 ] }
 ```
 
-- `p_itemid` 에는 파라미터 ID(BUK, WRK …)만 됩니다. 사용자정보(언어·타임존 등)는 팝업 대상이 아닙니다.
+- `p_itemid` 에는 파라미터 ID(BUK, WRK …)와 사용자정보 항목(LANGU, DATFM, DCPFM, TIMEFM, TZONE) 모두 됩니다.
 - `$search` 는 코드·텍스트에 포함된 것 (대소문자 무시).
 
 ### ③ 수정

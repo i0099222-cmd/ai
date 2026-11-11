@@ -1,7 +1,8 @@
 "! ③ 저장 액션 테스트 · ADT 에서 F9 (Run As → ABAP Application (Console))
 "!
 "! EML 로 saveSettings 를 실행하고 COMMIT ENTITIES 까지 한다 → 웹이 POST 하는 것과 같은 경로.
-"! 저장 단계의 BAPI 호출·커밋까지 확인된다 (BAPI 안에 COMMIT 이 있으면 여기서 덤프가 난다).
+"! 저장(BAPI + COMMIT)은 액션 안에서 바로 일어난다. 액션 단계에서 LUW 덤프가 나면
+"! 래퍼가 같은 세션에서 COMMIT 하고 있는 것 → 프록시가 RFC 목적지로 호출하는지 확인.
 "!
 "! 본인 사용자의 SU3 가 실제로 바뀐다.
 "! 되돌리려면 c_value 를 원래 값(1번에 출력됨)으로 바꿔 한 번 더 실행한다. 원래 없던 파라미터면 빈 값.
@@ -51,7 +52,7 @@ CLASS zcl_cmup_test_save IMPLEMENTATION.
       out->write( |  메시지: { ls_message-%msg->if_message~get_text( ) }| ).
     ENDLOOP.
     IF ls_failed-usersetting IS NOT INITIAL.
-      out->write( `NG  검증에서 막혀서 저장하지 않습니다 (위 메시지)` ).
+      out->write( `NG  검증 또는 BAPI 에서 막혀서 저장하지 않았습니다 (위 메시지)` ).
       ROLLBACK ENTITIES.
       RETURN.
     ENDIF.
@@ -59,7 +60,7 @@ CLASS zcl_cmup_test_save IMPLEMENTATION.
       out->write( |OK  { ls_result-%param-ItemId } = '{ ls_result-%param-ParamValue }' { ls_result-%param-ValueText }| ).
     ENDLOOP.
 
-    " 3. 커밋 (저장 단계 → 래퍼 → BAPI_USER_CHANGE)
+    " 3. RAP 커밋 (저장 단계는 비어 있어 할 일이 없다. 웹 요청과 같은 순서로 맞춘 것)
     COMMIT ENTITIES RESPONSE OF zce_cmup_usersetting
       FAILED DATA(ls_commit_failed)
       REPORTED DATA(ls_commit_reported).

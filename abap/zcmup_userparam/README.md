@@ -17,10 +17,11 @@
 ```
 웹 ──① GET UserSetting ─────────────▶ zcl_cmup_q_usersetting ─▶ 래퍼 get_settings ─▶ BAPI_USER_GET_DETAIL
 웹 ──② GET ParamValueHelp('BUK') ───▶ zcl_cmup_q_paramvh ─────▶ zcl_cmup_value_help ─▶ I_CompanyCode …
-웹 ──③ POST saveSettings (액션) ────▶ 액션 (검증·버퍼) ───────▶ save ─▶ 래퍼 change_settings
+웹 ──③ POST saveSettings (액션) ────▶ 액션 (검증 → 바로 저장) ─▶ 래퍼 change_settings
                                                                           ├─ BAPI_USER_GET_DETAIL (현재 파라미터)
                                                                           ├─ 병합 (보낸 항목만 교체)
-                                                                          └─ BAPI_USER_CHANGE
+                                                                          ├─ BAPI_USER_CHANGE
+                                                                          └─ BAPI_TRANSACTION_COMMIT (에러면 ROLLBACK)
 ```
 
 ## 폴더 = 활성화 순서
@@ -55,7 +56,7 @@ Use System-Internally (Contract C1) 추가 → **Use in Cloud Development** 체�
 | `03_class/zcl_cmup_q_paramvh` | ② 쿼리 |
 | `04_bdef/zd_cmup_saverequest` | ③ 액션 파라미터의 계층 (추상 BDEF, `with hierarchy`) |
 | `04_bdef/zce_cmup_usersetting` | ③ BDEF — 정적 액션 `saveSettings` |
-| `04_bdef/zbp_ce_cmup_usersetting` | ③ 검증 → 현재값과 다른 항목만 버퍼 → 저장 (locals_imp) |
+| `04_bdef/zbp_ce_cmup_usersetting` | ③ 검증 → 현재값과 다른 항목만 바로 저장 (locals_imp). RAP 저장 단계는 비움 |
 
 ## 웹팀 전달용 호출 예시
 
@@ -110,7 +111,8 @@ x-csrf-token: <GET 할 때 x-csrf-token: fetch 로 받은 값>
 
 - **바꿀 항목만** `_Items` 에 담습니다. 목록에 없는 항목은 손대지 않습니다.
 - `UserId` 는 비우면 로그온 사용자입니다 (다른 사용자는 안 됨).
-- 한 번 호출 = 한 트랜잭션 = BAPI 1번. **하나라도 틀리면 전부 저장하지 않습니다.**
+- 한 번 호출 = BAPI 1번 + 커밋. **하나라도 틀리면 전부 저장하지 않습니다.**
+- 저장 액션은 `$batch` 로 다른 변경과 묶지 않고 단독으로 호출합니다 (액션 안에서 바로 커밋하므로).
 - 현재값과 같은 항목은 BAPI 대상에서 빠집니다 (다 같으면 BAPI 를 부르지 않음).
 - 파라미터(BUK 등)에 `""` 를 보내면 그 파라미터를 지웁니다.
 - 응답: 보낸 항목들의 저장될 값 (`UserId`, `ItemId`, `ParamValue`, `ValueText`).
@@ -138,11 +140,11 @@ x-csrf-token: <GET 할 때 x-csrf-token: fetch 로 받은 값>
 
 ## 실제 시스템에서 꼭 확인할 것
 
-- [ ] **`BAPI_USER_CHANGE` 안에 COMMIT WORK 가 있는지** — RAP 저장 단계에서는 COMMIT 이 금지라 있으면 런타임 에러.
-      있으면 bgPF 등 백그라운드 처리로 분리해야 함 (디버깅으로 확인)
+- [ ] **래퍼(ACO 프록시)가 BAPI 를 RFC 목적지(별도 세션)로 호출하는지** — 저장은 액션 안에서 바로 하고
+      `BAPI_TRANSACTION_COMMIT` 까지 하므로, 같은 세션 로컬 호출이면 COMMIT 때문에 RAP LUW 덤프.
+      `BAPI_USER_CHANGE` 와 `BAPI_TRANSACTION_COMMIT` 이 **같은 목적지**로 가야 같은 세션이 커밋된다
 - [ ] **deep parameter**(`static action … deep parameter`)와 추상 BDEF `with hierarchy` 를 지원하는 릴리스인지 (SAP_BASIS 7.58 무렵부터로 알고 있음)
 - [ ] BAPI 구조 필드명: `BAPIDEFAUL-TIMEFM`, `BAPIDEFAX-TIMEFM`, `BAPIPARAX-PARID/PARVA`, `BAPILOGONX-TZONE` (SE11)
-- [ ] 저장 단계 `save` 에서 `reported` 를 쓸 수 있는 릴리스인지 (안 되면 그 줄을 로그 기록으로 바꿈)
 - [ ] 위 CDS 들의 릴리스 상태(C1)·필드명, 그리고 DCL 때문에 포털 사용자에게 목록이 비어 보이지 않는지
 - [ ] SU3·BAPI 가 파라미터 값을 마스터와 대조하지 않는지 (없는 값 `ZZZZ` 로 테스트 → 그대로 저장되면 `savesettings` 의 값 검증 유지)
 

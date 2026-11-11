@@ -1,34 +1,18 @@
 "! ③ 저장 (정적 액션 saveSettings) · ZCE_CMUP_UserSetting
 "!
 "! 흐름
-"!   saveSettings (상호작용 단계) : 검증 → 현재값과 다른 항목만 버퍼에. 에러는 바로 응답으로 나간다.
-"!   save         (저장 단계)     : 사용자별로 모아 래퍼 → BAPI_USER_CHANGE 1번
-"!   cleanup                      : 버퍼 비우기
+"!   saveSettings : 검증 → 현재값과 다른 항목만 모아서 바로 래퍼 change_settings 호출
+"!                  (래퍼 = BAPI_USER_CHANGE + BAPI_TRANSACTION_COMMIT, 별도 RFC 세션)
+"!   save         : 비워 둔다. RAP 저장 단계에서 RFC·COMMIT 을 하면 LUW 덤프가 나기 때문.
 "!
 "! 검증 (하나라도 틀리면 그 요청 전체를 저장하지 않는다)
 "!   사용자 : 로그온 사용자 본인만 (UserId 를 비우면 로그온 사용자)
 "!   항목   : zcl_cmup_value_help 가 아는 항목만 (get_item_ids), 같은 항목 두 번은 안 됨
 "!   값     : 빈 값은 그대로 BAPI 로 (파라미터 = 삭제, 기본값 항목 = BAPI 가 판단)
 "!            그 외는 Value Help 목록에 있는 값만 (SU3·BAPI 는 마스터와 대조하지 않는다)
-
-"! 상호작용 단계 → 저장 단계로 넘기는 변경분
-CLASS lcl_buffer DEFINITION FINAL.
-  PUBLIC SECTION.
-    TYPES:
-      BEGIN OF ty_change,
-        user_id TYPE zif_cmup_user_api=>ty_user,
-        item_id TYPE zif_cmup_user_api=>ty_item,
-        value   TYPE zif_cmup_user_api=>ty_value,
-      END OF ty_change,
-      tt_change TYPE SORTED TABLE OF ty_change WITH UNIQUE KEY user_id item_id.
-
-    CLASS-DATA gt_change TYPE tt_change.
-ENDCLASS.
-
-CLASS lcl_buffer IMPLEMENTATION.
-ENDCLASS.
-
-
+"!
+"! 주의: 액션에서 바로 커밋하므로 RAP 트랜잭션으로 되돌릴 수 없다.
+"!       한 번 호출에 저장 액션 하나만 보내는 전제 ($batch 로 다른 변경과 묶지 않는다).
 CLASS lhc_usersetting DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
     METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
@@ -59,7 +43,7 @@ CLASS lhc_usersetting IMPLEMENTATION.
   METHOD savesettings.
     DATA: lt_error   TYPE string_table,
           lt_current TYPE zif_cmup_user_api=>tt_setting,
-          lt_change  TYPE lcl_buffer=>tt_change,
+          lt_change  TYPE zif_cmup_user_api=>tt_setting,
           lt_row     TYPE zcl_cmup_q_usersetting=>tt_row,
           lt_seen    TYPE SORTED TABLE OF zif_cmup_user_api=>ty_item WITH UNIQUE KEY table_line.
 
@@ -115,14 +99,22 @@ CLASS lhc_usersetting IMPLEMENTATION.
 
           " 현재값과 다를 때만 BAPI 대상
           IF lv_value <> VALUE zif_cmup_user_api=>ty_value( lt_current[ item_id = lv_item_id ]-value OPTIONAL ).
-            INSERT VALUE #( user_id = lv_user
-                            item_id = lv_item_id
-                            value   = lv_value ) INTO TABLE lt_change.
+            INSERT VALUE #( item_id = lv_item_id value = lv_value ) INTO TABLE lt_change.
           ENDIF.
         ENDLOOP.
       ENDIF.
 
-      " 하나라도 틀리면 이 요청은 전부 저장하지 않는다
+      " 바뀐 항목이 있으면 바로 저장 (래퍼가 BAPI_USER_CHANGE + COMMIT, 에러면 ROLLBACK)
+      IF lt_error IS INITIAL AND lt_change IS NOT INITIAL.
+        TRY.
+            zcl_cmup_user_api=>create( )->change_settings( iv_user    = lv_user
+                                                           it_setting = lt_change ).
+          CATCH zcx_cmup_user_api INTO lx_api.
+            APPEND lx_api->get_text( ) TO lt_error.
+        ENDTRY.
+      ENDIF.
+
+      " 에러: 이 요청은 저장되지 않았다
       IF lt_error IS NOT INITIAL.
         APPEND VALUE #( %cid = ls_key-%cid ) TO failed-usersetting.
         LOOP AT lt_error INTO DATA(lv_text).
@@ -133,13 +125,7 @@ CLASS lhc_usersetting IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 버퍼에 반영 (같은 트랜잭션에서 같은 항목이 또 오면 마지막 값)
-      LOOP AT lt_change INTO DATA(ls_change).
-        DELETE lcl_buffer=>gt_change WHERE user_id = ls_change-user_id AND item_id = ls_change-item_id.
-        INSERT ls_change INTO TABLE lcl_buffer=>gt_change.
-      ENDLOOP.
-
-      " 결과: 보낸 항목들의 저장될 값
+      " 결과: 보낸 항목들의 저장된 값
       LOOP AT lt_row INTO DATA(ls_row).
         APPEND VALUE #( %cid   = ls_key-%cid
                         %param = CORRESPONDING #( ls_row ) ) TO result.
@@ -149,55 +135,37 @@ CLASS lhc_usersetting IMPLEMENTATION.
 
 
   METHOD read.
-    " 프레임워크가 읽을 때. 저장 전 바꾼 값이 있으면 그 값을 보여준다.
+    " 지금 API 는 여기를 안 탄다 (조회 = 쿼리 클래스, 액션 응답 = 액션이 직접 채움).
+    " READ ENTITIES 로 읽을 때를 위한 최소 구현. 본인 것만.
     DATA lt_row TYPE zcl_cmup_q_usersetting=>tt_row.
     DATA(lv_me) = CONV zif_cmup_user_api=>ty_user( cl_abap_context_info=>get_user_technical_name( ) ).
 
     LOOP AT keys INTO DATA(ls_key) GROUP BY ls_key-UserId INTO DATA(lv_user).
-
-      " 다른 사용자 것은 읽지 않는다
-      IF lv_user <> lv_me.
-        LOOP AT GROUP lv_user INTO DATA(ls_other).
-          APPEND VALUE #( %tky        = ls_other-%tky
-                          %fail-cause = if_abap_behv=>cause-unauthorized ) TO failed-usersetting.
-        ENDLOOP.
-        CONTINUE.
+      CLEAR lt_row.
+      IF lv_user = lv_me.
+        TRY.
+            lt_row = zcl_cmup_q_usersetting=>build_rows( lv_user ).
+          CATCH zcx_cmup_user_api zcx_cmup_query.
+            CLEAR lt_row.
+        ENDTRY.
       ENDIF.
-
-      TRY.
-          lt_row = zcl_cmup_q_usersetting=>build_rows( lv_user ).
-        CATCH zcx_cmup_user_api zcx_cmup_query.
-          CLEAR lt_row.
-      ENDTRY.
 
       LOOP AT GROUP lv_user INTO DATA(ls_member).
         READ TABLE lt_row INTO DATA(ls_row) WITH KEY itemid = ls_member-ItemId.
-        IF sy-subrc <> 0.
-          APPEND VALUE #( %tky        = ls_member-%tky
-                          %fail-cause = if_abap_behv=>cause-not_found ) TO failed-usersetting.
-          CONTINUE.
-        ENDIF.
-
-        READ TABLE lcl_buffer=>gt_change INTO DATA(ls_change)
-             WITH TABLE KEY user_id = lv_user item_id = ls_member-ItemId.
         IF sy-subrc = 0.
-          ls_row-paramvalue = ls_change-value.
-          TRY.
-              DATA(lt_value) = zcl_cmup_value_help=>read_source( ls_row-itemid ).
-              ls_row-valuetext = VALUE #( lt_value[ code = ls_change-value ]-text OPTIONAL ).
-            CATCH zcx_cmup_query.
-              CLEAR ls_row-valuetext.
-          ENDTRY.
+          APPEND CORRESPONDING #( ls_row ) TO result.
+        ELSE.
+          APPEND VALUE #( %tky        = ls_member-%tky
+                          %fail-cause = COND #( WHEN lv_user = lv_me THEN if_abap_behv=>cause-not_found
+                                                ELSE if_abap_behv=>cause-unauthorized ) ) TO failed-usersetting.
         ENDIF.
-
-        APPEND CORRESPONDING #( ls_row ) TO result.
       ENDLOOP.
     ENDLOOP.
   ENDMETHOD.
 
 
   METHOD lock.
-    " 잠금은 BAPI_USER_CHANGE 가 저장할 때 직접 건다 (SU01 에서 같은 사용자를 열고 있으면 그때 에러).
+    " 잠금은 BAPI_USER_CHANGE 가 직접 건다 (SU01 에서 같은 사용자를 열고 있으면 그때 에러).
   ENDMETHOD.
 
 ENDCLASS.
@@ -205,36 +173,15 @@ ENDCLASS.
 
 CLASS lsc_usersetting DEFINITION INHERITING FROM cl_abap_behavior_saver.
   PROTECTED SECTION.
-    METHODS save    REDEFINITION.
-    METHODS cleanup REDEFINITION.
+    METHODS save REDEFINITION.
 ENDCLASS.
 
 
 CLASS lsc_usersetting IMPLEMENTATION.
 
   METHOD save.
-    DATA lt_setting TYPE zif_cmup_user_api=>tt_setting.
-    DATA(lo_api) = zcl_cmup_user_api=>create( ).
-
-    " 사용자별로 모아서 BAPI 1번 (기존 파라미터와의 병합은 래퍼가 한다)
-    LOOP AT lcl_buffer=>gt_change INTO DATA(ls_change) GROUP BY ls_change-user_id INTO DATA(lv_user).
-      lt_setting = VALUE #( FOR ls_member IN GROUP lv_user
-                            ( item_id = ls_member-item_id
-                              value   = ls_member-value ) ).
-      TRY.
-          lo_api->change_settings( iv_user    = lv_user
-                                   it_setting = lt_setting ).
-        CATCH zcx_cmup_user_api INTO DATA(lx_api).
-          " 저장 단계라 되돌릴 수 없다 → 메시지만 남긴다 (액션에서 미리 검증하는 이유)
-          APPEND new_message_with_text( severity = if_abap_behv_message=>severity-error
-                                        text     = |{ lv_user }: { lx_api->get_text( ) }| ) TO reported-%other.
-      ENDTRY.
-    ENDLOOP.
-  ENDMETHOD.
-
-
-  METHOD cleanup.
-    CLEAR lcl_buffer=>gt_change.
+    " 저장은 액션 saveSettings 안에서 바로 한다 (래퍼 → BAPI_USER_CHANGE + BAPI_TRANSACTION_COMMIT).
+    " RAP 저장 단계에서 RFC·COMMIT 을 하면 LUW 덤프가 나기 때문에 여기는 비워 둔다.
   ENDMETHOD.
 
 ENDCLASS.

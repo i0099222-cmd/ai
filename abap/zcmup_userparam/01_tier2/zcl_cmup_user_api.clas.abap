@@ -119,7 +119,9 @@ CLASS zcl_cmup_user_api IMPLEMENTATION.
       ENDCASE.
     ENDLOOP.
 
-    " 3) 변경 (COMMIT 은 RAP 가 한다)
+    " 3) 변경 → 에러면 롤백, 아니면 커밋
+    "    RAP 액션에서 부르므로 BAPI_USER_CHANGE 와 COMMIT/ROLLBACK 이 모두 같은 RFC 목적지
+    "    (별도 세션, ACO 프록시)로 실행돼야 한다. 같은 세션 로컬 호출이면 COMMIT 때문에 RAP LUW 덤프.
     CLEAR lt_return.
     CALL FUNCTION 'BAPI_USER_CHANGE'
       EXPORTING
@@ -132,7 +134,21 @@ CLASS zcl_cmup_user_api IMPLEMENTATION.
       TABLES
         parameter  = lt_param
         return     = lt_return.
-    raise_on_error( lt_return ).
+
+    TRY.
+        raise_on_error( lt_return ).
+      CATCH zcx_cmup_user_api INTO DATA(lx_error).
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+        RAISE EXCEPTION lx_error.
+    ENDTRY.
+
+    DATA ls_commit_return TYPE bapiret2.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait   = abap_true
+      IMPORTING
+        return = ls_commit_return.
+    raise_on_error( VALUE #( ( ls_commit_return ) ) ).
   ENDMETHOD.
 
 

@@ -35,7 +35,8 @@ INTERFACE zif_cmup_user_api PUBLIC.
 
   "! 넘긴 항목만 바꾸고 나머지(다른 파라미터 포함)는 그대로 둔다 (BAPI_USER_CHANGE)
   "! - 파라미터 값이 빈 값이면 그 파라미터를 지운다
-  "! - COMMIT 하지 않는다 → RAP 저장 단계에서 호출, 커밋은 RAP 가 한다
+  "! - BAPI_TRANSACTION_COMMIT 까지 한다 (에러면 ROLLBACK). RAP 액션에서 바로 부른다.
+  "!   BAPI 와 COMMIT 이 같은 RFC 목적지(별도 세션)로 실행돼야 RAP LUW 덤프가 안 난다.
   METHODS change_settings
     IMPORTING iv_user    TYPE ty_user
               it_setting TYPE tt_setting

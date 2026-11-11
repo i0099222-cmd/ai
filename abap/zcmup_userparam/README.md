@@ -27,7 +27,7 @@
 
 | 폴더 | 패키지 | 내용 |
 | --- | --- | --- |
-| `01_tier2` | **classic** (Standard ABAP) | `zif_cmup_user_api`, `zcl_cmup_user_api`, `zcx_cmup_user_api` → 3개 모두 **C1 release** |
+| `01_tier2` | **classic** (Standard ABAP) | `zif_cmup_user_api`, `zcl_cmup_user_api`, `zcx_cmup_user_api`, `zcl_cmup_vh_tier2` → 4개 모두 **C1 release** |
 | `02_cds` | ABAP Cloud | custom entity 2개 |
 | `03_class` | ABAP Cloud | 항목 설정, Value Help 출처, 쿼리 클래스 2개, 예외 |
 | `04_bdef` | ABAP Cloud | BDEF (unmanaged, update만) + 행위 풀 → **같이 활성화** |

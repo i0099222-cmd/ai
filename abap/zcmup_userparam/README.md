@@ -96,7 +96,9 @@ GET ParamValueHelp(p_itemid='BUK')/Set?$search=서울&$top=50&$skip=0&$count=tru
 ```
 
 - `p_itemid` 에는 파라미터 ID(BUK, WRK …)와 사용자정보 항목(LANGU, DATFM, DCPFM, TIMEFM, TZONE) 모두 됩니다.
-- `$search` 는 코드·텍스트에 포함된 것 (대소문자 무시).
+- `$search` 는 코드·텍스트에 포함된 것 (대소문자 무시). 웹은 입력값을 `"…"` 로 감싸서 보낸다 (OData 검색 문법 회피)
+- `$top` 이 없으면 100건. 더 있으면 응답에 `@odata.nextLink` (`$skiptoken`) 가 붙는다
+- `$filter` / `$orderby` 는 받지 않는다
 
 ### ③ 수정
 

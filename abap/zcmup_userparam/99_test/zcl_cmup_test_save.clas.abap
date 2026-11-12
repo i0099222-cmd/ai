@@ -57,7 +57,7 @@ CLASS zcl_cmup_test_save IMPLEMENTATION.
       RETURN.
     ENDIF.
     LOOP AT lt_result INTO DATA(ls_result).
-      out->write( |OK  { ls_result-%param-ItemId } = '{ ls_result-%param-ParamValue }' { ls_result-%param-ValueText }| ).
+      out->write( |{ ls_result-%param-Status }  { ls_result-%param-ItemId } = '{ ls_result-%param-ParamValue }' { ls_result-%param-ValueText } · { ls_result-%param-Message }| ).
     ENDLOOP.
 
     " 3. RAP 커밋 (저장 단계는 비어 있어 할 일이 없다. 웹 요청과 같은 순서로 맞춘 것)

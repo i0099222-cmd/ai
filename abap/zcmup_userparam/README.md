@@ -29,7 +29,7 @@
 | 폴더 | 패키지 | 내용 |
 | --- | --- | --- |
 | `01_tier2` | **classic** (Standard ABAP) | `zif_cmup_user_api`, `zcl_cmup_user_api`, `zcx_cmup_user_api`, `zcl_cmup_vh_tier2` → 4개 모두 **C1 release** |
-| `02_cds` | ABAP Cloud | custom entity 2개 + 저장 액션 파라미터(추상 엔티티 2개 → **같이 활성화**) |
+| `02_cds` | ABAP Cloud | custom entity 2개 + 저장 액션 파라미터(추상 엔티티 2개 → **같이 활성화**) + 저장 결과(추상 엔티티 1개) |
 | `03_class` | ABAP Cloud | Value Help 출처(+ 항목 목록), 쿼리 클래스 2개, 예외 |
 | `04_bdef` | ABAP Cloud | 추상 BDEF `zd_cmup_saverequest` 먼저 → 본 BDEF (unmanaged, 저장 액션) + 행위 풀 **같이 활성화** |
 | `05_service` | ABAP Cloud | 서비스 정의 `ZAPI_CMUP_USERPARAM` |
@@ -51,6 +51,7 @@ Use System-Internally (Contract C1) 추가 → **Use in Cloud Development** 체�
 | `02_cds/zce_cmup_usersetting` | ① 현재 설정 (root custom entity, 키: UserId + ItemId, 값: ParamValue + ValueText) |
 | `02_cds/zce_cmup_paramvh` | ② Value Help (파라미터 `p_itemid`, 검색 가능) |
 | `02_cds/zd_cmup_saverequest`, `zd_cmup_saveitem` | ③ 저장 액션 파라미터 (요청 1 : 항목 N, deep parameter) |
+| `02_cds/zd_cmup_saveresult` | ③ 저장 액션 결과 (항목마다 상태·메시지) |
 | `03_class/zcl_cmup_value_help` | `get_item_ids` = 이 API 가 다루는 항목 (① 조회 대상 = ③ 수정 허용 대상), `read_source` = 항목별 고를 수 있는 값 → ② 목록, ①의 값 텍스트, ③의 검증 |
 | `03_class/zcl_cmup_q_usersetting` | ① 쿼리 |
 | `03_class/zcl_cmup_q_paramvh` | ② 쿼리 |
@@ -115,7 +116,21 @@ x-csrf-token: <GET 할 때 x-csrf-token: fetch 로 받은 값>
 - 저장 액션은 `$batch` 로 다른 변경과 묶지 않고 단독으로 호출합니다 (액션 안에서 바로 커밋하므로).
 - 현재값과 같은 항목은 BAPI 대상에서 빠집니다 (다 같으면 BAPI 를 부르지 않음).
 - 파라미터(BUK 등)에 `""` 를 보내면 그 파라미터를 지웁니다.
-- 응답: 보낸 항목들의 저장될 값 (`UserId`, `ItemId`, `ParamValue`, `ValueText`).
+- 성공 응답 (200): 보낸 항목마다 한 줄 + 요약 메시지(`sap-messages` 헤더, 예: "저장 완료: 1건 변경, 1건 변경 없음")
+
+```json
+{ "value": [
+  { "ItemId": "BUK", "ParamValue": "2000", "ValueText": "부산 공장", "Status": "CHANGED",   "Message": "변경했습니다" },
+  { "ItemId": "WRK", "ParamValue": "1100", "ValueText": "서울 1공장", "Status": "UNCHANGED", "Message": "현재값과 같아서 변경하지 않았습니다" }
+] }
+```
+
+- 실패 응답 (400): 아무것도 저장되지 않음. 첫 에러가 `error.message`, 나머지는 `error.details`
+
+```json
+{ "error": { "code": "…", "message": "LANGU: KO 는 고를 수 없는 값입니다",
+             "details": [ { "message": "ZZZ 는 수정할 수 없는 항목입니다" } ] } }
+```
 - 액션 이름 앞의 네임스페이스(`SAP__self`)는 `$metadata` 에서 확인합니다.
 - 언어는 SAP 언어 키(`3` = 한국어, `E` = 영어)로 주고받습니다. Value Help 코드도 같습니다.
 - 잘못된 값이면 에러(400)와 메시지를 돌려줍니다 (Value Help 목록에 없는 값, 이 API 가 다루지 않는 항목, 다른 사용자).

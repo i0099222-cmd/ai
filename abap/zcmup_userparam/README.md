@@ -125,7 +125,10 @@ x-csrf-token: <GET 할 때 x-csrf-token: fetch 로 받은 값>
 ] }
 ```
 
-- 실패 응답 (400): 검증·BAPI 에러면 아무것도 저장되지 않음. 첫 에러가 `error.message`, 나머지는 `error.details`
+- 실패 응답 (400): 첫 에러가 `error.message`, 나머지는 `error.details`
+  - 검증·BAPI 에러 → 아무것도 저장되지 않음
+  - 에러 없이 끝났는데 반영 안 된 항목 → 그 항목 에러 + "다음 항목은 반영되었습니다: …" (이미 커밋돼 되돌릴 수 없음)
+  - 저장 후 확인 조회 실패 → "다시 조회해서 확인하세요" (①로 다시 조회)
 
 ```json
 { "error": { "code": "…", "message": "LANGU: KO 는 고를 수 없는 값입니다",

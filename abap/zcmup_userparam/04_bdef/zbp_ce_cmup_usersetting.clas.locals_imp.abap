@@ -14,7 +14,10 @@
 "!
 "! 응답
 "!   성공 : 200 + 항목마다 한 줄 (Status CHANGED / UNCHANGED, Message). 값은 저장 후 다시 읽은 실제 값
-"!   실패 : 400 + 에러 메시지 (검증 에러, BAPI 에러, 저장했는데 반영 안 된 항목)
+"!   실패 : 400 + 에러 메시지
+"!          - 검증 에러, BAPI 에러        → 아무것도 저장 안 됨
+"!          - 저장했는데 반영 안 된 항목  → 그 항목 에러 + 반영된 항목 목록 (이미 커밋돼 되돌릴 수 없음)
+"!          - 저장 후 확인 조회 실패      → "다시 조회해서 확인" 메시지
 "!
 "! 주의: 액션에서 바로 커밋하므로 RAP 트랜잭션으로 되돌릴 수 없다.
 "!       한 번 호출에 저장 액션 하나만 보내는 전제 ($batch 로 다른 변경과 묶지 않는다).
@@ -119,18 +122,30 @@ CLASS lhc_usersetting IMPLEMENTATION.
       "    → 저장 후 다시 읽어서 실제로 반영됐는지 확인
       lt_after = lt_current.
       IF lt_error IS INITIAL AND lt_change IS NOT INITIAL.
+        DATA(lo_api) = zcl_cmup_user_api=>create( ).
+
+        " BAPI 에러 → 래퍼가 롤백 → 아무것도 저장 안 됨
         TRY.
-            DATA(lo_api) = zcl_cmup_user_api=>create( ).
             lo_api->change_settings( iv_user    = lv_user
                                      it_setting = lt_change ).
-            lt_after = lo_api->get_settings( lv_user ).
           CATCH zcx_cmup_user_api INTO lx_api.
             APPEND lx_api->get_text( ) TO lt_error.
         ENDTRY.
+
+        " 에러 없이 끝나도 실제 반영 여부는 다시 읽어서 확인한다 (커밋이 안 된 경우 등)
+        IF lt_error IS INITIAL.
+          TRY.
+              lt_after = lo_api->get_settings( lv_user ).
+            CATCH zcx_cmup_user_api INTO lx_api.
+              APPEND |저장은 요청했지만 확인 조회에 실패했습니다. 다시 조회해서 확인하세요: { lx_api->get_text( ) }| TO lt_error.
+          ENDTRY.
+        ENDIF.
       ENDIF.
 
       " 4) 결과: 다시 읽은 실제 값 기준. 바꾼 항목이 반영 안 됐으면 에러
       IF lt_error IS INITIAL.
+        DATA(lt_applied) = VALUE string_table( ).
+
         LOOP AT lt_request INTO DATA(ls_request).
           DATA(lv_actual)  = VALUE zif_cmup_user_api=>ty_value( lt_after[ item_id = ls_request-item_id ]-value OPTIONAL ).
           DATA(lv_changed) = xsdbool( line_exists( lt_change[ item_id = ls_request-item_id ] ) ).
@@ -138,6 +153,9 @@ CLASS lhc_usersetting IMPLEMENTATION.
           IF lv_changed = abap_true AND lv_actual <> ls_request-value.
             APPEND |{ ls_request-item_id }: 저장했지만 반영되지 않았습니다 (현재값 '{ lv_actual }')| TO lt_error.
             CONTINUE.
+          ENDIF.
+          IF lv_changed = abap_true.
+            APPEND CONV string( ls_request-item_id ) TO lt_applied.
           ENDIF.
 
           APPEND VALUE #( itemid     = ls_request-item_id
@@ -150,6 +168,11 @@ CLASS lhc_usersetting IMPLEMENTATION.
                                                  THEN `삭제했습니다`
                                                ELSE `변경했습니다` ) ) TO lt_result.
         ENDLOOP.
+
+        " 일부만 반영된 경우: 이미 커밋돼서 되돌릴 수 없으니 반영된 항목도 알려준다
+        IF lt_error IS NOT INITIAL AND lt_applied IS NOT INITIAL.
+          APPEND |다음 항목은 반영되었습니다: { concat_lines_of( table = lt_applied sep = `, ` ) }| TO lt_error.
+        ENDIF.
       ENDIF.
 
       " 에러 → 400 (failed + 메시지)

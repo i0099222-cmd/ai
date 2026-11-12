@@ -3,6 +3,7 @@
 "! 흐름
 "!   saveSettings : 검증 → 현재값과 다른 항목만 모아서 바로 래퍼 change_settings 호출
 "!                  (래퍼 = BAPI_USER_CHANGE + BAPI_TRANSACTION_COMMIT, 별도 RFC 세션)
+"!                  → 다시 읽어서 실제 반영 여부로 결과를 만든다
 "!   save         : 비워 둔다. RAP 저장 단계에서 RFC·COMMIT 을 하면 LUW 덤프가 나기 때문.
 "!
 "! 검증 (하나라도 틀리면 그 요청 전체를 저장하지 않는다)
@@ -12,8 +13,8 @@
 "!            그 외는 Value Help 목록에 있는 값만 (SU3·BAPI 는 마스터와 대조하지 않는다)
 "!
 "! 응답
-"!   성공 : 200 + 항목마다 한 줄 (Status CHANGED / UNCHANGED, Message) + 요약 메시지 (sap-messages 헤더)
-"!   실패 : 400 + 에러 메시지 (아무것도 저장되지 않음)
+"!   성공 : 200 + 항목마다 한 줄 (Status CHANGED / UNCHANGED, Message). 값은 저장 후 다시 읽은 실제 값
+"!   실패 : 400 + 에러 메시지 (검증 에러, BAPI 에러, 저장했는데 반영 안 된 항목)
 "!
 "! 주의: 액션에서 바로 커밋하므로 RAP 트랜잭션으로 되돌릴 수 없다.
 "!       한 번 호출에 저장 액션 하나만 보내는 전제 ($batch 로 다른 변경과 묶지 않는다).
@@ -45,18 +46,27 @@ CLASS lhc_usersetting IMPLEMENTATION.
 
 
   METHOD savesettings.
+    TYPES:
+      BEGIN OF ty_request,
+        item_id TYPE zif_cmup_user_api=>ty_item,
+        value   TYPE zif_cmup_user_api=>ty_value,
+        text    TYPE zcl_cmup_value_help=>ty_value-text,
+      END OF ty_request.
+
     DATA: lt_error   TYPE string_table,
           lt_current TYPE zif_cmup_user_api=>tt_setting,
+          lt_after   TYPE zif_cmup_user_api=>tt_setting,
           lt_change  TYPE zif_cmup_user_api=>tt_setting,
+          lt_request TYPE STANDARD TABLE OF ty_request WITH EMPTY KEY,
           lt_result  TYPE STANDARD TABLE OF zd_cmup_saveresult WITH EMPTY KEY,
           lt_seen    TYPE SORTED TABLE OF zif_cmup_user_api=>ty_item WITH UNIQUE KEY table_line.
 
     DATA(lv_me) = CONV zif_cmup_user_api=>ty_user( cl_abap_context_info=>get_user_technical_name( ) ).
 
     LOOP AT keys INTO DATA(ls_key).
-      CLEAR: lt_error, lt_current, lt_change, lt_result, lt_seen.
+      CLEAR: lt_error, lt_current, lt_after, lt_change, lt_request, lt_result, lt_seen.
 
-      " 사용자 (비우면 로그온 사용자, 다른 사용자는 안 됨)
+      " 1) 사용자 (비우면 로그온 사용자, 다른 사용자는 안 됨)
       DATA(lv_user) = COND zif_cmup_user_api=>ty_user( WHEN ls_key-%param-UserId IS INITIAL THEN lv_me
                                                        ELSE to_upper( ls_key-%param-UserId ) ).
       IF lv_user <> lv_me.
@@ -70,7 +80,7 @@ CLASS lhc_usersetting IMPLEMENTATION.
         ENDTRY.
       ENDIF.
 
-      " 항목별 검증
+      " 2) 항목별 검증 → 현재값과 다른 것만 BAPI 대상
       IF lt_error IS INITIAL.
         LOOP AT ls_key-%param-_Items INTO DATA(ls_item).
           DATA(lv_item_id) = CONV zif_cmup_user_api=>ty_item( to_upper( ls_item-ItemId ) ).
@@ -95,34 +105,54 @@ CLASS lhc_usersetting IMPLEMENTATION.
             CONTINUE.
           ENDIF.
 
-          " 현재값과 다를 때만 BAPI 대상
-          DATA(lv_changed) = xsdbool( lv_value <> VALUE zif_cmup_user_api=>ty_value( lt_current[ item_id = lv_item_id ]-value OPTIONAL ) ).
-          IF lv_changed = abap_true.
+          APPEND VALUE #( item_id = lv_item_id
+                          value   = lv_value
+                          text    = VALUE #( lt_value[ code = lv_value ]-text OPTIONAL ) ) TO lt_request.
+
+          IF lv_value <> VALUE zif_cmup_user_api=>ty_value( lt_current[ item_id = lv_item_id ]-value OPTIONAL ).
             INSERT VALUE #( item_id = lv_item_id value = lv_value ) INTO TABLE lt_change.
           ENDIF.
-
-          " 응답용 한 줄
-          APPEND VALUE #( itemid     = lv_item_id
-                          paramvalue = lv_value
-                          valuetext  = VALUE #( lt_value[ code = lv_value ]-text OPTIONAL )
-                          status     = COND #( WHEN lv_changed = abap_true THEN 'CHANGED' ELSE 'UNCHANGED' )
-                          message    = COND #( WHEN lv_changed = abap_true AND lv_value IS INITIAL THEN `삭제했습니다`
-                                               WHEN lv_changed = abap_true                       THEN `변경했습니다`
-                                               ELSE `현재값과 같아서 변경하지 않았습니다` ) ) TO lt_result.
         ENDLOOP.
       ENDIF.
 
-      " 바뀐 항목이 있으면 바로 저장 (래퍼가 BAPI_USER_CHANGE + COMMIT, 에러면 ROLLBACK)
+      " 3) 바뀐 항목이 있으면 저장 (래퍼가 BAPI_USER_CHANGE + COMMIT, 에러면 ROLLBACK)
+      "    → 저장 후 다시 읽어서 실제로 반영됐는지 확인
+      lt_after = lt_current.
       IF lt_error IS INITIAL AND lt_change IS NOT INITIAL.
         TRY.
-            zcl_cmup_user_api=>create( )->change_settings( iv_user    = lv_user
-                                                           it_setting = lt_change ).
+            DATA(lo_api) = zcl_cmup_user_api=>create( ).
+            lo_api->change_settings( iv_user    = lv_user
+                                     it_setting = lt_change ).
+            lt_after = lo_api->get_settings( lv_user ).
           CATCH zcx_cmup_user_api INTO lx_api.
             APPEND lx_api->get_text( ) TO lt_error.
         ENDTRY.
       ENDIF.
 
-      " 에러: 이 요청은 저장되지 않았다
+      " 4) 결과: 다시 읽은 실제 값 기준. 바꾼 항목이 반영 안 됐으면 에러
+      IF lt_error IS INITIAL.
+        LOOP AT lt_request INTO DATA(ls_request).
+          DATA(lv_actual)  = VALUE zif_cmup_user_api=>ty_value( lt_after[ item_id = ls_request-item_id ]-value OPTIONAL ).
+          DATA(lv_changed) = xsdbool( line_exists( lt_change[ item_id = ls_request-item_id ] ) ).
+
+          IF lv_changed = abap_true AND lv_actual <> ls_request-value.
+            APPEND |{ ls_request-item_id }: 저장했지만 반영되지 않았습니다 (현재값 '{ lv_actual }')| TO lt_error.
+            CONTINUE.
+          ENDIF.
+
+          APPEND VALUE #( itemid     = ls_request-item_id
+                          paramvalue = lv_actual
+                          valuetext  = ls_request-text
+                          status     = COND #( WHEN lv_changed = abap_true THEN 'CHANGED' ELSE 'UNCHANGED' )
+                          message    = COND #( WHEN lv_changed = abap_false
+                                                 THEN `현재값과 같아서 변경하지 않았습니다`
+                                               WHEN lv_actual IS INITIAL AND ls_request-text IS INITIAL
+                                                 THEN `삭제했습니다`
+                                               ELSE `변경했습니다` ) ) TO lt_result.
+        ENDLOOP.
+      ENDIF.
+
+      " 에러 → 400 (failed + 메시지)
       IF lt_error IS NOT INITIAL.
         APPEND VALUE #( %cid = ls_key-%cid ) TO failed-usersetting.
         LOOP AT lt_error INTO DATA(lv_text).
@@ -133,17 +163,11 @@ CLASS lhc_usersetting IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 결과: 보낸 항목마다 한 줄 + 요약 메시지
+      " 성공 → 200 (항목마다 한 줄)
       LOOP AT lt_result INTO DATA(ls_result).
         APPEND VALUE #( %cid   = ls_key-%cid
                         %param = ls_result ) TO result.
       ENDLOOP.
-
-      APPEND VALUE #( %cid = ls_key-%cid
-                      %msg = new_message_with_text(
-                               severity = if_abap_behv_message=>severity-success
-                               text     = |저장 완료: { lines( lt_change ) }건 변경, { lines( lt_result ) - lines( lt_change ) }건 변경 없음| ) )
-             TO reported-usersetting.
     ENDLOOP.
   ENDMETHOD.
 

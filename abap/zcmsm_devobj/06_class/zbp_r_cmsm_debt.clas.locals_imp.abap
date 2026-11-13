@@ -4,10 +4,7 @@
 "!   Debt Level C(비released 사용): 래핑 여부 필수 / D(표준 수정·금지): 래핑 여부 잠금(값 비움)
 "!   개선상태 E(예외등록): 부채판단 사유 필수
 "!   개발 오브젝트는 시스템에 있어야 함 (유형별로 확인, FM·RFC·PROXY는 확인 안 함)
-"!   같은 개발 오브젝트 + 같은 비released 대상은 한 번만
-"!
-"! 복사(copyDebt): 같은 개발 오브젝트의 다른 비released 대상을 등록할 때 쓴다.
-"!   비released 대상 이름은 비우고(새로 입력), 개선상태는 개선대상(T)으로 새로 시작, ID는 저장할 때 새로 채번
+"!   개발 오브젝트당 한 건. 쓰는 비released 오브젝트는 '비released 사용 내역'(DebtDesc)에 적는다 (필수)
 CLASS lhc_techdebt DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
@@ -38,9 +35,6 @@ CLASS lhc_techdebt DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     METHODS get_instance_features FOR INSTANCE FEATURES
       IMPORTING keys REQUEST requested_features FOR TechDebt RESULT result.
-
-    METHODS copydebt FOR MODIFY
-      IMPORTING keys FOR ACTION TechDebt~copyDebt.
 
     METHODS setinitialvalues FOR DETERMINE ON MODIFY
       IMPORTING keys FOR TechDebt~setInitialValues.
@@ -94,52 +88,6 @@ CLASS lhc_techdebt IMPLEMENTATION.
                         %field-DebtReason = COND #( WHEN ls_debt-ImproveStatus = gc_improve-exception
                                                     THEN if_abap_behv=>fc-f-mandatory
                                                     ELSE if_abap_behv=>fc-f-unrestricted ) ) ).
-
-  ENDMETHOD.
-
-
-  METHOD copydebt.
-
-    DATA lt_create TYPE TABLE FOR CREATE zr_cmsm_debt.
-
-    READ ENTITIES OF zr_cmsm_debt IN LOCAL MODE
-      ENTITY TechDebt
-        ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_debt)
-      FAILED failed.
-
-    LOOP AT lt_debt INTO DATA(ls_debt).
-
-      DATA(ls_key) = keys[ KEY entity %key = ls_debt-%key ].
-
-      APPEND VALUE #( %cid      = ls_key-%cid
-                      %is_draft = ls_key-%param-%is_draft
-                      %data     = CORRESPONDING #( ls_debt EXCEPT DebtUuid DebtId StdName ImproveStatus
-                                                              CreatedBy CreatedAt LastChangedBy LastChangedAt
-                                                              LocalLastChangedAt ) )
-             TO lt_create ASSIGNING FIELD-SYMBOL(<ls_create>).
-
-      " 새로 찾은 사용처라 개선대상부터
-      <ls_create>-ImproveStatus = gc_improve-target.
-
-    ENDLOOP.
-
-    IF lt_create IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    MODIFY ENTITIES OF zr_cmsm_debt IN LOCAL MODE
-      ENTITY TechDebt
-        CREATE FIELDS ( SapModule DevId ObjType DevObj WrapType StdType SysId
-                        DebtDesc DebtLevel ImproveStatus DebtReason BizOwner )
-        WITH lt_create
-      MAPPED DATA(ls_mapped)
-      FAILED DATA(ls_failed)
-      REPORTED DATA(ls_reported).
-
-    mapped-techdebt = ls_mapped-techdebt.
-    APPEND LINES OF ls_failed-techdebt   TO failed-techdebt.
-    APPEND LINES OF ls_reported-techdebt TO reported-techdebt.
 
   ENDMETHOD.
 
@@ -234,7 +182,7 @@ CLASS lhc_techdebt IMPLEMENTATION.
 
     READ ENTITIES OF zr_cmsm_debt IN LOCAL MODE
       ENTITY TechDebt
-        FIELDS ( SapModule ObjType DevObj StdType StdName DebtLevel
+        FIELDS ( SapModule ObjType DevObj DebtDesc DebtLevel
                  WrapType ImproveStatus DebtReason ) WITH CORRESPONDING #( keys )
       RESULT DATA(lt_debt).
 
@@ -255,11 +203,8 @@ CLASS lhc_techdebt IMPLEMENTATION.
       IF ls_debt-DevObj IS INITIAL.
         APPEND VALUE #( field = `DEVOBJ`    text = `개발 오브젝트를 입력하세요.` ) TO lt_missing.
       ENDIF.
-      IF ls_debt-StdType IS INITIAL.
-        APPEND VALUE #( field = `STDTYPE`   text = `비released 대상 유형을 선택하세요.` ) TO lt_missing.
-      ENDIF.
-      IF ls_debt-StdName IS INITIAL.
-        APPEND VALUE #( field = `STDNAME`   text = `비released 대상을 입력하세요.` ) TO lt_missing.
+      IF ls_debt-DebtDesc IS INITIAL.
+        APPEND VALUE #( field = `DEBTDESC`  text = `사용한 비released 오브젝트를 입력하세요.` ) TO lt_missing.
       ENDIF.
       IF ls_debt-DebtLevel IS INITIAL.
         APPEND VALUE #( field = `DEBTLEVEL` text = `Debt Level을 선택하세요.` ) TO lt_missing.
@@ -332,7 +277,7 @@ CLASS lhc_techdebt IMPLEMENTATION.
 
     READ ENTITIES OF zr_cmsm_debt IN LOCAL MODE
       ENTITY TechDebt
-        FIELDS ( DevObj StdType StdName ) WITH CORRESPONDING #( keys )
+        FIELDS ( ObjType DevObj ) WITH CORRESPONDING #( keys )
       RESULT DATA(lt_debt).
 
     LOOP AT lt_debt INTO DATA(ls_debt).
@@ -340,16 +285,15 @@ CLASS lhc_techdebt IMPLEMENTATION.
       APPEND VALUE #( %tky        = ls_debt-%tky
                       %state_area = 'DUPLICATE' ) TO reported-techdebt.
 
-      IF ls_debt-DevObj IS INITIAL OR ls_debt-StdName IS INITIAL.
+      IF ls_debt-DevObj IS INITIAL.
         CONTINUE.
       ENDIF.
 
-      " 저장된 다른 부채 중 같은 개발 오브젝트가 같은 비released 대상을 쓰는 건
+      " 개발 오브젝트당 한 건: 같은 유형·같은 개발 오브젝트의 저장된 부채
       SELECT SINGLE debtid FROM ztcmsm00230
         WHERE debtuuid <> @ls_debt-DebtUuid
+          AND objtype  =  @ls_debt-ObjType
           AND devobj   =  @ls_debt-DevObj
-          AND stdtype  =  @ls_debt-StdType
-          AND stdname  =  @ls_debt-StdName
         INTO @DATA(lv_dup_id).
 
       IF sy-subrc <> 0.
@@ -357,14 +301,14 @@ CLASS lhc_techdebt IMPLEMENTATION.
       ENDIF.
 
       APPEND VALUE #( %tky = ls_debt-%tky ) TO failed-techdebt.
-      APPEND VALUE #( %tky             = ls_debt-%tky
-                      %state_area      = 'DUPLICATE'
-                      %element-StdName = if_abap_behv=>mk-on
-                      %msg             = new_message_with_text(
-                                           severity = if_abap_behv_message=>severity-error
-                                           text     = COND string( WHEN lv_dup_id IS INITIAL
-                                                                   THEN `같은 기술부채가 이미 등록돼 있습니다.`
-                                                                   ELSE |같은 기술부채가 이미 등록돼 있습니다 ({ lv_dup_id }).| ) ) )
+      APPEND VALUE #( %tky            = ls_debt-%tky
+                      %state_area     = 'DUPLICATE'
+                      %element-DevObj = if_abap_behv=>mk-on
+                      %msg            = new_message_with_text(
+                                          severity = if_abap_behv_message=>severity-error
+                                          text     = COND string( WHEN lv_dup_id IS INITIAL
+                                                                  THEN `이 개발 오브젝트의 기술부채가 이미 있습니다. 기존 건의 비released 사용 내역에 추가하세요.`
+                                                                  ELSE |이 개발 오브젝트의 기술부채가 이미 있습니다 ({ lv_dup_id }). 기존 건의 비released 사용 내역에 추가하세요.| ) ) )
              TO reported-techdebt.
 
     ENDLOOP.

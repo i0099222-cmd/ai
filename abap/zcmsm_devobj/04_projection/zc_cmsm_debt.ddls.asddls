@@ -33,18 +33,13 @@ define root view entity ZC_CMSM_Debt
       WrapType,
       @EndUserText.label: '래핑 여부 내역'
       _WrapType.Text as WrapTypeText,
-      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_StdTypeVH', element: 'Value' } }]
-      @ObjectModel.text.element: [ 'StdTypeText' ]
-      StdType,
-      @EndUserText.label: '대상 유형 내역'
-      _StdType.Text as StdTypeText,
-      @Search.defaultSearchElement: true
-      StdName,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_SysId', element: 'SysId' } }]
       @ObjectModel.text.element: [ 'SysText' ]
       SysId,
       @EndUserText.label: '시스템 설명'
       _Sys.Description as SysText,
+      // 비released 오브젝트 이름으로도 검색되게
+      @Search.defaultSearchElement: true
       DebtDesc,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_DebtLevelVH', element: 'Value' } }]
       @ObjectModel.text.element: [ 'DebtLevelText' ]

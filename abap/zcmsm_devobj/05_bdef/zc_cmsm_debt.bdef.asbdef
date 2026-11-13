@@ -10,8 +10,6 @@ use etag
   use update;
   use delete;
 
-  use action copyDebt;
-
   use action Edit;
   use action Activate;
   use action Discard;

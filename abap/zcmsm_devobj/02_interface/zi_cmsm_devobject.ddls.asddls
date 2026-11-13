@@ -75,6 +75,6 @@ union all select from ZI_CMSM_Debt
       cast( ObjType as abap.char( 10 ) )        as ObjType,
       cast( DevObj as abap.char( 80 ) )         as DevObj,
       SapModule,
-      // 부채 설명(1333자)은 목록 칸에 안 맞아서 비released 대상 이름을 보여준다
-      cast( StdName as abap.char( 120 ) )       as Description
+      // 비released 사용 내역(1333자)은 목록 칸에 안 맞아서 설계서 개발 ID를 보여준다
+      cast( DevId as abap.char( 120 ) )         as Description
 }

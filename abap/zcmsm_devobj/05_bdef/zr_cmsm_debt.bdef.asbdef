@@ -25,8 +25,7 @@ authorization master ( global )
       SapModule,
       ObjType,
       DevObj,
-      StdType,
-      StdName,
+      DebtDesc,
       DebtLevel;
 
   // Debt Level C(비released 사용)일 때만 래핑 여부 / 개선상태 예외등록(E)이면 부채판단 사유 필수
@@ -38,18 +37,15 @@ authorization master ( global )
   update;
   delete;
 
-  // 같은 개발 오브젝트의 다른 비released 대상을 등록할 때: 값 복사 → 비released 대상 이름만 새로 입력
-  factory action copyDebt [1];
-
   // 새 부채: 개선상태 = 개선대상(T) / Level이 C가 아니면 래핑 여부 비우기 / 저장할 때 TD- 채번
   determination setInitialValues on modify { create; }
   determination clearWrapType    on modify { field DebtLevel; }
   determination setDebtId        on save   { create; }
 
-  validation validateMandatory on save { create; field SapModule, ObjType, DevObj, StdType, StdName, DebtLevel,
+  validation validateMandatory on save { create; field SapModule, ObjType, DevObj, DebtDesc, DebtLevel,
                                                        WrapType, ImproveStatus, DebtReason; }
   validation validateDevObj    on save { create; field ObjType, DevObj; }
-  validation validateDuplicate on save { create; field DevObj, StdType, StdName; }
+  validation validateDuplicate on save { create; field ObjType, DevObj; }
 
   // 조건 필드를 바꾸면 바로 반영: field = 비워진 값, permissions = 잠금·필수
   side effects

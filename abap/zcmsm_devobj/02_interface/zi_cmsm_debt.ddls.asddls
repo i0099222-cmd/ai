@@ -6,7 +6,6 @@ define view entity ZI_CMSM_Debt
   association [0..1] to ZI_CMSM_ModuleVH    as _SapModule     on $projection.SapModule     = _SapModule.Value
   association [0..1] to ZI_CMSM_ObjTypeVH   as _ObjType       on $projection.ObjType       = _ObjType.Value
   association [0..1] to ZI_CMSM_WrapTypeVH  as _WrapType      on $projection.WrapType      = _WrapType.Value
-  association [0..1] to ZI_CMSM_StdTypeVH   as _StdType       on $projection.StdType       = _StdType.Value
   association [0..1] to ZI_CMSM_SysId       as _Sys           on $projection.SysId         = _Sys.SysId
   association [0..1] to ZI_CMSM_DebtLevelVH as _DebtLevel     on $projection.DebtLevel     = _DebtLevel.Value
   association [0..1] to ZI_CMSM_ImproveVH   as _ImproveStatus on $projection.ImproveStatus = _ImproveStatus.Value
@@ -26,19 +25,16 @@ define view entity ZI_CMSM_Debt
       devobj             as DevObj,
       @EndUserText.label: '래핑 여부'
       wraptype           as WrapType,
-      @EndUserText.label: '비released 대상 유형'
-      stdtype            as StdType,
-      @EndUserText.label: '비released 대상'
-      stdname            as StdName,
       @EndUserText.label: '시스템 ID'
       sysid              as SysId,
-      @EndUserText.label: 'Technical Debts'
+      @EndUserText.label: '비released 사용 내역'
+      @EndUserText.quickInfo: '사용한 비released 오브젝트와 용도. 예) BSEG(TABLE) 조회, BAPI_ACC_DOCUMENT_POST(FM) 호출'
       debtdesc           as DebtDesc,
       @EndUserText.label: 'Debt Level'
       debtlevel          as DebtLevel,
       @EndUserText.label: '개선상태'
       improvestatus      as ImproveStatus,
-      @EndUserText.label: '부채판단 사유'
+      @EndUserText.label: '판단 사유·개선 계획'
       debtreason         as DebtReason,
       @EndUserText.label: '업무담당자'
       bizowner           as BizOwner,
@@ -55,7 +51,6 @@ define view entity ZI_CMSM_Debt
       _SapModule,
       _ObjType,
       _WrapType,
-      _StdType,
       _Sys,
       _DebtLevel,
       _ImproveStatus,

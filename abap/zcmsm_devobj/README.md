@@ -97,7 +97,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 | As-Is/To-Be | 등록번호, 구분, As-Is 오브젝트, To-Be 유형, To-Be 오브젝트, UI 종류, 모듈, 담당자 | 모듈, 구분, To-Be 유형, UI 종류, 담당자 |
 | Value Help | 등록번호, VH 이름, 구현 방식, 모듈, 설명, 담당자, 요청번호 | 모듈, 구현 방식, 담당자 |
 | OData 서비스 | 등록번호, Service Binding, 모듈, 설명, 담당자, 요청번호 | 모듈, 담당자 |
-| 기술부채 | ID, 모듈, 개발 오브젝트, 비released 대상, Debt Level, 래핑 여부, 개선상태, 업무담당자 | 모듈, Debt Level, 개선상태, 래핑 여부, 업무담당자 |
+| 기술부채 | ID, 모듈, 개발 오브젝트, Debt Level, 래핑 여부, 개선상태, 업무담당자 | 모듈, Debt Level, 개선상태, 래핑 여부, 업무담당자 |
 
 - 정렬: 등록 일시 내림차순. 탭마다 `@UI.selectionPresentationVariant` `#Tab` (탭 이름 포함)
 - 고정값 코드(상태·모듈·유형 등)는 텍스트만 (`#TEXT_ONLY`), 사람·시스템은 "이름 (ID)"
@@ -111,7 +111,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 | 매핑 | To-Be 오브젝트 / 등록번호 | 구분, 모듈, 담당자 | As-Is · To-Be · UI (T-code일 때) · 기본 정보 · 관리 정보 |
 | Value Help | VH 이름 / 등록번호 | 구현 방식, 모듈, 담당자 | 기본 정보 · 데이터 소스(표) · 테스트 · 관리 정보 |
 | OData 서비스 | Service Binding / 등록번호 | 모듈, 담당자 | 기본 정보 · 테스트 · 관리 정보 |
-| 기술부채 | 개발 오브젝트 / ID | Debt Level, 개선상태, 업무담당자 | 대상 오브젝트 · 비released 사용 · 판단·개선 · 관리 정보 |
+| 기술부채 | 개발 오브젝트 / ID | Debt Level, 개선상태, 업무담당자 | 대상 오브젝트 · 비released 사용(비released 사용 내역) · 판단·개선 · 관리 정보 |
 
 헤더는 요약이라 같은 필드가 섹션에도 있다. 그래서 **manifest에서 Object Page마다 `editableHeaderContent: false`** 로 둔다 (안 그러면 편집 모드에서 헤더에도 입력칸이 생겨 같은 필드가 두 번 나온다).
 
@@ -273,7 +273,9 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | Debt Level = D (표준 수정·금지) | | 래핑 여부 |
 | 개선상태 = E (예외등록) | 부채판단 사유* | |
 
-항상 필수: 모듈, 오브젝트 유형, 개발 오브젝트, 비released 대상 유형, 비released 대상, Debt Level.
+항상 필수: 모듈, 오브젝트 유형, 개발 오브젝트, 비released 사용 내역, Debt Level.
+
+개발 오브젝트당 한 건. 쓰는 비released 오브젝트는 '비released 사용 내역'(`DebtDesc`, 전 'Technical Debts')에 적는다 — 툴팁에 입력 예시, 검색 대상. '부채판단 사유'는 라벨을 '판단 사유·개선 계획'으로 바꿨다. (비released 대상 유형·이름 필드 2개, 대상 유형 VH, 복사 버튼은 삭제)
 
 ### 자동 처리·검증
 
@@ -284,12 +286,9 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | `setDebtId` | 저장 (생성) | TD-nnn 채번 (번호 범위 구간 05) |
 | `validateMandatory` | 저장, Prepare | 위 필수 + 조건부 필수 |
 | `validateDevObj` | 저장, Prepare | 개발 오브젝트가 시스템에 있는지 (`I_CustABAPObjDirectoryEntry`). 유형 → CLASS=CLAS, TABLE=TABL, CDS=DDLS, BO=BDEF, ACTION=BDEF(BO 부분만), VH=DDLS/SHLP, SRVB=SRVB, TCODE=TRAN. FM·RFC·PROXY는 확인 안 함 |
-| `validateDuplicate` | 저장, Prepare | 같은 개발 오브젝트 + 같은 비released 대상(유형·이름)이 이미 있으면 에러 |
-| `copyDebt` (버튼 "복사") | 목록 행 선택 / 상세 헤더 | 같은 개발 오브젝트가 비released 대상을 여러 개 쓸 때. 값을 복사한 새 부채(드래프트)로 이동 — 비released 대상 이름은 비움, 개선상태 = T, ID는 저장 시 새로 채번 |
+| `validateDuplicate` | 저장, Prepare | 같은 유형·같은 개발 오브젝트의 부채가 이미 있으면 에러 (기존 건의 사용 내역에 추가하라고 안내) |
 
-비released 대상이 여러 개면 대상마다 한 건 (대상별로 대체 API 시점이 달라 개선상태를 따로 관리). 두 번째부터는 "복사"로 만든다.
-
-개발 오브젝트 입력: `ZI_CMSM_DevObjectVH` — 통합 목록 `ZI_CMSM_DevObject`(`02_interface`, 딕셔너리의 오브젝트 UNION 뷰)에서 As-Is를 뺀 것. 통합 목록의 등록 구분(`SourceTab`): TOBE(매핑 To-Be) / ASIS(매핑 As-Is, 신규 매핑은 없음) / VH / SB / TD(기술부채, 부채마다 한 줄). 매핑 한 건은 TOBE·ASIS 두 줄이고 등록번호가 같다. 시스템 칸은 ASIS면 소스 시스템, 나머지는 타겟·등록 시스템. 기술부채 줄의 '설명'은 비released 대상 이름. 고르면 오브젝트 유형·모듈도 채워진다 (`additionalBinding`). 어디에도 없는 오브젝트는 직접 입력.
+개발 오브젝트 입력: `ZI_CMSM_DevObjectVH` — 통합 목록 `ZI_CMSM_DevObject`(`02_interface`, 딕셔너리의 오브젝트 UNION 뷰)에서 As-Is를 뺀 것. 통합 목록의 등록 구분(`SourceTab`): TOBE(매핑 To-Be) / ASIS(매핑 As-Is, 신규 매핑은 없음) / VH / SB / TD(기술부채, 부채마다 한 줄). 매핑 한 건은 TOBE·ASIS 두 줄이고 등록번호가 같다. 시스템 칸은 ASIS면 소스 시스템, 나머지는 타겟·등록 시스템. 기술부채 줄의 '설명'은 설계서 개발 ID. 고르면 오브젝트 유형·모듈도 채워진다 (`additionalBinding`). 어디에도 없는 오브젝트는 직접 입력.
 
 ### 만드는 순서
 

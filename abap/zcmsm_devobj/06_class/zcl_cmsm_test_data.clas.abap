@@ -293,17 +293,18 @@ CLASS zcl_cmsm_test_data IMPLEMENTATION.
     DATA lt_vh  TYPE STANDARD TABLE OF ztcmsm00200 WITH EMPTY KEY.
     DATA lt_src TYPE STANDARD TABLE OF ztcmsm00210 WITH EMPTY KEY.
 
+    " 시스템에 실제로 있는 VH만 등록할 수 있어서(validateVhName) 이 프로그램의 VH 뷰를 쓴다
     lt_vh = VALUE #(
-      ( vhuuid = uuid( ) vhid = 'VH-T001' vhname = 'ZI_SD_CUSTOMERVH'    vhimpl = 'C' sapmodule = 'SD'
-        description = '거래처 (영업조직 기준)'      objcreator = '내부 개발팀'  reqid = 'RQ-T001' )
-      ( vhuuid = uuid( ) vhid = 'VH-T002' vhname = 'ZI_MM_MATERIALVH'    vhimpl = 'C' sapmodule = 'MM'
-        description = '자재 (플랜트별)'             objcreator = '외부 개발사 A' )
-      ( vhuuid = uuid( ) vhid = 'VH-T003' vhname = 'ZSH_FI_GLACCOUNT'    vhimpl = 'S' sapmodule = 'FI'
-        description = 'G/L 계정 (Search Help)'      objcreator = '내부 개발팀' )
-      ( vhuuid = uuid( ) vhid = 'VH-T004' vhname = 'ZI_CO_COSTCENTERVH'  vhimpl = 'C' sapmodule = 'CO'
-        description = '원가센터'                    objcreator = '내부 개발팀' )
-      ( vhuuid = uuid( ) vhid = 'VH-T005' vhname = 'ZI_CMSM_REQSTATUSVH' vhimpl = 'C' sapmodule = 'CM'
-        description = '요청 상태 (도메인 고정값)'   objcreator = '내부 개발팀' ) ).
+      ( vhuuid = uuid( ) vhid = 'VH-T001' vhname = 'ZI_CMSM_MODULEVH'    vhimpl = 'C' sapmodule = 'CM'
+        description = '모듈 (도메인 고정값)'           objcreator = '내부 개발팀'  reqid = 'RQ-T001' )
+      ( vhuuid = uuid( ) vhid = 'VH-T002' vhname = 'ZI_CMSM_REQSTATUSVH' vhimpl = 'C' sapmodule = 'CM'
+        description = '요청 상태 (도메인 고정값)'      objcreator = '내부 개발팀' )
+      ( vhuuid = uuid( ) vhid = 'VH-T003' vhname = 'ZI_CMSM_USERVH'      vhimpl = 'C' sapmodule = 'CM'
+        description = '사용자 (비즈니스 사용자)'       objcreator = '내부 개발팀' )
+      ( vhuuid = uuid( ) vhid = 'VH-T004' vhname = 'ZI_CMSM_SYSID'       vhimpl = 'C' sapmodule = 'CM'
+        description = '시스템 ID (설정 테이블)'        objcreator = '내부 개발팀' )
+      ( vhuuid = uuid( ) vhid = 'VH-T005' vhname = 'ZI_CMSM_ASISTYPEVH'  vhimpl = 'C' sapmodule = 'CM'
+        description = 'As-Is 오브젝트 유형 (매핑 탭)'  objcreator = '내부 개발팀' ) ).
 
     MODIFY lt_vh FROM VALUE ztcmsm00200( sysid              = 'S4D'
                                          ownerid            = mv_user
@@ -317,14 +318,11 @@ CLASS zcl_cmsm_test_data IMPLEMENTATION.
 
     " 데이터 소스 (C = CDS, T = Table, D = Domain)
     lt_src = VALUE #(
-      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T001' ]-vhuuid srckind = 'C' srcname = 'I_CUSTOMER' )
-      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T001' ]-vhuuid srckind = 'T' srcname = 'KNVV' )
-      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T002' ]-vhuuid srckind = 'C' srcname = 'I_PRODUCT' )
-      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T002' ]-vhuuid srckind = 'C' srcname = 'I_PRODUCTPLANT' )
-      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T003' ]-vhuuid srckind = 'T' srcname = 'SKA1' )
-      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T003' ]-vhuuid srckind = 'T' srcname = 'SKAT' )
-      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T004' ]-vhuuid srckind = 'C' srcname = 'I_COSTCENTER' )
-      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T005' ]-vhuuid srckind = 'D' srcname = 'ZDO_DM_REQ_STATUS' ) ).
+      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T001' ]-vhuuid srckind = 'D' srcname = 'ZDO_DM_MODULE' )
+      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T002' ]-vhuuid srckind = 'D' srcname = 'ZDO_DM_REQ_STATUS' )
+      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T003' ]-vhuuid srckind = 'C' srcname = 'I_BUSINESSUSERBASIC' )
+      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T004' ]-vhuuid srckind = 'T' srcname = 'ZTCMSM00240' )
+      ( srcuuid = uuid( ) vhuuid = lt_vh[ vhid = 'VH-T005' ]-vhuuid srckind = 'C' srcname = 'ZI_CMSM_OBJTYPEVH' ) ).
 
     MODIFY lt_src FROM VALUE ztcmsm00210( locallastchangedat = mv_ts )
            TRANSPORTING locallastchangedat

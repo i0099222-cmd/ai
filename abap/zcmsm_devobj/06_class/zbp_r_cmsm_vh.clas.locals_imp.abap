@@ -1,6 +1,7 @@
 "! Value Help BO 로컬 핸들러
 "!
-"! - VH 이름을 넣으면 구현 방식 자동 판별 (CDS → C, Search Help → S, 못 찾으면 빈 값 + 저장 시 경고)
+"! - VH 이름을 넣으면 구현 방식 자동 판별 (CDS → C, Search Help → S, 못 찾으면 빈 값)
+"! - 시스템에 없는 VH는 등록 불가 (저장 시 에러)
 "! - 테스트 파일을 올리면 올린 사람·일시 자동, 지우면 같이 비움. 10MB까지
 "! - 같은 시스템 ID에 같은 VH 이름은 한 번만 등록
 "! - 데이터 소스(자식)는 유형·이름 필수
@@ -233,7 +234,7 @@ CLASS lhc_valuehelp IMPLEMENTATION.
 
     READ ENTITIES OF zr_cmsm_vh IN LOCAL MODE
       ENTITY ValueHelp
-        FIELDS ( VhName SysId VhImpl ) WITH CORRESPONDING #( keys )
+        FIELDS ( VhName SysId ) WITH CORRESPONDING #( keys )
       RESULT DATA(lt_vh).
 
     LOOP AT lt_vh INTO DATA(ls_vh).
@@ -266,14 +267,16 @@ CLASS lhc_valuehelp IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " 시스템에서 못 찾았으면 경고만 (저장은 됨)
-      IF ls_vh-VhImpl IS INITIAL.
+      " 시스템에 없는 VH는 등록 불가.
+      " 구현 방식 필드가 아니라 직접 확인 → 업로드 데이터도 같은 기준, 구현 방식 필드를 빼도 그대로 동작
+      IF detect_impl( CONV #( ls_vh-VhName ) ) IS INITIAL.
+        APPEND VALUE #( %tky = ls_vh-%tky ) TO failed-valuehelp.
         APPEND VALUE #( %tky            = ls_vh-%tky
                         %state_area     = 'VHNAME'
                         %element-VhName = if_abap_behv=>mk-on
                         %msg            = new_message_with_text(
-                                            severity = if_abap_behv_message=>severity-warning
-                                            text     = '시스템에서 이 이름의 CDS·Search Help를 찾지 못했습니다. 이름을 확인하세요.' ) )
+                                            severity = if_abap_behv_message=>severity-error
+                                            text     = |{ ls_vh-VhName }은(는) 시스템에 없습니다. VH를 개발(활성화)한 뒤 등록하세요.| ) )
                TO reported-valuehelp.
       ENDIF.
 

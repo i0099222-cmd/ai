@@ -218,13 +218,14 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 | `setTestInfo` | 테스트 파일 올림·삭제 | 올린 사람·일시 채움 / 파일 지우면 비움 |
 | `setVhId` | 저장 (생성) | VH-nnnn 채번 (번호 범위 구간 03) |
 | `validateMandatory` | 저장, Prepare | VH 이름·모듈 필수 |
-| `validateVhName` | 저장, Prepare | 같은 시스템 ID·같은 VH 이름이 이미 저장돼 있으면 에러. 구현 방식을 못 찾았으면 경고(저장은 됨) |
+| `validateVhName` | 저장, Prepare | 같은 시스템 ID·같은 VH 이름이 이미 저장돼 있으면 에러. 시스템에 없는 VH(CDS·Search Help 둘 다 못 찾음)도 에러 — 개발(활성화)한 뒤 등록 |
 | `validateTestFile` | 저장, Prepare | 테스트 파일 10MB 초과 에러 |
 | `ValueHelpSource~validateSource` | 저장, Prepare | 데이터 소스 유형·이름 필수 (메시지는 VH 화면 데이터 소스 행에 표시) |
 
 구현 방식 판별 (`detect_impl` 메서드 하나에 모아 둠)
 - CDS: XCO `xco_cp_abap_repository=>object->ddls->for( 이름 )->exists( )`
 - Search Help: released 뷰 `I_CustABAPObjDirectoryEntry` (고객 오브젝트 TADIR)에서 SHLP 조회. 이 뷰가 없거나 권한으로 막히면 S 판별만 안 되고 나머지는 동작. 이 메서드만 고치면 된다
+- `validateVhName`의 존재 확인도 이 메서드를 쓴다. Search Help 조회를 지우면 Search Help VH는 등록이 막힌다
 
 ### 만드는 순서
 

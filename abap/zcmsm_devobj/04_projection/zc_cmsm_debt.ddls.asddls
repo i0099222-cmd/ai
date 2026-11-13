@@ -24,7 +24,7 @@ define root view entity ZC_CMSM_Debt
       _ObjType.Text as ObjTypeText,
       @Search.defaultSearchElement: true
       // 등록된 개발 오브젝트에서 고르면 유형·모듈도 같이 채운다 (직접 입력도 가능)
-      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_DevObject', element: 'DevObj' },
+      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_DevObjectVH', element: 'DevObj' },
                                            additionalBinding: [{ localElement: 'ObjType',   element: 'ObjType',   usage: #RESULT },
                                                                { localElement: 'SapModule', element: 'SapModule', usage: #RESULT }] }]
       DevObj,

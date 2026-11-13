@@ -285,6 +285,9 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | `validateMandatory` | 저장, Prepare | 위 필수 + 조건부 필수 |
 | `validateDevObj` | 저장, Prepare | 개발 오브젝트가 시스템에 있는지 (`I_CustABAPObjDirectoryEntry`). 유형 → CLASS=CLAS, TABLE=TABL, CDS=DDLS, BO=BDEF, ACTION=BDEF(BO 부분만), VH=DDLS/SHLP, SRVB=SRVB, TCODE=TRAN. FM·RFC·PROXY는 확인 안 함 |
 | `validateDuplicate` | 저장, Prepare | 같은 개발 오브젝트 + 같은 비released 대상(유형·이름)이 이미 있으면 에러 |
+| `copyDebt` (버튼 "복사") | 목록 행 선택 / 상세 헤더 | 같은 개발 오브젝트가 비released 대상을 여러 개 쓸 때. 값을 복사한 새 부채(드래프트)로 이동 — 비released 대상 이름은 비움, 개선상태 = T, ID는 저장 시 새로 채번 |
+
+비released 대상이 여러 개면 대상마다 한 건 (대상별로 대체 API 시점이 달라 개선상태를 따로 관리). 두 번째부터는 "복사"로 만든다.
 
 개발 오브젝트 입력: `ZI_CMSM_DevObjectVH` — 통합 목록 `ZI_CMSM_DevObject`(`02_interface`, 딕셔너리의 오브젝트 UNION 뷰)에서 As-Is를 뺀 것. 통합 목록의 등록 구분(`SourceTab`): TOBE(매핑 To-Be) / ASIS(매핑 As-Is, 신규 매핑은 없음) / VH / SB / TD(기술부채, 부채마다 한 줄). 매핑 한 건은 TOBE·ASIS 두 줄이고 등록번호가 같다. 시스템 칸은 ASIS면 소스 시스템, 나머지는 타겟·등록 시스템. 기술부채 줄의 '설명'은 비released 대상 이름. 고르면 오브젝트 유형·모듈도 채워진다 (`additionalBinding`). 어디에도 없는 오브젝트는 직접 입력.
 

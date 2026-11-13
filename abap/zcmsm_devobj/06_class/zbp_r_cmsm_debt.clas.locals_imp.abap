@@ -5,6 +5,9 @@
 "!   개선상태 E(예외등록): 부채판단 사유 필수
 "!   개발 오브젝트는 시스템에 있어야 함 (유형별로 확인, FM·RFC·PROXY는 확인 안 함)
 "!   같은 개발 오브젝트 + 같은 비released 대상은 한 번만
+"!
+"! 복사(copyDebt): 같은 개발 오브젝트의 다른 비released 대상을 등록할 때 쓴다.
+"!   비released 대상 이름은 비우고(새로 입력), 개선상태는 개선대상(T)으로 새로 시작, ID는 저장할 때 새로 채번
 CLASS lhc_techdebt DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
@@ -35,6 +38,9 @@ CLASS lhc_techdebt DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     METHODS get_instance_features FOR INSTANCE FEATURES
       IMPORTING keys REQUEST requested_features FOR TechDebt RESULT result.
+
+    METHODS copydebt FOR MODIFY
+      IMPORTING keys FOR ACTION TechDebt~copyDebt.
 
     METHODS setinitialvalues FOR DETERMINE ON MODIFY
       IMPORTING keys FOR TechDebt~setInitialValues.
@@ -88,6 +94,52 @@ CLASS lhc_techdebt IMPLEMENTATION.
                         %field-DebtReason = COND #( WHEN ls_debt-ImproveStatus = gc_improve-exception
                                                     THEN if_abap_behv=>fc-f-mandatory
                                                     ELSE if_abap_behv=>fc-f-unrestricted ) ) ).
+
+  ENDMETHOD.
+
+
+  METHOD copydebt.
+
+    DATA lt_create TYPE TABLE FOR CREATE zr_cmsm_debt.
+
+    READ ENTITIES OF zr_cmsm_debt IN LOCAL MODE
+      ENTITY TechDebt
+        ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_debt)
+      FAILED failed.
+
+    LOOP AT lt_debt INTO DATA(ls_debt).
+
+      DATA(ls_key) = keys[ KEY entity %key = ls_debt-%key ].
+
+      APPEND VALUE #( %cid      = ls_key-%cid
+                      %is_draft = ls_key-%param-%is_draft
+                      %data     = CORRESPONDING #( ls_debt EXCEPT DebtUuid DebtId StdName ImproveStatus
+                                                              CreatedBy CreatedAt LastChangedBy LastChangedAt
+                                                              LocalLastChangedAt ) )
+             TO lt_create ASSIGNING FIELD-SYMBOL(<ls_create>).
+
+      " 새로 찾은 사용처라 개선대상부터
+      <ls_create>-ImproveStatus = gc_improve-target.
+
+    ENDLOOP.
+
+    IF lt_create IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    MODIFY ENTITIES OF zr_cmsm_debt IN LOCAL MODE
+      ENTITY TechDebt
+        CREATE FIELDS ( SapModule DevId ObjType DevObj WrapType StdType SysId
+                        DebtDesc DebtLevel ImproveStatus DebtReason BizOwner )
+        WITH lt_create
+      MAPPED DATA(ls_mapped)
+      FAILED DATA(ls_failed)
+      REPORTED DATA(ls_reported).
+
+    mapped-techdebt = ls_mapped-techdebt.
+    APPEND LINES OF ls_failed-techdebt   TO failed-techdebt.
+    APPEND LINES OF ls_reported-techdebt TO reported-techdebt.
 
   ENDMETHOD.
 

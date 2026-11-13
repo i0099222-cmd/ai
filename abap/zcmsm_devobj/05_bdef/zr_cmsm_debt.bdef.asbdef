@@ -38,6 +38,9 @@ authorization master ( global )
   update;
   delete;
 
+  // 같은 개발 오브젝트의 다른 비released 대상을 등록할 때: 값 복사 → 비released 대상 이름만 새로 입력
+  factory action copyDebt [1];
+
   // 새 부채: 개선상태 = 개선대상(T) / Level이 C가 아니면 래핑 여부 비우기 / 저장할 때 TD- 채번
   determination setInitialValues on modify { create; }
   determination clearWrapType    on modify { field DebtLevel; }

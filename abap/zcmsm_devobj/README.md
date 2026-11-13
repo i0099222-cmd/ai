@@ -228,7 +228,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 - `validateVhName`의 존재 확인도 이 메서드를 쓴다. Search Help 조회를 지우면 Search Help VH는 등록이 막힌다
 
 VH 이름 입력: `ZI_CMSM_SysVhVH` (`01_vh`) 값 도움말
-- `I_CustABAPObjDirectoryEntry`에서 이름에 `VH`가 들어간 고객 DDLS + Search Help(SHLP). 이름 규칙이 다르면 where만 고친다
+- `I_CustABAPObjDirectoryEntry`에서 Z로 시작하고 이름에 `_VH_`가 들어간 DDLS + Search Help(SHLP) (`like 'Z%#_VH#_%' escape '#'`). 이름 규칙이 다르면 where만 고친다
 - 이미 VH 탭에 등록된 건 '등록번호'가 같이 보인다
 - 화면에서는 목록에서 고르고, 업로드 등 화면 밖 입력은 `validateVhName`이 막는다
 

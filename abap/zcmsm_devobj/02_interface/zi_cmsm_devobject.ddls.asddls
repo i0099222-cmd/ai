@@ -1,9 +1,10 @@
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 @EndUserText.label: '등록된 개발 오브젝트'
 @Search.searchable: true
-// 딕셔너리의 '오브젝트 UNION 뷰': 등록 탭 세 개(매핑 To-Be · Value Help · OData 서비스)를 한 목록으로.
+// 딕셔너리의 '오브젝트 UNION 뷰': 매핑 To-Be · Value Help · OData 서비스 · 기술부채의 개발 오브젝트를 한 목록으로.
+// 한 행 = 등록 한 건 (기술부채는 부채마다 한 행이라 같은 오브젝트가 여러 번 나올 수 있다).
 // 기술부채 탭 '개발 오브젝트' 값 도움말로 쓴다 (고르면 유형·모듈도 같이 채워짐).
-// 탭마다 데이터 엘리먼트가 달라서 유형·이름·번호는 같은 기본 타입으로 맞춘다.
+// 탭마다 데이터 엘리먼트가 달라서 유형·이름·번호·설명은 같은 기본 타입으로 맞춘다.
 define view entity ZI_CMSM_DevObject
   as select from ZI_CMSM_Map
 {
@@ -23,7 +24,7 @@ define view entity ZI_CMSM_DevObject
       SapModule,
       @Search.defaultSearchElement: true
       @EndUserText.label: '설명'
-      Description
+      cast( Description as abap.char( 120 ) )   as Description
 }
 union all select from ZI_CMSM_Vh
 {
@@ -33,7 +34,7 @@ union all select from ZI_CMSM_Vh
       cast( 'VH' as abap.char( 10 ) )           as ObjType,
       cast( VhName as abap.char( 80 ) )         as DevObj,
       SapModule,
-      Description
+      cast( Description as abap.char( 120 ) )   as Description
 }
 union all select from ZI_CMSM_Sb
 {
@@ -43,5 +44,16 @@ union all select from ZI_CMSM_Sb
       cast( 'SRVB' as abap.char( 10 ) )         as ObjType,
       cast( SrvbName as abap.char( 80 ) )       as DevObj,
       SapModule,
-      Description
+      cast( Description as abap.char( 120 ) )   as Description
+}
+union all select from ZI_CMSM_Debt
+{
+  key DebtUuid                                  as RegUuid,
+      cast( 'TD' as abap.char( 4 ) )            as RegTab,
+      cast( DebtId as abap.char( 10 ) )         as RegId,
+      cast( ObjType as abap.char( 10 ) )        as ObjType,
+      cast( DevObj as abap.char( 80 ) )         as DevObj,
+      SapModule,
+      // 부채 설명(1333자)은 목록 칸에 안 맞아서 비released 대상 이름을 보여준다
+      cast( StdName as abap.char( 120 ) )       as Description
 }

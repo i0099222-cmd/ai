@@ -286,7 +286,7 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | `validateDevObj` | 저장, Prepare | 개발 오브젝트가 시스템에 있는지 (`I_CustABAPObjDirectoryEntry`). 유형 → CLASS=CLAS, TABLE=TABL, CDS=DDLS, BO=BDEF, ACTION=BDEF(BO 부분만), VH=DDLS/SHLP, SRVB=SRVB, TCODE=TRAN. FM·RFC·PROXY는 확인 안 함 |
 | `validateDuplicate` | 저장, Prepare | 같은 개발 오브젝트 + 같은 비released 대상(유형·이름)이 이미 있으면 에러 |
 
-개발 오브젝트 입력: `ZI_CMSM_DevObject` (`02_interface`, 딕셔너리의 오브젝트 UNION 뷰) — 매핑 To-Be · VH · OData 서비스 등록 건을 한 목록으로. 고르면 오브젝트 유형·모듈도 채워진다 (`additionalBinding`). 등록 안 된 오브젝트는 직접 입력.
+개발 오브젝트 입력: `ZI_CMSM_DevObject` (`02_interface`, 딕셔너리의 오브젝트 UNION 뷰) — 매핑 To-Be · VH · OData 서비스 · 기술부채 등록 건을 한 목록으로 (한 행 = 등록 한 건, 등록 탭 = MAP/VH/SB/TD). 기술부채 행의 '설명'은 비released 대상 이름. 고르면 오브젝트 유형·모듈도 채워진다 (`additionalBinding`). 어디에도 없는 오브젝트는 직접 입력.
 
 ### 만드는 순서
 

@@ -11,6 +11,7 @@ define root view entity ZC_CMSM_Vh
       @Search.defaultSearchElement: true
       VhId,
       @Search.defaultSearchElement: true
+      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_SysVhVH', element: 'VhName' } }]
       VhName,
       @ObjectModel.text.element: [ 'VhImplText' ]
       VhImpl,

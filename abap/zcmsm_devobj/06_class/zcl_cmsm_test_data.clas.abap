@@ -351,6 +351,21 @@ CLASS zcl_cmsm_test_data IMPLEMENTATION.
       ( sbuuid = uuid( ) sbid = 'SB-T005' srvbname = 'ZUI_CMSM_DEVOBJ_O4'   sapmodule = 'CM'
         description = '개발 오브젝트 통합관리 (이 프로그램)' objcreator = '내부 개발팀' ) ).
 
+    " 시스템에 없는 서비스 바인딩은 저장 검증(validateSrvbName)에서 막히므로
+    " 실제로 있는 Z 서비스 바인딩이 있으면 앞에서부터 그 이름으로 바꾼다
+    SELECT abapobject FROM i_custabapobjdirectoryentry
+      WHERE abapobjecttype = 'SRVB'
+        AND abapobject     LIKE 'Z%'
+      ORDER BY abapobject
+      INTO TABLE @DATA(lt_real)
+      UP TO 5 ROWS.
+
+    LOOP AT lt_real INTO DATA(ls_real).
+      DATA(lv_idx) = sy-tabix.
+      lt_sb[ lv_idx ]-srvbname    = ls_real-abapobject.
+      lt_sb[ lv_idx ]-description = |시스템의 실제 서비스 바인딩 (테스트)|.
+    ENDLOOP.
+
     MODIFY lt_sb FROM VALUE ztcmsm00220( sysid              = 'S4D'
                                          ownerid            = mv_user
                                          createdby          = mv_user

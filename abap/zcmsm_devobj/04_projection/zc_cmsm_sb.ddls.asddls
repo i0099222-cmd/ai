@@ -11,6 +11,7 @@ define root view entity ZC_CMSM_Sb
       @Search.defaultSearchElement: true
       SbId,
       @Search.defaultSearchElement: true
+      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_SysSrvbVH', element: 'SrvbName' } }]
       SrvbName,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_SysId', element: 'SysId' } }]
       @ObjectModel.text.element: [ 'SysText' ]

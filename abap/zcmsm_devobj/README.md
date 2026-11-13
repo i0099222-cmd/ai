@@ -238,3 +238,27 @@ VH 이름 입력: `ZI_CMSM_SysVhVH` (`01_vh`) 값 도움말
 2. `ZR_CMSM_Vh` BDEF 교체 → `ZBP_R_CMSM_VH` 로컬 핸들러 교체 (부모·자식 핸들러 둘 다) → 같이 활성화
 3. `ZC_CMSM_Vh` BDEF 교체 (`use side effects;` 추가) → 활성화
 4. `setTestInfo`·`validateTestFile` 트리거에 `TestFile`(RAWSTRING)이 있다. 활성화 에러가 나면 트리거에서 `TestFile`을 빼고 `TestFileName`만 남긴다 (side effects의 `field TestFile`도 같이)
+
+## OData 서비스 트랜잭션
+
+| 이름 | 시점 | 내용 |
+| --- | --- | --- |
+| `setInitialValues` | 생성 | 담당자 = 등록한 사람 |
+| `setTestInfo` | 테스트 파일 올림·삭제 | 올린 사람·일시 채움 / 파일 지우면 비움 |
+| `setSbId` | 저장 (생성) | SB-nnnn 채번 (번호 범위 구간 04) |
+| `validateMandatory` | 저장, Prepare | Service Binding·모듈 필수 |
+| `validateSrvbName` | 저장, Prepare | 같은 시스템 ID·같은 바인딩이 이미 있으면 에러 / 시스템에 없는 바인딩도 에러 (`I_CustABAPObjDirectoryEntry`, 유형 SRVB) |
+| `validateTestFile` | 저장, Prepare | 테스트 파일 10MB 초과 에러 |
+
+Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB 목록, 이미 등록된 건 등록번호 표시.
+
+테스트 데이터: 시스템에 있는 Z 서비스 바인딩을 앞에서부터 최대 5개 골라 SB-T001~ 이름으로 쓴다 (모자라면 나머지는 예시 이름 — 그 행은 수정 후 저장하면 존재 검증에 걸린다).
+
+### 만드는 순서
+
+1. 번호 범위 `ZCMSM_DOID` 구간 `04` 확인
+2. `ZI_CMSM_SysSrvbVH` (`01_vh`) 새로 만들고 활성화
+3. `ZC_CMSM_Sb` (`04_projection`) — Service Binding VH 한 줄 추가
+4. `ZR_CMSM_Sb` BDEF 교체 → `ZBP_R_CMSM_SB` 로컬 핸들러 교체 → 같이 활성화
+5. `ZC_CMSM_Sb` BDEF 교체 (`use side effects;` 추가) → 활성화
+6. (선택) `ZCL_CMSM_TEST_DATA` 교체 후 F9

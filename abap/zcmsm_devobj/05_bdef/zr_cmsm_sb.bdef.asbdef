@@ -9,6 +9,7 @@ etag master LocalLastChangedAt
 lock master total etag LastChangedAt
 authorization master ( global )
 {
+  // 올린 사람·올린 일시는 자동
   field ( readonly )
       SbUuid,
       SbId,
@@ -31,11 +32,31 @@ authorization master ( global )
   update;
   delete;
 
+  // 새 서비스: 담당자 = 등록한 사람 / 파일 올리면 올린 사람·일시 / 저장할 때 SB- 채번
+  determination setInitialValues on modify { create; }
+  determination setTestInfo      on modify { field TestFile, TestFileName; }
+  determination setSbId          on save   { create; }
+
+  validation validateMandatory on save { create; field SrvbName, SapModule; }
+  validation validateSrvbName  on save { create; field SrvbName, SysId; }
+  validation validateTestFile  on save { field TestFile, TestFileName; }
+
+  // 자동으로 채운 값이 화면에 바로 보이게
+  side effects
+  {
+    field TestFile affects field TestBy, field TestAt;
+  }
+
   draft action Edit;
   draft action Activate optimized;
   draft action Discard;
   draft action Resume;
-  draft determine action Prepare;
+  draft determine action Prepare
+  {
+    validation validateMandatory;
+    validation validateSrvbName;
+    validation validateTestFile;
+  }
 
   mapping for ztcmsm00220 corresponding;
 }

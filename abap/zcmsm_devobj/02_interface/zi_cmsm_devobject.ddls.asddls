@@ -9,11 +9,11 @@ define view entity ZI_CMSM_DevObject
   as select from ZI_CMSM_Map
 {
       @EndUserText.label: '등록 UUID'
-  key MapUuid                                   as RegUuid,
+  key MapUuid                                   as SourceUuid,
       @EndUserText.label: '등록 탭'
-      cast( 'MAP' as abap.char( 4 ) )           as RegTab,
+      cast( 'MAP' as abap.char( 4 ) )           as SourceTab,
       @EndUserText.label: '등록번호'
-      cast( MapId as abap.char( 10 ) )          as RegId,
+      cast( MapId as abap.char( 10 ) )          as SourceId,
       @EndUserText.label: '오브젝트 유형'
       cast( TobeType as abap.char( 10 ) )       as ObjType,
       @Search.defaultSearchElement: true
@@ -28,9 +28,9 @@ define view entity ZI_CMSM_DevObject
 }
 union all select from ZI_CMSM_Vh
 {
-  key VhUuid                                    as RegUuid,
-      cast( 'VH' as abap.char( 4 ) )            as RegTab,
-      cast( VhId as abap.char( 10 ) )           as RegId,
+  key VhUuid                                    as SourceUuid,
+      cast( 'VH' as abap.char( 4 ) )            as SourceTab,
+      cast( VhId as abap.char( 10 ) )           as SourceId,
       cast( 'VH' as abap.char( 10 ) )           as ObjType,
       cast( VhName as abap.char( 80 ) )         as DevObj,
       SapModule,
@@ -38,9 +38,9 @@ union all select from ZI_CMSM_Vh
 }
 union all select from ZI_CMSM_Sb
 {
-  key SbUuid                                    as RegUuid,
-      cast( 'SB' as abap.char( 4 ) )            as RegTab,
-      cast( SbId as abap.char( 10 ) )           as RegId,
+  key SbUuid                                    as SourceUuid,
+      cast( 'SB' as abap.char( 4 ) )            as SourceTab,
+      cast( SbId as abap.char( 10 ) )           as SourceId,
       cast( 'SRVB' as abap.char( 10 ) )         as ObjType,
       cast( SrvbName as abap.char( 80 ) )       as DevObj,
       SapModule,
@@ -48,9 +48,9 @@ union all select from ZI_CMSM_Sb
 }
 union all select from ZI_CMSM_Debt
 {
-  key DebtUuid                                  as RegUuid,
-      cast( 'TD' as abap.char( 4 ) )            as RegTab,
-      cast( DebtId as abap.char( 10 ) )         as RegId,
+  key DebtUuid                                  as SourceUuid,
+      cast( 'TD' as abap.char( 4 ) )            as SourceTab,
+      cast( DebtId as abap.char( 10 ) )         as SourceId,
       cast( ObjType as abap.char( 10 ) )        as ObjType,
       cast( DevObj as abap.char( 80 ) )         as DevObj,
       SapModule,

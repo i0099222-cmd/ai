@@ -386,35 +386,36 @@ CLASS zcl_cmsm_test_data IMPLEMENTATION.
 
     DATA lt_debt TYPE STANDARD TABLE OF ztcmsm00230 WITH EMPTY KEY.
 
-    " Debt Level C = 비released 사용 / D = 표준 수정·금지
+    " 개발 오브젝트는 시스템에 있어야 저장 검증(validateDevObj)을 통과해서 이 프로그램의 오브젝트를 쓴다
+    " Debt Level C = 비released 사용 / D = 표준 수정·금지 (D면 래핑 여부 비움)
     " 개선상태 T 개선대상 / P 개선중 / C 개선완료 / E 예외등록
     lt_debt = VALUE #(
       ( debtuuid = uuid( ) debtid = 'TD-T01' sapmodule = 'SD' devid = 'SD-I-001'
-        objtype  = 'CLASS'  devobj = 'ZCL_SD_ORDER_WRAPPER'      wraptype = 'W'
+        objtype  = 'CLASS'  devobj = 'ZCL_CMSM_DISPLAY_ID'       wraptype = 'W'
         stdtype  = 'FM'     stdname = 'BAPI_SALESORDER_CREATEFROMDAT2'
         debtlevel = 'C' improvestatus = 'T'
         debtdesc   = '비released BAPI를 래퍼 클래스에서 호출'
         debtreason = 'released API(I_SalesOrderTP) 전환 전까지 래퍼로 격리' )
       ( debtuuid = uuid( ) debtid = 'TD-T02' sapmodule = 'FI' devid = 'FI-R-003'
-        objtype  = 'CLASS'  devobj = 'ZCL_FI_POST_DOCUMENT'      wraptype = 'D'
+        objtype  = 'CLASS'  devobj = 'ZCL_CMSM_TEST_DATA'        wraptype = 'D'
         stdtype  = 'TABLE'  stdname = 'BSEG'
         debtlevel = 'C' improvestatus = 'P'
         debtdesc   = 'BSEG 직접 조회'
         debtreason = 'I_JournalEntryItem으로 전환 진행 중' )
       ( debtuuid = uuid( ) debtid = 'TD-T03' sapmodule = 'MM' devid = 'MM-E-002'
-        objtype  = 'ACTION' devobj = 'ZR_MM_PURCHASEREQ.RELEASE' wraptype = 'D'
+        objtype  = 'ACTION' devobj = 'ZR_CMSM_REQ.ACCEPTREQUEST' wraptype = 'D'
         stdtype  = 'FM'     stdname = 'BAPI_REQUISITION_RELEASE'
         debtlevel = 'C' improvestatus = 'T'
         debtdesc   = '구매요청 승인 BAPI 직접 호출'
         debtreason = 'released 대체 API 확인 필요' )
       ( debtuuid = uuid( ) debtid = 'TD-T04' sapmodule = 'SD' devid = 'SD-E-005'
-        objtype  = 'CLASS'  devobj = 'ZCL_SD_USEREXIT_HANDLER'   wraptype = 'D'
+        objtype  = 'CLASS'  devobj = 'ZBP_R_CMSM_REQ'            wraptype = ''
         stdtype  = 'ETC'    stdname = 'MV45AFZZ'
         debtlevel = 'D' improvestatus = 'E'
         debtdesc   = '판매오더 User Exit 수정'
         debtreason = '대체 BAdI 없음. PMO 예외 승인' )
       ( debtuuid = uuid( ) debtid = 'TD-T05' sapmodule = 'CO' devid = 'CO-R-002'
-        objtype  = 'CDS'    devobj = 'ZI_CO_COSTREPORT'          wraptype = 'D'
+        objtype  = 'CDS'    devobj = 'ZI_CMSM_REQ'               wraptype = 'D'
         stdtype  = 'TABLE'  stdname = 'COEP'
         debtlevel = 'C' improvestatus = 'C'
         debtdesc   = 'COEP 직접 조회'

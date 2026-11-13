@@ -22,19 +22,49 @@ authorization master ( global )
       DebtUuid;
 
   field ( mandatory )
+      SapModule,
+      ObjType,
       DevObj,
-      DebtLevel,
-      SapModule;
+      StdType,
+      StdName,
+      DebtLevel;
+
+  // Debt Level C(비released 사용)일 때만 래핑 여부 / 개선상태 예외등록(E)이면 부채판단 사유 필수
+  field ( features : instance )
+      WrapType,
+      DebtReason;
 
   create;
   update;
   delete;
 
+  // 새 부채: 개선상태 = 개선대상(T) / Level이 C가 아니면 래핑 여부 비우기 / 저장할 때 TD- 채번
+  determination setInitialValues on modify { create; }
+  determination clearWrapType    on modify { field DebtLevel; }
+  determination setDebtId        on save   { create; }
+
+  validation validateMandatory on save { create; field SapModule, ObjType, DevObj, StdType, StdName, DebtLevel,
+                                                       WrapType, ImproveStatus, DebtReason; }
+  validation validateDevObj    on save { create; field ObjType, DevObj; }
+  validation validateDuplicate on save { create; field DevObj, StdType, StdName; }
+
+  // 조건 필드를 바꾸면 바로 반영: field = 비워진 값, permissions = 잠금·필수
+  side effects
+  {
+    field DebtLevel     affects field WrapType, permissions ( field WrapType );
+    field ImproveStatus affects permissions ( field DebtReason );
+  }
+
   draft action Edit;
   draft action Activate optimized;
   draft action Discard;
   draft action Resume;
-  draft determine action Prepare;
+  draft determine action Prepare
+  {
+    validation validateMandatory;
+    validation validateDevObj;
+    validation validateDuplicate;
+  }
 
   mapping for ztcmsm00230 corresponding;
 }

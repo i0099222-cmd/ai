@@ -53,7 +53,7 @@ ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔Vh
 - 권한 → 지금은 전부 `#NOT_REQUIRED`. DCL 만들 때 C 뷰를 `#CHECK`로
 - 액션, determination, validation (표시 번호 채번, 기본값, 상태 변경, 이력 기록 등)
 - 서비스 바인딩 (ADT에서 `ZUI_CMSM_DEVOBJ` 우클릭 → OData V4 - UI)
-- UNION 오브젝트 뷰, 기술부채 여부 뷰, SB 기능 목록 custom entity
+- 기술부채 여부 뷰, SB 기능 목록 custom entity (UNION 오브젝트 뷰는 `ZI_CMSM_DevObject`로 완료)
 - `ZDO_SYSID` 유지보수 → 비즈니스 설정 유지보수 오브젝트 생성기를 쓰면 CDS·BDEF가 따로 생긴다
 
 ## BDEF
@@ -262,3 +262,37 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 4. `ZR_CMSM_Sb` BDEF 교체 → `ZBP_R_CMSM_SB` 로컬 핸들러 교체 → 같이 활성화
 5. `ZC_CMSM_Sb` BDEF 교체 (`use side effects;` 추가) → 활성화
 6. (선택) `ZCL_CMSM_TEST_DATA` 교체 후 F9
+
+## 기술부채 트랜잭션
+
+### 입력 규칙
+
+| 조건 | 열리는 칸 (필수 = *) | 잠기고 비워지는 칸 |
+| --- | --- | --- |
+| Debt Level = C (비released 사용) | 래핑 여부* | |
+| Debt Level = D (표준 수정·금지) | | 래핑 여부 |
+| 개선상태 = E (예외등록) | 부채판단 사유* | |
+
+항상 필수: 모듈, 오브젝트 유형, 개발 오브젝트, 비released 대상 유형, 비released 대상, Debt Level.
+
+### 자동 처리·검증
+
+| 이름 | 시점 | 내용 |
+| --- | --- | --- |
+| `setInitialValues` | 생성 | 개선상태 = 개선대상(T) |
+| `clearWrapType` | Debt Level 변경 | C가 아니면 래핑 여부 비움 (side effects로 바로 반영) |
+| `setDebtId` | 저장 (생성) | TD-nnn 채번 (번호 범위 구간 05) |
+| `validateMandatory` | 저장, Prepare | 위 필수 + 조건부 필수 |
+| `validateDevObj` | 저장, Prepare | 개발 오브젝트가 시스템에 있는지 (`I_CustABAPObjDirectoryEntry`). 유형 → CLASS=CLAS, TABLE=TABL, CDS=DDLS, BO=BDEF, ACTION=BDEF(BO 부분만), VH=DDLS/SHLP, SRVB=SRVB, TCODE=TRAN. FM·RFC·PROXY는 확인 안 함 |
+| `validateDuplicate` | 저장, Prepare | 같은 개발 오브젝트 + 같은 비released 대상(유형·이름)이 이미 있으면 에러 |
+
+개발 오브젝트 입력: `ZI_CMSM_DevObject` (`02_interface`, 딕셔너리의 오브젝트 UNION 뷰) — 매핑 To-Be · VH · OData 서비스 등록 건을 한 목록으로. 고르면 오브젝트 유형·모듈도 채워진다 (`additionalBinding`). 등록 안 된 오브젝트는 직접 입력.
+
+### 만드는 순서
+
+1. 번호 범위 `ZCMSM_DOID` 구간 `05` 확인 (1–999)
+2. `ZI_CMSM_DevObject` (`02_interface`) 새로 만들고 활성화
+3. `ZC_CMSM_Debt` (`04_projection`) — 개발 오브젝트 VH 추가
+4. `ZR_CMSM_Debt` BDEF 교체 → `ZBP_R_CMSM_DEBT` 로컬 핸들러 교체 → 같이 활성화
+5. `ZC_CMSM_Debt` BDEF 교체 (`use side effects;` 추가) → 활성화
+6. (선택) `ZCL_CMSM_TEST_DATA` 교체 후 F9 — 기술부채 개발 오브젝트를 이 프로그램의 실제 오브젝트로 바꿈

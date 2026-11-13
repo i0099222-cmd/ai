@@ -7,4 +7,5 @@ define service ZUI_CMSM_DEVOBJ {
   expose ZC_CMSM_VhSrc   as ValueHelpSource;
   expose ZC_CMSM_Sb      as ODataService;
   expose ZC_CMSM_Debt    as TechDebt;
+  expose ZC_CMSM_DevObject as DevObject;
 }

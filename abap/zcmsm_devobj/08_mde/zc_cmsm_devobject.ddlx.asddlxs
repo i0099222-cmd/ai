@@ -1,0 +1,71 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: '오브젝트',
+    typeNamePlural: '통합 조회',
+    title:       { type: #STANDARD, value: 'DevObj' },
+    description: { type: #STANDARD, value: 'Description' }
+  },
+  presentationVariant: [
+    { sortOrder: [{ by: 'DevObj', direction: #ASC }, { by: 'SourceTab', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] },
+    { qualifier: 'Tab', sortOrder: [{ by: 'DevObj', direction: #ASC }, { by: 'SourceTab', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] }
+  ],
+  selectionVariant: [{ qualifier: 'Tab', text: '통합 조회' }],
+  selectionPresentationVariant: [{ qualifier: 'Tab', text: '통합 조회',
+                                   presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
+}
+// 정렬: 오브젝트 이름순 → 같은 이름이면 To-Be·TD·SB·VH 다음 As-Is (구분 내림차순)
+// 행을 눌러도 상세 화면은 없다 (읽기 전용 목록)
+annotate entity ZC_CMSM_DevObject with
+{
+  @UI.hidden: true
+  SourceUuid;
+
+  @UI: {
+    lineItem:       [{ position: 10, importance: #HIGH }],
+    selectionField: [{ position: 10 }],
+    textArrangement: #TEXT_ONLY
+  }
+  SourceTab;
+
+  @UI.hidden: true
+  SourceTabText;
+
+  @UI.lineItem: [{ position: 20, importance: #HIGH }]
+  SourceId;
+
+  @UI: {
+    lineItem:       [{ position: 50 }],
+    selectionField: [{ position: 40 }]
+  }
+  SysId;
+
+  @UI.hidden: true
+  SysText;
+
+  @UI: {
+    lineItem:       [{ position: 40 }],
+    selectionField: [{ position: 30 }],
+    textArrangement: #TEXT_ONLY
+  }
+  ObjType;
+
+  @UI.hidden: true
+  ObjTypeText;
+
+  @UI.lineItem: [{ position: 30, importance: #HIGH }]
+  DevObj;
+
+  @UI: {
+    lineItem:       [{ position: 60 }],
+    selectionField: [{ position: 20 }],
+    textArrangement: #TEXT_ONLY
+  }
+  SapModule;
+
+  @UI.hidden: true
+  SapModuleText;
+
+  @UI.lineItem: [{ position: 70 }]
+  Description;
+}

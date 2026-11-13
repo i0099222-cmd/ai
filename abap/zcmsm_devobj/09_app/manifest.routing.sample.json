@@ -97,6 +97,11 @@
                     "key": "debt",
                     "entitySet": "TechDebt",
                     "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab"
+                  },
+                  {
+                    "key": "all",
+                    "entitySet": "DevObject",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#Tab"
                   }
                 ],
                 "showCounts": true

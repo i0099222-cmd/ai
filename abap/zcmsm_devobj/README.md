@@ -298,3 +298,15 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 4. `ZR_CMSM_Debt` BDEF 교체 → `ZBP_R_CMSM_DEBT` 로컬 핸들러 교체 → 같이 활성화
 5. `ZC_CMSM_Debt` BDEF 교체 (`use side effects;` 추가) → 활성화
 6. (선택) `ZCL_CMSM_TEST_DATA` 교체 후 F9 — 기술부채 개발 오브젝트를 이 프로그램의 실제 오브젝트로 바꿈
+
+## 통합 조회 탭
+
+| 오브젝트 | 내용 |
+| --- | --- |
+| `ZI_CMSM_SourceTabVH` (`02_interface`) | 등록 구분 텍스트·드롭다운 (TOBE 매핑 To-Be / ASIS 매핑 As-Is / VH / SB OData 서비스 / TD 기술부채). 데이터가 있는 구분만 |
+| `ZC_CMSM_DevObject` (`04_projection`) | `ZI_CMSM_DevObject` 위 읽기 전용 C 뷰. 모듈·유형·시스템·등록 구분 텍스트, 검색(등록번호·개발 오브젝트·설명) |
+| `ZC_CMSM_DevObject` MDE (`08_mde`) | 목록: 등록 구분, 등록번호, 개발 오브젝트, 유형, 시스템, 모듈, 설명 / 필터: 등록 구분, 모듈, 유형, 시스템 / 정렬: 오브젝트 이름 → 구분 / 탭 variant `#Tab` "통합 조회" |
+| 서비스 정의 | `expose ZC_CMSM_DevObject as DevObject;` 추가 |
+| manifest | `views.paths`에 `{ "key": "all", "entitySet": "DevObject", … }` 추가. 상세 화면 없음 (navigation 없음 → 행 클릭 안 됨) |
+
+저장된 건만 나온다 (UNION 뷰가 활성 테이블을 읽음). 편집 중인 드래프트는 저장 후 보인다.

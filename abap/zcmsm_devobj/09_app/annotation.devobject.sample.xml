@@ -1,0 +1,51 @@
+<!--
+  통합 조회 상세 화면: 행마다 해당 없는 섹션 숨기기
+  webapp/annotations/annotation.xml 의 <Schema ...> 안에 아래 <Annotations> 블록을 추가한다.
+
+  - Target 의 네임스페이스는 이 앱 서비스의 네임스페이스로 맞춘다.
+    annotation.xml 위쪽 <edmx:Include Namespace="..."> 값 또는 $metadata 의 <Schema Namespace="..."> 값
+    (RAP V4 기본 형태: com.sap.gateway.srvd.zui_cmsm_devobj.v0001)
+  - 이 블록이 백엔드(MDE)의 섹션 정의(UI.Facets)를 통째로 대신한다. 섹션을 바꾸면 MDE와 여기 둘 다 고친다.
+  - 헤더(UI.HeaderFacets)와 필드 그룹은 MDE 것을 그대로 쓴다.
+  - 숨김 플래그(MapHidden 등)는 ZC_CMSM_DevObject 에서 CASE 로 계산한 값 (X = 숨김).
+-->
+<Annotations Target="com.sap.gateway.srvd.zui_cmsm_devobj.v0001.DevObjectType">
+  <Annotation Term="com.sap.vocabularies.UI.v1.Facets">
+    <Collection>
+      <Record Type="com.sap.vocabularies.UI.v1.ReferenceFacet">
+        <PropertyValue Property="ID" String="General"/>
+        <PropertyValue Property="Label" String="기본 정보"/>
+        <PropertyValue Property="Target" AnnotationPath="@com.sap.vocabularies.UI.v1.FieldGroup#General"/>
+      </Record>
+      <Record Type="com.sap.vocabularies.UI.v1.ReferenceFacet">
+        <PropertyValue Property="ID" String="Map"/>
+        <PropertyValue Property="Label" String="매핑"/>
+        <PropertyValue Property="Target" AnnotationPath="@com.sap.vocabularies.UI.v1.FieldGroup#Map"/>
+        <Annotation Term="com.sap.vocabularies.UI.v1.Hidden" Path="MapHidden"/>
+      </Record>
+      <Record Type="com.sap.vocabularies.UI.v1.ReferenceFacet">
+        <PropertyValue Property="ID" String="Ui"/>
+        <PropertyValue Property="Label" String="UI"/>
+        <PropertyValue Property="Target" AnnotationPath="@com.sap.vocabularies.UI.v1.FieldGroup#Ui"/>
+        <Annotation Term="com.sap.vocabularies.UI.v1.Hidden" Path="UiHidden"/>
+      </Record>
+      <Record Type="com.sap.vocabularies.UI.v1.ReferenceFacet">
+        <PropertyValue Property="ID" String="Test"/>
+        <PropertyValue Property="Label" String="테스트"/>
+        <PropertyValue Property="Target" AnnotationPath="@com.sap.vocabularies.UI.v1.FieldGroup#Test"/>
+        <Annotation Term="com.sap.vocabularies.UI.v1.Hidden" Path="TestHidden"/>
+      </Record>
+      <Record Type="com.sap.vocabularies.UI.v1.ReferenceFacet">
+        <PropertyValue Property="ID" String="Debt"/>
+        <PropertyValue Property="Label" String="기술부채"/>
+        <PropertyValue Property="Target" AnnotationPath="@com.sap.vocabularies.UI.v1.FieldGroup#Debt"/>
+        <Annotation Term="com.sap.vocabularies.UI.v1.Hidden" Path="DebtHidden"/>
+      </Record>
+      <Record Type="com.sap.vocabularies.UI.v1.ReferenceFacet">
+        <PropertyValue Property="ID" String="Admin"/>
+        <PropertyValue Property="Label" String="관리 정보"/>
+        <PropertyValue Property="Target" AnnotationPath="@com.sap.vocabularies.UI.v1.FieldGroup#Admin"/>
+      </Record>
+    </Collection>
+  </Annotation>
+</Annotations>

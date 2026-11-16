@@ -14,16 +14,27 @@
   selectionPresentationVariant: [{ qualifier: 'Tab', text: '통합 조회',
                                    presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
 }
-// 정렬: 오브젝트 이름순 → 같은 이름이면 To-Be·TD·SB·VH 다음 As-Is (구분 내림차순)
-// 행을 눌러도 상세 화면은 없다 (읽기 전용 목록)
+// 목록 정렬: 오브젝트 이름순 → 같은 이름이면 To-Be·TD·SB·VH 다음 As-Is (구분 내림차순)
+// 상세 화면(읽기 전용) 섹션: 기본 정보 · 매핑 · UI · 테스트 · 기술부채 · 관리 정보
+//   행마다 해당 없는 섹션은 앱 annotation.xml 에서 …Hidden 필드로 숨긴다 (없으면 전부 보임)
 annotate entity ZC_CMSM_DevObject with
 {
+  @UI.facet: [
+    { id: 'Header',  purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
+    { id: 'General', type: #FIELDGROUP_REFERENCE, label: '기본 정보', targetQualifier: 'General', position: 10 },
+    { id: 'Map',     type: #FIELDGROUP_REFERENCE, label: '매핑',      targetQualifier: 'Map',     position: 20 },
+    { id: 'Ui',      type: #FIELDGROUP_REFERENCE, label: 'UI',        targetQualifier: 'Ui',      position: 30 },
+    { id: 'Test',    type: #FIELDGROUP_REFERENCE, label: '테스트',    targetQualifier: 'Test',    position: 40 },
+    { id: 'Debt',    type: #FIELDGROUP_REFERENCE, label: '기술부채',  targetQualifier: 'Debt',    position: 50 },
+    { id: 'Admin',   type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin',   position: 60 }
+  ]
   @UI.hidden: true
   SourceUuid;
 
   @UI: {
     lineItem:       [{ position: 10, importance: #HIGH }],
     selectionField: [{ position: 10 }],
+    fieldGroup:     [{ qualifier: 'Header', position: 10 }],
     textArrangement: #TEXT_ONLY
   }
   SourceTab;
@@ -31,12 +42,16 @@ annotate entity ZC_CMSM_DevObject with
   @UI.hidden: true
   SourceTabText;
 
-  @UI.lineItem: [{ position: 20, importance: #HIGH }]
+  @UI: {
+    lineItem:       [{ position: 20, importance: #HIGH }],
+    fieldGroup:     [{ qualifier: 'Header', position: 20 }]
+  }
   SourceId;
 
   @UI: {
     lineItem:       [{ position: 50 }],
-    selectionField: [{ position: 40 }]
+    selectionField: [{ position: 40 }],
+    fieldGroup:     [{ qualifier: 'General', position: 30 }]
   }
   SysId;
 
@@ -46,6 +61,7 @@ annotate entity ZC_CMSM_DevObject with
   @UI: {
     lineItem:       [{ position: 40 }],
     selectionField: [{ position: 30 }],
+    fieldGroup:     [{ qualifier: 'General', position: 20 }],
     textArrangement: #TEXT_ONLY
   }
   ObjType;
@@ -53,12 +69,16 @@ annotate entity ZC_CMSM_DevObject with
   @UI.hidden: true
   ObjTypeText;
 
-  @UI.lineItem: [{ position: 30, importance: #HIGH }]
+  @UI: {
+    lineItem:       [{ position: 30, importance: #HIGH }],
+    fieldGroup:     [{ qualifier: 'General', position: 10 }]
+  }
   DevObj;
 
   @UI: {
     lineItem:       [{ position: 60 }],
     selectionField: [{ position: 20 }],
+    fieldGroup:     [{ qualifier: 'Header', position: 30 }],
     textArrangement: #TEXT_ONLY
   }
   SapModule;
@@ -66,6 +86,139 @@ annotate entity ZC_CMSM_DevObject with
   @UI.hidden: true
   SapModuleText;
 
-  @UI.lineItem: [{ position: 70 }]
+  @UI: {
+    lineItem:       [{ position: 70 }],
+    fieldGroup:     [{ qualifier: 'General', position: 40 }]
+  }
   Description;
+
+  /* 공통 */
+  @UI.fieldGroup: [{ qualifier: 'General', position: 50 }]
+  OwnerId;
+
+  @UI.hidden: true
+  OwnerName;
+
+  @UI.fieldGroup: [{ qualifier: 'General', position: 60 }]
+  ObjCreator;
+
+  @UI.fieldGroup: [{ qualifier: 'General', position: 70 }]
+  ReqId;
+
+  @UI.hidden: true
+  ReqTitle;
+
+  /* 매핑 */
+  @UI: { fieldGroup: [{ qualifier: 'Map', position: 10 }], textArrangement: #TEXT_ONLY }
+  MapKind;
+
+  @UI.hidden: true
+  MapKindText;
+
+  @UI.fieldGroup: [{ qualifier: 'Map', position: 20 }]
+  AsisSysId;
+
+  @UI: { fieldGroup: [{ qualifier: 'Map', position: 30 }], textArrangement: #TEXT_ONLY }
+  AsisType;
+
+  @UI.hidden: true
+  AsisTypeText;
+
+  @UI.fieldGroup: [{ qualifier: 'Map', position: 40 }]
+  AsisName;
+
+  @UI.fieldGroup: [{ qualifier: 'Map', position: 50 }]
+  TobeSysId;
+
+  @UI: { fieldGroup: [{ qualifier: 'Map', position: 60 }], textArrangement: #TEXT_ONLY }
+  TobeType;
+
+  @UI.hidden: true
+  TobeTypeText;
+
+  @UI.fieldGroup: [{ qualifier: 'Map', position: 70 }]
+  TobeName;
+
+  /* UI (To-Be가 T-code인 매핑) */
+  @UI: { fieldGroup: [{ qualifier: 'Ui', position: 10 }], textArrangement: #TEXT_ONLY }
+  UiKind;
+
+  @UI.hidden: true
+  UiKindText;
+
+  @UI.fieldGroup: [{ qualifier: 'Ui', position: 20 }]
+  FioriAppId;
+
+  @UI.fieldGroup: [{ qualifier: 'Ui', position: 30 }]
+  SemObjAction;
+
+  @UI.fieldGroup: [{ qualifier: 'Ui', position: 40 }]
+  ReactApp;
+
+  @UI.fieldGroup: [{ qualifier: 'Ui', position: 50 }]
+  UiUri;
+
+  /* 테스트 (VH·OData 서비스) */
+  @UI.fieldGroup: [{ qualifier: 'Test', position: 10 }]
+  TestFileName;
+
+  @UI.fieldGroup: [{ qualifier: 'Test', position: 20 }]
+  TestBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Test', position: 30 }]
+  TestAt;
+
+  /* 기술부채 */
+  @UI.fieldGroup: [{ qualifier: 'Debt', position: 10 }]
+  DevId;
+
+  @UI: { fieldGroup: [{ qualifier: 'Debt', position: 20 }], textArrangement: #TEXT_ONLY }
+  DebtLevel;
+
+  @UI.hidden: true
+  DebtLevelText;
+
+  @UI: { fieldGroup: [{ qualifier: 'Debt', position: 30 }], textArrangement: #TEXT_ONLY }
+  ImproveStatus;
+
+  @UI.hidden: true
+  ImproveStatusText;
+
+  @UI: { fieldGroup: [{ qualifier: 'Debt', position: 40 }], textArrangement: #TEXT_ONLY }
+  WrapType;
+
+  @UI.hidden: true
+  WrapTypeText;
+
+  @UI: { fieldGroup: [{ qualifier: 'Debt', position: 50 }], multiLineText: true }
+  DebtDesc;
+
+  @UI: { fieldGroup: [{ qualifier: 'Debt', position: 60 }], multiLineText: true }
+  DebtReason;
+
+  /* 관리 정보 */
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 10 }]
+  CreatedBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 20 }]
+  CreatedAt;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 30 }]
+  LastChangedBy;
+
+  @UI.fieldGroup: [{ qualifier: 'Admin', position: 40 }]
+  LastChangedAt;
+
+  /* 섹션 숨김 플래그: 화면에는 안 보임 */
+  @UI.hidden: true
+  MapHidden;
+
+  @UI.hidden: true
+  UiHidden;
+
+  @UI.hidden: true
+  TestHidden;
+
+  @UI.hidden: true
+  DebtHidden;
 }

@@ -307,6 +307,14 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | `ZC_CMSM_DevObject` (`04_projection`) | `ZI_CMSM_DevObject` 위 읽기 전용 C 뷰. 모듈·유형·시스템·등록 구분 텍스트, 검색(등록번호·개발 오브젝트·설명) |
 | `ZC_CMSM_DevObject` MDE (`08_mde`) | 목록: 등록 구분, 등록번호, 개발 오브젝트, 유형, 시스템, 모듈, 설명 / 필터: 등록 구분, 모듈, 유형, 시스템 / 정렬: 오브젝트 이름 → 구분 / 탭 variant `#Tab` "통합 조회" |
 | 서비스 정의 | `expose ZC_CMSM_DevObject as DevObject;` 추가 |
-| manifest | `views.paths`에 `{ "key": "all", "entitySet": "DevObject", … }` 추가. 상세 화면 없음 (navigation 없음 → 행 클릭 안 됨) |
+| manifest | `views.paths`에 `{ "key": "all", "entitySet": "DevObject", … }` + `navigation.DevObject` + 상세 route `DevObjectObjectPage` |
 
 저장된 건만 나온다 (UNION 뷰가 활성 테이블을 읽음). 편집 중인 드래프트는 저장 후 보인다.
+
+### 통합 조회 상세 화면 (읽기 전용)
+
+- UNION 뷰에 공통 컬럼 추가: 담당자(기술부채는 업무담당자), 오브젝트 생성자, 요청번호, 등록자·등록 일시·최종 변경자·최종 변경 일시
+- `ZC_CMSM_DevObject`가 원본 탭 I 뷰에 `[0..1]` 연관 (`_Map` / `_Vh` / `_Sb` / `_Debt`, `SourceUuid` 기준)을 걸고 상세 필드를 경로 필드로 꺼낸다. TOBE·ASIS는 둘 다 `_Map`
+- 섹션: 기본 정보 · 매핑 · UI · 테스트 · 기술부채 · 관리 정보 (MDE)
+- 행마다 해당 없는 섹션 숨김: C 뷰에서 `CASE`로 `MapHidden` / `UiHidden`(T-code 매핑만) / `TestHidden`(VH·SB) / `DebtHidden`(TD) 계산 → 앱 `annotation.xml`의 `UI.Facets`에서 섹션마다 `UI.Hidden Path`로 연결 (`09_app/annotation.devobject.sample.xml`). 이 XML이 백엔드 섹션 정의를 대신하므로 섹션을 바꾸면 MDE와 XML 둘 다 고친다. XML이 없으면 섹션이 전부 보일 뿐 화면은 동작
+- 고치는 건 원래 탭에서 (이 화면은 Edit 없음)

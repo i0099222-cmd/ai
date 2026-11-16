@@ -32,6 +32,11 @@
           "pattern": "TechDebt({key}):?query:",
           "name": "TechDebtObjectPage",
           "target": "TechDebtObjectPage"
+        },
+        {
+          "pattern": "DevObject({key}):?query:",
+          "name": "DevObjectObjectPage",
+          "target": "DevObjectObjectPage"
         }
       ],
       "targets": {
@@ -68,6 +73,11 @@
                 "TechDebt": {
                   "detail": {
                     "route": "TechDebtObjectPage"
+                  }
+                },
+                "DevObject": {
+                  "detail": {
+                    "route": "DevObjectObjectPage"
                   }
                 }
               },
@@ -170,6 +180,17 @@
           "options": {
             "settings": {
               "contextPath": "/TechDebt",
+              "editableHeaderContent": false
+            }
+          }
+        },
+        "DevObjectObjectPage": {
+          "type": "Component",
+          "id": "DevObjectObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "contextPath": "/DevObject",
               "editableHeaderContent": false
             }
           }

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body  { font-family: 'Malgun Gothic', sans-serif; font-size: 13px; color: #222; }
+    table { border-collapse: collapse; margin: 8px 0 12px; }
+    th, td { border: 1px solid #ccc; padding: 5px 10px; text-align: left; vertical-align: top; }
+    th    { background: #f4f6f8; width: 90px; font-weight: normal; color: #555; }
+    .text { white-space: pre-wrap; border: 1px solid #ccc; padding: 8px 10px; background: #fafafa; }
+    .btn  { display: inline-block; margin-top: 12px; padding: 7px 16px; background: #0a6ed1;
+            color: #fff !important; text-decoration: none; border-radius: 4px; }
+    .foot { color: #888; font-size: 12px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  {{! 개발 요청 생성 → 담당자 알림. SMW0 > 바이너리 데이터에 ZCMSM_REQ_CREATED_MAIL 로 UTF-8 업로드 }}
+  <p>{{ASSIGNEENAME}}님, 새 개발 요청이 등록되었습니다.</p>
+
+  <table>
+    <tr><th>요청번호</th><td><b>{{REQID}}</b></td></tr>
+    <tr><th>제목</th><td>{{TITLE}}</td></tr>
+    <tr><th>모듈</th><td>{{SAPMODULE}}</td></tr>
+    <tr><th>요청자</th><td>{{REQUESTERNAME}}</td></tr>
+    <tr><th>요청 일시</th><td>{{CREATEDAT}}</td></tr>
+  </table>
+
+  {{#REQTEXT}}
+  <p><b>요청 내용</b></p>
+  <div class="text">{{REQTEXT}}</div>
+  {{/REQTEXT}}
+
+  <a class="btn" href="{{LINK}}">요청 열기</a>
+
+  <p class="foot">개발 오브젝트 통합관리에서 자동 발송된 메일입니다. 접수·반려는 앱에서 처리해 주세요.</p>
+</body>
+</html>

@@ -14,7 +14,8 @@
 | `06_class` | 행위 풀 `ZBP_R_CMSM_*` (전역 클래스 + 로컬 핸들러) | 5 |
 | `07_service` | 서비스 정의 `ZUI_CMSM_DEVOBJ` | 1 |
 | `08_mde` | 메타데이터 익스텐션 — `ZC_CMSM_*` 7개 (이름 = CDS 이름) | 7 |
-| `09_app` | Fiori 앱 manifest의 routing 예시 (탭 + 상세 화면) | 1 |
+| `09_app` | Fiori 앱 manifest의 routing 예시 (탭 + 상세 화면), annotation.xml 예시 | 2 |
+| `10_mail` | 메일 HTML 템플릿 (SMW0 업로드용) | 1 |
 
 ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔VhSrc)은 서로 참조하니 **같이 선택해서 한 번에 활성화**한다. 전부 만든 뒤 한꺼번에 활성화해도 된다.
 
@@ -318,3 +319,18 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 - 섹션: 기본 정보 · 매핑 · UI · 테스트 · 기술부채 · 관리 정보 (MDE)
 - 행마다 해당 없는 섹션 숨김: C 뷰에서 `CASE`로 `MapHidden` / `UiHidden`(T-code 매핑만) / `TestHidden`(VH·SB) / `DebtHidden`(TD) 계산 → 앱 `annotation.xml`의 `UI.Facets`에서 섹션마다 `UI.Hidden Path`로 연결 (`09_app/annotation.devobject.sample.xml`). 이 XML이 백엔드 섹션 정의를 대신하므로 섹션을 바꾸면 MDE와 XML 둘 다 고친다. XML이 없으면 섹션이 전부 보일 뿐 화면은 동작
 - 고치는 건 원래 탭에서 (이 화면은 Edit 없음)
+
+## 요청 생성 알림 메일
+
+새 요청이 저장되면 담당자에게 메일을 보낸다.
+
+| 항목 | 내용 |
+| --- | --- |
+| 시점 | BDEF `managed with additional save with full data` → saver `lsc_zr_cmsm_req`의 `save_modified` (`ZBP_R_CMSM_REQ` 로컬 타입 맨 아래). 저장이 확정된 뒤 한 번만 돈다. `setReqId`가 먼저 채번해서 요청번호가 들어간다 |
+| 대상 | 이번 저장에서 새로 생긴 요청(`create-request`), 담당자가 있는 것만 |
+| 메일 주소 | `ZCM_VH_USER_EMAIL` (`get_email` 메서드의 SELECT — 필드명 `userid`·`emailaddress`는 가정, 다르면 여기만 고친다) |
+| 본문 | SMW0 `ZCMSM_REQ_CREATED_MAIL` ← `10_mail/zcmsm_req_created_mail.html` (UTF-8). `ZCL_HTML_TEMPLATE`로 요청번호·제목·모듈·요청자·담당자·요청 일시·요청 내용·링크를 채운다 (값은 HTML 이스케이프, 요청 내용 줄바꿈은 CSS `pre-wrap`) |
+| 발송 | `CL_BCS_MAIL_MESSAGE` (HTML). 보내는 사람 `gc_mail_sender`, 앱 링크 `gc_app_url` 상수를 시스템에 맞게 바꾼다. PCE에서는 SCOT(SMTP) 설정 필요 |
+| 실패 | 메일 주소 없음·템플릿 없음·발송 실패여도 요청 저장은 그대로 |
+
+`setReqId`(저장 시 determination)에 넣지 않은 이유: determination은 저장 검증보다 먼저 돌아서, 검증에 걸려 저장이 안 돼도 메일이 나가고 다시 저장하면 또 나간다. RAP는 determination 안에서 외부 발송 같은 동작을 막기도 한다.

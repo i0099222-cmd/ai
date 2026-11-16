@@ -1,4 +1,5 @@
-managed implementation in class zbp_r_cmsm_req unique;
+// with additional save: 저장이 확정된 뒤 saver(lsc_zr_cmsm_req)의 save_modified 에서 담당자 알림 메일 발송
+managed with additional save with full data implementation in class zbp_r_cmsm_req unique;
 strict ( 2 );
 with draft;
 

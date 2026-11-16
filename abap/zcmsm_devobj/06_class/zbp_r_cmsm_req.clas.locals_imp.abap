@@ -568,3 +568,157 @@ CLASS lhc_request IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+
+"! 요청 BO saver: 저장이 확정된 뒤(save_modified) 새 요청을 담당자에게 메일로 알린다.
+"!
+"! - 요청번호는 setReqId(저장 시 determination)가 이미 채워 둔 상태
+"! - 메일 본문은 SMW0 템플릿 ZCMSM_REQ_CREATED_MAIL (ZCL_HTML_TEMPLATE 로 값 채움, 값은 HTML 이스케이프됨)
+"! - 담당자 메일 주소가 없거나 발송이 실패해도 요청 저장은 그대로 된다
+CLASS lsc_zr_cmsm_req DEFINITION INHERITING FROM cl_abap_behavior_saver.
+
+  PROTECTED SECTION.
+
+    METHODS save_modified REDEFINITION.
+
+  PRIVATE SECTION.
+
+    CONSTANTS:
+      " SMW0 > 바이너리 데이터에 올린 메일 템플릿 이름
+      gc_mail_template TYPE c LENGTH 40 VALUE 'ZCMSM_REQ_CREATED_MAIL',
+      " 보내는 사람: 메일 설정(SCOT)에서 발신이 허용된 주소로 바꾼다
+      gc_mail_sender   TYPE string VALUE `noreply@example.com`,
+      " 앱 주소(런치패드 URL + 인텐트). 뒤에 &/Request(…) 를 붙여 그 요청 상세를 바로 연다
+      gc_app_url       TYPE string VALUE `https://<런치패드 호스트>/ui#<SemanticObject>-<action>`.
+
+    METHODS send_created_mail
+      IMPORTING iv_req_uuid   TYPE sysuuid_x16
+                iv_req_id     TYPE string
+                iv_title      TYPE string
+                iv_module     TYPE string
+                iv_req_text   TYPE string
+                iv_requester  TYPE string
+                iv_assignee   TYPE string
+                iv_created_at TYPE timestampl.
+
+    "! 사용자 ID → 메일 주소 (ZCM_VH_USER_EMAIL)
+    METHODS get_email
+      IMPORTING iv_user         TYPE string
+      RETURNING VALUE(rv_email) TYPE string.
+
+    "! 사용자 ID → 이름 (없으면 ID)
+    METHODS get_user_name
+      IMPORTING iv_user        TYPE string
+      RETURNING VALUE(rv_name) TYPE string.
+
+    "! 요청 상세 바로가기 링크
+    METHODS request_link
+      IMPORTING iv_req_uuid    TYPE sysuuid_x16
+      RETURNING VALUE(rv_link) TYPE string.
+
+ENDCLASS.
+
+
+CLASS lsc_zr_cmsm_req IMPLEMENTATION.
+
+  METHOD save_modified.
+
+    " 이번 저장에서 새로 생긴 요청만 (드래프트로 만든 요청은 처음 저장(활성화)할 때 여기에 들어온다)
+    LOOP AT create-request INTO DATA(ls_req).
+
+      IF ls_req-Assignee IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      send_created_mail( iv_req_uuid   = ls_req-ReqUuid
+                         iv_req_id     = CONV #( ls_req-ReqId )
+                         iv_title      = CONV #( ls_req-Title )
+                         iv_module     = CONV #( ls_req-SapModule )
+                         iv_req_text   = ls_req-ReqText
+                         iv_requester  = CONV #( ls_req-CreatedBy )
+                         iv_assignee   = CONV #( ls_req-Assignee )
+                         iv_created_at = ls_req-CreatedAt ).
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD send_created_mail.
+
+    DATA(lv_email) = get_email( iv_assignee ).
+    IF lv_email IS INITIAL.
+      " 메일 주소가 없으면 보내지 않는다
+      RETURN.
+    ENDIF.
+
+    SELECT SINGLE Text FROM zi_cmsm_modulevh
+      WHERE Value = @iv_module
+      INTO @DATA(lv_module_text).
+
+    TRY.
+        DATA(lv_html) = zcl_html_template=>create_from_smw0( gc_mail_template
+          )->set( iv_name = 'REQID'         iv_value = iv_req_id
+          )->set( iv_name = 'TITLE'         iv_value = iv_title
+          )->set( iv_name = 'SAPMODULE'     iv_value = COND string( WHEN lv_module_text IS INITIAL
+                                                                    THEN iv_module
+                                                                    ELSE |{ lv_module_text }| )
+          )->set( iv_name = 'REQUESTERNAME' iv_value = get_user_name( iv_requester )
+          )->set( iv_name = 'ASSIGNEENAME'  iv_value = get_user_name( iv_assignee )
+          )->set( iv_name = 'CREATEDAT'     iv_value = iv_created_at
+          )->set( iv_name = 'REQTEXT'       iv_value = iv_req_text
+          )->set( iv_name = 'LINK'          iv_value = request_link( iv_req_uuid )
+          )->render( ).
+
+        DATA(lo_mail) = cl_bcs_mail_message=>create_instance( ).
+        lo_mail->set_sender( gc_mail_sender ).
+        lo_mail->add_recipient( lv_email ).
+        lo_mail->set_subject( CONV #( |[개발요청] { iv_req_id } { iv_title }| ) ).
+        lo_mail->set_main( cl_bcs_mail_textpart=>create_instance( iv_content      = lv_html
+                                                                  iv_content_type = 'text/html' ) ).
+        lo_mail->send( ).
+
+      CATCH zcx_html_template cx_bcs_mail.
+        " 템플릿 미등록, 메일 설정 문제 등. 메일이 안 나가도 요청 저장은 그대로 둔다
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD get_email.
+
+    " 필드명이 다르면 이 SELECT 만 고친다 (사용자 ID 필드 · 메일 주소 필드)
+    SELECT SINGLE emailaddress FROM zcm_vh_user_email
+      WHERE userid = @iv_user
+      INTO @rv_email.
+
+  ENDMETHOD.
+
+
+  METHOD get_user_name.
+
+    SELECT SINGLE PersonFullName FROM zi_cmsm_uservh
+      WHERE UserId = @iv_user
+      INTO @rv_name.
+
+    IF rv_name IS INITIAL.
+      rv_name = iv_user.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD request_link.
+
+    " UUID(RAW16) → 8-4-4-4-12 소문자 (OData 키 형식)
+    DATA(lv_hex) = to_lower( CONV string( iv_req_uuid ) ).
+
+    rv_link = |{ gc_app_url }&/Request(ReqUuid={ substring( val = lv_hex off = 0  len = 8 ) }-| &&
+              |{ substring( val = lv_hex off = 8  len = 4 ) }-| &&
+              |{ substring( val = lv_hex off = 12 len = 4 ) }-| &&
+              |{ substring( val = lv_hex off = 16 len = 4 ) }-| &&
+              |{ substring( val = lv_hex off = 20 len = 12 ) },IsActiveEntity=true)|.
+
+  ENDMETHOD.
+
+ENDCLASS.

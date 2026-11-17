@@ -341,7 +341,7 @@ VH 상세의 '데이터 소스 (자동)' 섹션. VH 이름의 CDS view entity �
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZCE_CMSM_VhSource` (`04_projection`) | custom entity: VH 이름, 순번, 구분(메인 소스/연관), 소스 유형(CDS/테이블/도메인 고정값/확인 불가), 소스 이름, 연관 이름. UI 어노테이션 포함 |
+| `ZCE_CMSM_VhSource` (`04_projection`) | custom entity: 유형(CDS/테이블/도메인 고정값/확인 불가), 이름. 키 = VH 이름(숨김) + 이름. 메인 소스 먼저, 같은 이름은 한 번만. UI 어노테이션 포함 |
 | `ZCL_CMSM_VHSRC_QUERY` (`06_class`) | 쿼리 클래스. 필터 `VhName`으로 `read_sources`를 부르고 페이징 처리 |
 | `ZC_CMSM_Vh` | `association [0..*] to ZCE_CMSM_VhSource as _SysSource on $projection.VhName = _SysSource.VhName` + 노출 |
 | 서비스 정의 | `expose ZCE_CMSM_VhSource as ValueHelpSystemSource;` |

@@ -1,9 +1,8 @@
 "! Value Help 데이터 소스 조회 — custom entity ZCE_CMSM_VhSource 의 쿼리 클래스
 "!
-"! VH 이름(CDS view entity)의 정의를 XCO 로 읽어서
-"!   - 메인 데이터 소스 (select from …)
-"!   - 연관(association) 대상
-"! 을 돌려준다. 저장하지 않으니 CDS 를 고치면 다음에 열 때 바로 반영된다.
+"! VH 이름(CDS view entity)의 정의를 XCO 로 읽어서 데이터 소스의 유형·이름을 돌려준다
+"!   - 메인 데이터 소스 (select from …) 먼저, 그다음 연관(association) 대상. 같은 이름은 한 번만
+"! 저장하지 않으니 CDS 를 고치면 다음에 열 때 바로 반영된다.
 "! 읽지 못하는 것: join 대상, Search Help 로 만든 VH, DDIC 기반 CDS 뷰(define view) → 빈 목록
 CLASS zcl_cmsm_vhsrc_query DEFINITION
   PUBLIC
@@ -62,9 +61,8 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
       ENDLOOP.
     ENDLOOP.
 
-    " 정렬은 순번 고정 (요청 정렬 정보는 읽기만)
+    " 순서는 읽은 순서 그대로 (메인 소스 먼저). 요청 정렬 정보는 읽기만
     DATA(lt_sort) = io_request->get_sort_elements( ).
-    SORT lt_result BY vhname srcpos.
 
     IF io_request->is_total_numb_of_rec_requested( ).
       io_response->set_total_number_of_records( lines( lt_result ) ).
@@ -91,8 +89,6 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
 
   METHOD read_sources.
 
-    DATA lv_pos TYPE i.
-
     DATA(lv_name) = to_upper( condense( iv_vh_name ) ).
     IF lv_name IS INITIAL OR strlen( lv_name ) > 30.
       RETURN.
@@ -107,27 +103,21 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
     " 1) 메인 데이터 소스 (select from …)
     DATA(lv_main) = main_source_name( lo_view->content( )->get( ) ).
     IF lv_main IS NOT INITIAL.
-      lv_pos += 1.
       APPEND VALUE #( vhname  = lv_name
-                      srcpos  = lv_pos
-                      srcrole = '메인 소스'
-                      srckind = source_kind( lv_main )
-                      srcname = lv_main ) TO rt_source.
+                      srcname = lv_main
+                      srckind = source_kind( lv_main ) ) TO rt_source.
     ENDIF.
 
     " 2) 연관 대상
     LOOP AT lo_view->associations->all->get( ) INTO DATA(lo_assoc).
       DATA(lv_target) = condense( CONV string( lo_assoc->content( )->get( )-target ) ).
-      IF lv_target IS INITIAL.
+      " 이미 있는 이름(메인 소스와 같은 대상 등)은 건너뛴다 — 키가 VH 이름 + 소스 이름
+      IF lv_target IS INITIAL OR line_exists( rt_source[ srcname = lv_target ] ).
         CONTINUE.
       ENDIF.
-      lv_pos += 1.
-      APPEND VALUE #( vhname    = lv_name
-                      srcpos    = lv_pos
-                      srcrole   = '연관'
-                      srckind   = source_kind( lv_target )
-                      srcname   = lv_target
-                      assocname = lo_assoc->name ) TO rt_source.
+      APPEND VALUE #( vhname  = lv_name
+                      srcname = lv_target
+                      srckind = source_kind( lv_target ) ) TO rt_source.
     ENDLOOP.
 
   ENDMETHOD.

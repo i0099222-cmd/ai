@@ -20,6 +20,7 @@ annotate entity ZC_CMSM_Vh with
     { id: 'Header', purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
     { id: 'General', type: #FIELDGROUP_REFERENCE, label: '기본 정보', targetQualifier: 'General', position: 10 },
     { id: 'Src', type: #LINEITEM_REFERENCE, label: '데이터 소스', targetElement: '_Src', position: 20 },
+    { id: 'SysSrc', type: #LINEITEM_REFERENCE, label: '데이터 소스 (자동)', targetElement: '_SysSource', position: 25 },
     { id: 'Test', type: #FIELDGROUP_REFERENCE, label: '테스트', targetQualifier: 'Test', position: 30 },
     { id: 'Admin', type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 40 }
   ]

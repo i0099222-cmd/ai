@@ -334,3 +334,24 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | 실패 | 메일 주소 없음·템플릿 없음·발송 실패여도 요청 저장은 그대로 |
 
 `setReqId`(저장 시 determination)에 넣지 않은 이유: determination은 저장 검증보다 먼저 돌아서, 검증에 걸려 저장이 안 돼도 메일이 나가고 다시 저장하면 또 나간다. RAP는 determination 안에서 외부 발송 같은 동작을 막기도 한다.
+
+## VH 데이터 소스 (자동, custom entity + XCO)
+
+VH 상세의 '데이터 소스 (자동)' 섹션. VH 이름의 CDS view entity 정의를 열 때마다 XCO로 읽는다 (저장 안 함). 손으로 넣는 '데이터 소스' 표는 그대로 둠 — 자동 결과가 쓸 만하면 그때 손 입력 표를 뺀다.
+
+| 오브젝트 | 내용 |
+| --- | --- |
+| `ZCE_CMSM_VhSource` (`04_projection`) | custom entity: VH 이름, 순번, 구분(메인 소스/연관), 소스 유형(CDS/테이블/도메인 고정값/확인 불가), 소스 이름, 연관 이름. UI 어노테이션 포함 |
+| `ZCL_CMSM_VHSRC_QUERY` (`06_class`) | 쿼리 클래스. 필터 `VhName`으로 `read_sources`를 부르고 페이징 처리 |
+| `ZC_CMSM_Vh` | `association [0..*] to ZCE_CMSM_VhSource as _SysSource on $projection.VhName = _SysSource.VhName` + 노출 |
+| 서비스 정의 | `expose ZCE_CMSM_VhSource as ValueHelpSystemSource;` |
+| MDE `ZC_CMSM_Vh` | 섹션 `{ id: 'SysSrc', type: #LINEITEM_REFERENCE, targetElement: '_SysSource' }` |
+
+XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
+- 연관 대상: `xco_cp_cds=>view_entity( 이름 )->associations->all->get( )` → `assoc->content( )->get( )-target`
+- 소스 유형: `xco_cp_abap_repository=>object->ddls->for( )->exists( )` = CDS, `xco_cp_abap_dictionary=>database_table( )->exists( )` = 테이블, `DDCDS_CUSTOMER_DOMAIN_VALUE*` = 도메인 고정값
+- 메인 소스: `view_entity( )->content( )->get( )` 결과에서 `DATA_SOURCE` 항목을 동적으로 찾는다 (항목 이름이 XCO 버전마다 달라 컴파일 에러 대신 빈 값이 되게). 메인 소스가 비어 나오면 ADT에서 `content( )->get( )-` 뒤 Ctrl+Space로 항목 이름을 확인해서 `main_source_name`의 후보 목록에 넣는다
+
+못 읽는 것: join 대상, Search Help VH, DDIC 기반 CDS 뷰(`define view`), 도메인 기반 VH의 도메인 이름(소스가 `DDCDS_CUSTOMER_DOMAIN_VALUE`로 나옴). 표준 테이블은 XCO가 존재 확인을 못 하면 '확인 불가'.
+
+시험: class run에서 `NEW zcl_cmsm_vhsrc_query( )->read_sources( `ZI_CMSM_REQVH` )` 결과를 `out->write( )`.

@@ -6,6 +6,8 @@
 define root view entity ZC_CMSM_Vh
   provider contract transactional_query
   as projection on ZR_CMSM_Vh
+  // 데이터 소스 (자동): VH 정의를 XCO 로 읽어 오는 custom entity (읽기 전용)
+  association [0..*] to ZCE_CMSM_VhSource as _SysSource on $projection.VhName = _SysSource.VhName
 {
   key VhUuid,
       @Search.defaultSearchElement: true
@@ -59,5 +61,6 @@ define root view entity ZC_CMSM_Vh
       LastChangedAt,
       LocalLastChangedAt,
 
-      _Src : redirected to composition child ZC_CMSM_VhSrc
+      _Src : redirected to composition child ZC_CMSM_VhSrc,
+      _SysSource
 }

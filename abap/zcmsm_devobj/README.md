@@ -342,7 +342,7 @@ VH 상세의 '데이터 소스 (자동)' 섹션. VH 이름의 CDS view entity �
 | 오브젝트 | 내용 |
 | --- | --- |
 | `ZCE_CMSM_VhSource` (`04_projection`) | custom entity: 유형(CDS/테이블/도메인 고정값/확인 불가), 이름. 키 = VH 이름(숨김) + 이름. 메인 소스 먼저, 같은 이름은 한 번만. UI 어노테이션 포함 |
-| `ZCL_CMSM_VHSRC_QUERY` (`06_class`) | 쿼리 클래스. 필터 `VhName`으로 `read_sources`를 부르고 페이징 처리 |
+| `ZCL_CMSM_VHSRC_QUERY` (`06_class`) | 쿼리 클래스. 로직은 `select` 하나에 (필터 `VhName` → XCO로 메인 소스·연관 대상 → 유형 → 페이징) |
 | `ZC_CMSM_Vh` | `association [0..*] to ZCE_CMSM_VhSource as _SysSource on $projection.VhName = _SysSource.VhName` + 노출 |
 | 서비스 정의 | `expose ZCE_CMSM_VhSource as ValueHelpSystemSource;` |
 | MDE `ZC_CMSM_Vh` | 섹션 `{ id: 'SysSrc', type: #LINEITEM_REFERENCE, targetElement: '_SysSource' }` |
@@ -350,8 +350,8 @@ VH 상세의 '데이터 소스 (자동)' 섹션. VH 이름의 CDS view entity �
 XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 - 연관 대상: `xco_cp_cds=>view_entity( 이름 )->associations->all->get( )` → `assoc->content( )->get( )-target`
 - 소스 유형: `xco_cp_abap_repository=>object->ddls->for( )->exists( )` = CDS, `xco_cp_abap_dictionary=>database_table( )->exists( )` = 테이블, `DDCDS_CUSTOMER_DOMAIN_VALUE*` = 도메인 고정값
-- 메인 소스: `view_entity( )->content( )->get( )` 결과에서 `DATA_SOURCE` 항목을 동적으로 찾는다 (항목 이름이 XCO 버전마다 달라 컴파일 에러 대신 빈 값이 되게). 메인 소스가 비어 나오면 ADT에서 `content( )->get( )-` 뒤 Ctrl+Space로 항목 이름을 확인해서 `main_source_name`의 후보 목록에 넣는다
+- 메인 소스: `view_entity( )->content( )->get( )` 결과에서 `DATA_SOURCE` 항목을 동적으로 찾는다 (항목 이름이 XCO 버전마다 달라 컴파일 에러 대신 빈 값이 되게). 메인 소스가 비어 나오면 ADT에서 `content( )->get( )-` 뒤 Ctrl+Space로 항목 이름을 확인해서 `select` 안 `lt_component` 후보 목록에 넣는다
 
 못 읽는 것: join 대상, Search Help VH, DDIC 기반 CDS 뷰(`define view`), 도메인 기반 VH의 도메인 이름(소스가 `DDCDS_CUSTOMER_DOMAIN_VALUE`로 나옴). 표준 테이블은 XCO가 존재 확인을 못 하면 '확인 불가'.
 
-시험: class run에서 `NEW zcl_cmsm_vhsrc_query( )->read_sources( `ZI_CMSM_REQVH` )` 결과를 `out->write( )`.
+시험: 서비스 바인딩 Preview에서 ValueHelpSystemSource를 `VhName eq 'ZI_CMSM_REQVH'` 필터로 열거나, 앱 VH 상세의 '데이터 소스 (자동)' 표.

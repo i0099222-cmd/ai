@@ -22,6 +22,7 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
     DATA lt_result TYPE STANDARD TABLE OF zce_cmsm_vhsource WITH EMPTY KEY.
     DATA lt_page   LIKE lt_result.
     DATA lt_names  TYPE string_table.
+    DATA lv_pos    TYPE i.
 
     " DATA_SOURCE 안에서 이름을 찾아볼 항목 (빈 값 = DATA_SOURCE 자체가 이름인 경우)
     DATA(lt_component) = VALUE string_table( ( `` ) ( `ENTITY` ) ( `NAME` ) ( `VIEW_ENTITY` ) ( `VIEW` )
@@ -48,7 +49,7 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
           CONTINUE.
         ENDIF.
 
-        CLEAR lt_names.
+        CLEAR: lt_names, lv_pos.
 
         " 2-1) 메인 데이터 소스: content( )->get( ) 결과의 DATA_SOURCE 항목.
         "      XCO 버전마다 구조가 조금씩 달라서 동적으로 찾는다 (이름이 다르면 컴파일 에러 대신 빈 값)
@@ -84,7 +85,7 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
           ENDIF.
         ENDLOOP.
 
-        " 3) 유형 붙여서 결과에 추가. 같은 이름은 한 번만 (키가 VH 이름 + 소스 이름), 순서는 읽은 순서
+        " 3) 유형 붙여서 결과에 추가. 같은 이름은 한 번만, 순서는 읽은 순서. 순번은 VH 안에서 1부터 (키)
         LOOP AT lt_names INTO DATA(lv_name).
 
           DATA(lv_src) = to_upper( lv_name ).
@@ -103,7 +104,9 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
               THEN `테이블`
             ELSE `확인 불가` ).
 
+          lv_pos += 1.
           APPEND VALUE #( vhname  = lv_vh
+                          srcpos  = lv_pos
                           srcname = lv_src
                           srckind = lv_kind ) TO lt_result.
 

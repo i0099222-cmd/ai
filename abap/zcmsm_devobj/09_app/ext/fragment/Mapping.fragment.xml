@@ -1,36 +1,50 @@
 <!--
-  매핑 상세 · '매핑' custom section (As-Is | To-Be 두 칸, 칸 안 필드는 세로로)
-  - FE 기본 폼은 넓은 화면에서 칸을 3~4개로 잡아서, 필드그룹이 2개뿐이면 한 그룹의 필드가 옆으로 퍼진다.
-    그래서 직접 '2칸' 폼을 만든다: 칸 하나 = As-Is / To-Be, 칸 안은 시스템 / 유형 / 오브젝트 세로
-  - macros:FormElement: 라벨·필드·필수 표시·수정 권한(feature control)·값 도움말을 FE 기본처럼 붙인다.
-    label 을 주면 칸 안에서만 짧은 라벨 (목록 컬럼 라벨은 CDS 라벨 그대로)
-  - 폰처럼 좁은 화면에서는 두 칸이 위아래로 내려간다
+  매핑 상세 · '매핑' custom section (As-Is | To-Be 두 칸, 칸 안은 라벨·필드를 세로로)
+  - 폼(ColumnLayout)은 칸 하나를 두 열에 걸쳐 그려서 '시스템·유형 | 오브젝트' 처럼 퍼질 수 있다.
+    그래서 요청 내용 fragment 처럼 직접 쌓는다: Grid 두 칸(폰은 한 칸) + 칸마다 VBox 에 라벨·필드를 위아래로
+  - macros:Field 는 편집 모드·수정 권한(feature control)·값 도움말·텍스트 표시를 FE 기본처럼 따른다
+    (구분 = 신규면 As-Is 칸이 잠기는 것도 그대로)
+  - 필수 별표(*)는 이 방식에선 자동이 아니라 라벨의 required 로 직접 단다:
+    As-Is 세 칸 = 편집 중이고 구분이 신규(N)가 아닐 때, To-Be 유형·오브젝트 = 편집 중일 때 항상
   - 위치: webapp/ext/fragment/Mapping.fragment.xml  /  manifest template: "<앱 ID>.ext.fragment.Mapping"
 -->
 <core:FragmentDefinition
     xmlns:core="sap.ui.core"
-    xmlns:f="sap.ui.layout.form"
+    xmlns="sap.m"
+    xmlns:l="sap.ui.layout"
     xmlns:macros="sap.fe.macros">
-  <f:Form id="mapForm" editable="true">
-    <f:layout>
-      <!-- 칸 수를 2로 고정 + 라벨을 필드 위로 (labelCellsLarge 12 = 라벨이 한 줄을 다 쓴다) -->
-      <f:ColumnLayout columnsM="2" columnsL="2" columnsXL="2" labelCellsLarge="12" emptyCellsLarge="0"/>
-    </f:layout>
-    <f:formContainers>
-      <f:FormContainer id="mapAsisContainer" title="As-Is">
-        <f:formElements>
-          <macros:FormElement id="mapAsisSys"  metaPath="SrcSysId" label="시스템"/>
-          <macros:FormElement id="mapAsisType" metaPath="AsisType" label="유형"/>
-          <macros:FormElement id="mapAsisName" metaPath="AsisName" label="오브젝트"/>
-        </f:formElements>
-      </f:FormContainer>
-      <f:FormContainer id="mapTobeContainer" title="To-Be">
-        <f:formElements>
-          <macros:FormElement id="mapTobeSys"  metaPath="TgtSysId" label="시스템"/>
-          <macros:FormElement id="mapTobeType" metaPath="TobeType" label="유형"/>
-          <macros:FormElement id="mapTobeName" metaPath="TobeName" label="오브젝트"/>
-        </f:formElements>
-      </f:FormContainer>
-    </f:formContainers>
-  </f:Form>
+  <l:Grid id="mapGrid" defaultSpan="XL6 L6 M6 S12" hSpacing="2" vSpacing="1" width="100%">
+
+    <VBox id="mapAsisBox" width="100%">
+      <Title id="mapAsisTitle" text="As-Is" level="H4"/>
+
+      <Label id="mapAsisSysLabel" text="시스템" class="sapUiSmallMarginTop"
+             required="{= ${ui>/isEditable} === true &amp;&amp; ${MapKind} !== 'N' }"/>
+      <macros:Field id="mapAsisSysField" metaPath="SrcSysId"/>
+
+      <Label id="mapAsisTypeLabel" text="유형" class="sapUiSmallMarginTop"
+             required="{= ${ui>/isEditable} === true &amp;&amp; ${MapKind} !== 'N' }"/>
+      <macros:Field id="mapAsisTypeField" metaPath="AsisType"/>
+
+      <Label id="mapAsisNameLabel" text="오브젝트" class="sapUiSmallMarginTop"
+             required="{= ${ui>/isEditable} === true &amp;&amp; ${MapKind} !== 'N' }"/>
+      <macros:Field id="mapAsisNameField" metaPath="AsisName"/>
+    </VBox>
+
+    <VBox id="mapTobeBox" width="100%">
+      <Title id="mapTobeTitle" text="To-Be" level="H4"/>
+
+      <Label id="mapTobeSysLabel" text="시스템" class="sapUiSmallMarginTop"/>
+      <macros:Field id="mapTobeSysField" metaPath="TgtSysId"/>
+
+      <Label id="mapTobeTypeLabel" text="유형" class="sapUiSmallMarginTop"
+             required="{ui>/isEditable}"/>
+      <macros:Field id="mapTobeTypeField" metaPath="TobeType"/>
+
+      <Label id="mapTobeNameLabel" text="오브젝트" class="sapUiSmallMarginTop"
+             required="{ui>/isEditable}"/>
+      <macros:Field id="mapTobeNameField" metaPath="TobeName"/>
+    </VBox>
+
+  </l:Grid>
 </core:FragmentDefinition>

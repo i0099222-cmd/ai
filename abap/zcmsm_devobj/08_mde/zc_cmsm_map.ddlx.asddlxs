@@ -14,15 +14,21 @@
   selectionPresentationVariant: [{ qualifier: 'Tab', text: 'As-Is/To-Be',
                                    presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
 }
+// 상세 화면: 기본 정보 → 매핑(As-Is | To-Be 나란히) → UI 연결 → 사용처(Z CDS) → 관리 정보
+//   매핑은 컬렉션 안에 컬렉션을 하나 더 두고 그 안에 필드그룹 두 개 → 한 폼의 두 칸으로 나란히 나온다
+//   As-Is·To-Be 칸은 줄 순서·라벨을 똑같이 (시스템 / 유형 / 오브젝트) 맞춰서 옆 칸과 바로 비교되게
 annotate entity ZC_CMSM_Map with
 {
   @UI.facet: [
-    { id: 'Header', purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
-    { id: 'AsIs', type: #FIELDGROUP_REFERENCE, label: 'As-Is', targetQualifier: 'AsIs', position: 10 },
-    { id: 'ToBe', type: #FIELDGROUP_REFERENCE, label: 'To-Be', targetQualifier: 'ToBe', position: 20 },
-    { id: 'Ui', type: #FIELDGROUP_REFERENCE, label: 'UI (T-code일 때)', targetQualifier: 'Ui', position: 30 },
-    { id: 'General', type: #FIELDGROUP_REFERENCE, label: '기본 정보', targetQualifier: 'General', position: 40 },
-    { id: 'Admin', type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 50 }
+    { id: 'Header',     purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
+    { id: 'General',    type: #FIELDGROUP_REFERENCE, label: '기본 정보', targetQualifier: 'General', position: 10 },
+    { id: 'Mapping',    type: #COLLECTION, label: '매핑', position: 20 },
+    { id: 'MappingSub', type: #COLLECTION, parentId: 'Mapping', position: 10 },
+    { id: 'AsIs',       type: #FIELDGROUP_REFERENCE, parentId: 'MappingSub', label: 'As-Is', targetQualifier: 'AsIs', position: 10 },
+    { id: 'ToBe',       type: #FIELDGROUP_REFERENCE, parentId: 'MappingSub', label: 'To-Be', targetQualifier: 'ToBe', position: 20 },
+    { id: 'Ui',         type: #FIELDGROUP_REFERENCE, label: 'UI 연결 (To-Be가 T-code일 때)', targetQualifier: 'Ui', position: 30 },
+    { id: 'Usage',      type: #LINEITEM_REFERENCE, label: '사용처 (Z CDS)', targetElement: '_Usage', position: 40 },
+    { id: 'Admin',      type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 50 }
   ]
   @UI.hidden: true
   MapUuid;
@@ -33,7 +39,7 @@ annotate entity ZC_CMSM_Map with
   @UI: {
     lineItem:       [{ position: 20 }],
     selectionField: [{ position: 20 }],
-    fieldGroup:     [{ qualifier: 'AsIs', position: 10 },
+    fieldGroup:     [{ qualifier: 'General', position: 10 },
                      { qualifier: 'Header', position: 10 }],
     textArrangement: #TEXT_ONLY
   }
@@ -42,14 +48,14 @@ annotate entity ZC_CMSM_Map with
   @UI.hidden: true
   MapKindText;
 
-  @UI.fieldGroup: [{ qualifier: 'AsIs', position: 20 }]
+  @UI.fieldGroup: [{ qualifier: 'AsIs', position: 10, label: '시스템' }]
   SrcSysId;
 
   @UI.hidden: true
   SrcSysText;
 
   @UI: {
-    fieldGroup:     [{ qualifier: 'AsIs', position: 30 }],
+    fieldGroup:     [{ qualifier: 'AsIs', position: 20, label: '유형' }],
     textArrangement: #TEXT_ONLY
   }
   AsisType;
@@ -59,11 +65,11 @@ annotate entity ZC_CMSM_Map with
 
   @UI: {
     lineItem:       [{ position: 30, importance: #HIGH }],
-    fieldGroup:     [{ qualifier: 'AsIs', position: 40 }]
+    fieldGroup:     [{ qualifier: 'AsIs', position: 30, label: '오브젝트' }]
   }
   AsisName;
 
-  @UI.fieldGroup: [{ qualifier: 'ToBe', position: 10 }]
+  @UI.fieldGroup: [{ qualifier: 'ToBe', position: 10, label: '시스템' }]
   TgtSysId;
 
   @UI.hidden: true
@@ -72,7 +78,7 @@ annotate entity ZC_CMSM_Map with
   @UI: {
     lineItem:       [{ position: 40 }],
     selectionField: [{ position: 30 }],
-    fieldGroup:     [{ qualifier: 'ToBe', position: 20 }],
+    fieldGroup:     [{ qualifier: 'ToBe', position: 20, label: '유형' }],
     textArrangement: #TEXT_ONLY
   }
   TobeType;
@@ -82,7 +88,7 @@ annotate entity ZC_CMSM_Map with
 
   @UI: {
     lineItem:       [{ position: 50, importance: #HIGH }],
-    fieldGroup:     [{ qualifier: 'ToBe', position: 30 }]
+    fieldGroup:     [{ qualifier: 'ToBe', position: 30, label: '오브젝트' }]
   }
   TobeName;
 
@@ -112,7 +118,7 @@ annotate entity ZC_CMSM_Map with
   @UI: {
     lineItem:       [{ position: 70 }],
     selectionField: [{ position: 10 }],
-    fieldGroup:     [{ qualifier: 'General', position: 10 },
+    fieldGroup:     [{ qualifier: 'General', position: 20 },
                      { qualifier: 'Header', position: 20 }],
     textArrangement: #TEXT_ONLY
   }
@@ -121,13 +127,13 @@ annotate entity ZC_CMSM_Map with
   @UI.hidden: true
   SapModuleText;
 
-  @UI.fieldGroup: [{ qualifier: 'General', position: 20 }]
+  @UI.fieldGroup: [{ qualifier: 'General', position: 30 }]
   Description;
 
   @UI: {
     lineItem:       [{ position: 80 }],
     selectionField: [{ position: 50 }],
-    fieldGroup:     [{ qualifier: 'General', position: 30 },
+    fieldGroup:     [{ qualifier: 'General', position: 40 },
                      { qualifier: 'Header', position: 30 }]
   }
   OwnerId;
@@ -135,10 +141,10 @@ annotate entity ZC_CMSM_Map with
   @UI.hidden: true
   OwnerName;
 
-  @UI.fieldGroup: [{ qualifier: 'General', position: 40 }]
+  @UI.fieldGroup: [{ qualifier: 'General', position: 50 }]
   ObjCreator;
 
-  @UI.fieldGroup: [{ qualifier: 'General', position: 50 }]
+  @UI.fieldGroup: [{ qualifier: 'General', position: 60 }]
   ReqId;
 
   @UI.hidden: true

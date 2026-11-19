@@ -109,7 +109,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 | 엔티티 | 제목 / 부제 | 헤더 | 섹션 |
 | --- | --- | --- | --- |
 | 요청 | 제목 / 요청번호 | 상태, 담당자, 요청자, 요청 일시 | 요청 내용 · 처리 · 변경 이력(표) · 관리 정보 |
-| 매핑 | To-Be 오브젝트 / 등록번호 | 구분, 모듈, 담당자 | As-Is · To-Be · UI (T-code일 때) · 기본 정보 · 관리 정보 |
+| 매핑 | To-Be 오브젝트 / 등록번호 | 구분, 모듈, 담당자 | 기본 정보 · 매핑 (As-Is \| To-Be 나란히) · UI 연결 (T-code일 때) · 사용처 (Z CDS) · 관리 정보 |
 | Value Help | VH 이름 / 등록번호 | 구현 방식, 모듈, 담당자 | 기본 정보 · 데이터 소스(표) · 테스트 · 관리 정보 |
 | OData 서비스 | Service Binding / 등록번호 | 모듈, 담당자 | 기본 정보 · 테스트 · 관리 정보 |
 | 기술부채 | 개발 오브젝트 / ID | Debt Level, 개선상태, 업무담당자 | 대상 오브젝트 · 비released 사용(비released 사용 내역) · 판단·개선 · 관리 정보 |
@@ -336,6 +336,43 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | 실패 | 메일 주소 없음·템플릿 없음·발송 실패여도 요청 저장은 그대로 |
 
 `setReqId`(저장 시 determination)에 넣지 않은 이유: determination은 저장 검증보다 먼저 돌아서, 검증에 걸려 저장이 안 돼도 메일이 나가고 다시 저장하면 또 나간다. RAP는 determination 안에서 외부 발송 같은 동작을 막기도 한다.
+
+## 매핑 상세 화면: As-Is | To-Be 나란히
+
+MDE `ZC_CMSM_Map`만 바꾼다.
+
+- 섹션 순서: 기본 정보 → 매핑 → UI 연결 (T-code일 때) → 사용처 (Z CDS) → 관리 정보
+- 매핑 섹션 = 컬렉션(`Mapping`) 안에 컬렉션(`MappingSub`) 하나 더, 그 안에 필드그룹 `AsIs`·`ToBe`. 이렇게 3단으로 두면 FE가 두 필드그룹을 한 폼의 두 칸으로 나란히 그린다 (2단이면 위아래 하위 섹션으로 쌓임)
+- 두 칸은 줄 순서·라벨을 똑같이: 시스템 / 유형 / 오브젝트 (`fieldGroup`의 `label`로 칸 안에서만 짧게 — 목록 컬럼 라벨은 그대로)
+- 구분(`MapKind`)은 As-Is 칸에서 빼서 기본 정보 맨 위로 (신규면 As-Is가 잠기니 먼저 고르게)
+
+화면이 좁으면(태블릿 세로·폰) 두 칸이 위아래로 내려간다.
+
+## To-Be 사용처 (시스템 Z CDS, custom entity + XCO)
+
+매핑 상세의 '사용처 (Z CDS)' 섹션. 시스템의 Z CDS(DDLS)를 열 때마다 전부 XCO로 읽어서, To-Be 오브젝트를 데이터 소스(`select from`)나 연관 대상으로 쓰는 CDS를 보여준다 (저장 안 함).
+
+| 오브젝트 | 내용 |
+| --- | --- |
+| `ZCE_CMSM_TobeUsage` (`04_projection`) | custom entity: 사용하는 CDS, 사용 방식(데이터 소스 / 연관 / 데이터 소스·연관), 패키지. 키 = To-Be 이름(숨김) + 사용하는 CDS. UI 어노테이션 포함 |
+| `ZCL_CMSM_TOBEUSE_QUERY` (`06_class`) | 쿼리 클래스. 로직은 `select` 하나에 (필터 `TobeName` → CDS·테이블인지 확인 → `I_CustABAPObjDirectoryEntry`의 Z DDLS 전부 → XCO로 메인 소스·연관 대상 → 페이징) |
+| `ZC_CMSM_Map` | `association [0..*] to ZCE_CMSM_TobeUsage as _Usage on $projection.TobeName = _Usage.TobeName` + 노출 |
+| 서비스 정의 | `expose ZCE_CMSM_TobeUsage as MappingUsage;` |
+| MDE `ZC_CMSM_Map` | 섹션 `{ id: 'Usage', type: #LINEITEM_REFERENCE, targetElement: '_Usage' }` |
+
+- To-Be가 CDS·테이블일 때만 찾는다 (XCO `ddls->for( )->exists( )` / `database_table( )->exists( )`). 클래스·FM·T-code는 빈 표 — ABAP Cloud에는 where-used 릴리즈 API가 없다
+- 못 찾는 것: join 대상, view entity가 아닌 CDS(DDIC 기반 `define view`, custom entity 등), 컴포지션 대상. 메인 소스를 읽는 방식은 VH 데이터 소스와 같아서, 거기서 메인 소스가 비어 나오면 여기도 같이 고친다 (`lt_component`)
+- CDS 하나를 못 읽어도(비활성 등) 건너뛰고 계속 본다 (`TRY … CATCH cx_root`)
+- 느릴 수 있다: Z CDS 개수만큼 XCO로 읽는다. 너무 느리면 `select`의 Z DDLS 조회에 패키지 조건(`ABAPPackage LIKE 'ZCM%'` 등)을 넣어 범위를 줄인다
+
+시험: 서비스 바인딩 Preview에서 MappingUsage를 `TobeName eq 'ZR_CMSM_REQ'`처럼 이 앱 CDS 이름으로 열면 ZC_CMSM_Req(데이터 소스), ZR_CMSM_ReqHist(연관) 등이 나와야 한다.
+
+### 만드는 순서
+
+1. `ZCE_CMSM_TobeUsage` 만들기 → `ZCL_CMSM_TOBEUSE_QUERY` 만들기 → 둘 같이 활성화
+2. `ZC_CMSM_Map` 교체 (연관 추가) → 활성화
+3. 서비스 정의에 `expose ZCE_CMSM_TobeUsage as MappingUsage;` → 활성화
+4. MDE `ZC_CMSM_Map` 교체 → 활성화. 앱은 새로고침만 (manifest 수정 없음)
 
 ## VH 데이터 소스 (자동, custom entity + XCO)
 

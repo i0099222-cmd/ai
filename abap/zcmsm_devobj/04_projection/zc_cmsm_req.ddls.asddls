@@ -42,5 +42,10 @@ define root view entity ZC_CMSM_Req
       LastChangedAt,
       LocalLastChangedAt,
 
+      // 새로 만드는 중(저장 전이라 요청번호가 없음)이면 X → MDE 에서 '처리' 섹션 숨김
+      @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_CMSM_REQ_CALC'
+      @EndUserText.label: '처리 섹션 숨김'
+      virtual ProcessHidden : abap_boolean,
+
       _Hist : redirected to composition child ZC_CMSM_ReqHist
 }

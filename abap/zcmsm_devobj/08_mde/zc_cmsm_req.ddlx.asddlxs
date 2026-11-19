@@ -14,12 +14,14 @@
   selectionPresentationVariant: [{ qualifier: 'Tab', text: '요청',
                                    presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
 }
+// '처리' 섹션은 새로 만들 때 숨김 (hidden: #( ProcessHidden ), 가상 필드 — ZCL_CMSM_REQ_CALC)
 annotate entity ZC_CMSM_Req with
 {
   @UI.facet: [
     { id: 'Header', purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
     { id: 'Request', type: #FIELDGROUP_REFERENCE, label: '요청 내용', targetQualifier: 'Request', position: 10 },
-    { id: 'Process', type: #FIELDGROUP_REFERENCE, label: '처리', targetQualifier: 'Process', position: 20 },
+    { id: 'Process', type: #FIELDGROUP_REFERENCE, label: '처리', targetQualifier: 'Process', position: 20,
+      hidden: #( ProcessHidden ) },
     { id: 'Hist', type: #LINEITEM_REFERENCE, label: '변경 이력', targetElement: '_Hist', position: 30 },
     { id: 'Admin', type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 40 }
   ]
@@ -131,4 +133,8 @@ annotate entity ZC_CMSM_Req with
 
   @UI.hidden: true
   LocalLastChangedAt;
+
+  // '처리' 섹션 숨김 플래그 (가상 필드) — 화면에는 안 보임
+  @UI.hidden: true
+  ProcessHidden;
 }

@@ -355,3 +355,10 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 못 읽는 것: join 대상, Search Help VH, DDIC 기반 CDS 뷰(`define view`), 도메인 기반 VH의 도메인 이름(소스가 `DDCDS_CUSTOMER_DOMAIN_VALUE`로 나옴). 표준 테이블은 XCO가 존재 확인을 못 하면 '확인 불가'.
 
 시험: 서비스 바인딩 Preview에서 ValueHelpSystemSource를 `VhName eq 'ZI_CMSM_REQVH'` 필터로 열거나, 앱 VH 상세의 '데이터 소스 (자동)' 표.
+
+## 요청: 새로 만들 때 '처리' 섹션 숨김
+
+- MDE `ZC_CMSM_Req`의 `Process` 섹션에 `hidden: #( ProcessHidden )` (CDS 문법은 SAP abap-platform-fiori-feature-showcase `#HidingContent` 기준)
+- `ProcessHidden`: `ZC_CMSM_Req`의 가상 필드(`virtual … : abap_boolean`), 계산 클래스 `ZCL_CMSM_REQ_CALC` — 요청번호가 비어 있으면(저장 전 = 새로 만드는 중) X
+- `IsActiveEntity`로 숨기면 기존 요청 편집(담당자가 처리 내용 입력) 때도 숨겨져서 쓰지 않음
+- BDEF는 그대로 (feature control은 잠금·필수만, 숨김은 UI 어노테이션)

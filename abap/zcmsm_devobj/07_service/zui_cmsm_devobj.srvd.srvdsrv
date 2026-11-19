@@ -3,7 +3,7 @@ define service ZUI_CMSM_DEVOBJ {
   expose ZC_CMSM_Req     as Request;
   expose ZC_CMSM_ReqHist as RequestHistory;
   expose ZC_CMSM_Map     as Mapping;
-  expose ZI_CMSM_CdsUsage   as MappingUsage;
+  expose ZCE_CMSM_TobeUsage as MappingUsage;
   expose ZC_CMSM_Vh      as ValueHelp;
   expose ZC_CMSM_VhSrc   as ValueHelpSource;
   expose ZCE_CMSM_VhSource as ValueHelpSystemSource;

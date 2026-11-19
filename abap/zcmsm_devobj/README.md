@@ -362,3 +362,24 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 - `ProcessHidden`: `ZC_CMSM_Req`의 가상 필드(`virtual … : abap_boolean`), 계산 클래스 `ZCL_CMSM_REQ_CALC` — 요청번호가 비어 있으면(저장 전 = 새로 만드는 중) X
 - `IsActiveEntity`로 숨기면 기존 요청 편집(담당자가 처리 내용 입력) 때도 숨겨져서 쓰지 않음
 - BDEF는 그대로 (feature control은 잠금·필수만, 숨김은 UI 어노테이션)
+
+## 요청 내용 custom section
+
+`09_app/ext/fragment/Request.fragment.xml` — 제목(섹션 폭 50%)·요청 내용(전체 폭)을 세로로 쌓는 `macros:Field`. manifest `template`: `<앱 ID>.ext.fragment.Request`. MDE에서 두 필드의 `Request` fieldGroup 항목은 뺀다.
+
+## 기술부채 부채 구분 (도메인)
+
+도메인 `ZDO_DM_DEBT_CAT` CHAR 4 고정값 → VH `ZI_CMSM_DebtCatVH` (`01_vh`).
+
+| 값 | 내역 | 권장 Debt Level |
+| --- | --- | --- |
+| TAB | 미릴리즈 테이블 조회 | C |
+| TABW | 표준 테이블 직접 변경 | D |
+| CDS | 미릴리즈 CDS | C |
+| FM | 미릴리즈 함수 모듈 (BAPI 외) | C |
+| BAPI | BAPI 호출 | C (SAP Clean Core 기준으로는 classic API = B) |
+| CLAS | 미릴리즈 클래스·인터페이스 | C |
+| BDC | BDC (CALL TRANSACTION·배치 인풋) | C |
+| EXIT | User Exit·암시적 확장 | D |
+| MOD | 표준 수정 (Modification) | D |
+| ETC | 기타 | — |

@@ -324,17 +324,18 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 - 고치는 건 원래 탭에서 (이 화면은 Edit 없음)
 
 
-### 관련 요청 섹션
+### 관련 요청 섹션 (custom section)
 
-통합 조회 상세에 '관련 요청' 섹션 (기술부채 뒤, 관리 정보 앞). 행의 요청번호로 요청 탭 데이터를 연결해서 보여준다 (읽기 전용).
+통합 조회 상세의 '관련 요청' 섹션 (기술부채 뒤). 요청번호 / 상태 / 제목 / 요청 내용을 세로로 보여 준다 (읽기 전용).
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZC_CMSM_DevObject` | `association [0..1] to ZI_CMSM_Req as _Req on $projection.ReqId = _Req.ReqId` + 경로 필드: 요청 상태(`ReqStatus`)·요청자(`ReqCreatedBy`)·요청 담당자(`ReqAssignee`)와 각 텍스트, 요청 일시(`ReqCreatedAt`), 완료일(`ReqDoneDate`), 요청 내용(`ReqText`), 처리 내용(`ReqProcResult`). 숨김 플래그 `ReqHidden` = 연결된 요청이 없으면 X |
-| MDE `ZC_CMSM_DevObject` | facet `{ id: 'Req', label: '관련 요청', targetQualifier: 'Req', position: 55, hidden: #( ReqHidden ) }`, 필드그룹 `Req`. 요청번호(`ReqId`)는 기본 정보에서 이 섹션 맨 위로 옮김 |
-| 앱 annotation.xml (쓰는 경우) | 섹션 정의를 annotation.xml로 덮어쓰고 있으면 `Req` Record를 같이 추가 (`09_app/annotation.devobject.sample.xml`) |
+| `09_app/ext/fragment/DevObjectRequest.fragment.xml` | `Label` + `Text`를 위아래로. 상태는 `ObjectStatus`(완료 초록·반려 빨강·취소 주황·진행 중 파랑), 요청 내용은 전체 폭·줄바꿈 유지. 요청이 없으면(`ReqHidden`) '연결된 요청이 없습니다.' |
+| manifest `DevObjectObjectPage` | `content.body.sections.ReqSection` — `template` `<앱 ID>.ext.fragment.DevObjectRequest`, 제목 '관련 요청', 위치 `After` `Debt` |
+| `ZC_CMSM_DevObject` | `association [0..1] to ZI_CMSM_Req as _Req on $projection.ReqId = _Req.ReqId` + `ReqStatus`·`ReqStatusText`·`ReqText`, 숨김 플래그 `ReqHidden`. 제목은 기존 `ReqTitle` |
+| MDE `ZC_CMSM_DevObject` | '관련 요청' facet·필드그룹 없음 (custom section이 대신). 위 필드와 `ReqId`는 `@UI.hidden` — 화면 바인딩엔 그대로 쓰인다 |
+| 앱 annotation.xml (쓰는 경우) | `Req` Record를 넣었다면 뺀다 (안 빼면 섹션이 두 번) |
 
-- 요청번호가 없는 행(기술부채, 요청 없이 등록한 건)은 섹션이 안 보인다
 - 요청은 저장된 것만 연결된다 (드래프트 아님)
 
 ## 요청 생성 알림 메일

@@ -119,30 +119,14 @@ define view entity ZC_CMSM_DevObject
       _Debt.DebtDesc               as DebtDesc,
       _Debt.DebtReason             as DebtReason,
 
-      /* 관련 요청 */
+      /* 관련 요청 (상세 화면 '관련 요청' custom section — 09_app/ext/fragment/DevObjectRequest.fragment.xml) */
       @ObjectModel.text.element: [ 'ReqStatusText' ]
       @EndUserText.label: '요청 상태'
       _Req.ReqStatus               as ReqStatus,
       @EndUserText.label: '요청 상태 내역'
       _Req._ReqStatus.Text         as ReqStatusText,
-      @ObjectModel.text.element: [ 'ReqCreatedByName' ]
-      @EndUserText.label: '요청자'
-      _Req.CreatedBy               as ReqCreatedBy,
-      @EndUserText.label: '요청자 이름'
-      _Req._CreatedBy.PersonFullName as ReqCreatedByName,
-      @ObjectModel.text.element: [ 'ReqAssigneeName' ]
-      @EndUserText.label: '요청 담당자'
-      _Req.Assignee                as ReqAssignee,
-      @EndUserText.label: '요청 담당자 이름'
-      _Req._Assignee.PersonFullName as ReqAssigneeName,
-      @EndUserText.label: '요청 일시'
-      _Req.CreatedAt               as ReqCreatedAt,
-      @EndUserText.label: '완료일'
-      _Req.DoneDate                as ReqDoneDate,
       @EndUserText.label: '요청 내용'
       _Req.ReqText                 as ReqText,
-      @EndUserText.label: '처리 내용'
-      _Req.ProcResult              as ReqProcResult,
 
       /* 관리 정보 */
       CreatedBy,

@@ -205,7 +205,21 @@
           "options": {
             "settings": {
               "contextPath": "/DevObject",
-              "editableHeaderContent": false
+              "editableHeaderContent": false,
+              "content": {
+                "body": {
+                  "sections": {
+                    "ReqSection": {
+                      "template": "<앱 ID>.ext.fragment.DevObjectRequest",
+                      "title": "관련 요청",
+                      "position": {
+                        "placement": "After",
+                        "anchor": "Debt"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }

@@ -42,12 +42,6 @@
         <Annotation Term="com.sap.vocabularies.UI.v1.Hidden" Path="DebtHidden"/>
       </Record>
       <Record Type="com.sap.vocabularies.UI.v1.ReferenceFacet">
-        <PropertyValue Property="ID" String="Req"/>
-        <PropertyValue Property="Label" String="관련 요청"/>
-        <PropertyValue Property="Target" AnnotationPath="@com.sap.vocabularies.UI.v1.FieldGroup#Req"/>
-        <Annotation Term="com.sap.vocabularies.UI.v1.Hidden" Path="ReqHidden"/>
-      </Record>
-      <Record Type="com.sap.vocabularies.UI.v1.ReferenceFacet">
         <PropertyValue Property="ID" String="Admin"/>
         <PropertyValue Property="Label" String="관리 정보"/>
         <PropertyValue Property="Target" AnnotationPath="@com.sap.vocabularies.UI.v1.FieldGroup#Admin"/>

@@ -463,8 +463,9 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZA_CMSM_UploadFile` (`03_root`) | 액션 입력: `Attachment`(rawstring, `@Semantics.largeObject`), `MimeType`, `FileName` |
-| BDEF R (5개) | `static action uploadExcel parameter ZA_CMSM_UploadFile;` |
+| `ZA_CMSM_UploadFile` (`03_root`) | 액션 입력 — **root** abstract entity: `Attachment`(rawstring, `@Semantics.largeObject`, xlsx만), `MimeType`, `FileName` |
+| BDEF `ZA_CMSM_UploadFile` (`05_bdef`) | 추상 BDEF: `abstract; strict ( 2 ); with hierarchy;` + `with control`, `field ( mandatory : execute ) Attachment;` |
+| BDEF R (5개) | `static action uploadExcel deep parameter ZA_CMSM_UploadFile;` — 그냥 `parameter`면 팝업에서 파일 칸이 텍스트 입력칸으로 나온다 |
 | BDEF C (5개) | `use action uploadExcel;` |
 | 핸들러 (5개) | `uploadexcel` 메서드 하나 (아래 순서) |
 | MDE (5개) | 첫 목록 칸에 `{ type: #FOR_ACTION, dataAction: 'uploadExcel', label: '엑셀 업로드' }` |
@@ -477,5 +478,6 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 
 - 요청 업로드는 줄마다 담당자 메일이 간다
 - 기술부채 `debtcat`(부채 구분)은 BO에 필드가 생기면 `CREATE FIELDS`에 추가
-- 파일 선택 팝업: 액션 파라미터의 파일(LOB) 입력은 비교적 최근 기능이다. 팝업에 파일 칸이 안 나오면, 프로젝트에서 이미 쓰는 업로드 방식(파라미터·확장)에 맞추고 핸들러 로직은 그대로 쓴다
+- 파일 선택 팝업: root abstract entity + 추상 BDEF + `deep parameter` 조합이 필요하다 (PCE 2023 이상, 최근 UI5). 그래도 텍스트 칸이면 릴리스·UI5 버전 문제 — 프로젝트에서 이미 쓰는 업로드 방식(UI5 FileUploader 확장 등)에 맞추고 핸들러 로직은 그대로 쓴다
+- DRM 걸린 파일이 형식(xlsx) 제한에 걸리면 `acceptableMimeTypes` 줄을 뺀다
 

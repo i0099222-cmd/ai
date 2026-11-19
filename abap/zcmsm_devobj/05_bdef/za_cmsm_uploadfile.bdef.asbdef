@@ -1,0 +1,10 @@
+// 엑셀 업로드 팝업 파라미터의 추상 BDEF — deep parameter 로 쓰려면 필요 (평평한 구조라도 with hierarchy)
+abstract;
+strict ( 2 );
+with hierarchy;
+
+define behavior for ZA_CMSM_UploadFile alias UploadFile with control
+{
+  // 파일을 안 고르면 실행 버튼에서 막는다 (팝업에 * 표시)
+  field ( mandatory : execute ) Attachment;
+}

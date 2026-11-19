@@ -246,7 +246,6 @@ VH 이름 입력: `ZI_CMSM_SysVhVH` (`01_vh`) 값 도움말
 | --- | --- | --- |
 | `setInitialValues` | 생성 | 담당자 = 등록한 사람 |
 | `setTestInfo` | 테스트 파일 올림·삭제 | 올린 사람·일시 채움 / 파일 지우면 비움 |
-| `setModuleFromName` | Service Binding 입력·변경 | 이름에서 모듈 자동 입력 (아래) |
 | `setSbId` | 저장 (생성) | SB-nnnn 채번 (번호 범위 구간 04) |
 | `validateMandatory` | 저장, Prepare | Service Binding·모듈 필수 |
 | `validateSrvbName` | 저장, Prepare | 같은 시스템 ID·같은 바인딩이 이미 있으면 에러 / 시스템에 없는 바인딩도 에러 (`I_CustABAPObjDirectoryEntry`, 유형 SRVB) |
@@ -254,8 +253,7 @@ VH 이름 입력: `ZI_CMSM_SysVhVH` (`01_vh`) 값 도움말
 
 Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB 목록, 이미 등록된 건 등록번호 표시.
 
-모듈 자동 입력 (`setModuleFromName`): Service Binding 이름의 **Z 다음 글자부터 첫 `_` 앞까지**를 모듈로 넣는다. `ZCM_0000` → CM, `ZFI_POST_O4` → FI. 뽑은 값이 모듈 고정값(`ZI_CMSM_ModuleVH`)에 없으면(`ZUI_…` → UI) 그대로 둔다. `_`가 없거나 Z로 시작하지 않아도 그대로. Service Binding을 바꿀 때만 다시 계산하니, 자동으로 들어간 모듈을 사용자가 바꿔도 유지된다. side effects로 입력 즉시 화면에 보인다.
-CDS 계산 필드(`substring( SrvbName, 2, 2 )`)로 하지 않는 이유: 드래프트는 드래프트 테이블에서 바로 읽어서 입력 중에는 계산이 안 되고, 저장되는 값도 아니다.
+모듈 자동 입력: VH 목록에 이름에서 뽑은 모듈 칸이 있고(Z 다음부터 첫 `_` 앞까지, 2·3글자 — `ZCM_0000` → CM, `ZEWM_01` → EWM), VH에서 바인딩을 고르면 `additionalBinding`으로 모듈에 들어간다. 모듈 고정값에 있는지는 보지 않는다(`ZUI_…` → UI). 모듈은 그 뒤에 사용자가 바꿀 수 있다.
 
 테스트 데이터: 시스템에 있는 Z 서비스 바인딩을 앞에서부터 최대 5개 골라 SB-T001~ 이름으로 쓴다 (모자라면 나머지는 예시 이름 — 그 행은 수정 후 저장하면 존재 검증에 걸린다).
 

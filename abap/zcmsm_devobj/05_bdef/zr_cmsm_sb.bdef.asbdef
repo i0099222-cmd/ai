@@ -35,8 +35,6 @@ authorization master ( global )
   // 새 서비스: 담당자 = 등록한 사람 / 파일 올리면 올린 사람·일시 / 저장할 때 SB- 채번
   determination setInitialValues on modify { create; }
   determination setTestInfo      on modify { field TestFile, TestFileName; }
-  // Service Binding 이름에서 모듈: ZCM_0000 → CM (Z 다음부터 첫 '_' 전까지, 모듈 값에 있을 때만)
-  determination setModuleFromName on modify { field SrvbName; }
   determination setSbId          on save   { create; }
 
   validation validateMandatory on save { create; field SrvbName, SapModule; }
@@ -47,7 +45,6 @@ authorization master ( global )
   side effects
   {
     field TestFile affects field TestBy, field TestAt;
-    field SrvbName affects field SapModule;
   }
 
   draft action Edit;

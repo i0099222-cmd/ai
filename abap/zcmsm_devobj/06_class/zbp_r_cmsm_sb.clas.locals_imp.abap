@@ -2,7 +2,6 @@
 "!
 "! - 시스템에 없는 서비스 바인딩은 등록 불가, 같은 시스템 ID에 같은 바인딩은 한 번만
 "! - 테스트 파일을 올리면 올린 사람·일시 자동, 지우면 같이 비움. 10MB까지
-"! - Service Binding 이름에서 모듈 자동 입력: ZCM_0000 → CM (Z 다음부터 첫 '_' 전까지, 모듈 값에 있을 때만)
 CLASS lhc_odataservice DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
@@ -19,9 +18,6 @@ CLASS lhc_odataservice DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     METHODS settestinfo FOR DETERMINE ON MODIFY
       IMPORTING keys FOR ODataService~setTestInfo.
-
-    METHODS setmodulefromname FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR ODataService~setModuleFromName.
 
     METHODS setsbid FOR DETERMINE ON SAVE
       IMPORTING keys FOR ODataService~setSbId.
@@ -99,49 +95,6 @@ CLASS lhc_odataservice IMPLEMENTATION.
                       ( %tky   = ls_sb-%tky
                         TestBy = COND #( WHEN ls_sb-TestFile IS NOT INITIAL THEN lv_user )
                         TestAt = COND #( WHEN ls_sb-TestFile IS NOT INITIAL THEN lv_now ) ) ).
-
-  ENDMETHOD.
-
-
-  METHOD setmodulefromname.
-
-    DATA lt_update TYPE TABLE FOR UPDATE zr_cmsm_sb.
-
-    READ ENTITIES OF zr_cmsm_sb IN LOCAL MODE
-      ENTITY ODataService
-        FIELDS ( SrvbName SapModule ) WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_sb).
-
-    " 모듈 고정값 (뽑은 값이 실제 모듈일 때만 넣는다)
-    SELECT Value FROM zi_cmsm_modulevh INTO TABLE @DATA(lt_module).
-
-    LOOP AT lt_sb INTO DATA(ls_sb).
-
-      " ZCM_0000 → CM : Z 다음 글자부터 첫 '_' 앞까지 (ZEWM_… 처럼 3글자 모듈도 된다)
-      DATA(lv_name) = to_upper( condense( CONV string( ls_sb-SrvbName ) ) ).
-      DATA(lv_sep)  = find( val = lv_name sub = `_` ).
-      IF lv_name IS INITIAL OR lv_name(1) <> `Z` OR lv_sep < 2.
-        CONTINUE.
-      ENDIF.
-
-      DATA(lv_module) = substring( val = lv_name off = 1 len = lv_sep - 1 ).
-
-      IF NOT line_exists( lt_module[ value = lv_module ] ) OR lv_module = ls_sb-SapModule.
-        CONTINUE.
-      ENDIF.
-
-      APPEND VALUE #( %tky      = ls_sb-%tky
-                      SapModule = lv_module ) TO lt_update.
-
-    ENDLOOP.
-
-    IF lt_update IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    MODIFY ENTITIES OF zr_cmsm_sb IN LOCAL MODE
-      ENTITY ODataService
-        UPDATE FIELDS ( SapModule ) WITH lt_update.
 
   ENDMETHOD.
 

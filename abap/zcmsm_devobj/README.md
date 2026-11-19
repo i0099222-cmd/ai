@@ -364,8 +364,8 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 | MDE `ZC_CMSM_Map` | `Mapping`·`MappingSub`·`AsIs`·`ToBe` facet과 As-Is·To-Be `fieldGroup` 항목을 뺀다 (안 빼면 두 번 나옴) |
 
 - 섹션 순서: 기본 정보 → 매핑(custom) → UI 연결 (T-code일 때) → 사용처 (같은 패키지 CDS) → 관리 정보
-- `macros:Field`라서 수정 권한(구분이 신규면 As-Is 잠김)·값 도움말·텍스트 표시가 기본 폼과 같다
-- 필수 별표는 라벨 `required`로 직접: As-Is 세 칸 = 편집 중 + 구분 ≠ 신규(`N`), To-Be 유형·오브젝트 = 편집 중이면 항상 (`ui>/isEditable`). 필수 검증 자체는 BO validation 그대로
+- `macros:Field`라서 수정 권한·값 도움말·텍스트 표시가 기본 폼과 같다. 구분이 신규(N)면 As-Is 칸을 통째로 숨긴다 (`visible="{= ${MapKind} !== 'N' }"`, 편집 중 바로 반영)
+- 필수 별표는 라벨 `required`로 직접: As-Is 세 칸·To-Be 유형·오브젝트 = 편집 중이면 (`ui>/isEditable`). 필수 검증 자체는 BO validation 그대로
 - 구분(`MapKind`)은 기본 정보 맨 위
 - 폰처럼 좁으면 두 칸이 위아래로 내려간다
 

@@ -15,7 +15,7 @@
                                    presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
 }
 // 목록 정렬: 오브젝트 이름순 → 같은 이름이면 To-Be·TD·SB·VH 다음 As-Is (구분 내림차순)
-// 상세 화면(읽기 전용) 섹션: 기본 정보 · 매핑 · UI · 테스트 · 기술부채 · 관리 정보
+// 상세 화면(읽기 전용) 섹션: 기본 정보 · 매핑 · UI · 테스트 · 기술부채 · 관련 요청 · 관리 정보
 //   행마다 해당 없는 섹션은 앱 annotation.xml 에서 …Hidden 필드로 숨긴다 (없으면 전부 보임)
 annotate entity ZC_CMSM_DevObject with
 {
@@ -26,6 +26,7 @@ annotate entity ZC_CMSM_DevObject with
     { id: 'Ui',      type: #FIELDGROUP_REFERENCE, label: 'UI',        targetQualifier: 'Ui',      position: 30 },
     { id: 'Test',    type: #FIELDGROUP_REFERENCE, label: '테스트',    targetQualifier: 'Test',    position: 40 },
     { id: 'Debt',    type: #FIELDGROUP_REFERENCE, label: '기술부채',  targetQualifier: 'Debt',    position: 50 },
+    { id: 'Req',     type: #FIELDGROUP_REFERENCE, label: '관련 요청', targetQualifier: 'Req',     position: 55, hidden: #( ReqHidden ) },
     { id: 'Admin',   type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin',   position: 60 }
   ]
   @UI.hidden: true
@@ -102,7 +103,7 @@ annotate entity ZC_CMSM_DevObject with
   @UI.fieldGroup: [{ qualifier: 'General', position: 60 }]
   ObjCreator;
 
-  @UI.fieldGroup: [{ qualifier: 'General', position: 70 }]
+  @UI.fieldGroup: [{ qualifier: 'Req', position: 10 }]
   ReqId;
 
   @UI.hidden: true
@@ -196,6 +197,37 @@ annotate entity ZC_CMSM_DevObject with
   @UI: { fieldGroup: [{ qualifier: 'Debt', position: 60 }], multiLineText: true }
   DebtReason;
 
+  /* 관련 요청 (요청번호가 있는 행만 — ReqHidden) */
+  @UI: { fieldGroup: [{ qualifier: 'Req', position: 20 }], textArrangement: #TEXT_ONLY }
+  ReqStatus;
+
+  @UI.hidden: true
+  ReqStatusText;
+
+  @UI.fieldGroup: [{ qualifier: 'Req', position: 30 }]
+  ReqCreatedBy;
+
+  @UI.hidden: true
+  ReqCreatedByName;
+
+  @UI.fieldGroup: [{ qualifier: 'Req', position: 40 }]
+  ReqAssignee;
+
+  @UI.hidden: true
+  ReqAssigneeName;
+
+  @UI.fieldGroup: [{ qualifier: 'Req', position: 50 }]
+  ReqCreatedAt;
+
+  @UI.fieldGroup: [{ qualifier: 'Req', position: 60 }]
+  ReqDoneDate;
+
+  @UI: { fieldGroup: [{ qualifier: 'Req', position: 70 }], multiLineText: true }
+  ReqText;
+
+  @UI: { fieldGroup: [{ qualifier: 'Req', position: 80 }], multiLineText: true }
+  ReqProcResult;
+
   /* 관리 정보 */
   @UI.fieldGroup: [{ qualifier: 'Admin', position: 10 }]
   CreatedBy;
@@ -221,4 +253,7 @@ annotate entity ZC_CMSM_DevObject with
 
   @UI.hidden: true
   DebtHidden;
+
+  @UI.hidden: true
+  ReqHidden;
 }

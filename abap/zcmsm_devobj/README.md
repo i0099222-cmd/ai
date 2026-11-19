@@ -323,6 +323,20 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 - 행마다 해당 없는 섹션 숨김: C 뷰에서 `CASE`로 `MapHidden` / `UiHidden`(T-code 매핑만) / `TestHidden`(VH·SB) / `DebtHidden`(TD) 계산 → 앱 `annotation.xml`의 `UI.Facets`에서 섹션마다 `UI.Hidden Path`로 연결 (`09_app/annotation.devobject.sample.xml`). 이 XML이 백엔드 섹션 정의를 대신하므로 섹션을 바꾸면 MDE와 XML 둘 다 고친다. XML이 없으면 섹션이 전부 보일 뿐 화면은 동작
 - 고치는 건 원래 탭에서 (이 화면은 Edit 없음)
 
+
+### 관련 요청 섹션
+
+통합 조회 상세에 '관련 요청' 섹션 (기술부채 뒤, 관리 정보 앞). 행의 요청번호로 요청 탭 데이터를 연결해서 보여준다 (읽기 전용).
+
+| 오브젝트 | 내용 |
+| --- | --- |
+| `ZC_CMSM_DevObject` | `association [0..1] to ZI_CMSM_Req as _Req on $projection.ReqId = _Req.ReqId` + 경로 필드: 요청 상태(`ReqStatus`)·요청자(`ReqCreatedBy`)·요청 담당자(`ReqAssignee`)와 각 텍스트, 요청 일시(`ReqCreatedAt`), 완료일(`ReqDoneDate`), 요청 내용(`ReqText`), 처리 내용(`ReqProcResult`). 숨김 플래그 `ReqHidden` = 연결된 요청이 없으면 X |
+| MDE `ZC_CMSM_DevObject` | facet `{ id: 'Req', label: '관련 요청', targetQualifier: 'Req', position: 55, hidden: #( ReqHidden ) }`, 필드그룹 `Req`. 요청번호(`ReqId`)는 기본 정보에서 이 섹션 맨 위로 옮김 |
+| 앱 annotation.xml (쓰는 경우) | 섹션 정의를 annotation.xml로 덮어쓰고 있으면 `Req` Record를 같이 추가 (`09_app/annotation.devobject.sample.xml`) |
+
+- 요청번호가 없는 행(기술부채, 요청 없이 등록한 건)은 섹션이 안 보인다
+- 요청은 저장된 것만 연결된다 (드래프트 아님)
+
 ## 요청 생성 알림 메일
 
 새 요청이 저장되면 담당자에게 메일을 보낸다.

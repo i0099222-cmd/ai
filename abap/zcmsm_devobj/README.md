@@ -6,6 +6,7 @@
 
 | 폴더 | 내용 | 개수 |
 | --- | --- | --- |
+| `00_ddic` | 새로 만드는 테이블 정의 (`ztcmsm00250` CDS 사용처 인덱스) | 1 |
 | `01_vh` | 고정값 도메인 VH 12개, 사용자 VH, 시스템 ID | 14 |
 | `02_interface` | `ZI_CMSM_*` 테이블 1:1 뷰 (라벨·텍스트용 연관) + 요청번호 VH | 8 |
 | `03_root` | `ZR_CMSM_*` BO 뷰 (composition, 관리 필드 semantics, LOB) | 7 |
@@ -352,31 +353,36 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 - 구분(`MapKind`)은 기본 정보 맨 위
 - 폰처럼 좁으면 두 칸이 위아래로 내려간다
 
-## To-Be 사용처 (시스템 Z CDS, custom entity + XCO)
+## To-Be 사용처 (시스템 Z CDS, 배치 잡 인덱스)
 
-매핑 상세의 '사용처 (Z CDS)' 섹션. 시스템의 Z CDS(DDLS)를 열 때마다 전부 XCO로 읽어서, To-Be 오브젝트를 데이터 소스(`select from`)나 연관 대상으로 쓰는 CDS를 보여준다 (저장 안 함).
+매핑 상세의 '사용처 (Z CDS)' 섹션. To-Be 오브젝트를 데이터 소스(`select from`)나 연관 대상으로 쓰는 Z CDS 목록.
+
+처음엔 화면을 열 때마다 Z CDS를 전부 XCO로 읽었는데(custom entity), Z CDS가 1만 개를 넘으면 너무 느려서 **배치 잡이 미리 인덱스를 만들고 화면은 테이블만 읽는** 방식으로 바꿨다. 화면은 바로 뜨고, 내용은 마지막 잡 실행 기준('확인 일시').
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZCE_CMSM_TobeUsage` (`04_projection`) | custom entity: 사용하는 CDS, 사용 방식(데이터 소스 / 연관 / 데이터 소스·연관), 패키지. 키 = To-Be 이름(숨김) + 사용하는 CDS. UI 어노테이션 포함 |
-| `ZCL_CMSM_TOBEUSE_QUERY` (`06_class`) | 쿼리 클래스. 로직은 `select` 하나에 (필터 `TobeName` → CDS·테이블인지 확인 → `I_CustABAPObjDirectoryEntry`의 Z DDLS 전부 → XCO로 메인 소스·연관 대상 → 페이징) |
-| `ZC_CMSM_Map` | `association [0..*] to ZCE_CMSM_TobeUsage as _Usage on $projection.TobeName = _Usage.TobeName` + 노출 |
-| 서비스 정의 | `expose ZCE_CMSM_TobeUsage as MappingUsage;` |
-| MDE `ZC_CMSM_Map` | 섹션 `{ id: 'Usage', type: #LINEITEM_REFERENCE, targetElement: '_Usage' }` |
+| `ztcmsm00250` (`00_ddic`) | 인덱스 테이블. 키 = 쓰이는 오브젝트 + 쓰는 CDS, 사용 방식·패키지·확인 일시 |
+| `ZCL_CMSM_USAGE_JOB` (`06_class`) | 배치 잡 클래스 (`IF_APJ_DT_EXEC_OBJECT`·`IF_APJ_RT_EXEC_OBJECT`, F9용 `IF_OO_ADT_CLASSRUN`). 로직은 `execute` 하나에: Z DDLS 전부 → XCO로 메인 소스·연관 대상 → 테이블 통째로 지우고 다시 넣기 |
+| `ZI_CMSM_CdsUsage` (`02_interface`) | 인덱스 테이블 뷰 + UI 어노테이션 (사용하는 CDS, 사용 방식, 패키지, 확인 일시) |
+| `ZC_CMSM_Map` | `association [0..*] to ZI_CMSM_CdsUsage as _Usage on $projection.TobeName = _Usage.UsedObject` + 노출 |
+| 서비스 정의 | `expose ZI_CMSM_CdsUsage as MappingUsage;` (엔터티셋 이름 그대로라 MDE·앱은 안 바뀜) |
 
-- To-Be가 CDS·테이블일 때만 찾는다 (XCO `ddls->for( )->exists( )` / `database_table( )->exists( )`). 클래스·FM·T-code는 빈 표 — ABAP Cloud에는 where-used 릴리즈 API가 없다
-- 못 찾는 것: join 대상, view entity가 아닌 CDS(DDIC 기반 `define view`, custom entity 등), 컴포지션 대상. 메인 소스를 읽는 방식은 VH 데이터 소스와 같아서, 거기서 메인 소스가 비어 나오면 여기도 같이 고친다 (`lt_component`)
-- CDS 하나를 못 읽어도(비활성 등) 건너뛰고 계속 본다 (`TRY … CATCH cx_root`)
-- 느릴 수 있다: Z CDS 개수만큼 XCO로 읽는다. 너무 느리면 `select`의 Z DDLS 조회에 패키지 조건(`ABAPPackage LIKE 'ZCM%'` 등)을 넣어 범위를 줄인다
-
-시험: 서비스 바인딩 Preview에서 MappingUsage를 `TobeName eq 'ZR_CMSM_REQ'`처럼 이 앱 CDS 이름으로 열면 ZC_CMSM_Req(데이터 소스), ZR_CMSM_ReqHist(연관) 등이 나와야 한다.
+- To-Be 이름 도메인(`ZDO_DM_OBJ_NAME`)이 대문자라 인덱스(대문자 저장)와 바로 조인된다
+- 못 찾는 것: join 대상, view entity가 아닌 CDS(DDIC 기반 `define view`, custom entity 등), 컴포지션 대상. 클래스·FM·T-code는 CDS가 쓰지 않으니 빈 표
+- CDS 하나를 못 읽어도(비활성 등) 건너뛰고 계속. 잡이 중간에 죽으면 지우기 전이라 예전 인덱스가 남는다
 
 ### 만드는 순서
 
-1. `ZCE_CMSM_TobeUsage` 만들기 → `ZCL_CMSM_TOBEUSE_QUERY` 만들기 → 둘 같이 활성화
-2. `ZC_CMSM_Map` 교체 (연관 추가) → 활성화
-3. 서비스 정의에 `expose ZCE_CMSM_TobeUsage as MappingUsage;` → 활성화
-4. MDE `ZC_CMSM_Map` 교체 → 활성화. 앱은 새로고침만 (manifest 수정 없음)
+1. 테이블 `ztcmsm00250` 만들기 (`00_ddic/ztcmsm00250.tabl.txt`) → 활성화. 번호가 다르면 잡 클래스·`ZI_CMSM_CdsUsage`의 테이블 이름만 바꾼다
+2. `ZI_CMSM_CdsUsage` → 활성화
+3. `ZCL_CMSM_USAGE_JOB` → 활성화
+4. `ZC_CMSM_Map` 교체 → 서비스 정의 교체 → 활성화
+5. 이전 버전 삭제: `ZCE_CMSM_TobeUsage`, `ZCL_CMSM_TOBEUSE_QUERY` (4번 뒤에. 먼저 지우면 참조 에러)
+6. ADT에서 잡 카탈로그 항목 `ZCMSM_CDS_USAGE` (클래스 `ZCL_CMSM_USAGE_JOB`) → 잡 템플릿 `ZCMSM_CDS_USAGE_T` 만들기
+7. Fiori 'Application Jobs' 앱에서 템플릿으로 잡 만들기: 처음 한 번 '즉시', 그다음 매일 새벽 반복. 권한이 없으면 Basis에 요청
+8. 앱 새로고침 → 매핑 상세 '사용처 (Z CDS)'
+
+F9로도 돌릴 수 있지만 Z CDS 1만 개면 대화 시간 제한(보통 10분 안팎)에 걸릴 수 있어서, 처음 채울 때도 잡으로 돌린다.
 
 ## VH 데이터 소스 (자동, custom entity + XCO)
 

@@ -1,0 +1,16 @@
+@EndUserText.label : 'CDS 사용처 인덱스'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+// 시스템 Z CDS 가 어떤 오브젝트(CDS·테이블)를 데이터 소스·연관으로 쓰는지.
+// 배치 잡 ZCL_CMSM_USAGE_JOB 가 통째로 지우고 다시 채운다 (화면에서 쓰지 않음, 읽기만).
+// 테이블 번호가 다르면 ZCL_CMSM_USAGE_JOB, ZI_CMSM_CdsUsage 의 테이블 이름만 바꾼다.
+define table ztcmsm00250 {
+  key client     : abap.clnt not null;
+  key usedobject : abap.char(40) not null;
+  key usedby     : abap.char(40) not null;
+  usekind        : abap.char(20);
+  devpackage     : abap.char(30);
+  scannedat      : abap.utclong;
+}

@@ -6,8 +6,8 @@
 define root view entity ZC_CMSM_Map
   provider contract transactional_query
   as projection on ZR_CMSM_Map
-  // 사용처 (Z CDS): 시스템 Z CDS 중 To-Be 를 데이터 소스·연관으로 쓰는 것. XCO 로 읽는 custom entity (읽기 전용)
-  association [0..*] to ZCE_CMSM_TobeUsage as _Usage on $projection.TobeName = _Usage.TobeName
+  // 사용처 (Z CDS): 시스템 Z CDS 중 To-Be 를 데이터 소스·연관으로 쓰는 것. 배치 잡이 매일 만드는 인덱스 (읽기 전용)
+  association [0..*] to ZI_CMSM_CdsUsage as _Usage on $projection.TobeName = _Usage.UsedObject
 {
   key MapUuid,
       @Search.defaultSearchElement: true

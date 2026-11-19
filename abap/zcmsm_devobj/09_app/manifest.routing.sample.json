@@ -137,7 +137,21 @@
           "options": {
             "settings": {
               "contextPath": "/Mapping",
-              "editableHeaderContent": false
+              "editableHeaderContent": false,
+              "content": {
+                "body": {
+                  "sections": {
+                    "MapSection": {
+                      "template": "<앱 ID>.ext.fragment.Mapping",
+                      "title": "매핑",
+                      "position": {
+                        "placement": "After",
+                        "anchor": "General"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },

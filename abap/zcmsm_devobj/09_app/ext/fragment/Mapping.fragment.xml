@@ -1,0 +1,36 @@
+<!--
+  매핑 상세 · '매핑' custom section (As-Is | To-Be 두 칸, 칸 안 필드는 세로로)
+  - FE 기본 폼은 넓은 화면에서 칸을 3~4개로 잡아서, 필드그룹이 2개뿐이면 한 그룹의 필드가 옆으로 퍼진다.
+    그래서 직접 '2칸' 폼을 만든다: 칸 하나 = As-Is / To-Be, 칸 안은 시스템 / 유형 / 오브젝트 세로
+  - macros:FormElement: 라벨·필드·필수 표시·수정 권한(feature control)·값 도움말을 FE 기본처럼 붙인다.
+    label 을 주면 칸 안에서만 짧은 라벨 (목록 컬럼 라벨은 CDS 라벨 그대로)
+  - 폰처럼 좁은 화면에서는 두 칸이 위아래로 내려간다
+  - 위치: webapp/ext/fragment/Mapping.fragment.xml  /  manifest template: "<앱 ID>.ext.fragment.Mapping"
+-->
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns:f="sap.ui.layout.form"
+    xmlns:macros="sap.fe.macros">
+  <f:Form id="mapForm" editable="true">
+    <f:layout>
+      <!-- 칸 수를 2로 고정 + 라벨을 필드 위로 (labelCellsLarge 12 = 라벨이 한 줄을 다 쓴다) -->
+      <f:ColumnLayout columnsM="2" columnsL="2" columnsXL="2" labelCellsLarge="12" emptyCellsLarge="0"/>
+    </f:layout>
+    <f:formContainers>
+      <f:FormContainer id="mapAsisContainer" title="As-Is">
+        <f:formElements>
+          <macros:FormElement id="mapAsisSys"  metaPath="SrcSysId" label="시스템"/>
+          <macros:FormElement id="mapAsisType" metaPath="AsisType" label="유형"/>
+          <macros:FormElement id="mapAsisName" metaPath="AsisName" label="오브젝트"/>
+        </f:formElements>
+      </f:FormContainer>
+      <f:FormContainer id="mapTobeContainer" title="To-Be">
+        <f:formElements>
+          <macros:FormElement id="mapTobeSys"  metaPath="TgtSysId" label="시스템"/>
+          <macros:FormElement id="mapTobeType" metaPath="TobeType" label="유형"/>
+          <macros:FormElement id="mapTobeName" metaPath="TobeName" label="오브젝트"/>
+        </f:formElements>
+      </f:FormContainer>
+    </f:formContainers>
+  </f:Form>
+</core:FragmentDefinition>

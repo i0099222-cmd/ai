@@ -15,17 +15,13 @@
                                    presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
 }
 // 상세 화면: 기본 정보 → 매핑(As-Is | To-Be 나란히) → UI 연결 → 사용처(Z CDS) → 관리 정보
-//   매핑은 컬렉션 안에 컬렉션을 하나 더 두고 그 안에 필드그룹 두 개 → 한 폼의 두 칸으로 나란히 나온다
-//   As-Is·To-Be 칸은 줄 순서·라벨을 똑같이 (시스템 / 유형 / 오브젝트) 맞춰서 옆 칸과 바로 비교되게
+//   매핑(As-Is | To-Be)은 MDE 가 아니라 앱의 custom section (ext/fragment/Mapping.fragment.xml, 기본 정보 뒤).
+//   FE 기본 폼은 칸을 3~4개로 잡아 필드가 옆으로 퍼져서, 2칸 폼을 직접 만든다. 그래서 여기엔 As-Is·To-Be 필드그룹이 없다
 annotate entity ZC_CMSM_Map with
 {
   @UI.facet: [
     { id: 'Header',     purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
     { id: 'General',    type: #FIELDGROUP_REFERENCE, label: '기본 정보', targetQualifier: 'General', position: 10 },
-    { id: 'Mapping',    type: #COLLECTION, label: '매핑', position: 20 },
-    { id: 'MappingSub', type: #COLLECTION, parentId: 'Mapping', position: 10 },
-    { id: 'AsIs',       type: #FIELDGROUP_REFERENCE, parentId: 'MappingSub', label: 'As-Is', targetQualifier: 'AsIs', position: 10 },
-    { id: 'ToBe',       type: #FIELDGROUP_REFERENCE, parentId: 'MappingSub', label: 'To-Be', targetQualifier: 'ToBe', position: 20 },
     { id: 'Ui',         type: #FIELDGROUP_REFERENCE, label: 'UI 연결 (To-Be가 T-code일 때)', targetQualifier: 'Ui', position: 30 },
     { id: 'Usage',      type: #LINEITEM_REFERENCE, label: '사용처 (Z CDS)', targetElement: '_Usage', position: 40 },
     { id: 'Admin',      type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 50 }
@@ -48,29 +44,17 @@ annotate entity ZC_CMSM_Map with
   @UI.hidden: true
   MapKindText;
 
-  @UI.fieldGroup: [{ qualifier: 'AsIs', position: 10, label: '시스템' }]
-  SrcSysId;
-
   @UI.hidden: true
   SrcSysText;
 
-  @UI: {
-    fieldGroup:     [{ qualifier: 'AsIs', position: 20, label: '유형' }],
-    textArrangement: #TEXT_ONLY
-  }
+  @UI.textArrangement: #TEXT_ONLY
   AsisType;
 
   @UI.hidden: true
   AsisTypeText;
 
-  @UI: {
-    lineItem:       [{ position: 30, importance: #HIGH }],
-    fieldGroup:     [{ qualifier: 'AsIs', position: 30, label: '오브젝트' }]
-  }
+  @UI.lineItem: [{ position: 30, importance: #HIGH }]
   AsisName;
-
-  @UI.fieldGroup: [{ qualifier: 'ToBe', position: 10, label: '시스템' }]
-  TgtSysId;
 
   @UI.hidden: true
   TgtSysText;
@@ -78,7 +62,6 @@ annotate entity ZC_CMSM_Map with
   @UI: {
     lineItem:       [{ position: 40 }],
     selectionField: [{ position: 30 }],
-    fieldGroup:     [{ qualifier: 'ToBe', position: 20, label: '유형' }],
     textArrangement: #TEXT_ONLY
   }
   TobeType;
@@ -86,10 +69,7 @@ annotate entity ZC_CMSM_Map with
   @UI.hidden: true
   TobeTypeText;
 
-  @UI: {
-    lineItem:       [{ position: 50, importance: #HIGH }],
-    fieldGroup:     [{ qualifier: 'ToBe', position: 30, label: '오브젝트' }]
-  }
+  @UI.lineItem: [{ position: 50, importance: #HIGH }]
   TobeName;
 
   @UI: {

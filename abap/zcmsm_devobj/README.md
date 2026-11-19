@@ -337,16 +337,20 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 
 `setReqId`(저장 시 determination)에 넣지 않은 이유: determination은 저장 검증보다 먼저 돌아서, 검증에 걸려 저장이 안 돼도 메일이 나가고 다시 저장하면 또 나간다. RAP는 determination 안에서 외부 발송 같은 동작을 막기도 한다.
 
-## 매핑 상세 화면: As-Is | To-Be 나란히
+## 매핑 상세 화면: As-Is | To-Be 나란히 (custom section)
 
-MDE `ZC_CMSM_Map`만 바꾼다.
+FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는다. 필드그룹이 2개(As-Is·To-Be)뿐이면 한 그룹이 칸 여러 개를 차지해서 필드가 옆으로 퍼진다. 컬렉션을 3단으로 둬도 칸 수는 못 바꾼다. 그래서 매핑 섹션은 custom section으로 2칸 폼을 직접 만든다.
 
-- 섹션 순서: 기본 정보 → 매핑 → UI 연결 (T-code일 때) → 사용처 (Z CDS) → 관리 정보
-- 매핑 섹션 = 컬렉션(`Mapping`) 안에 컬렉션(`MappingSub`) 하나 더, 그 안에 필드그룹 `AsIs`·`ToBe`. 이렇게 3단으로 두면 FE가 두 필드그룹을 한 폼의 두 칸으로 나란히 그린다 (2단이면 위아래 하위 섹션으로 쌓임)
-- 두 칸은 줄 순서·라벨을 똑같이: 시스템 / 유형 / 오브젝트 (`fieldGroup`의 `label`로 칸 안에서만 짧게 — 목록 컬럼 라벨은 그대로)
-- 구분(`MapKind`)은 As-Is 칸에서 빼서 기본 정보 맨 위로 (신규면 As-Is가 잠기니 먼저 고르게)
+| 오브젝트 | 내용 |
+| --- | --- |
+| `09_app/ext/fragment/Mapping.fragment.xml` | `sap.ui.layout.form.Form` + `ColumnLayout columnsM/L/XL="2" labelCellsLarge="12"` → 칸 2개, 칸 안은 라벨 위·필드 아래로 세로. `FormContainer` As-Is / To-Be, 각 `macros:FormElement` 시스템 / 유형 / 오브젝트 (`label`로 칸 안 라벨만 짧게) |
+| manifest `MappingObjectPage` | `content.body.sections.MapSection` — `template` `<앱 ID>.ext.fragment.Mapping`, 제목 '매핑', 위치 `After` `General` |
+| MDE `ZC_CMSM_Map` | `Mapping`·`MappingSub`·`AsIs`·`ToBe` facet과 As-Is·To-Be `fieldGroup` 항목을 뺀다 (안 빼면 두 번 나옴) |
 
-화면이 좁으면(태블릿 세로·폰) 두 칸이 위아래로 내려간다.
+- 섹션 순서: 기본 정보 → 매핑(custom) → UI 연결 (T-code일 때) → 사용처 (Z CDS) → 관리 정보
+- `macros:FormElement`라서 필수 표시·수정 권한(구분이 신규면 As-Is 잠김)·값 도움말·텍스트 표시가 기본 폼과 같다
+- 구분(`MapKind`)은 기본 정보 맨 위
+- 폰처럼 좁으면 두 칸이 위아래로 내려간다
 
 ## To-Be 사용처 (시스템 Z CDS, custom entity + XCO)
 

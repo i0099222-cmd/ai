@@ -69,13 +69,8 @@ CLASS lhc_mapping IMPLEMENTATION.
   METHOD uploadexcel.
 
     " 엑셀 업로드 — 템플릿 '업로드' 시트 (1행 컬럼명, 2행 필드명, 3행부터 데이터)
-    "   DRM 풀기 → itab 변환 → 행마다 확인 → 에러가 하나라도 있으면 한 건도 안 올림 → 활성 데이터로 생성
-    "   채번·기본값·저장 검증은 BO 그대로 탄다 (여기 확인은 행 번호를 붙여 먼저 걸러 주는 것)
-    TYPES: BEGIN OF ty_check,
-             ok   TYPE abap_bool,
-             text TYPE string,
-           END OF ty_check,
-           tt_check TYPE STANDARD TABLE OF ty_check WITH EMPTY KEY.
+    "   DRM 풀기 → itab 변환 → 중복 확인 → 중복이 하나라도 있으면 한 건도 안 올림 → 생성
+    "   필수·코드값 등 나머지는 저장할 때 BO 검증이 막는다
 
     " 엑셀 한 줄 = 템플릿 칸 순서 그대로
     TYPES: BEGIN OF ty_sheet_data,
@@ -101,14 +96,6 @@ CLASS lhc_mapping IMPLEMENTATION.
     DATA lt_sheet  TYPE STANDARD TABLE OF ty_sheet_data WITH EMPTY KEY.
     DATA lt_create TYPE TABLE FOR CREATE zr_cmsm_map.
     DATA lt_error  TYPE string_table.
-    DATA lt_kind   TYPE string_table.
-    DATA lt_asis   TYPE string_table.
-    DATA lt_tobe   TYPE string_table.
-    DATA lt_ui     TYPE string_table.
-    DATA lt_module TYPE string_table.
-    DATA lt_sys    TYPE string_table.
-    DATA lt_user   TYPE string_table.
-    DATA lt_req    TYPE string_table.
 
     DATA(ls_key) = keys[ 1 ].
 
@@ -121,102 +108,52 @@ CLASS lhc_mapping IMPLEMENTATION.
         APPEND |엑셀 파일을 읽지 못했습니다: { lx_file->get_text( ) }| TO lt_error.
     ENDTRY.
 
-    " 2) 템플릿 확인: 2행 첫 칸이 필드명
-    IF lt_error IS INITIAL AND to_upper( condense( COND string( WHEN lines( lt_sheet ) >= 2 THEN lt_sheet[ 2 ]-mapkind ) ) ) <> 'MAPKIND'.
-      APPEND `매핑 업로드 템플릿이 아닙니다. 템플릿의 '업로드' 시트를 그대로 쓰세요.` TO lt_error.
-    ENDIF.
-
-    " 3) 행마다 확인 (3행부터, 빈 줄은 건너뜀). 코드·시스템·사용자·요청번호·저장된 매핑은 한 번에 읽어 둔다
     IF lt_error IS INITIAL.
-      SELECT Value  FROM zi_cmsm_mapkindvh  INTO TABLE @lt_kind.
-      SELECT Value  FROM zi_cmsm_asistypevh INTO TABLE @lt_asis.
-      SELECT Value  FROM zi_cmsm_tobetypevh INTO TABLE @lt_tobe.
-      SELECT Value  FROM zi_cmsm_uikindvh   INTO TABLE @lt_ui.
-      SELECT Value  FROM zi_cmsm_modulevh   INTO TABLE @lt_module.
-      SELECT SysId  FROM zi_cmsm_sysid      INTO TABLE @lt_sys.
-      SELECT UserId FROM zi_cmsm_uservh     INTO TABLE @lt_user.
-      SELECT ReqId  FROM zi_cmsm_reqvh      INTO TABLE @lt_req.
-      " 중복 키 = 구분/소스 시스템/As-Is 유형/As-Is/To-Be 유형/To-Be (저장된 것 + 위쪽 행)
+      " 2) 중복 키 = 구분/소스 시스템/As-Is 유형/As-Is/To-Be 유형/To-Be (저장된 것 + 위쪽 행)
       SELECT MapKind, SrcSysId, AsisType, AsisName, TobeType, TobeName FROM zi_cmsm_map INTO TABLE @DATA(lt_saved).
-      DATA(lt_dup) = VALUE string_table( FOR s IN lt_saved
-                                         ( |{ s-MapKind }/{ s-SrcSysId }/{ s-AsisType }/{ s-AsisName }/{ s-TobeType }/{ s-TobeName }| ) ).
+      DATA(lt_dup) = VALUE string_table( FOR s IN lt_saved ( |{ s-MapKind }/{ s-SrcSysId }/{ s-AsisType }/{ s-AsisName }/{ s-TobeType }/{ s-TobeName }| ) ).
 
+      " 3) 3행부터 한 줄씩 (빈 줄은 건너뜀). 코드·이름은 대문자로
       LOOP AT lt_sheet INTO DATA(ls_row) FROM 3.
         DATA(lv_row) = sy-tabix.
         IF ls_row IS INITIAL.
           CONTINUE.
         ENDIF.
-        ls_row-mapkind   = to_upper( condense( ls_row-mapkind ) ).
-        ls_row-srcsysid  = to_upper( condense( ls_row-srcsysid ) ).
-        ls_row-asistype  = to_upper( condense( ls_row-asistype ) ).
-        ls_row-asisname  = to_upper( condense( ls_row-asisname ) ).
-        ls_row-tgtsysid  = to_upper( condense( ls_row-tgtsysid ) ).
-        ls_row-tobetype  = to_upper( condense( ls_row-tobetype ) ).
-        ls_row-tobename  = to_upper( condense( ls_row-tobename ) ).
-        ls_row-uikind    = to_upper( condense( ls_row-uikind ) ).
-        ls_row-sapmodule = to_upper( condense( ls_row-sapmodule ) ).
-        ls_row-ownerid   = to_upper( condense( ls_row-ownerid ) ).
-        ls_row-reqid     = to_upper( condense( ls_row-reqid ) ).
-        IF ls_row-mapkind = 'N'.                     " 신규: As-Is 없음
-          CLEAR: ls_row-srcsysid, ls_row-asistype, ls_row-asisname.
-        ENDIF.
-        DATA(lv_asis)  = xsdbool( ls_row-mapkind <> 'N' ).
-        DATA(lv_tcode) = xsdbool( ls_row-tobetype = 'TCODE' ).
-        DATA(lv_key)   = |{ ls_row-mapkind }/{ ls_row-srcsysid }/{ ls_row-asistype }/{ ls_row-asisname }/{ ls_row-tobetype }/{ ls_row-tobename }|.
-
-        DATA(lt_check) = VALUE tt_check(
-          ( ok = xsdbool( line_exists( lt_kind[ table_line = ls_row-mapkind ] ) )                        text = |구분 확인: '{ ls_row-mapkind }' (M 매핑 / N 신규)| )
-          ( ok = xsdbool( lv_asis = abap_false OR line_exists( lt_sys[ table_line = ls_row-srcsysid ] ) ) text = |소스 시스템 확인: '{ ls_row-srcsysid }'| )
-          ( ok = xsdbool( lv_asis = abap_false OR line_exists( lt_asis[ table_line = ls_row-asistype ] ) ) text = |As-Is 유형 확인: '{ ls_row-asistype }'| )
-          ( ok = xsdbool( lv_asis = abap_false OR ls_row-asisname IS NOT INITIAL )                        text = `As-Is 오브젝트를 넣으세요` )
-          ( ok = xsdbool( ls_row-tgtsysid IS INITIAL OR line_exists( lt_sys[ table_line = ls_row-tgtsysid ] ) ) text = |타겟 시스템 확인: '{ ls_row-tgtsysid }'| )
-          ( ok = xsdbool( line_exists( lt_tobe[ table_line = ls_row-tobetype ] ) )                        text = |To-Be 유형 확인: '{ ls_row-tobetype }'| )
-          ( ok = xsdbool( ls_row-tobename IS NOT INITIAL )                                               text = `To-Be 오브젝트를 넣으세요` )
-          ( ok = xsdbool( lv_tcode = abap_false OR line_exists( lt_ui[ table_line = ls_row-uikind ] ) )   text = |UI 종류 확인: '{ ls_row-uikind }' (To-Be가 TCODE면 F·W·R)| )
-          ( ok = xsdbool( lv_tcode = abap_false OR ls_row-uikind <> 'F' OR ls_row-semobjaction IS NOT INITIAL ) text = `Fiori면 Semantic Object-Action을 넣으세요` )
-          ( ok = xsdbool( lv_tcode = abap_false OR ls_row-uikind <> 'R' OR ( ls_row-reactapp IS NOT INITIAL AND ls_row-uiuri IS NOT INITIAL ) )
-                                                                                                         text = `React면 React 앱 이름과 URI를 넣으세요` )
-          ( ok = xsdbool( line_exists( lt_module[ table_line = ls_row-sapmodule ] ) )                     text = |모듈 확인: '{ ls_row-sapmodule }'| )
-          ( ok = xsdbool( ls_row-ownerid IS INITIAL OR line_exists( lt_user[ table_line = ls_row-ownerid ] ) ) text = |담당자 확인: '{ ls_row-ownerid }' (사용자 ID)| )
-          ( ok = xsdbool( ls_row-reqid IS INITIAL OR line_exists( lt_req[ table_line = ls_row-reqid ] ) ) text = |요청번호 확인: '{ ls_row-reqid }'| )
-          ( ok = xsdbool( NOT line_exists( lt_dup[ table_line = lv_key ] ) )                              text = `같은 매핑이 이미 등록돼 있거나 위쪽 행에 있습니다` ) ).
-        LOOP AT lt_check INTO DATA(ls_check) WHERE ok = abap_false.
-          APPEND |{ lv_row }행: { ls_check-text }| TO lt_error.
-        ENDLOOP.
-        APPEND lv_key TO lt_dup.
 
         APPEND VALUE #( %cid         = |ROW{ lv_row }|
                         %is_draft    = if_abap_behv=>mk-off
-                        MapKind      = ls_row-mapkind
-                        SrcSysId     = ls_row-srcsysid
-                        AsisType     = ls_row-asistype
-                        AsisName     = ls_row-asisname
-                        TgtSysId     = ls_row-tgtsysid
-                        TobeType     = ls_row-tobetype
-                        TobeName     = ls_row-tobename
-                        UiKind       = ls_row-uikind
+                        MapKind      = to_upper( condense( ls_row-mapkind ) )
+                        SrcSysId     = to_upper( condense( ls_row-srcsysid ) )
+                        AsisType     = to_upper( condense( ls_row-asistype ) )
+                        AsisName     = to_upper( condense( ls_row-asisname ) )
+                        TgtSysId     = to_upper( condense( ls_row-tgtsysid ) )
+                        TobeType     = to_upper( condense( ls_row-tobetype ) )
+                        TobeName     = to_upper( condense( ls_row-tobename ) )
+                        UiKind       = to_upper( condense( ls_row-uikind ) )
                         FioriAppId   = ls_row-fioriappid
                         SemObjAction = ls_row-semobjaction
                         ReactApp     = ls_row-reactapp
                         UiUri        = ls_row-uiuri
-                        SapModule    = ls_row-sapmodule
+                        SapModule    = to_upper( condense( ls_row-sapmodule ) )
                         Description  = ls_row-description
-                        OwnerId      = ls_row-ownerid
+                        OwnerId      = to_upper( condense( ls_row-ownerid ) )
                         ObjCreator   = ls_row-objcreator
-                        ReqId        = ls_row-reqid ) TO lt_create.
+                        ReqId        = to_upper( condense( ls_row-reqid ) ) ) TO lt_create REFERENCE INTO DATA(lr_new).
+        " 중복이면 에러 (저장된 것·위쪽 행과 같은 키)
+        DATA(lv_key) = |{ lr_new->MapKind }/{ lr_new->SrcSysId }/{ lr_new->AsisType }/{ lr_new->AsisName }/{ lr_new->TobeType }/{ lr_new->TobeName }|.
+        IF line_exists( lt_dup[ table_line = lv_key ] ).
+          APPEND |{ lv_row }행: 이미 등록됐거나 위쪽 행과 같은 매핑입니다 ({ lv_key })| TO lt_error.
+        ENDIF.
+        APPEND lv_key TO lt_dup.
       ENDLOOP.
 
-      IF lt_error IS INITIAL AND lt_create IS INITIAL.
+      IF lt_create IS INITIAL.
         APPEND `올릴 데이터가 없습니다 (3행부터 적습니다).` TO lt_error.
       ENDIF.
     ENDIF.
 
-    " 4) 에러가 있으면 한 건도 안 올리고 행별 에러를 보여 준다 (100개까지)
+    " 에러가 있으면 한 건도 안 올린다
     IF lt_error IS NOT INITIAL.
-      IF lines( lt_error ) > 100.
-        DELETE lt_error FROM 101.
-        APPEND `에러가 많아 100개까지만 보여 줍니다.` TO lt_error.
-      ENDIF.
       LOOP AT lt_error INTO DATA(lv_error).
         APPEND VALUE #( %cid = ls_key-%cid
                         %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error
@@ -226,7 +163,7 @@ CLASS lhc_mapping IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    " 5) 등록 (드래프트 없이 바로 활성 데이터)
+    " 등록 (드래프트 없이 바로 활성 데이터). 채번·기본값·저장 검증은 BO 그대로
     MODIFY ENTITIES OF zr_cmsm_map IN LOCAL MODE
       ENTITY Mapping
         CREATE FIELDS ( MapKind SrcSysId AsisType AsisName TgtSysId TobeType TobeName UiKind FioriAppId SemObjAction ReactApp UiUri

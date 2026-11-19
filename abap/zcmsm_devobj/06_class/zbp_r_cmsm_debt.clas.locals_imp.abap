@@ -73,15 +73,10 @@ CLASS lhc_techdebt IMPLEMENTATION.
   METHOD uploadexcel.
 
     " 엑셀 업로드 — 템플릿 '업로드' 시트 (1행 컬럼명, 2행 필드명, 3행부터 데이터)
-    "   DRM 풀기 → itab 변환 → 행마다 확인 → 에러가 하나라도 있으면 한 건도 안 올림 → 활성 데이터로 생성
-    "   채번·기본값·저장 검증은 BO 그대로 탄다 (여기 확인은 행 번호를 붙여 먼저 걸러 주는 것)
-    TYPES: BEGIN OF ty_check,
-             ok   TYPE abap_bool,
-             text TYPE string,
-           END OF ty_check,
-           tt_check TYPE STANDARD TABLE OF ty_check WITH EMPTY KEY.
+    "   DRM 풀기 → itab 변환 → 중복 확인 → 중복이 하나라도 있으면 한 건도 안 올림 → 생성
+    "   필수·코드값 등 나머지는 저장할 때 BO 검증이 막는다
 
-    " 엑셀 한 줄 = 템플릿 칸 순서 그대로 (부채 구분 debtcat 은 BO 에 필드를 추가하면 CREATE 에도 넣는다)
+    " 엑셀 한 줄 = 템플릿 칸 순서 그대로 (debtcat 부채 구분은 BO 에 필드가 생기면 CREATE 에도 넣는다)
     TYPES: BEGIN OF ty_sheet_data,
              sapmodule     TYPE string,
              devid         TYPE string,
@@ -97,16 +92,9 @@ CLASS lhc_techdebt IMPLEMENTATION.
              bizowner      TYPE string,
            END OF ty_sheet_data.
 
-    DATA lt_sheet   TYPE STANDARD TABLE OF ty_sheet_data WITH EMPTY KEY.
-    DATA lt_create  TYPE TABLE FOR CREATE zr_cmsm_debt.
-    DATA lt_error   TYPE string_table.
-    DATA lt_module  TYPE string_table.
-    DATA lt_type    TYPE string_table.
-    DATA lt_wrap    TYPE string_table.
-    DATA lt_level   TYPE string_table.
-    DATA lt_improve TYPE string_table.
-    DATA lt_sys     TYPE string_table.
-    DATA lt_user    TYPE string_table.
+    DATA lt_sheet  TYPE STANDARD TABLE OF ty_sheet_data WITH EMPTY KEY.
+    DATA lt_create TYPE TABLE FOR CREATE zr_cmsm_debt.
+    DATA lt_error  TYPE string_table.
 
     DATA(ls_key) = keys[ 1 ].
 
@@ -119,83 +107,46 @@ CLASS lhc_techdebt IMPLEMENTATION.
         APPEND |엑셀 파일을 읽지 못했습니다: { lx_file->get_text( ) }| TO lt_error.
     ENDTRY.
 
-    " 2) 템플릿 확인: 2행 첫 칸이 필드명
-    IF lt_error IS INITIAL AND to_upper( condense( COND string( WHEN lines( lt_sheet ) >= 2 THEN lt_sheet[ 2 ]-sapmodule ) ) ) <> 'SAPMODULE'.
-      APPEND `기술부채 업로드 템플릿이 아닙니다. 템플릿의 '업로드' 시트를 그대로 쓰세요.` TO lt_error.
-    ENDIF.
-
-    " 3) 행마다 확인 (3행부터, 빈 줄은 건너뜀). 코드·시스템·사용자·저장된 부채는 한 번에 읽어 둔다
     IF lt_error IS INITIAL.
-      SELECT Value  FROM zi_cmsm_modulevh    INTO TABLE @lt_module.
-      SELECT Value  FROM zi_cmsm_objtypevh   INTO TABLE @lt_type.
-      SELECT Value  FROM zi_cmsm_wraptypevh  INTO TABLE @lt_wrap.
-      SELECT Value  FROM zi_cmsm_debtlevelvh INTO TABLE @lt_level.
-      SELECT Value  FROM zi_cmsm_improvevh   INTO TABLE @lt_improve.
-      SELECT SysId  FROM zi_cmsm_sysid       INTO TABLE @lt_sys.
-      SELECT UserId FROM zi_cmsm_uservh      INTO TABLE @lt_user.
-      " 중복 키 = 오브젝트 유형/개발 오브젝트 (저장된 것 + 위쪽 행)
+      " 2) 중복 키 = 오브젝트 유형/개발 오브젝트 (저장된 것 + 위쪽 행)
       SELECT ObjType, DevObj FROM zi_cmsm_debt INTO TABLE @DATA(lt_saved).
       DATA(lt_dup) = VALUE string_table( FOR s IN lt_saved ( |{ s-ObjType }/{ s-DevObj }| ) ).
 
+      " 3) 3행부터 한 줄씩 (빈 줄은 건너뜀). 코드·이름은 대문자로
       LOOP AT lt_sheet INTO DATA(ls_row) FROM 3.
         DATA(lv_row) = sy-tabix.
         IF ls_row IS INITIAL.
           CONTINUE.
         ENDIF.
-        ls_row-sapmodule     = to_upper( condense( ls_row-sapmodule ) ).
-        ls_row-objtype       = to_upper( condense( ls_row-objtype ) ).
-        ls_row-devobj        = to_upper( condense( ls_row-devobj ) ).
-        ls_row-wraptype      = to_upper( condense( ls_row-wraptype ) ).
-        ls_row-sysid         = to_upper( condense( ls_row-sysid ) ).
-        ls_row-debtlevel     = to_upper( condense( ls_row-debtlevel ) ).
-        ls_row-improvestatus = to_upper( condense( ls_row-improvestatus ) ).
-        ls_row-bizowner      = to_upper( condense( ls_row-bizowner ) ).
-        DATA(lv_key) = |{ ls_row-objtype }/{ ls_row-devobj }|.
-
-        DATA(lt_check) = VALUE tt_check(
-          ( ok = xsdbool( line_exists( lt_module[ table_line = ls_row-sapmodule ] ) )                     text = |모듈 확인: '{ ls_row-sapmodule }'| )
-          ( ok = xsdbool( line_exists( lt_type[ table_line = ls_row-objtype ] ) )                         text = |오브젝트 유형 확인: '{ ls_row-objtype }'| )
-          ( ok = xsdbool( ls_row-devobj IS NOT INITIAL )                                                 text = `개발 오브젝트를 넣으세요` )
-          ( ok = xsdbool( ls_row-debtlevel <> 'C' OR line_exists( lt_wrap[ table_line = ls_row-wraptype ] ) ) text = |래핑 여부 확인: '{ ls_row-wraptype }' (Debt Level C면 W·D)| )
-          ( ok = xsdbool( ls_row-sysid IS INITIAL OR line_exists( lt_sys[ table_line = ls_row-sysid ] ) ) text = |시스템 ID 확인: '{ ls_row-sysid }'| )
-          ( ok = xsdbool( ls_row-debtdesc IS NOT INITIAL )                                               text = `비released 사용 내역을 넣으세요` )
-          ( ok = xsdbool( line_exists( lt_level[ table_line = ls_row-debtlevel ] ) )                      text = |Debt Level 확인: '{ ls_row-debtlevel }' (C·D)| )
-          ( ok = xsdbool( ls_row-improvestatus IS INITIAL OR line_exists( lt_improve[ table_line = ls_row-improvestatus ] ) )
-                                                                                                         text = |개선상태 확인: '{ ls_row-improvestatus }' (T·P·C·E)| )
-          ( ok = xsdbool( ls_row-improvestatus <> 'E' OR ls_row-debtreason IS NOT INITIAL )              text = `예외등록(E)이면 판단 사유·개선 계획을 넣으세요` )
-          ( ok = xsdbool( ls_row-bizowner IS INITIAL OR line_exists( lt_user[ table_line = ls_row-bizowner ] ) ) text = |업무담당자 확인: '{ ls_row-bizowner }' (사용자 ID)| )
-          ( ok = xsdbool( NOT line_exists( lt_dup[ table_line = lv_key ] ) )                              text = `같은 유형·개발 오브젝트의 부채가 이미 있거나 위쪽 행에 있습니다` ) ).
-        LOOP AT lt_check INTO DATA(ls_check) WHERE ok = abap_false.
-          APPEND |{ lv_row }행: { ls_check-text }| TO lt_error.
-        ENDLOOP.
-        APPEND lv_key TO lt_dup.
 
         APPEND VALUE #( %cid          = |ROW{ lv_row }|
                         %is_draft     = if_abap_behv=>mk-off
-                        SapModule     = ls_row-sapmodule
+                        SapModule     = to_upper( condense( ls_row-sapmodule ) )
                         DevId         = ls_row-devid
-                        ObjType       = ls_row-objtype
-                        DevObj        = ls_row-devobj
-                        WrapType      = ls_row-wraptype
-                        SysId         = ls_row-sysid
+                        ObjType       = to_upper( condense( ls_row-objtype ) )
+                        DevObj        = to_upper( condense( ls_row-devobj ) )
+                        WrapType      = to_upper( condense( ls_row-wraptype ) )
+                        SysId         = to_upper( condense( ls_row-sysid ) )
                         DebtDesc      = ls_row-debtdesc
-                        DebtLevel     = ls_row-debtlevel
-                        ImproveStatus = ls_row-improvestatus
+                        DebtLevel     = to_upper( condense( ls_row-debtlevel ) )
+                        ImproveStatus = to_upper( condense( ls_row-improvestatus ) )
                         DebtReason    = ls_row-debtreason
-                        BizOwner      = ls_row-bizowner ) TO lt_create.
+                        BizOwner      = to_upper( condense( ls_row-bizowner ) ) ) TO lt_create REFERENCE INTO DATA(lr_new).
+        " 중복이면 에러 (저장된 것·위쪽 행과 같은 키)
+        DATA(lv_key) = |{ lr_new->ObjType }/{ lr_new->DevObj }|.
+        IF line_exists( lt_dup[ table_line = lv_key ] ).
+          APPEND |{ lv_row }행: 같은 유형·개발 오브젝트의 부채가 이미 있거나 위쪽 행에 있습니다 ({ lv_key })| TO lt_error.
+        ENDIF.
+        APPEND lv_key TO lt_dup.
       ENDLOOP.
 
-      IF lt_error IS INITIAL AND lt_create IS INITIAL.
+      IF lt_create IS INITIAL.
         APPEND `올릴 데이터가 없습니다 (3행부터 적습니다).` TO lt_error.
       ENDIF.
     ENDIF.
 
-    " 4) 에러가 있으면 한 건도 안 올리고 행별 에러를 보여 준다 (100개까지)
+    " 에러가 있으면 한 건도 안 올린다
     IF lt_error IS NOT INITIAL.
-      IF lines( lt_error ) > 100.
-        DELETE lt_error FROM 101.
-        APPEND `에러가 많아 100개까지만 보여 줍니다.` TO lt_error.
-      ENDIF.
       LOOP AT lt_error INTO DATA(lv_error).
         APPEND VALUE #( %cid = ls_key-%cid
                         %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error
@@ -205,7 +156,7 @@ CLASS lhc_techdebt IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    " 5) 등록 (드래프트 없이 바로 활성 데이터)
+    " 등록 (드래프트 없이 바로 활성 데이터). 채번·기본값·저장 검증은 BO 그대로
     MODIFY ENTITIES OF zr_cmsm_debt IN LOCAL MODE
       ENTITY TechDebt
         CREATE FIELDS ( SapModule DevId ObjType DevObj WrapType SysId DebtDesc DebtLevel ImproveStatus DebtReason BizOwner ) WITH lt_create

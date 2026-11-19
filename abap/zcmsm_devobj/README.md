@@ -456,3 +456,27 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 
 다시 만들기: `python3 11_excel/gen_excel_templates.py 11_excel` (openpyxl). 컬럼·코드값은 스크립트 맨 위 `CODES`, `TABS`에 있다.
 
+## 엑셀 업로드 액션 (5개 탭)
+
+목록 툴바 '엑셀 업로드' 버튼 → 파일 선택 팝업 → `uploadExcel` (static action). 템플릿은 `11_excel`.
+
+| 오브젝트 | 내용 |
+| --- | --- |
+| `ZA_CMSM_UploadFile` (`03_root`) | 액션 입력: `Attachment`(rawstring, `@Semantics.largeObject`), `MimeType`, `FileName` |
+| BDEF R (5개) | `static action uploadExcel parameter ZA_CMSM_UploadFile;` |
+| BDEF C (5개) | `use action uploadExcel;` |
+| 핸들러 (5개) | `uploadexcel` 메서드 하나 (아래 순서) |
+| MDE (5개) | 첫 목록 칸에 `{ type: #FOR_ACTION, dataAction: 'uploadExcel', label: '엑셀 업로드' }` |
+
+`uploadexcel` 순서
+1. `zcl_cm_common=>drm_decode` 로 DRM 풀기 → `zcl_cm_common=>convert_xlsx_to_itab_v2` 로 `ty_sheet_data` itab (템플릿 칸 순서 = 구조 순서). **시그니처는 가정** (`drm_decode( xstring )` 반환 xstring, `convert_xlsx_to_itab_v2( EXPORTING iv_xstring IMPORTING et_data )`, 1행부터 다 준다) — 다르면 이 두 문장만 고친다
+2. 템플릿 확인: 2행 첫 칸이 필드명(`Title`·`MapKind`·`VhName`·`SrvbName`·`SapModule`)인지
+3. 3행부터 행마다: 대문자·공백 정리 → 확인 표(`tt_check`, 규칙 한 줄 = 확인 하나)로 필수·코드값(VH 뷰)·시스템 ID·사용자·요청번호·시스템 존재(VH·SB)·중복(저장된 것 + 위쪽 행) → 에러는 'n행: …'
+4. 에러가 하나라도 있으면 한 건도 안 올리고 에러를 보여 준다 (100개까지)
+5. 없으면 `MODIFY ENTITIES … IN LOCAL MODE CREATE` (활성 데이터, `%is_draft = off`). 채번·기본값(담당자·개선상태 등)·저장 검증은 BO 그대로
+
+- 확인하지 않는 것: 글자 수 (템플릿 데이터 유효성으로 막고, 넘치면 필드 길이에서 잘림), 기술부채 개발 오브젝트 존재 (저장 검증 `validateDevObj`가 막음 — 행 번호 없이)
+- 요청 업로드는 줄마다 담당자 메일이 간다
+- 기술부채 `debtcat`(부채 구분)은 BO에 필드가 생기면 `CREATE FIELDS`와 확인 표에 추가
+- 파일 선택 팝업: 액션 파라미터의 파일(LOB) 입력은 비교적 최근 기능이다. 팝업에 파일 칸이 안 나오면, 프로젝트에서 이미 쓰는 업로드 방식(파라미터·확장)에 맞추고 핸들러 로직은 그대로 쓴다
+

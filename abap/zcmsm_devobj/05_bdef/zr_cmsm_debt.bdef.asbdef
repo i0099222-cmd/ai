@@ -9,6 +9,9 @@ etag master LocalLastChangedAt
 lock master total etag LastChangedAt
 authorization master ( global )
 {
+  // 엑셀 업로드: 템플릿 11_excel/ZCMSM_업로드_*.xlsx → 행마다 확인 후 활성 데이터로 생성
+  static action uploadExcel parameter ZA_CMSM_UploadFile;
+
   field ( readonly )
       DebtUuid,
       DebtId,

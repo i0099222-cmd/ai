@@ -29,7 +29,8 @@ annotate entity ZC_CMSM_Map with
   @UI.hidden: true
   MapUuid;
 
-  @UI.lineItem: [{ position: 10, importance: #HIGH }]
+  @UI.lineItem: [{ position: 10, importance: #HIGH },
+                 { type: #FOR_ACTION, dataAction: 'uploadExcel', label: '엑셀 업로드' }]
   MapId;
 
   @UI: {

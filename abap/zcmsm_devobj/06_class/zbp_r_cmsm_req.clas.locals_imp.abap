@@ -51,6 +51,10 @@ CLASS lhc_request DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
       IMPORTING REQUEST requested_authorizations FOR Request RESULT result.
 
+    " 엑셀 업로드 (static action). 로직은 이 메서드 하나에
+    METHODS uploadexcel FOR MODIFY
+      IMPORTING keys FOR ACTION Request~uploadExcel.
+
     METHODS get_instance_features FOR INSTANCE FEATURES
       IMPORTING keys REQUEST requested_features FOR Request RESULT result.
 
@@ -99,6 +103,111 @@ ENDCLASS.
 
 
 CLASS lhc_request IMPLEMENTATION.
+
+  METHOD uploadexcel.
+
+    " 엑셀 업로드 — 템플릿 '업로드' 시트 (1행 컬럼명, 2행 필드명, 3행부터 데이터)
+    "   DRM 풀기 → itab 변환 → 행마다 확인 → 에러가 하나라도 있으면 한 건도 안 올림 → 활성 데이터로 생성
+    "   채번·기본값·저장 검증은 BO 그대로 탄다 (여기 확인은 행 번호를 붙여 먼저 걸러 주는 것)
+    TYPES: BEGIN OF ty_check,
+             ok   TYPE abap_bool,
+             text TYPE string,
+           END OF ty_check,
+           tt_check TYPE STANDARD TABLE OF ty_check WITH EMPTY KEY.
+
+    " 엑셀 한 줄 = 템플릿 칸 순서 그대로
+    TYPES: BEGIN OF ty_sheet_data,
+             title     TYPE string,
+             reqtext   TYPE string,
+             sapmodule TYPE string,
+             assignee  TYPE string,
+           END OF ty_sheet_data.
+
+    DATA lt_sheet  TYPE STANDARD TABLE OF ty_sheet_data WITH EMPTY KEY.
+    DATA lt_create TYPE TABLE FOR CREATE zr_cmsm_req.
+    DATA lt_error  TYPE string_table.
+    DATA lt_module TYPE string_table.
+    DATA lt_user   TYPE string_table.
+
+    DATA(ls_key) = keys[ 1 ].
+
+    " 1) DRM 풀고 엑셀 → itab (zcl_cm_common 시그니처가 다르면 이 두 문장만 고친다)
+    TRY.
+        DATA(lv_xlsx) = zcl_cm_common=>drm_decode( ls_key-%param-attachment ).
+        zcl_cm_common=>convert_xlsx_to_itab_v2( EXPORTING iv_xstring = lv_xlsx
+                                                IMPORTING et_data    = lt_sheet ).
+      CATCH cx_root INTO DATA(lx_file).
+        APPEND |엑셀 파일을 읽지 못했습니다: { lx_file->get_text( ) }| TO lt_error.
+    ENDTRY.
+
+    " 2) 템플릿 확인: 2행 첫 칸이 필드명
+    IF lt_error IS INITIAL AND to_upper( condense( COND string( WHEN lines( lt_sheet ) >= 2 THEN lt_sheet[ 2 ]-title ) ) ) <> 'TITLE'.
+      APPEND `요청 업로드 템플릿이 아닙니다. 템플릿의 '업로드' 시트를 그대로 쓰세요.` TO lt_error.
+    ENDIF.
+
+    " 3) 행마다 확인 (3행부터, 빈 줄은 건너뜀)
+    IF lt_error IS INITIAL.
+      SELECT Value  FROM zi_cmsm_modulevh INTO TABLE @lt_module.
+      SELECT UserId FROM zi_cmsm_uservh   INTO TABLE @lt_user.
+
+      LOOP AT lt_sheet INTO DATA(ls_row) FROM 3.
+        DATA(lv_row) = sy-tabix.
+        IF ls_row IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        ls_row-title     = condense( ls_row-title ).
+        ls_row-sapmodule = to_upper( condense( ls_row-sapmodule ) ).
+        ls_row-assignee  = to_upper( condense( ls_row-assignee ) ).
+
+        DATA(lt_check) = VALUE tt_check(
+          ( ok = xsdbool( ls_row-title IS NOT INITIAL )                            text = `제목을 넣으세요` )
+          ( ok = xsdbool( line_exists( lt_module[ table_line = ls_row-sapmodule ] ) ) text = |모듈 확인: '{ ls_row-sapmodule }'| )
+          ( ok = xsdbool( line_exists( lt_user[ table_line = ls_row-assignee ] ) )    text = |담당자 확인: '{ ls_row-assignee }' (사용자 ID)| ) ).
+        LOOP AT lt_check INTO DATA(ls_check) WHERE ok = abap_false.
+          APPEND |{ lv_row }행: { ls_check-text }| TO lt_error.
+        ENDLOOP.
+
+        APPEND VALUE #( %cid      = |ROW{ lv_row }|
+                        %is_draft = if_abap_behv=>mk-off
+                        Title     = ls_row-title
+                        ReqText   = ls_row-reqtext
+                        SapModule = ls_row-sapmodule
+                        Assignee  = ls_row-assignee ) TO lt_create.
+      ENDLOOP.
+
+      IF lt_error IS INITIAL AND lt_create IS INITIAL.
+        APPEND `올릴 데이터가 없습니다 (3행부터 적습니다).` TO lt_error.
+      ENDIF.
+    ENDIF.
+
+    " 4) 에러가 있으면 한 건도 안 올리고 행별 에러를 보여 준다 (100개까지)
+    IF lt_error IS NOT INITIAL.
+      IF lines( lt_error ) > 100.
+        DELETE lt_error FROM 101.
+        APPEND `에러가 많아 100개까지만 보여 줍니다.` TO lt_error.
+      ENDIF.
+      LOOP AT lt_error INTO DATA(lv_error).
+        APPEND VALUE #( %cid = ls_key-%cid
+                        %msg = new_message_with_text( severity = if_abap_behv_message=>severity-error
+                                                      text     = lv_error ) ) TO reported-request.
+      ENDLOOP.
+      APPEND VALUE #( %cid = ls_key-%cid ) TO failed-request.
+      RETURN.
+    ENDIF.
+
+    " 5) 등록 (드래프트 없이 바로 활성 데이터)
+    MODIFY ENTITIES OF zr_cmsm_req IN LOCAL MODE
+      ENTITY Request
+        CREATE FIELDS ( Title ReqText SapModule Assignee ) WITH lt_create
+      FAILED failed
+      REPORTED reported.
+
+    APPEND VALUE #( %cid = ls_key-%cid
+                    %msg = new_message_with_text( severity = if_abap_behv_message=>severity-success
+                                                  text     = |{ lines( lt_create ) }건을 올렸습니다.| ) ) TO reported-request.
+
+  ENDMETHOD.
+
 
   METHOD get_global_authorizations.
     " strict 모드라 권한 제어 선언이 필수라서 둔 자리.

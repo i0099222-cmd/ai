@@ -28,7 +28,8 @@ annotate entity ZC_CMSM_Req with
   @UI.hidden: true
   ReqUuid;
 
-  @UI.lineItem: [{ position: 10, importance: #HIGH }]
+  @UI.lineItem: [{ position: 10, importance: #HIGH },
+                 { type: #FOR_ACTION, dataAction: 'uploadExcel', label: '엑셀 업로드' }]
   ReqId;
 
   @UI: {

@@ -24,6 +24,7 @@ CLASS zcl_cmsm_tobeuse_query IMPLEMENTATION.
     DATA lt_page   LIKE lt_result.
     DATA lt_target TYPE string_table.
     DATA lv_main   TYPE string.
+    DATA lv_package TYPE c LENGTH 30.
 
     " DATA_SOURCE 안에서 이름을 찾아볼 항목 (VH 데이터 소스 조회와 같음. 빈 값 = DATA_SOURCE 자체가 이름)
     DATA(lt_component) = VALUE string_table( ( `` ) ( `ENTITY` ) ( `NAME` ) ( `VIEW_ENTITY` ) ( `VIEW` )
@@ -49,7 +50,7 @@ CLASS zcl_cmsm_tobeuse_query IMPLEMENTATION.
           FROM I_CustABAPObjDirectoryEntry
           WHERE ABAPObject = @lv_tobe
             AND ( ABAPObjectType = 'DDLS' OR ABAPObjectType = 'TABL' )
-          INTO @DATA(lv_package).
+          INTO @lv_package.
         IF sy-subrc <> 0 OR lv_package IS INITIAL.
           CONTINUE.
         ENDIF.

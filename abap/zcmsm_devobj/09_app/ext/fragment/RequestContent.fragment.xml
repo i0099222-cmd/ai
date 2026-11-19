@@ -1,0 +1,32 @@
+<!--
+  요청 상세 · '요청 내용' custom section
+  - 제목·요청 내용을 1열 폼으로: 한 줄에 한 칸씩, 입력칸이 화면 폭을 다 쓴다
+  - macros:FormElement 가 라벨·필수 표시·편집 모드·수정 권한(feature control)을 Fiori Elements 기본처럼 붙인다
+  - 위치: webapp/ext/fragment/RequestContent.fragment.xml
+  - manifest (RequestObjectPage > options > settings > content > body > sections):
+      "ReqContentSection": {
+        "template": "<앱 ID>.ext.fragment.RequestContent",
+        "title": "요청 내용",
+        "position": { "placement": "Before", "anchor": "Process" }
+      }
+  - MDE ZC_CMSM_Req: Title·ReqText 의 'Request' fieldGroup 항목은 지운다 (두 번 나오지 않게)
+-->
+<core:FragmentDefinition
+    xmlns:core="sap.ui.core"
+    xmlns:f="sap.ui.layout.form"
+    xmlns:macros="sap.fe.macros">
+  <f:Form id="reqContentForm" editable="true">
+    <f:layout>
+      <!-- 넓은 화면: 라벨 2칸 + 입력 10칸 (12칸 기준). 라벨이 잘리면 labelCellsLarge 를 3 으로 -->
+      <f:ColumnLayout columnsM="1" columnsL="1" columnsXL="1" labelCellsLarge="2"/>
+    </f:layout>
+    <f:formContainers>
+      <f:FormContainer id="reqContentContainer">
+        <f:formElements>
+          <macros:FormElement id="reqTitleElement" metaPath="Title"/>
+          <macros:FormElement id="reqTextElement"  metaPath="ReqText"/>
+        </f:formElements>
+      </f:FormContainer>
+    </f:formContainers>
+  </f:Form>
+</core:FragmentDefinition>

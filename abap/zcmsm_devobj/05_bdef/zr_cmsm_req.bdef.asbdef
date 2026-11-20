@@ -53,7 +53,7 @@ authorization master ( global )
   determination setReqId         on save   { create; }
   determination recordHistory    on save   { create; field Title, ReqText, SapModule, Assignee, ReqStatus, ProcResult, RelNo; }
 
-  validation validateMandatory on save { create; field Title, SapModule, Assignee; }
+  validation validateMandatory on save { create; field Title, ReqText, SapModule, Assignee; }
 
   draft action Edit;
   draft action Activate optimized;

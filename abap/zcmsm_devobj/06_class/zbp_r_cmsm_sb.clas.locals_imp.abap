@@ -1,12 +1,19 @@
+"! 엑셀 업로드 건수 — uploadexcel 이 넣고, saver(save_modified)가 저장 뒤 '업로드 완료'를 띄울지 본다
+"! 핸들러·saver 둘 다 쓰니 Local Types 맨 위에 둔다 (위에 있어야 둘 다 찾는다)
+CLASS lcl_upload DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-DATA count TYPE i.
+ENDCLASS.
+
+CLASS lcl_upload IMPLEMENTATION.
+ENDCLASS.
+
+
 "! OData 서비스 BO 로컬 핸들러
 "!
 "! - 시스템에 없는 서비스 바인딩은 등록 불가, 같은 시스템 ID에 같은 바인딩은 한 번만
 "! - 테스트 파일을 올리면 올린 사람·일시 자동, 지우면 같이 비움. 10MB까지
 CLASS lhc_odataservice DEFINITION INHERITING FROM cl_abap_behavior_handler.
-
-  PUBLIC SECTION.
-    " 엑셀 업로드로 만든 건수 — uploadexcel 이 넣고, saver(save_modified)가 저장 뒤 성공 메시지에 쓴다
-    CLASS-DATA gv_upload_count TYPE i.
 
   PRIVATE SECTION.
 
@@ -136,7 +143,7 @@ CLASS lhc_odataservice IMPLEMENTATION.
 
     " 성공 메시지는 saver 가 저장이 끝난 뒤에 띄운다 (여기선 건수만 남김)
     IF failed IS INITIAL.
-      gv_upload_count = lines( lt_create ).
+      lcl_upload=>count = lines( lt_create ).
     ENDIF.
 
   ENDMETHOD.
@@ -401,12 +408,12 @@ CLASS lsc_zr_cmsm_sb IMPLEMENTATION.
   METHOD save_modified.
 
     " 엑셀 업로드가 저장까지 끝났을 때만 성공 메시지 (저장 검증에 걸리면 save_modified 까지 안 온다)
-    "   gv_upload_count 는 uploadexcel 액션에서만 채워지니, 화면에서 만들고 저장할 땐 0 이라 안 뜬다
-    IF lhc_odataservice=>gv_upload_count > 0.
+    "   lcl_upload=>count 는 uploadexcel 액션에서만 채워지니, 화면에서 만들고 저장할 땐 0 이라 안 뜬다
+    IF lcl_upload=>count > 0.
       " 특정 건에 붙지 않는 메시지라 %other 로 (화면에는 성공 토스트)
       APPEND new_message_with_text( severity = if_abap_behv_message=>severity-success
                                     text     = '업로드 완료' ) TO reported-%other.
-      CLEAR lhc_odataservice=>gv_upload_count.
+      CLEAR lcl_upload=>count.
     ENDIF.
 
   ENDMETHOD.

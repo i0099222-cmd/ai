@@ -11,6 +11,10 @@
 "!   담당자: 진행 중(I)일 때 처리 내용·관련 등록번호
 CLASS lhc_request DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
+  PUBLIC SECTION.
+    " 엑셀 업로드로 만든 건수 — uploadexcel 이 넣고, saver(save_modified)가 저장 뒤 성공 메시지에 쓴다
+    CLASS-DATA gv_upload_count TYPE i.
+
   PRIVATE SECTION.
 
     CONSTANTS:
@@ -166,14 +170,17 @@ CLASS lhc_request IMPLEMENTATION.
     ENDIF.
 
     " 등록 (드래프트 없이 바로 활성 데이터). 채번·기본값·저장 검증은 BO 그대로
-    "   성공 메시지는 안 띄운다: 이 시점엔 저장 검증 전이라, 검증에 걸리면 성공·실패 메시지가 같이 나온다.
-    "   다 통과하면 목록에 새 건이 바로 보이고, 하나라도 걸리면 전부 취소되고 에러만 나온다
+    "   성공 메시지는 여기서 안 띄운다: 이 시점엔 저장 검증 전이라, 검증에 걸리면 성공·실패가 같이 나온다
     MODIFY ENTITIES OF zr_cmsm_req IN LOCAL MODE
       ENTITY Request
         CREATE FIELDS ( Title ReqText SapModule Assignee ) WITH lt_create
       FAILED failed
       REPORTED reported.
 
+    " 성공 메시지는 saver 가 저장이 끝난 뒤에 띄운다 (여기선 건수만 남김)
+    IF failed IS INITIAL.
+      gv_upload_count = lines( lt_create ).
+    ENDIF.
 
   ENDMETHOD.
 
@@ -700,6 +707,14 @@ ENDCLASS.
 CLASS lsc_zr_cmsm_req IMPLEMENTATION.
 
   METHOD save_modified.
+
+    " 엑셀 업로드가 저장까지 끝났을 때만 성공 메시지 (저장 검증에 걸리면 save_modified 까지 안 온다)
+    IF lhc_request=>gv_upload_count > 0.
+      " 특정 건에 붙지 않는 메시지라 %other 로 (화면에는 성공 토스트)
+      APPEND new_message_with_text( severity = if_abap_behv_message=>severity-success
+                                    text     = |{ lhc_request=>gv_upload_count }건을 올렸습니다.| ) TO reported-%other.
+      CLEAR lhc_request=>gv_upload_count.
+    ENDIF.
 
     " 이번 저장에서 새로 생긴 요청만 (드래프트로 만든 요청은 처음 저장(활성화)할 때 여기에 들어온다)
     LOOP AT create-request INTO DATA(ls_req).

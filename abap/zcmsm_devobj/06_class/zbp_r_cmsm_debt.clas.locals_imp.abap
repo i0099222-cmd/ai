@@ -7,6 +7,10 @@
 "!   개발 오브젝트당 한 건. 쓰는 비released 오브젝트는 '비released 사용 내역'(DebtDesc)에 적는다 (필수)
 CLASS lhc_techdebt DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
+  PUBLIC SECTION.
+    " 엑셀 업로드로 만든 건수 — uploadexcel 이 넣고, saver(save_modified)가 저장 뒤 성공 메시지에 쓴다
+    CLASS-DATA gv_upload_count TYPE i.
+
   PRIVATE SECTION.
 
     CONSTANTS:
@@ -157,14 +161,17 @@ CLASS lhc_techdebt IMPLEMENTATION.
     ENDIF.
 
     " 등록 (드래프트 없이 바로 활성 데이터). 채번·기본값·저장 검증은 BO 그대로
-    "   성공 메시지는 안 띄운다: 이 시점엔 저장 검증 전이라, 검증에 걸리면 성공·실패 메시지가 같이 나온다.
-    "   다 통과하면 목록에 새 건이 바로 보이고, 하나라도 걸리면 전부 취소되고 에러만 나온다
+    "   성공 메시지는 여기서 안 띄운다: 이 시점엔 저장 검증 전이라, 검증에 걸리면 성공·실패가 같이 나온다
     MODIFY ENTITIES OF zr_cmsm_debt IN LOCAL MODE
       ENTITY TechDebt
         CREATE FIELDS ( SapModule DevId ObjType DevObj WrapType SysId DebtDesc DebtLevel ImproveStatus DebtReason BizOwner ) WITH lt_create
       FAILED failed
       REPORTED reported.
 
+    " 성공 메시지는 saver 가 저장이 끝난 뒤에 띄운다 (여기선 건수만 남김)
+    IF failed IS INITIAL.
+      gv_upload_count = lines( lt_create ).
+    ENDIF.
 
   ENDMETHOD.
 
@@ -462,6 +469,32 @@ CLASS lhc_techdebt IMPLEMENTATION.
       WHERE abapobject     =  @lv_name
         AND abapobjecttype IN @lt_range
       INTO @rv_exists.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! 저장 뒤 처리 — 엑셀 업로드 성공 메시지만 (BDEF: managed with additional save)
+CLASS lsc_zr_cmsm_debt DEFINITION INHERITING FROM cl_abap_behavior_saver.
+
+  PROTECTED SECTION.
+    METHODS save_modified REDEFINITION.
+
+ENDCLASS.
+
+
+CLASS lsc_zr_cmsm_debt IMPLEMENTATION.
+
+  METHOD save_modified.
+
+    " 엑셀 업로드가 저장까지 끝났을 때만 성공 메시지 (저장 검증에 걸리면 save_modified 까지 안 온다)
+    IF lhc_techdebt=>gv_upload_count > 0.
+      " 특정 건에 붙지 않는 메시지라 %other 로 (화면에는 성공 토스트)
+      APPEND new_message_with_text( severity = if_abap_behv_message=>severity-success
+                                    text     = |{ lhc_techdebt=>gv_upload_count }건을 올렸습니다.| ) TO reported-%other.
+      CLEAR lhc_techdebt=>gv_upload_count.
+    ENDIF.
 
   ENDMETHOD.
 

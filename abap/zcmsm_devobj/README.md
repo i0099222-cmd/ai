@@ -474,7 +474,7 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 1. `zcl_cm_common=>drm_decode` 로 DRM 풀기 → `zcl_cm_common=>convert_xlsx_to_itab_v2` 로 `ty_sheet_data` itab (템플릿 칸 순서 = 구조 순서). **시그니처는 가정** (`drm_decode( xstring )` 반환 xstring, `convert_xlsx_to_itab_v2( EXPORTING iv_xstring IMPORTING et_data )`, 1행부터 다 준다) — 다르면 이 두 문장만 고친다
 2. 3행부터 한 줄씩 생성할 값을 만든다 (코드·이름은 대문자). 중복 키가 저장된 건이나 위쪽 행과 같으면 'n행: …' 에러 — 매핑: 구분/소스 시스템/As-Is 유형/As-Is/To-Be 유형/To-Be, VH: 시스템 ID/VH 이름, SB: 시스템 ID/Service Binding, 기술부채: 오브젝트 유형/개발 오브젝트. 요청은 중복 확인 없음
 3. 에러가 하나라도 있으면 한 건도 안 올린다
-4. 없으면 `MODIFY ENTITIES … IN LOCAL MODE CREATE` (활성 데이터, `%is_draft = off`). 필수·코드값·존재 확인과 채번·기본값은 저장할 때 BO가 한다 (그 메시지엔 행 번호가 없다). 성공 메시지는 안 띄운다 — 액션 시점은 저장 검증 전이라, 검증에 걸리면 성공·실패가 같이 나온다
+4. 없으면 `MODIFY ENTITIES … IN LOCAL MODE CREATE` (활성 데이터, `%is_draft = off`). 필수·코드값·존재 확인과 채번·기본값은 저장할 때 BO가 한다 (그 메시지엔 행 번호가 없다). 성공 메시지('N건을 올렸습니다.')는 액션이 아니라 saver `save_modified`에서 띄운다 — 액션 시점은 저장 검증 전이라 거기서 띄우면 검증에 걸릴 때 성공·실패가 같이 나온다. 액션은 핸들러 static 변수 `gv_upload_count`에 건수만 남기고, 저장이 끝나면(검증 통과) saver가 `reported-%other`로 성공 메시지를 붙인다. 그래서 매핑·VH·SB·기술부채 BDEF도 `managed with additional save` + saver `lsc_zr_cmsm_*` (요청은 메일 saver에 추가)
 
 - 요청 업로드는 줄마다 담당자 메일이 간다
 - 기술부채 `debtcat`(부채 구분)은 BO에 필드가 생기면 `CREATE FIELDS`에 추가

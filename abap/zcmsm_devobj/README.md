@@ -220,7 +220,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 | `detectVhImpl` | 생성, VH 이름 변경 | 구현 방식 자동 판별: CDS(데이터 정의)면 C, Search Help면 S, 못 찾으면 빈 값. side effects로 바로 표시 |
 | `setTestInfo` | 테스트 파일 올림·삭제 | 올린 사람·일시 채움 / 파일 지우면 비움 |
 | `setVhId` | 저장 (생성) | VH-nnnn 채번 (번호 범위 구간 03) |
-| `validateMandatory` | 저장, Prepare | VH 이름·모듈 필수 |
+| `validateMandatory` | 저장, Prepare | VH 이름·모듈·담당자 필수 (BDEF `field ( mandatory )`. `mandatory : create`는 FE 생성에서 'was not provided' 에러가 나서 안 씀) |
 | `validateVhName` | 저장, Prepare | 같은 시스템 ID·같은 VH 이름이 이미 저장돼 있으면 에러. 시스템에 없는 VH(CDS·Search Help 둘 다 못 찾음)도 에러 — 개발(활성화)한 뒤 등록 |
 | `validateTestFile` | 저장, Prepare | 테스트 파일 10MB 초과 에러 |
 | `ValueHelpSource~validateSource` | 저장, Prepare | 데이터 소스 유형·이름 필수 (메시지는 VH 화면 데이터 소스 행에 표시) |

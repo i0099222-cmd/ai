@@ -296,7 +296,7 @@ CLASS lhc_valuehelp IMPLEMENTATION.
 
     READ ENTITIES OF zr_cmsm_vh IN LOCAL MODE
       ENTITY ValueHelp
-        FIELDS ( VhName SapModule ) WITH CORRESPONDING #( keys )
+        FIELDS ( VhName SapModule OwnerId ) WITH CORRESPONDING #( keys )
       RESULT DATA(lt_vh).
 
     LOOP AT lt_vh INTO DATA(ls_vh).
@@ -326,6 +326,17 @@ CLASS lhc_valuehelp IMPLEMENTATION.
                         %msg               = new_message_with_text(
                                                severity = if_abap_behv_message=>severity-error
                                                text     = '모듈을 선택하세요.' ) )
+               TO reported-valuehelp.
+      ENDIF.
+
+      IF ls_vh-OwnerId IS INITIAL.
+        lv_failed = abap_true.
+        APPEND VALUE #( %tky             = ls_vh-%tky
+                        %state_area      = 'MANDATORY'
+                        %element-OwnerId = if_abap_behv=>mk-on
+                        %msg             = new_message_with_text(
+                                             severity = if_abap_behv_message=>severity-error
+                                             text     = '담당자를 선택하세요.' ) )
                TO reported-valuehelp.
       ENDIF.
 

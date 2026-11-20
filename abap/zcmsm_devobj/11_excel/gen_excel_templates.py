@@ -61,7 +61,7 @@ TABS = [
     file='ZCMSM_업로드_1_요청.xlsx', tab='요청', entity='Request (ZR_CMSM_Req)',
     cols=[
       ('제목', 'Title', 'Y', '텍스트 120자', '요청 제목', '거래처 Value Help 신규 요청', None, 120),
-      ('요청 내용', 'ReqText', 'Y', '텍스트 (길이 제한 없음)', '자세한 요청 내용. 셀 안 줄바꿈은 Alt+Enter', '수주 화면에서 거래처를 검색할 VH가 필요합니다. 영업조직 기준으로 걸러지면 좋겠습니다.', None, None),
+      ('요청 내용', 'ReqText', '', '텍스트 (길이 제한 없음)', '자세한 요청 내용. 셀 안 줄바꿈은 Alt+Enter', '수주 화면에서 거래처를 검색할 VH가 필요합니다. 영업조직 기준으로 걸러지면 좋겠습니다.', None, None),
       ('모듈', 'SapModule', 'Y', '코드', codes_text('MODULE'), 'SD', 'MODULE', None),
       ('담당자', 'Assignee', 'Y', '사용자 ID 12자', '처리할 사람의 사용자 ID. 등록되면 이 사람에게 요청 메일이 간다', 'DEV01', None, 12),
     ],

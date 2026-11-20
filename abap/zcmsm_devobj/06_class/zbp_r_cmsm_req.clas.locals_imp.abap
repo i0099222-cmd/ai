@@ -245,7 +245,7 @@ CLASS lhc_request IMPLEMENTATION.
         %field-Title            = lv_requester_mand
         %field-SapModule        = lv_requester_mand
         %field-Assignee         = lv_requester_mand
-        %field-ReqText          = lv_requester_mand
+        %field-ReqText          = lv_requester_free
         %field-ProcResult       = lv_assignee_free
         %field-RelNo            = lv_assignee_free
         %action-acceptRequest   = COND #( WHEN lv_active = abap_true AND lv_assignee = abap_true
@@ -577,7 +577,7 @@ CLASS lhc_request IMPLEMENTATION.
 
     READ ENTITIES OF zr_cmsm_req IN LOCAL MODE
       ENTITY Request
-        FIELDS ( Title ReqText SapModule Assignee ) WITH CORRESPONDING #( keys )
+        FIELDS ( Title SapModule Assignee ) WITH CORRESPONDING #( keys )
       RESULT DATA(lt_req).
 
     LOOP AT lt_req INTO DATA(ls_req).
@@ -596,17 +596,6 @@ CLASS lhc_request IMPLEMENTATION.
                         %msg           = new_message_with_text(
                                            severity = if_abap_behv_message=>severity-error
                                            text     = '제목을 입력하세요.' ) )
-               TO reported-request.
-      ENDIF.
-
-      IF ls_req-ReqText IS INITIAL.
-        lv_failed = abap_true.
-        APPEND VALUE #( %tky             = ls_req-%tky
-                        %state_area      = 'MANDATORY'
-                        %element-ReqText = if_abap_behv=>mk-on
-                        %msg             = new_message_with_text(
-                                             severity = if_abap_behv_message=>severity-error
-                                             text     = '요청 내용을 입력하세요.' ) )
                TO reported-request.
       ENDIF.
 

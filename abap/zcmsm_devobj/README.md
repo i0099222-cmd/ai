@@ -77,7 +77,7 @@ ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔Vh
 | 공통 | `strict ( 2 )`, `with draft`, UUID `numbering : managed`, `etag master LocalLastChangedAt`, `lock master total etag LastChangedAt`, `mapping … corresponding` |
 | 권한 | 루트 `authorization master ( global )`, 자식 `dependent`. 핸들러는 빈 메서드 = 전부 허용 (strict 모드라 선언 필수) |
 | 읽기 전용 | UUID 키, 부모 키, 표시 번호, 관리 필드, `DoneDate`, `VhImpl`, `TestBy`/`TestAt` |
-| 필수 표시 | 요청: 제목·요청 내용·모듈·담당자 / 매핑: 구분·To-Be 유형·To-Be 오브젝트·모듈 / VH: VH 이름·모듈 / 데이터 소스: 유형·이름 / SB: Service Binding·모듈 / 기술부채: 개발 오브젝트·Debt Level·모듈 — 화면 별표 + FE 저장 시 체크. 서버 체크는 validation 단계에서 |
+| 필수 표시 | 요청: 제목·모듈·담당자 / 매핑: 구분·To-Be 유형·To-Be 오브젝트·모듈 / VH: VH 이름·모듈 / 데이터 소스: 유형·이름 / SB: Service Binding·모듈 / 기술부채: 개발 오브젝트·Debt Level·모듈 — 화면 별표 + FE 저장 시 체크. 서버 체크는 validation 단계에서 |
 | 요청 이력 | `association _Hist { internal create; }` — BO 안에서만 만든다. 이력 엔티티에 update/delete 없음 → 화면에서 읽기 전용 |
 | VH 데이터 소스 | 상세 화면에서 행 추가·수정·삭제 가능 |
 
@@ -150,7 +150,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 | 담당자 (`Assignee`) | 읽기 | 처리 내용·관련 등록번호 수정 | 읽기 |
 | 그 외 | 읽기 | 읽기 | 읽기 |
 
-제목·요청 내용·모듈·담당자는 수정 가능할 때 필수 표시 (요청 내용 custom section 라벨은 `required="{= ${ui>/isEditable} === true && ${__FieldControl/ReqText} === 7 }"`). 상태·사유·완료일은 항상 읽기 전용(액션으로만 바뀜).
+제목·모듈·담당자는 수정 가능할 때 필수 표시. 상태·사유·완료일은 항상 읽기 전용(액션으로만 바뀜).
 
 ### 자동 처리
 
@@ -159,7 +159,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 | `setInitialValues` | 생성 | 상태 = R |
 | `setReqId` | 저장 (생성) | 요청번호 RQ-nnnn 채번 (`ZCL_CMSM_DISPLAY_ID`). 실패하면 경고만 내고 번호 없이 저장 |
 | `recordHistory` | 저장 | 생성 C 1줄 / 상태 변경 S (반려·취소면 사유를 '사유'에) / 제목·요청 내용·모듈·담당자·처리 내용·관련 등록번호 수정 U. 긴 텍스트는 1333자에서 자름 |
-| `validateMandatory` | 저장, Prepare | 제목·요청 내용·모듈·담당자 필수 |
+| `validateMandatory` | 저장, Prepare | 제목·모듈·담당자 필수 |
 
 ### 만드는 순서
 

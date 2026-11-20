@@ -2,8 +2,7 @@
   요청 상세 · '요청 내용' custom section (세로 배치 버전)
   - 라벨과 필드를 위아래로 쌓아서, 요청 내용 입력칸은 섹션 폭을 다 쓰고 제목은 50% 폭
   - macros:Field 는 편집 모드·수정 권한(feature control)을 Fiori Elements 기본처럼 따른다
-  - 필수 별표(*)는 라벨 required 로: 편집 중이고 BO feature control 이 그 필드를 필수(7)로 줄 때만 붙는다
-    (__FieldControl/<필드> = RAP 가 내보내는 필드별 제어 값. 7 필수 / 3 선택 / 1 읽기 전용)
+  - 필수 별표는 이 방식에선 라벨에 자동으로 안 붙는다 (필수 체크는 저장할 때 그대로 동작)
   - 위치: webapp/ext/fragment/Request.fragment.xml  /  manifest template: "<앱 ID>.ext.fragment.Request"
 -->
 <core:FragmentDefinition
@@ -11,15 +10,13 @@
     xmlns="sap.m"
     xmlns:macros="sap.fe.macros">
   <VBox id="reqContentBox" width="100%">
-    <Label id="reqTitleLabel" text="제목"
-           required="{= ${ui>/isEditable} === true &amp;&amp; ${__FieldControl/Title} === 7 }"/>
+    <Label id="reqTitleLabel" text="제목"/>
     <!-- 제목은 폭을 줄여서: 섹션 폭의 50%. 고정 폭을 원하면 width="30rem" 처럼 -->
     <VBox id="reqTitleBox" width="50%">
       <macros:Field id="reqTitleField" metaPath="Title"/>
     </VBox>
 
-    <Label id="reqTextLabel" text="요청 내용" class="sapUiSmallMarginTop"
-           required="{= ${ui>/isEditable} === true &amp;&amp; ${__FieldControl/ReqText} === 7 }"/>
+    <Label id="reqTextLabel" text="요청 내용" class="sapUiSmallMarginTop"/>
     <macros:Field id="reqTextField" metaPath="ReqText"/>
   </VBox>
 </core:FragmentDefinition>

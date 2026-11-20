@@ -18,8 +18,9 @@
 
     <VBox id="devReqContent" width="100%" visible="{= ${ReqHidden} !== true }">
 
-      <!-- 윗줄: 요청번호 | 상태 — 칸 폭 고정 (넓은 화면 1/4씩, 태블릿 반반, 폰 한 줄씩) -->
-      <l:Grid id="devReqTopGrid" defaultSpan="XL3 L3 M6 S12" hSpacing="1" vSpacing="0" width="100%">
+      <!-- 윗줄: 요청번호 | 상태 — 칸 폭 고정 (넓은 화면 1/4씩, 태블릿 반반, 폰 한 줄씩)
+           hSpacing 0: 간격을 주면 첫 칸 왼쪽에도 여백이 생겨 아래 제목과 시작선이 어긋난다 -->
+      <l:Grid id="devReqTopGrid" defaultSpan="XL3 L3 M6 S12" hSpacing="0" vSpacing="0" width="100%">
         <HBox id="devReqIdBox" alignItems="Center">
           <Label id="devReqIdLabel" text="요청번호" showColon="true" labelFor="devReqId" class="sapUiTinyMarginEnd"/>
           <Text id="devReqId" text="{ReqId}"/>

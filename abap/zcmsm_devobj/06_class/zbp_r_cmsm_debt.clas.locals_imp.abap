@@ -493,7 +493,7 @@ CLASS lsc_zr_cmsm_debt IMPLEMENTATION.
     IF lhc_techdebt=>gv_upload_count > 0.
       " 특정 건에 붙지 않는 메시지라 %other 로 (화면에는 성공 토스트)
       APPEND new_message_with_text( severity = if_abap_behv_message=>severity-success
-                                    text     = |업로드 완료 ({ lhc_techdebt=>gv_upload_count }건)| ) TO reported-%other.
+                                    text     = '업로드 완료' ) TO reported-%other.
       CLEAR lhc_techdebt=>gv_upload_count.
     ENDIF.
 

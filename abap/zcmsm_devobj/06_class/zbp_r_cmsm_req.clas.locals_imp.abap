@@ -709,10 +709,11 @@ CLASS lsc_zr_cmsm_req IMPLEMENTATION.
   METHOD save_modified.
 
     " 엑셀 업로드가 저장까지 끝났을 때만 성공 메시지 (저장 검증에 걸리면 save_modified 까지 안 온다)
+    "   gv_upload_count 는 uploadexcel 액션에서만 채워지니, 화면에서 만들고 저장할 땐 0 이라 안 뜬다
     IF lhc_request=>gv_upload_count > 0.
       " 특정 건에 붙지 않는 메시지라 %other 로 (화면에는 성공 토스트)
       APPEND new_message_with_text( severity = if_abap_behv_message=>severity-success
-                                    text     = |{ lhc_request=>gv_upload_count }건을 올렸습니다.| ) TO reported-%other.
+                                    text     = |업로드 완료 ({ lhc_request=>gv_upload_count }건)| ) TO reported-%other.
       CLEAR lhc_request=>gv_upload_count.
     ENDIF.
 

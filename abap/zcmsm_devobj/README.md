@@ -330,7 +330,7 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `09_app/ext/fragment/DevObjectRequest.fragment.xml` | 윗줄 요청번호 \| 상태 가로(`HBox`, 좁으면 줄바꿈), 아래 제목·요청 내용 세로. 상태는 `ObjectStatus`(완료 초록·반려 빨강·취소 주황·진행 중 파랑), 요청 내용은 전체 폭·줄바꿈 유지. 요청이 없으면(`ReqHidden`) '연결된 요청이 없습니다.' |
+| `09_app/ext/fragment/DevObjectRequest.fragment.xml` | 윗줄 '요청번호 : …' \| '상태 : …' — `Grid` 칸 두 개(`XL3 L3 M6 S12`, 칸 폭 고정이라 열이 맞음. HBox는 내용 폭대로라 들쭉날쭉), 아래 제목·요청 내용 세로. 상태는 `ObjectStatus`(완료 초록·반려 빨강·취소 주황·진행 중 파랑), 요청 내용은 전체 폭·줄바꿈 유지. 요청이 없으면(`ReqHidden`) '연결된 요청이 없습니다.' |
 | manifest `DevObjectObjectPage` | `content.body.sections.ReqSection` — `template` `<앱 ID>.ext.fragment.DevObjectRequest`, 제목 '관련 요청', 위치 `After` `Debt` |
 | `ZC_CMSM_DevObject` | `association [0..1] to ZI_CMSM_Req as _Req on $projection.ReqId = _Req.ReqId` + `ReqStatus`·`ReqStatusText`·`ReqText`, 숨김 플래그 `ReqHidden`. 제목은 기존 `ReqTitle` |
 | MDE `ZC_CMSM_DevObject` | '관련 요청' facet·필드그룹 없음 (custom section이 대신). 위 필드와 `ReqId`는 `@UI.hidden` — 화면 바인딩엔 그대로 쓰인다 |

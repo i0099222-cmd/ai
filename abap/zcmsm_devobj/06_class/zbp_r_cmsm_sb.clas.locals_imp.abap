@@ -123,15 +123,14 @@ CLASS lhc_odataservice IMPLEMENTATION.
     ENDIF.
 
     " 등록 (드래프트 없이 바로 활성 데이터). 채번·기본값·저장 검증은 BO 그대로
+    "   성공 메시지는 안 띄운다: 이 시점엔 저장 검증 전이라, 검증에 걸리면 성공·실패 메시지가 같이 나온다.
+    "   다 통과하면 목록에 새 건이 바로 보이고, 하나라도 걸리면 전부 취소되고 에러만 나온다
     MODIFY ENTITIES OF zr_cmsm_sb IN LOCAL MODE
       ENTITY ODataService
         CREATE FIELDS ( SrvbName SysId SapModule Description OwnerId ObjCreator ReqId ) WITH lt_create
       FAILED failed
       REPORTED reported.
 
-    APPEND VALUE #( %cid = ls_key-%cid
-                    %msg = new_message_with_text( severity = if_abap_behv_message=>severity-success
-                                                  text     = |{ lines( lt_create ) }건을 올렸습니다.| ) ) TO reported-odataservice.
 
   ENDMETHOD.
 

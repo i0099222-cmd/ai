@@ -1,6 +1,7 @@
 <!--
-  통합 조회 상세 · '관련 요청' custom section (읽기 전용, 세로 배치)
-  - 요청번호 / 상태 / 제목 / 요청 내용을 라벨 위·값 아래로 쌓는다. 요청 내용은 섹션 폭을 다 쓰고 줄바꿈을 그대로 보여 준다
+  통합 조회 상세 · '관련 요청' custom section (읽기 전용)
+  - 윗줄: 요청번호 | 상태 가로로 나란히 (좁은 화면에선 다음 줄로 내려간다)
+  - 아래: 제목, 요청 내용을 세로로. 요청 내용은 섹션 폭을 다 쓰고 줄바꿈을 그대로 보여 준다
   - 값은 ZC_CMSM_DevObject 필드에 바로 바인딩: ReqId, ReqStatus·ReqStatusText, ReqTitle, ReqText, ReqHidden
   - 상태는 색으로도 구분: 완료 초록 / 반려 빨강 / 취소 주황 / 진행 중 파랑 / 요청 기본
   - 연결된 요청이 없는 행(기술부채, 요청 없이 등록한 건)은 '연결된 요청이 없습니다.'만 보인다
@@ -15,16 +16,24 @@
           visible="{= ${ReqHidden} === true }"/>
 
     <VBox id="devReqContent" width="100%" visible="{= ${ReqHidden} !== true }">
-      <Label id="devReqIdLabel" text="요청번호" labelFor="devReqId"/>
-      <Text id="devReqId" text="{ReqId}"/>
 
-      <Label id="devReqStatusLabel" text="상태" labelFor="devReqStatus" class="sapUiSmallMarginTop"/>
-      <ObjectStatus id="devReqStatus" text="{ReqStatusText}"
-                    state="{= ${ReqStatus} === 'C' ? 'Success'
-                            : ${ReqStatus} === 'J' ? 'Error'
-                            : ${ReqStatus} === 'X' ? 'Warning'
-                            : ${ReqStatus} === 'I' ? 'Information' : 'None' }"/>
+      <!-- 윗줄: 요청번호 | 상태 -->
+      <HBox id="devReqTopRow" wrap="Wrap">
+        <VBox id="devReqIdBox" class="sapUiLargeMarginEnd">
+          <Label id="devReqIdLabel" text="요청번호" labelFor="devReqId"/>
+          <Text id="devReqId" text="{ReqId}"/>
+        </VBox>
+        <VBox id="devReqStatusBox">
+          <Label id="devReqStatusLabel" text="상태" labelFor="devReqStatus"/>
+          <ObjectStatus id="devReqStatus" text="{ReqStatusText}"
+                        state="{= ${ReqStatus} === 'C' ? 'Success'
+                                : ${ReqStatus} === 'J' ? 'Error'
+                                : ${ReqStatus} === 'X' ? 'Warning'
+                                : ${ReqStatus} === 'I' ? 'Information' : 'None' }"/>
+        </VBox>
+      </HBox>
 
+      <!-- 아래: 제목, 요청 내용 (세로) -->
       <Label id="devReqTitleLabel" text="제목" labelFor="devReqTitle" class="sapUiSmallMarginTop"/>
       <Text id="devReqTitle" text="{ReqTitle}"/>
 

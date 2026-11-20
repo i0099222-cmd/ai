@@ -481,3 +481,7 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 - 파일 선택 팝업: root abstract entity + 추상 BDEF + `deep parameter` 조합이 필요하다 (PCE 2023 이상, 최근 UI5). 그래도 텍스트 칸이면 릴리스·UI5 버전 문제 — 프로젝트에서 이미 쓰는 업로드 방식(UI5 FileUploader 확장 등)에 맞추고 핸들러 로직은 그대로 쓴다
 - DRM 걸린 파일이 형식(xlsx) 제한에 걸리면 `acceptableMimeTypes` 줄을 뺀다
 
+
+### 업로드 뒤 목록 새로고침
+
+static 액션은 RAP BDEF side effects를 못 건다 (트리거·대상 둘 다 불가). 앱 `annotation.xml`에 액션별 `Common.SideEffects`를 달고 `TargetEntities`를 엔터티셋 절대경로(`/…Container/Mapping` 등)로 주면, 액션이 끝난 뒤 그 목록을 다시 읽는다 — `09_app/annotation.upload-refresh.sample.xml` (탭 5개). 네임스페이스·컨테이너 이름은 `$metadata` 기준으로 맞춘다. 안 되면 리스트 리포트 컨트롤러 확장에서 액션 뒤 `refresh()`.

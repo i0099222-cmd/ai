@@ -1,0 +1,75 @@
+<!--
+  엑셀 업로드(uploadExcel, static action) 뒤 목록 자동 새로고침
+  webapp/annotations/annotation.xml 의 <Schema ...> 안에 아래 <Annotations> 블록 5개를 추가한다.
+
+  - static 액션은 RAP BDEF side effects 를 못 건다 → 앱 annotation 으로 액션에 side effect 를 단다.
+    대상을 엔터티셋 절대경로(/…Container/<엔터티셋>)로 주면 액션이 끝난 뒤 그 목록을 다시 읽는다 (SAPUI5 Side Effects 문서)
+  - static 액션은 OData 에서 '컬렉션에 묶인 액션'이라 Target 은 액션이름(Collection(엔터티타입)) 형태
+  - 네임스페이스는 $metadata 의 <Schema Namespace="..."> 값으로 맞춘다 (RAP V4 기본: com.sap.gateway.srvd.zui_cmsm_devobj.v0001)
+    컨테이너 이름은 $metadata 의 <EntityContainer Name="..."> (RAP 기본: Container)
+-->
+
+<!-- 요청 -->
+<Annotations Target="com.sap.gateway.srvd.zui_cmsm_devobj.v0001.uploadExcel(Collection(com.sap.gateway.srvd.zui_cmsm_devobj.v0001.RequestType))">
+  <Annotation Term="com.sap.vocabularies.Common.v1.SideEffects">
+    <Record Type="com.sap.vocabularies.Common.v1.SideEffectsType">
+      <PropertyValue Property="TargetEntities">
+        <Collection>
+          <NavigationPropertyPath>/com.sap.gateway.srvd.zui_cmsm_devobj.v0001.Container/Request</NavigationPropertyPath>
+        </Collection>
+      </PropertyValue>
+    </Record>
+  </Annotation>
+</Annotations>
+
+<!-- As-Is/To-Be 매핑 -->
+<Annotations Target="com.sap.gateway.srvd.zui_cmsm_devobj.v0001.uploadExcel(Collection(com.sap.gateway.srvd.zui_cmsm_devobj.v0001.MappingType))">
+  <Annotation Term="com.sap.vocabularies.Common.v1.SideEffects">
+    <Record Type="com.sap.vocabularies.Common.v1.SideEffectsType">
+      <PropertyValue Property="TargetEntities">
+        <Collection>
+          <NavigationPropertyPath>/com.sap.gateway.srvd.zui_cmsm_devobj.v0001.Container/Mapping</NavigationPropertyPath>
+        </Collection>
+      </PropertyValue>
+    </Record>
+  </Annotation>
+</Annotations>
+
+<!-- Value Help -->
+<Annotations Target="com.sap.gateway.srvd.zui_cmsm_devobj.v0001.uploadExcel(Collection(com.sap.gateway.srvd.zui_cmsm_devobj.v0001.ValueHelpType))">
+  <Annotation Term="com.sap.vocabularies.Common.v1.SideEffects">
+    <Record Type="com.sap.vocabularies.Common.v1.SideEffectsType">
+      <PropertyValue Property="TargetEntities">
+        <Collection>
+          <NavigationPropertyPath>/com.sap.gateway.srvd.zui_cmsm_devobj.v0001.Container/ValueHelp</NavigationPropertyPath>
+        </Collection>
+      </PropertyValue>
+    </Record>
+  </Annotation>
+</Annotations>
+
+<!-- OData 서비스 -->
+<Annotations Target="com.sap.gateway.srvd.zui_cmsm_devobj.v0001.uploadExcel(Collection(com.sap.gateway.srvd.zui_cmsm_devobj.v0001.ODataServiceType))">
+  <Annotation Term="com.sap.vocabularies.Common.v1.SideEffects">
+    <Record Type="com.sap.vocabularies.Common.v1.SideEffectsType">
+      <PropertyValue Property="TargetEntities">
+        <Collection>
+          <NavigationPropertyPath>/com.sap.gateway.srvd.zui_cmsm_devobj.v0001.Container/ODataService</NavigationPropertyPath>
+        </Collection>
+      </PropertyValue>
+    </Record>
+  </Annotation>
+</Annotations>
+
+<!-- 기술부채 -->
+<Annotations Target="com.sap.gateway.srvd.zui_cmsm_devobj.v0001.uploadExcel(Collection(com.sap.gateway.srvd.zui_cmsm_devobj.v0001.TechDebtType))">
+  <Annotation Term="com.sap.vocabularies.Common.v1.SideEffects">
+    <Record Type="com.sap.vocabularies.Common.v1.SideEffectsType">
+      <PropertyValue Property="TargetEntities">
+        <Collection>
+          <NavigationPropertyPath>/com.sap.gateway.srvd.zui_cmsm_devobj.v0001.Container/TechDebt</NavigationPropertyPath>
+        </Collection>
+      </PropertyValue>
+    </Record>
+  </Annotation>
+</Annotations>

@@ -9,6 +9,7 @@ define root view entity ZC_CMSM_Req
 {
   key ReqUuid,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       ReqId,
       @Search.defaultSearchElement: true
       @Search.fuzzinessThreshold: 0.8

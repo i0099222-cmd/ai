@@ -32,6 +32,7 @@ define view entity ZC_CMSM_DevObject
       @EndUserText.label: '등록 구분 내역'
       _SourceTab.Text      as SourceTabText,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       SourceId,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_SysId', element: 'SysId' } }]
       @ObjectModel.text.element: [ 'SysText' ]
@@ -52,6 +53,7 @@ define view entity ZC_CMSM_DevObject
       @EndUserText.label: '모듈 내역'
       _SapModule.Text      as SapModuleText,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       Description,
 
       /* 공통 */

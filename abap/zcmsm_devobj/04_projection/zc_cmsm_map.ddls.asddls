@@ -11,6 +11,7 @@ define root view entity ZC_CMSM_Map
 {
   key MapUuid,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       MapId,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_MapKindVH', element: 'Value' } }]
       @ObjectModel.text.element: [ 'MapKindText' ]
@@ -28,6 +29,7 @@ define root view entity ZC_CMSM_Map
       @EndUserText.label: 'As-Is 유형 내역'
       _AsisType.Text as AsisTypeText,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       AsisName,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_SysId', element: 'SysId' } }]
       @ObjectModel.text.element: [ 'TgtSysText' ]
@@ -40,6 +42,7 @@ define root view entity ZC_CMSM_Map
       @EndUserText.label: 'To-Be 유형 내역'
       _TobeType.Text as TobeTypeText,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       TobeName,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_UiKindVH', element: 'Value' } }]
       @ObjectModel.text.element: [ 'UiKindText' ]
@@ -56,6 +59,7 @@ define root view entity ZC_CMSM_Map
       @EndUserText.label: '모듈 내역'
       _SapModule.Text as SapModuleText,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       Description,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_UserVH', element: 'UserId' } }]
       @ObjectModel.text.element: [ 'OwnerName' ]

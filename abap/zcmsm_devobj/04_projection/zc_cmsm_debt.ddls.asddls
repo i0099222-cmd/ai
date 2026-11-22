@@ -9,6 +9,7 @@ define root view entity ZC_CMSM_Debt
 {
   key DebtUuid,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       DebtId,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_ModuleVH', element: 'Value' } }]
       @ObjectModel.text.element: [ 'SapModuleText' ]
@@ -16,6 +17,7 @@ define root view entity ZC_CMSM_Debt
       @EndUserText.label: '모듈 내역'
       _SapModule.Text as SapModuleText,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       DevId,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_ObjTypeVH', element: 'Value' } }]
       @ObjectModel.text.element: [ 'ObjTypeText' ]
@@ -23,6 +25,7 @@ define root view entity ZC_CMSM_Debt
       @EndUserText.label: '오브젝트 유형 내역'
       _ObjType.Text as ObjTypeText,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       // 등록된 개발 오브젝트에서 고르면 유형·모듈도 같이 채운다 (직접 입력도 가능)
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_DevObjectVH', element: 'DevObj' },
                                            additionalBinding: [{ localElement: 'ObjType',   element: 'ObjType',   usage: #RESULT },
@@ -40,6 +43,7 @@ define root view entity ZC_CMSM_Debt
       _Sys.Description as SysText,
       // 비released 오브젝트 이름으로도 검색되게
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       DebtDesc,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_DebtLevelVH', element: 'Value' } }]
       @ObjectModel.text.element: [ 'DebtLevelText' ]

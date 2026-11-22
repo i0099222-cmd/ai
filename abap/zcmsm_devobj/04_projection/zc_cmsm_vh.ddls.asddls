@@ -11,8 +11,10 @@ define root view entity ZC_CMSM_Vh
 {
   key VhUuid,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       VhId,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_SysVhVH', element: 'VhName' } }]
       VhName,
       @ObjectModel.text.element: [ 'VhImplText' ]
@@ -30,6 +32,7 @@ define root view entity ZC_CMSM_Vh
       @EndUserText.label: '모듈 내역'
       _SapModule.Text as SapModuleText,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       Description,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_UserVH', element: 'UserId' } }]
       @ObjectModel.text.element: [ 'OwnerName' ]

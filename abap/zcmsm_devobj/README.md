@@ -486,3 +486,8 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 ### 업로드 뒤 목록 새로고침
 
 static 액션은 RAP BDEF side effects를 못 건다 (트리거·대상 둘 다 불가). 앱 `annotation.xml`에 액션별 `Common.SideEffects`를 달고 `TargetEntities`를 엔터티셋 절대경로(`/…Container/Mapping` 등)로 주면, 액션이 끝난 뒤 그 목록을 다시 읽는다 — `09_app/annotation.upload-refresh.sample.xml` (탭 5개). 네임스페이스·컨테이너 이름은 `$metadata` 기준으로 맞춘다. 안 되면 리스트 리포트 컨트롤러 확장에서 액션 뒤 `refresh()`.
+
+## 검색 (필터바 검색 칸)
+
+탭 6개 C 뷰의 검색 대상(`@Search.defaultSearchElement`)에 모두 `@Search.fuzzinessThreshold: 0.8`. 통합 조회 `DevObj`에만 있을 땐 이름 일부(`ZCL_FI` 등)로 검색하면 통합 조회에만 결과가 나왔다. 값을 낮추면(0.7) 더 느슨하게, 높이면(0.9) 더 정확하게 찾는다.
+

@@ -9,8 +9,10 @@ define root view entity ZC_CMSM_Sb
 {
   key SbUuid,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       SbId,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_SysSrvbVH', element: 'SrvbName' },
                                            additionalBinding: [{ localElement: 'SapModule', element: 'SapModule', usage: #RESULT }] }]
       SrvbName,
@@ -25,6 +27,7 @@ define root view entity ZC_CMSM_Sb
       @EndUserText.label: '모듈 내역'
       _SapModule.Text as SapModuleText,
       @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
       Description,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_UserVH', element: 'UserId' } }]
       @ObjectModel.text.element: [ 'OwnerName' ]

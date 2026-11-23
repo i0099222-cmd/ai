@@ -1,8 +1,9 @@
 "! To-Be 오브젝트 사용처 — custom entity ZCE_CMSM_TobeUsage 의 쿼리 클래스
 "!
-"! To-Be 오브젝트(Z CDS·Z 테이블)와 같은 패키지의 CDS 만 XCO 로 읽어서,
+"! To-Be 오브젝트(Z CDS·Z 테이블)와 같은 모듈 패키지(패키지 앞 3자리, 예: ZCM → ZCM*)의 CDS 만 XCO 로 읽어서,
 "!   To-Be 를 데이터 소스(select from …)나 연관(association) 대상으로 쓰는 CDS 를 돌려준다.
-"! 시스템 Z CDS 전부(1만 개 이상)를 읽으면 너무 느려서 범위를 같은 패키지로 좁혔다 — 보통 수십 개라 바로 뜬다.
+"! 시스템 Z CDS 전부(1만 개 이상)를 읽으면 너무 느려서 범위를 같은 모듈 패키지로 좁혔다.
+"!   ZCM 의 테이블을 ZCM01 패키지 CDS 가 써도 찾는다. 범위는 lc_prefix_len 으로 (3 = Z + 모듈 2자리)
 "! 못 찾는 것: 다른 패키지에서 쓰는 곳, join 대상, view entity 가 아닌 CDS(DDIC 기반 define view, custom entity 등)
 "! To-Be 가 클래스·FM·T-code 이거나 표준 오브젝트면 빈 목록 (ABAP Cloud 에 where-used API 가 없음)
 CLASS zcl_cmsm_tobeuse_query DEFINITION
@@ -25,6 +26,9 @@ CLASS zcl_cmsm_tobeuse_query IMPLEMENTATION.
     DATA lt_target TYPE string_table.
     DATA lv_main   TYPE string.
     DATA lv_package TYPE c LENGTH 30.
+    DATA lv_like    TYPE c LENGTH 31.
+    " 패키지 앞 몇 자리가 같으면 같은 모듈로 본다 (ZCM·ZCM01·ZCM_FI → ZCM*). 범위를 바꾸려면 이 값만
+    CONSTANTS lc_prefix_len TYPE i VALUE 3.
 
     " DATA_SOURCE 안에서 이름을 찾아볼 항목 (VH 데이터 소스 조회와 같음. 빈 값 = DATA_SOURCE 자체가 이름)
     DATA(lt_component) = VALUE string_table( ( `` ) ( `ENTITY` ) ( `NAME` ) ( `VIEW_ENTITY` ) ( `VIEW` )
@@ -55,11 +59,14 @@ CLASS zcl_cmsm_tobeuse_query IMPLEMENTATION.
           CONTINUE.
         ENDIF.
 
-        " 3) 같은 패키지의 CDS
+        " 3) 같은 모듈 패키지(앞 lc_prefix_len 자리가 같은 패키지 전부)의 CDS
+        lv_like = COND string( WHEN strlen( condense( lv_package ) ) > lc_prefix_len
+                               THEN substring( val = condense( lv_package ) len = lc_prefix_len )
+                               ELSE condense( lv_package ) ) && `%`.
         SELECT ABAPObject, ABAPPackage
           FROM I_CustABAPObjDirectoryEntry
           WHERE ABAPObjectType = 'DDLS'
-            AND ABAPPackage    = @lv_package
+            AND ABAPPackage    LIKE @lv_like
           ORDER BY ABAPObject
           INTO TABLE @DATA(lt_ddls).
 
@@ -122,6 +129,7 @@ CLASS zcl_cmsm_tobeuse_query IMPLEMENTATION.
 
           APPEND VALUE #( tobename = lv_tobe
                           usedby   = lv_cds
+                          package  = ls_ddls-ABAPPackage
                           usekind  = COND #( WHEN lv_in_main = abap_true AND lv_in_assoc = abap_true THEN `데이터 소스·연관`
                                              WHEN lv_in_main = abap_true                             THEN `데이터 소스`
                                              ELSE                                                         `연관` ) ) TO lt_result.

@@ -396,28 +396,24 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 - 표준 SAP 오브젝트: ABAP Cloud에서 안 보이는 것(릴리즈 안 된 뷰·테이블)은 이름까지만 나오거나(`테이블·기타`) 거기서 멈춘다. 예: `I_Product`가 `select from mara`면 `MARA`는 이름은 나오지만 릴리즈 안 된 테이블이라 유형은 `테이블·기타`
 - To-Be가 CDS가 아니면 빈 표. As-Is는 다른 시스템(ECC) 오브젝트라 못 읽는다
 
-## To-Be 사용처 (같은 패키지 CDS, custom entity + XCO)
+## To-Be 사용처 (같은 모듈 패키지 CDS, custom entity + XCO)
 
-매핑 상세의 '사용처 (같은 패키지 CDS)' 섹션. To-Be 오브젝트와 **같은 패키지의 CDS만** 열 때 XCO로 읽어서, To-Be를 데이터 소스(`select from`)나 연관 대상으로 쓰는 CDS를 보여준다 (저장 안 함).
+매핑 상세의 '사용처 (같은 모듈 CDS)' 섹션. To-Be 오브젝트와 **패키지 앞 3자리가 같은 패키지 전부**(예: To-Be가 `ZCM`이면 `ZCM`, `ZCM01`, `ZCM_FI` …)의 CDS를 열 때 XCO로 읽어서, To-Be를 데이터 소스(`select from`)나 연관 대상으로 쓰는 CDS를 보여 준다 (저장 안 함).
 
-범위를 좁힌 이유: ABAP Cloud에는 where-used 릴리즈 API가 없어서, 누가 쓰는지 알려면 후보 CDS를 하나씩 XCO로 읽어야 한다. 시스템 Z CDS 전부(1만 개 이상)를 읽으면 화면이 너무 늦게 뜬다. 배치 잡으로 미리 쌓는 방법도 있지만 쓰지 않기로 했다. 같은 앱의 R·C·VH 뷰는 보통 같은 패키지라 수십 개만 읽으면 된다.
+범위 이유: ABAP Cloud에는 where-used 릴리즈 API가 없어서 후보 CDS를 하나씩 읽어야 한다. 시스템 Z CDS 전부(1만 개 이상)는 너무 느리고, 같은 패키지만 보면 다른 패키지(예: `ZCM`의 테이블을 `ZCM01` CDS가 씀)에서 쓰는 곳을 놓친다. 그래서 같은 모듈 패키지로 넓혔다.
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZCE_CMSM_TobeUsage` (`04_projection`) | custom entity: 사용하는 CDS, 사용 방식(데이터 소스 / 연관 / 데이터 소스·연관). 키 = To-Be 이름(숨김) + 사용하는 CDS |
-| `ZCL_CMSM_TOBEUSE_QUERY` (`06_class`) | 쿼리 클래스. 로직은 `select` 하나에: 필터 `TobeName` → `I_CustABAPObjDirectoryEntry`에서 To-Be의 패키지(DDLS·TABL만) → 같은 패키지 DDLS → XCO로 메인 소스·연관 대상 → 페이징 |
+| `ZCE_CMSM_TobeUsage` (`04_projection`) | custom entity: 사용하는 CDS, 사용 방식(데이터 소스 / 연관 / 데이터 소스·연관), 패키지. 키 = To-Be 이름(숨김) + 사용하는 CDS |
+| `ZCL_CMSM_TOBEUSE_QUERY` (`06_class`) | 쿼리 클래스. 로직은 `select` 하나에: 필터 `TobeName` → `I_CustABAPObjDirectoryEntry`에서 To-Be의 패키지(DDLS·TABL만) → 패키지 앞 `lc_prefix_len`(3)자리 + `%` 로 `LIKE` → 그 DDLS 전부 XCO로 메인 소스·연관 대상 → 페이징 |
 | `ZC_CMSM_Map` | `association [0..*] to ZCE_CMSM_TobeUsage as _Usage on $projection.TobeName = _Usage.TobeName` + 노출 |
 | 서비스 정의 | `expose ZCE_CMSM_TobeUsage as MappingUsage;` |
-| MDE `ZC_CMSM_Map` | 섹션 `{ id: 'Usage', type: #LINEITEM_REFERENCE, label: '사용처 (같은 패키지 CDS)', targetElement: '_Usage' }` |
+| MDE `ZC_CMSM_Map` | 섹션 `{ id: 'Usage', type: #LINEITEM_REFERENCE, label: '사용처 (같은 모듈 CDS)', targetElement: '_Usage' }` |
 
-- 못 찾는 것: 다른 패키지에서 쓰는 곳, join 대상, view entity가 아닌 CDS(DDIC 기반 `define view`, custom entity 등), 컴포지션 대상
-- To-Be가 클래스·FM·T-code거나 표준 오브젝트(고객 오브젝트 목록에 없음)면 빈 표
+- 범위 조정: `lc_prefix_len` — 3이면 Z + 모듈 2자리(ZCM*), 2면 ZC* 처럼 더 넓게(느려짐), 큰 값이면 더 좁게
+- 못 찾는 것: 다른 모듈 패키지에서 쓰는 곳, join 대상, view entity가 아닌 CDS(DDIC 기반 `define view`, custom entity 등), 컴포지션 대상
+- To-Be가 클래스·FM·T-code거나 표준 오브젝트면 빈 표
 - CDS 하나를 못 읽어도(비활성 등) 건너뛰고 계속 본다
-- 범위를 넓히고 싶으면 3)의 `ABAPPackage = @lv_package`를 패키지 앞부분 `LIKE` 조건(예: `ZFI%`)으로 바꾼다. 넓힐수록 느려진다
-
-배치 잡 버전(`ztcmsm00250`, `ZI_CMSM_CdsUsage`, `ZCL_CMSM_USAGE_JOB`)은 뺐다. 시스템에 만들었다면 지운다.
-
-시험: 서비스 바인딩 Preview에서 MappingUsage를 `TobeName eq 'ZR_CMSM_REQ'` 필터로 열면 같은 패키지의 `ZC_CMSM_Req`(데이터 소스), `ZR_CMSM_ReqHist`(연관) 등이 나와야 한다.
 
 ## VH 데이터 소스 (자동, custom entity + XCO)
 

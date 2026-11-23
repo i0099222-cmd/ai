@@ -224,6 +224,15 @@
           }
         }
       }
+    },
+    "extends": {
+      "extensions": {
+        "sap.ui.controllerExtensions": {
+          "sap.fe.templates.ListReport.ListReportController#<앱 ID>::MainList": {
+            "controllerName": "<앱 ID>.ext.controller.MainListExt"
+          }
+        }
+      }
     }
   }
 }

@@ -13,6 +13,10 @@ import Context from "sap/ui/model/odata/v4/Context";
 
 type NavTarget = { route: string; key: string };
 
+// 통합 조회 뷰(ZC_CMSM_DevObject)의 등록 구분·원본 UUID 필드 이름 (시스템 이름에 맞춘다)
+const TAB_FIELD = "RegTab";
+const UUID_FIELD = "RegUuid";
+
 // 등록 구분 → 이동할 상세 화면(route 이름 = manifest routing.routes 의 name)과 그 엔터티의 키 필드
 //   등록 구분 값은 TOBE/ASIS(이 저장소) 또는 TB/AI(시스템에서 바꾼 이름) 둘 다 받는다
 const NAV_TARGETS: Record<string, NavTarget> = {
@@ -41,14 +45,14 @@ export default class MainListExt extends ControllerExtension<ExtensionAPI> {
 					return false; // 통합 조회 행이 아니면 원래대로
 				}
 
-				const tab = (context.getProperty("RefTab") ?? context.getProperty("SourceTab")) as string | undefined;
+				const tab = context.getProperty(TAB_FIELD) as string | undefined;
 				const target = tab ? NAV_TARGETS[tab] : undefined;
 				if (!target) {
 					return false; // 모르는 구분이면 통합 조회 상세로
 				}
 
 				// 원래 탭 상세: 활성(저장된) 버전으로 연다. 키 = <키 필드>=<GUID>,IsActiveEntity=true
-				const uuid = context.getProperty("SourceUuid") as string;
+				const uuid = context.getProperty(UUID_FIELD) as string;
 				// 공개 API: ExtensionAPI.getRouting() (TS 타입엔 routing 속성이 없다)
 				void this.base.getExtensionAPI().getRouting().navigateToRoute(target.route, {
 					key: `${target.key}=${uuid},IsActiveEntity=true`

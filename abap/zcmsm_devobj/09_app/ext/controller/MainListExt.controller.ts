@@ -35,7 +35,7 @@ export default class MainListExt extends ControllerExtension<ExtensionAPI> {
 			/**
 			 * 행을 눌러 상세로 갈 때마다 불린다. true 를 돌려주면 기본 이동을 막는다
 			 */
-			onBeforeNavigation(this: MainListExt, navigationInfo?: { bindingContext?: Context }): boolean {
+			onBeforeNavigation(this: MainListExt, navigationInfo: { bindingContext: Context }): boolean {
 				const context = navigationInfo?.bindingContext;
 				if (!context || !context.getPath().startsWith("/DevObject")) {
 					return false; // 통합 조회 행이 아니면 원래대로
@@ -49,7 +49,8 @@ export default class MainListExt extends ControllerExtension<ExtensionAPI> {
 
 				// 원래 탭 상세: 활성(저장된) 버전으로 연다. 키 = <키 필드>=<GUID>,IsActiveEntity=true
 				const uuid = context.getProperty("SourceUuid") as string;
-				void this.base.getExtensionAPI().routing.navigateToRoute(target.route, {
+				// 공개 API: ExtensionAPI.getRouting() (TS 타입엔 routing 속성이 없다)
+				void this.base.getExtensionAPI().getRouting().navigateToRoute(target.route, {
 					key: `${target.key}=${uuid},IsActiveEntity=true`
 				});
 				return true;

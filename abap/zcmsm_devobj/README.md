@@ -386,14 +386,14 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZCL_CMSM_DDL_WHERE_USED=>source_chain( )` (`12_wrapper`) | 사용처 래퍼에 같이 둔 메서드 (Standard ABAP, C1 릴리즈). `DDDDLSRC` 원문에서 주석을 지우고 PCRE로 메인 소스 이름을 뽑는다. 다음 이름이 `DDDDLSRC`에 있으면 CDS → 계속, 없으면 `DD02L`로 테이블(`TRANSP` 등)·DDIC 뷰(`VIEW`) 구분 → 끝. `DDCDS_CUSTOMER_DOMAIN_VALUE(_T)`면 도메인 이름(`p_domain_name: '…'`)을 보여 주고 끝 |
+| `ZCL_CMSM_DDL_WHERE_USED=>source_chain( )` (`12_wrapper`) | 사용처 래퍼에 같이 둔 메서드 (Standard ABAP, C1 릴리즈). `DDDDLSRC` 원문에서 주석을 지우고 PCRE로 메인 소스 이름을 뽑는다 (래퍼 메서드는 `find`·`source_chain` 두 개뿐). 다음 이름이 `DDDDLSRC`에 있으면 CDS → 계속, 없으면 `DD02L`로 테이블(`TRANSP` 등)·DDIC 뷰(`VIEW`) 구분 → 끝. `DDCDS_CUSTOMER_DOMAIN_VALUE(_T)`면 도메인 이름(`p_domain_name: '…'`)을 보여 주고 끝 |
 | `ZCE_CMSM_TobeSource` (`04_projection`) | custom entity: 유형(CDS / 테이블 / DDIC 뷰 / 도메인 고정값 / 기타), 이름 — 위에서 아래 순서로 한 줄씩, 윗줄이 아랫줄을 읽음 (단계·순번·읽는 오브젝트 칸 없음). 키 = To-Be 이름 + 이름 |
 | `ZCL_CMSM_TOBESRC_QUERY` (`06_class`) | 쿼리 클래스: 필터 `TobeName` → 래퍼 `source_chain( )` → 행 → 페이징. XCO 없음 |
 | `ZC_CMSM_Map` | `association [0..*] to ZCE_CMSM_TobeSource as _TobeSource on $projection.TobeName = _TobeSource.TobeName` + 노출 |
 | 서비스 정의 | `expose ZCE_CMSM_TobeSource as MappingSource;` |
 | MDE `ZC_CMSM_Map` | 섹션 `{ id: 'TobeSrc', type: #LINEITEM_REFERENCE, label: 'To-Be 데이터 소스', targetElement: '_TobeSource', position: 35 }` |
 
-- To-Be가 CDS가 아니면(테이블 등) 거꾸로 위로 올라간다: 사용처 인덱스(`DDLS_RIS_INDEX`)로 후보를 찾고, 그중 To-Be를 **메인 소스**로 읽는 Z CDS만 → 그 CDS를 메인 소스로 읽는 Z CDS … (`read_up`, 갈래가 있으면 한 갈래씩 끝까지 — 유형 칸 `CDS · 위 n단계`로 단계 구분, 최대 10단계·200줄). 예: `ZTCMTEST` → `CDS · 위 1단계 ZCM_I_TEST01`, `CDS · 위 2단계 ZCM_I_TEST`. join·연관으로만 쓰는 CDS는 '사용처 (Z CDS)' 섹션에서
+- To-Be가 CDS가 아니면(테이블 등) 거꾸로 위로 올라간다: 사용처 인덱스(`DDLS_RIS_INDEX`)로 후보를 찾고, 그중 To-Be를 **메인 소스**로 읽는 Z CDS만 → 그 CDS를 메인 소스로 읽는 Z CDS … (`source_chain( )` 안에서 단계 순 — 유형 칸 `CDS · 위 n단계`, 최대 10단계·200줄. 갈래가 여러 개면 같은 단계끼리 모여 나온다). 예: `ZTCMTEST` → `CDS · 위 1단계 ZCM_I_TEST01`, `CDS · 위 2단계 ZCM_I_TEST`. join·연관으로만 쓰는 CDS는 '사용처 (Z CDS)' 섹션에서
 - 메인 소스만 따라간다. join 대상·연관은 안 나온다 (union이면 첫 번째 select만)
 - view entity·DDIC 기반 `define view`·projection·표준 SAP CDS 다 된다. 예: `I_Product` → … → `MARA`(테이블). 예전 XCO 방식은 view entity가 아니면 멈췄고, ABAP Cloud에서 안 보이는 표준 오브젝트도 못 읽었다
 - 멈추는 경우: custom entity·table function·hierarchy(`select from`이 없음), 괄호로 묶은 join(`select from ( A join B … )`), 다른 CDS의 SQL 뷰 이름을 소스로 쓴 경우(`DDIC 뷰`로 나오고 끝)

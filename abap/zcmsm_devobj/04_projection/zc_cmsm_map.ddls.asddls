@@ -8,6 +8,8 @@ define root view entity ZC_CMSM_Map
   as projection on ZR_CMSM_Map
   // 사용처: To-Be 와 같은 패키지의 CDS 중 To-Be 를 데이터 소스·연관으로 쓰는 것. 열 때 XCO 로 읽는 custom entity (읽기 전용)
   association [0..*] to ZCE_CMSM_TobeUsage as _Usage on $projection.TobeName = _Usage.TobeName
+  // To-Be 데이터 소스: To-Be CDS 의 메인 소스를 맨 아래(테이블)까지. XCO 로 읽는 custom entity (읽기 전용)
+  association [0..*] to ZCE_CMSM_TobeSource as _TobeSource on $projection.TobeName = _TobeSource.TobeName
 {
   key MapUuid,
       @Search.defaultSearchElement: true
@@ -78,5 +80,6 @@ define root view entity ZC_CMSM_Map
       LastChangedAt,
       LocalLastChangedAt,
 
-      _Usage
+      _Usage,
+      _TobeSource
 }

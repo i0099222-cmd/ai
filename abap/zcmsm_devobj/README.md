@@ -370,6 +370,23 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 - 구분(`MapKind`)은 기본 정보 맨 위
 - 폰처럼 좁으면 두 칸이 위아래로 내려간다
 
+## To-Be 데이터 소스 (최하위까지, custom entity + XCO)
+
+매핑 상세의 'To-Be 데이터 소스' 섹션. To-Be CDS의 메인 데이터 소스(`select from`)를 XCO로 읽고, 그게 CDS면 또 그 CDS의 메인 소스를… 테이블이 나올 때까지 따라 내려간다 (최대 10단계, 순환이면 멈춤). 예: `ZC_…` → `ZR_…` → `ZI_…` → `ZTABLE`.
+
+| 오브젝트 | 내용 |
+| --- | --- |
+| `ZCE_CMSM_TobeSource` (`04_projection`) | custom entity: 단계, 유형(CDS / 테이블 / 테이블·기타 / 도메인 고정값), 이름, 읽는 오브젝트. 키 = To-Be 이름 + 순번(숨김) |
+| `ZCL_CMSM_TOBESRC_QUERY` (`06_class`) | 쿼리 클래스. 로직은 `select` 하나에 (필터 `TobeName` → `DO 10 TIMES` 메인 소스 따라가기 → 페이징) |
+| `ZC_CMSM_Map` | `association [0..*] to ZCE_CMSM_TobeSource as _TobeSource on $projection.TobeName = _TobeSource.TobeName` + 노출 |
+| 서비스 정의 | `expose ZCE_CMSM_TobeSource as MappingSource;` |
+| MDE `ZC_CMSM_Map` | 섹션 `{ id: 'TobeSrc', type: #LINEITEM_REFERENCE, label: 'To-Be 데이터 소스', targetElement: '_TobeSource', position: 35 }` |
+
+- 메인 소스만 따라간다. join 대상·연관은 안 나온다 (XCO가 join을 안 준다)
+- view entity가 아닌 CDS(DDIC 기반 `define view`)에서 멈춘다
+- 표준 SAP 오브젝트: ABAP Cloud에서 안 보이는 것(릴리즈 안 된 뷰·테이블)은 이름까지만 나오거나(`테이블·기타`) 거기서 멈춘다. 예: `I_Product`가 `select from mara`면 `MARA`는 이름은 나오지만 릴리즈 안 된 테이블이라 유형은 `테이블·기타`
+- To-Be가 CDS가 아니면 빈 표. As-Is는 다른 시스템(ECC) 오브젝트라 못 읽는다
+
 ## To-Be 사용처 (같은 패키지 CDS, custom entity + XCO)
 
 매핑 상세의 '사용처 (같은 패키지 CDS)' 섹션. To-Be 오브젝트와 **같은 패키지의 CDS만** 열 때 XCO로 읽어서, To-Be를 데이터 소스(`select from`)나 연관 대상으로 쓰는 CDS를 보여준다 (저장 안 함).

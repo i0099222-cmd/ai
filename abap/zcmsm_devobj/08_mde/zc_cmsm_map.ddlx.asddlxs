@@ -14,7 +14,7 @@
   selectionPresentationVariant: [{ qualifier: 'Tab', text: 'As-Is/To-Be',
                                    presentationVariantQualifier: 'Tab', selectionVariantQualifier: 'Tab' }]
 }
-// 상세 화면: 기본 정보 → 매핑(As-Is | To-Be 나란히) → UI 연결 → 사용처(같은 패키지 CDS) → 관리 정보
+// 상세 화면: 기본 정보 → 매핑(As-Is | To-Be 나란히) → UI 연결 → To-Be 데이터 소스(최하위까지) → 사용처(같은 패키지 CDS) → 관리 정보
 //   매핑(As-Is | To-Be)은 MDE 가 아니라 앱의 custom section (ext/fragment/Mapping.fragment.xml, 기본 정보 뒤).
 //   FE 기본 폼은 칸을 3~4개로 잡아 필드가 옆으로 퍼져서, 2칸 폼을 직접 만든다. 그래서 여기엔 As-Is·To-Be 필드그룹이 없다
 annotate entity ZC_CMSM_Map with
@@ -23,6 +23,7 @@ annotate entity ZC_CMSM_Map with
     { id: 'Header',     purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
     { id: 'General',    type: #FIELDGROUP_REFERENCE, label: '기본 정보', targetQualifier: 'General', position: 10 },
     { id: 'Ui',         type: #FIELDGROUP_REFERENCE, label: 'UI 연결 (To-Be가 T-code일 때)', targetQualifier: 'Ui', position: 30 },
+    { id: 'TobeSrc',    type: #LINEITEM_REFERENCE, label: 'To-Be 데이터 소스', targetElement: '_TobeSource', position: 35 },
     { id: 'Usage',      type: #LINEITEM_REFERENCE, label: '사용처 (같은 패키지 CDS)', targetElement: '_Usage', position: 40 },
     { id: 'Admin',      type: #FIELDGROUP_REFERENCE, label: '관리 정보', targetQualifier: 'Admin', position: 50 }
   ]

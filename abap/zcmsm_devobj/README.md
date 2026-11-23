@@ -393,10 +393,11 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 | 서비스 정의 | `expose ZCE_CMSM_TobeSource as MappingSource;` |
 | MDE `ZC_CMSM_Map` | 섹션 `{ id: 'TobeSrc', type: #LINEITEM_REFERENCE, label: 'To-Be 데이터 소스', targetElement: '_TobeSource', position: 35 }` |
 
+- To-Be가 CDS가 아니면(테이블 등) 거꾸로 위로 올라간다: 사용처 인덱스(`DDLS_RIS_INDEX`)로 후보를 찾고, 그중 To-Be를 **메인 소스**로 읽는 Z CDS만 → 그 CDS를 메인 소스로 읽는 Z CDS … (`read_up`, 갈래가 있으면 한 갈래씩 끝까지 — 유형 칸 `CDS · 위 n단계`로 단계 구분, 최대 10단계·200줄). 예: `ZTCMTEST` → `CDS · 위 1단계 ZCM_I_TEST01`, `CDS · 위 2단계 ZCM_I_TEST`. join·연관으로만 쓰는 CDS는 '사용처 (Z CDS)' 섹션에서
 - 메인 소스만 따라간다. join 대상·연관은 안 나온다 (union이면 첫 번째 select만)
 - view entity·DDIC 기반 `define view`·projection·표준 SAP CDS 다 된다. 예: `I_Product` → … → `MARA`(테이블). 예전 XCO 방식은 view entity가 아니면 멈췄고, ABAP Cloud에서 안 보이는 표준 오브젝트도 못 읽었다
 - 멈추는 경우: custom entity·table function·hierarchy(`select from`이 없음), 괄호로 묶은 join(`select from ( A join B … )`), 다른 CDS의 SQL 뷰 이름을 소스로 쓴 경우(`DDIC 뷰`로 나오고 끝)
-- To-Be가 CDS가 아니면 빈 표. As-Is는 다른 시스템(ECC) 오브젝트라 못 읽는다
+- To-Be가 CDS도 아니고 그걸 메인 소스로 읽는 Z CDS도 없으면 빈 표. As-Is는 다른 시스템(ECC) 오브젝트라 못 읽는다
 
 ## To-Be 사용처 (Z CDS 전체, 표준 CDS 사용처 인덱스)
 

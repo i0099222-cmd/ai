@@ -4,7 +4,8 @@
 "!   메인 데이터 소스(as select from … / as projection on …)를 읽고, 그게 CDS 면 또 그 CDS 의 메인 소스를…
 "!   테이블(최하위)이 나올 때까지 따라 내려간다 (최대 10단계, 같은 이름이 다시 나오면 멈춤). 여기선 행만 만든다.
 "! view entity·DDIC 기반 define view·projection·표준 SAP CDS 다 된다 (예전 XCO 방식은 view entity 가 아니면 멈췄다)
-"! 안 나오는 것: join 대상·연관(메인 소스만 따라감). To-Be 가 CDS 가 아니면(테이블·클래스 등) 빈 목록
+"! To-Be 가 CDS 가 아니면(테이블 등) 거꾸로, 그걸 메인 소스로 읽는 Z CDS 를 위로 (유형 칸에 'CDS · 위 n단계')
+"! 안 나오는 것: join 대상·연관(메인 소스만 따라감)
 CLASS zcl_cmsm_tobesrc_query DEFINITION
   PUBLIC
   FINAL

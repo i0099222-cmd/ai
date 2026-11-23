@@ -1,7 +1,7 @@
 "! To-Be 오브젝트 사용처 — custom entity ZCE_CMSM_TobeUsage 의 쿼리 클래스
 "!
-"! 래퍼 ZCL_CMSM_DDL_WHERE_USED(12_wrapper, Standard ABAP)가 표준 테이블 DDDDLSRC(CDS 소스 원문)를 읽어서
-"!   To-Be 이름이 들어간 Z CDS 를 돌려준다 (Z CDS 전부, join 포함, 패키지 제한 없음). 여기선 패키지만 붙인다.
+"! 래퍼 ZCL_CMSM_DDL_WHERE_USED(12_wrapper, Standard ABAP)가 표준 테이블 DDLS_RIS_INDEX(CDS 사용처 인덱스)에서
+"!   To-Be 를 쓰는 Z CDS 를 돌려준다 (Z CDS 전부, join·연관 포함, 패키지 제한 없음). 여기선 패키지만 붙인다.
 "! 예전 방식(CDS 마다 XCO 로 정의 파싱)은 CDS 가 많으면 1분 넘게 걸려서 바꿨다.
 "! 못 찾는 것: ABAP 코드(클래스·프로그램)에서 쓰는 곳, 표준(SAP) CDS 에서 쓰는 곳
 CLASS zcl_cmsm_tobeuse_query DEFINITION

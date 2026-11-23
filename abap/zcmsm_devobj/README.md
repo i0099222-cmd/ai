@@ -112,7 +112,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 | 엔티티 | 제목 / 부제 | 헤더 | 섹션 |
 | --- | --- | --- | --- |
 | 요청 | 제목 / 요청번호 | 상태, 담당자, 요청자, 요청 일시 | 요청 내용 · 처리 · 변경 이력(표) · 관리 정보 |
-| 매핑 | To-Be 오브젝트 / 등록번호 | 구분, 모듈, 담당자 | 기본 정보 · 매핑 (As-Is \| To-Be 나란히) · UI 연결 (T-code일 때) · 사용처 (같은 패키지 CDS) · 관리 정보 |
+| 매핑 | To-Be 오브젝트 / 등록번호 | 구분, 모듈, 담당자 | 기본 정보 · 매핑 (As-Is \| To-Be 나란히) · UI 연결 (T-code일 때) · To-Be 데이터 소스 · 사용처 (Z CDS) · 관리 정보 |
 | Value Help | VH 이름 / 등록번호 | 구현 방식, 모듈, 담당자 | 기본 정보 · 데이터 소스(표) · 테스트 · 관리 정보 |
 | OData 서비스 | Service Binding / 등록번호 | 모듈, 담당자 | 기본 정보 · 테스트 · 관리 정보 |
 | 기술부채 | 개발 오브젝트 / ID | Debt Level, 개선상태, 업무담당자 | 대상 오브젝트 · 비released 사용(비released 사용 내역) · 판단·개선 · 관리 정보 |
@@ -374,7 +374,7 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 | manifest `MappingObjectPage` | `content.body.sections.MapSection` — `template` `<앱 ID>.ext.fragment.Mapping`, 제목 '매핑', 위치 `After` `General` |
 | MDE `ZC_CMSM_Map` | `Mapping`·`MappingSub`·`AsIs`·`ToBe` facet과 As-Is·To-Be `fieldGroup` 항목을 뺀다 (안 빼면 두 번 나옴) |
 
-- 섹션 순서: 기본 정보 → 매핑(custom) → UI 연결 (T-code일 때) → 사용처 (같은 패키지 CDS) → 관리 정보
+- 섹션 순서: 기본 정보 → 매핑(custom) → UI 연결 (T-code일 때) → To-Be 데이터 소스 → 사용처 (Z CDS) → 관리 정보
 - `macros:Field`라서 수정 권한(구분이 신규면 As-Is 잠김)·값 도움말·텍스트 표시가 기본 폼과 같다
 - 필수 별표는 라벨 `required`로 직접: As-Is 세 칸 = 편집 중 + 구분 ≠ 신규(`N`), To-Be 유형·오브젝트 = 편집 중이면 항상 (`ui>/isEditable`). 필수 검증 자체는 BO validation 그대로
 - 구분(`MapKind`)은 기본 정보 맨 위
@@ -397,22 +397,24 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 - 표준 SAP 오브젝트: ABAP Cloud에서 안 보이는 것(릴리즈 안 된 뷰·테이블)은 이름까지만 나오거나(`테이블·기타`) 거기서 멈춘다. 예: `I_Product`가 `select from mara`면 `MARA`는 이름은 나오지만 릴리즈 안 된 테이블이라 유형은 `테이블·기타`
 - To-Be가 CDS가 아니면 빈 표. As-Is는 다른 시스템(ECC) 오브젝트라 못 읽는다
 
-## To-Be 사용처 (Z CDS 전체, 래퍼로 CDS 소스 검색)
+## To-Be 사용처 (Z CDS 전체, 표준 CDS 사용처 인덱스)
 
 매핑 상세의 '사용처 (Z CDS)' 섹션. To-Be 이름을 쓰는 Z CDS 전부와 쓰는 방식(데이터 소스 / join / 연관 / 기타), 패키지.
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZCL_CMSM_DDL_WHERE_USED` (`12_wrapper`) | **Standard ABAP 패키지**에 만들고 Cloud 개발용으로 릴리즈(C1)하는 래퍼. 표준 테이블 `DDDDLSRC`(CDS 소스 원문)에서 **DB(HANA, AMDP `select_sources`)가 이름이 단어로 들어간 활성 Z 소스만** 골라 준다(`LIKE_REGEXPR … FLAG 'i'`, `ZT0001` ≠ `ZT00010`). Z 소스 전체를 앱 서버로 안 가져온다. 걸린 소스만 ABAP `FIND PCRE`로 쓰는 방식: `from`/`projection on` → 데이터 소스, `join` → join, `to [parent]` → 연관, 그 밖(어노테이션·주석) → 기타 |
+| `ZCL_CMSM_DDL_WHERE_USED` (`12_wrapper`) | **Standard ABAP 패키지**에 만들고 Cloud 개발용으로 릴리즈(C1)하는 래퍼. 표준 테이블 **`DDLS_RIS_INDEX`**(CDS 사용처 인덱스, ADT·SE11 사용처 목록이 읽는 테이블. CDS 활성화 때 SAP가 'DDL 소스 → 쓰는 오브젝트'를 적어 둠)에서 `USED_ARTIFACT_FULLNAME = 'TY:<이름>'`으로 쓰는 Z DDL 소스(`DDLSRC_NAME`)를 바로 찾는다. 텍스트 검색·AMDP 없음. 인덱스엔 쓰는 방식이 없어서 **걸린 소스 몇 개만** `DDDDLSRC` 원문을 읽어 `FIND PCRE`로 구분: `from`/`projection on` → 데이터 소스, `join` → join, `to [parent]`/`composition … of` → 연관, 그 밖(어노테이션 등) → 기타 |
 | `ZCL_CMSM_TOBEUSE_QUERY` (`06_class`) | 쿼리 클래스: 필터 `TobeName` → 래퍼 `find( )` → `I_CustABAPObjDirectoryEntry`에서 패키지 → 페이징. XCO 스캔 없음 |
 | `ZCE_CMSM_TobeUsage` (`04_projection`) | custom entity: 사용하는 CDS, 사용 방식, 패키지 |
 | `ZC_CMSM_Map` / 서비스 / MDE | 그대로 (`_Usage`, `MappingUsage`, 섹션 '사용처 (Z CDS)') |
 
-- 예전 방식(CDS마다 XCO로 정의 파싱)은 같은 모듈 패키지만 봐도 1분 넘게 걸려서 바꿨다. 소스 텍스트 검색이라 join까지 찾고 패키지 제한도 없다
-- AMDP의 `LIKE_REGEXPR`이 긴 텍스트 칸에서 에러면 주석의 `LOCATE( UPPER( source ), … )` 줄로 바꾼다 (그 경우 단어 경계는 ABAP 쪽에서 다시 확인)
-- 못 찾는 것: ABAP 코드(클래스·프로그램)에서 쓰는 곳, 표준(SAP) CDS에서 쓰는 곳
-- 래퍼는 미릴리즈 테이블(`DDDDLSRC`)을 읽으니 기술부채로 등록: 부채 구분 TAB, Debt Level C, 래핑 여부 W
-- `DDDDLSRC` 필드(`DDLNAME`, `AS4LOCAL`, `SOURCE`)는 SE11에서 확인. Z CDS가 아주 많아 느리면 패키지·이름 조건을 `WHERE`에 더한다
+- 예전 방식(CDS마다 XCO로 정의 파싱)은 같은 모듈 패키지만 봐도 1분 넘게 걸렸고, 그다음 방식(`DDDDLSRC` 원문 텍스트 검색 AMDP)은 인덱스 방식으로 바꿨다 (커밋 `5966350`에 남아 있음)
+- 먼저 SE16 `DDLS_RIS_INDEX`에서 `USED_ARTIFACT_FULLNAME`이 `TY:ZT0001`처럼 들어 있는지 본다. 형식이 다르면(예: `\TY:ZT0001`) 래퍼의 `lv_full` 한 줄만 맞춘다
+- 인덱스에 빠진 CDS가 있으면 개발 시스템에서 SE38 `SDDIC_DDLS_INDEX_ALL_SOURCES`를 한 번 실행 (CDS 인덱스 다시 만듦, SAP Note 2833335). 그 뒤로는 CDS 활성화 때 SAP가 알아서 갱신한다 (배치 등록 필요 없음)
+- 못 찾는 것: ABAP 코드(클래스·프로그램)에서 쓰는 곳, 표준(SAP) CDS에서 쓰는 곳(Z 소스만 봄)
+- 래퍼는 미릴리즈 테이블(`DDLS_RIS_INDEX`, `DDDDLSRC`)을 읽으니 기술부채로 등록: 부채 구분 TAB, Debt Level C, 래핑 여부 W
+- 필드 이름(`DDLS_RIS_INDEX`: `DDLSRC_NAME`, `USED_ARTIFACT_FULLNAME` / `DDDDLSRC`: `DDLNAME`, `AS4LOCAL`, `SOURCE`)은 SE11에서 확인
+- 다른 표준 테이블은 이 용도에 안 맞음: `DD26S`+`DDLDEPENDENCY`는 DDIC 기반 CDS(`define view` + SQL 뷰)만 (view entity는 `DDLDEPENDENCY`에 `STOB` 줄만 있고 `DD26S`엔 없음), `DD08B`는 연관만, `WBCROSSGT`는 ABAP 코드만
 
 ## VH 데이터 소스 (자동, custom entity + XCO)
 

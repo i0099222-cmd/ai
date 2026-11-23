@@ -450,7 +450,7 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 
 ## 요청 내용 custom section
 
-`09_app/ext/fragment/Request.fragment.xml` — 제목(섹션 폭 50%)·요청 내용(전체 폭)을 세로로 쌓는 `macros:Field`. manifest `template`: `<앱 ID>.ext.fragment.Request`. MDE에서 두 필드의 `Request` fieldGroup 항목은 뺀다.
+`09_app/ext/fragment/Request.fragment.xml` — 윗줄 요청자(`CreatedBy`) | 담당자(`Assignee`)를 `Grid` 칸 두 개(`XL3 L3 M6 S12`, `hSpacing="0"`, 칸마다 라벨 위·필드 아래), 아래 제목(섹션 폭 50%)·요청 내용(전체 폭)을 세로로 쌓는 `macros:Field`. 필수 별표는 라벨 `required` = 편집 중이고 상태 '요청'(R)일 때 (제목·요청 내용·담당자). manifest `template`: `<앱 ID>.ext.fragment.Request`. MDE에서 제목·요청 내용·담당자의 `Request` fieldGroup 항목은 뺀다 (담당자는 `Header` 쪽은 둔다).
 
 ## 기술부채 부채 구분 (도메인)
 

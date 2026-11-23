@@ -1,22 +1,46 @@
 <!--
-  요청 상세 · '요청 내용' custom section (세로 배치 버전)
-  - 라벨과 필드를 위아래로 쌓아서, 요청 내용 입력칸은 섹션 폭을 다 쓰고 제목은 50% 폭
-  - macros:Field 는 편집 모드·수정 권한(feature control)을 Fiori Elements 기본처럼 따른다
-  - 필수 별표는 이 방식에선 라벨에 자동으로 안 붙는다 (필수 체크는 저장할 때 그대로 동작)
+  요청 상세 · '요청 내용' custom section
+  - 윗줄: 요청자 | 담당자 — Grid 칸 두 개 (넓은 화면 1/4씩, 태블릿 반반, 폰 한 줄씩). 칸 폭이 고정이라 열이 맞는다
+      칸 안은 라벨 위·필드 아래 (편집 모드에서 담당자 입력칸이 라벨 옆에 끼지 않게)
+      hSpacing 0: 간격을 주면 첫 칸 왼쪽에도 여백이 생겨 아래 제목과 시작선이 어긋난다 → 칸 사이 간격은 칸 오른쪽 여백으로
+  - 아래: 제목(섹션 폭 50%), 요청 내용(전체 폭)을 세로로
+  - macros:Field 는 편집 모드·수정 권한(feature control)·값 도움말·이름 표시를 Fiori Elements 기본처럼 따른다
+      (요청자는 항상 읽기 전용, 담당자는 값 도움말)
+  - 필수 별표(*)는 라벨 required 로 직접 — 편집 중이고 상태가 '요청'(R)일 때만 (요청자가 쓰는 칸).
+      진행 중에 담당자가 처리 내용을 편집할 땐 이 칸들이 잠기므로 별표도 안 붙는다
+  - MDE: 이 fragment 에 넣은 칸(제목·요청 내용·담당자)은 MDE 'Request' fieldGroup 에서 뺀다 (안 빼면 두 번 나온다)
   - 위치: webapp/ext/fragment/Request.fragment.xml  /  manifest template: "<앱 ID>.ext.fragment.Request"
 -->
 <core:FragmentDefinition
     xmlns:core="sap.ui.core"
     xmlns="sap.m"
+    xmlns:l="sap.ui.layout"
     xmlns:macros="sap.fe.macros">
   <VBox id="reqContentBox" width="100%">
-    <Label id="reqTitleLabel" text="제목"/>
-    <!-- 제목은 폭을 줄여서: 섹션 폭의 50%. 고정 폭을 원하면 width="30rem" 처럼 -->
+
+    <!-- 윗줄: 요청자 | 담당자 -->
+    <l:Grid id="reqTopGrid" defaultSpan="XL3 L3 M6 S12" hSpacing="0" vSpacing="0" width="100%">
+      <VBox id="reqRequesterBox" class="sapUiMediumMarginEnd">
+        <Label id="reqRequesterLabel" text="요청자"/>
+        <macros:Field id="reqRequesterField" metaPath="CreatedBy"/>
+      </VBox>
+      <VBox id="reqAssigneeBox" class="sapUiMediumMarginEnd">
+        <Label id="reqAssigneeLabel" text="담당자"
+               required="{= ${ui>/isEditable} === true &amp;&amp; ${ReqStatus} === 'R' }"/>
+        <macros:Field id="reqAssigneeField" metaPath="Assignee"/>
+      </VBox>
+    </l:Grid>
+
+    <!-- 아래: 제목(50% 폭), 요청 내용(전체 폭) -->
+    <Label id="reqTitleLabel" text="제목" class="sapUiSmallMarginTop"
+           required="{= ${ui>/isEditable} === true &amp;&amp; ${ReqStatus} === 'R' }"/>
     <VBox id="reqTitleBox" width="50%">
       <macros:Field id="reqTitleField" metaPath="Title"/>
     </VBox>
 
-    <Label id="reqTextLabel" text="요청 내용" class="sapUiSmallMarginTop"/>
+    <Label id="reqTextLabel" text="요청 내용" class="sapUiSmallMarginTop"
+           required="{= ${ui>/isEditable} === true &amp;&amp; ${ReqStatus} === 'R' }"/>
     <macros:Field id="reqTextField" metaPath="ReqText"/>
+
   </VBox>
 </core:FragmentDefinition>

@@ -38,21 +38,19 @@ CLASS zcl_cmsm_tobesrc_query IMPLEMENTATION.
           CONTINUE.
         ENDIF.
 
-        " 2) 래퍼: 메인 데이터 소스를 최하위까지 (단계 순)
+        " 2) 래퍼: 메인 데이터 소스를 최하위까지 (위에서 아래 순)
         DATA(lt_chain) = zcl_cmsm_ddl_where_used=>source_chain( lv_tobe ).
         LOOP AT lt_chain INTO DATA(ls_chain).
           APPEND VALUE #( tobename = lv_tobe
-                          srcpos   = ls_chain-srclevel
-                          srclevel = ls_chain-srclevel
-                          srckind  = ls_chain-srckind
                           srcname  = ls_chain-srcname
+                          srckind  = ls_chain-srckind
                           usedby   = ls_chain-usedby ) TO lt_result.
         ENDLOOP.
 
       ENDLOOP.
     ENDLOOP.
 
-    " 3) 건수·페이징 (순서는 단계 순, 요청 정렬 정보는 읽기만)
+    " 3) 건수·페이징 (순서는 위에서 아래 순, 요청 정렬 정보는 읽기만)
     DATA(lt_sort) = io_request->get_sort_elements( ).
 
     IF io_request->is_total_numb_of_rec_requested( ).

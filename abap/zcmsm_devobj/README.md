@@ -387,7 +387,7 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 | 오브젝트 | 내용 |
 | --- | --- |
 | `ZCL_CMSM_DDL_WHERE_USED=>source_chain( )` (`12_wrapper`) | 사용처 래퍼에 같이 둔 메서드 (Standard ABAP, C1 릴리즈). `DDDDLSRC` 원문에서 주석을 지우고 PCRE로 메인 소스 이름을 뽑는다. 다음 이름이 `DDDDLSRC`에 있으면 CDS → 계속, 없으면 `DD02L`로 테이블(`TRANSP` 등)·DDIC 뷰(`VIEW`) 구분 → 끝. `DDCDS_CUSTOMER_DOMAIN_VALUE(_T)`면 도메인 이름(`p_domain_name: '…'`)을 보여 주고 끝 |
-| `ZCE_CMSM_TobeSource` (`04_projection`) | custom entity: 단계, 유형(CDS / 테이블 / DDIC 뷰 / 도메인 고정값 / 기타), 이름, 읽는 오브젝트. 키 = To-Be 이름 + 순번(숨김) |
+| `ZCE_CMSM_TobeSource` (`04_projection`) | custom entity: 유형(CDS / 테이블 / DDIC 뷰 / 도메인 고정값 / 기타), 이름, 읽는 오브젝트 — 위에서 아래 순서로 한 줄씩 (단계·순번 칸 없음). 키 = To-Be 이름 + 이름 |
 | `ZCL_CMSM_TOBESRC_QUERY` (`06_class`) | 쿼리 클래스: 필터 `TobeName` → 래퍼 `source_chain( )` → 행 → 페이징. XCO 없음 |
 | `ZC_CMSM_Map` | `association [0..*] to ZCE_CMSM_TobeSource as _TobeSource on $projection.TobeName = _TobeSource.TobeName` + 노출 |
 | 서비스 정의 | `expose ZCE_CMSM_TobeSource as MappingSource;` |

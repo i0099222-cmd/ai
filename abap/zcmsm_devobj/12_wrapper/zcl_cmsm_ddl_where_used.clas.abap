@@ -27,7 +27,6 @@ CLASS zcl_cmsm_ddl_where_used DEFINITION
       tt_usage TYPE STANDARD TABLE OF ty_usage WITH EMPTY KEY,
 
       BEGIN OF ty_source,
-        srclevel TYPE i,            " 단계 (1 = 바로 아래 소스)
         srckind  TYPE c LENGTH 20,  " CDS / 테이블 / DDIC 뷰 / 도메인 고정값 / 기타
         srcname  TYPE c LENGTH 40,  " 데이터 소스 이름 (도메인 고정값이면 도메인 이름)
         usedby   TYPE c LENGTH 40,  " 그 소스를 읽는 CDS (한 단계 위)
@@ -39,7 +38,7 @@ CLASS zcl_cmsm_ddl_where_used DEFINITION
       IMPORTING iv_name         TYPE string
       RETURNING VALUE(rt_usage) TYPE tt_usage.
 
-    "! CDS 의 메인 데이터 소스를 최하위(테이블 등)까지 따라 내려간 목록 (단계 순, 최대 10단계)
+    "! CDS 의 메인 데이터 소스를 최하위(테이블 등)까지 따라 내려간 목록 (위에서 아래 순, 최대 10단계)
     CLASS-METHODS source_chain
       IMPORTING iv_name          TYPE string
       RETURNING VALUE(rt_source) TYPE tt_source.
@@ -184,8 +183,7 @@ CLASS zcl_cmsm_ddl_where_used IMPLEMENTATION.
                           ELSE                           `테이블` ).
       ENDIF.
 
-      APPEND VALUE #( srclevel = lines( rt_source ) + 1
-                      srckind  = lv_kind
+      APPEND VALUE #( srckind  = lv_kind
                       srcname  = lv_name
                       usedby   = lv_cur ) TO rt_source.
 

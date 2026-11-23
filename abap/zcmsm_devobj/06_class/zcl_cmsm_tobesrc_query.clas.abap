@@ -4,7 +4,8 @@
 "!   메인 데이터 소스(as select from … / as projection on …)를 읽고, 그게 CDS 면 또 그 CDS 의 메인 소스를…
 "!   테이블(최하위)이 나올 때까지 따라 내려간다 (최대 10단계, 같은 이름이 다시 나오면 멈춤). 여기선 행만 만든다.
 "! view entity·DDIC 기반 define view·projection·표준 SAP CDS 다 된다 (예전 XCO 방식은 view entity 가 아니면 멈췄다)
-"! To-Be 가 CDS 가 아니면(테이블 등) 거꾸로, 그걸 메인 소스로 읽는 Z CDS 를 위로 (유형 칸에 'CDS · 위 n단계')
+"! To-Be 가 CDS 가 아니면(테이블 등) 거꾸로, 그걸 메인 소스로 읽는 Z CDS (바로 위 1단계만, 유형 칸 '읽는 CDS')
+"! 패키지는 여기서 고객 오브젝트 목록(I_CustABAPObjDirectoryEntry)으로 붙인다 — 표준 SAP 오브젝트는 빈칸
 "! 안 나오는 것: join 대상·연관(메인 소스만 따라감)
 CLASS zcl_cmsm_tobesrc_query DEFINITION
   PUBLIC
@@ -23,6 +24,7 @@ CLASS zcl_cmsm_tobesrc_query IMPLEMENTATION.
 
     DATA lt_result TYPE STANDARD TABLE OF zce_cmsm_tobesource WITH EMPTY KEY.
     DATA lt_page   LIKE lt_result.
+    DATA lr_names  TYPE RANGE OF i_custabapobjdirectoryentry-abapobject.
 
     " 1) 필터에서 To-Be 이름 (매핑 상세에서 열면 연관 조건 TobeName = 그 To-Be 이름이 들어온다)
     TRY.
@@ -39,18 +41,32 @@ CLASS zcl_cmsm_tobesrc_query IMPLEMENTATION.
           CONTINUE.
         ENDIF.
 
-        " 2) 래퍼: 메인 데이터 소스를 최하위까지 (위에서 아래 순)
+        " 2) 래퍼: CDS 면 메인 데이터 소스를 최하위까지 / 테이블이면 그걸 읽는 Z CDS
         DATA(lt_chain) = zcl_cmsm_ddl_where_used=>source_chain( lv_tobe ).
+        IF lt_chain IS INITIAL.
+          CONTINUE.
+        ENDIF.
+
+        " 3) 패키지 (고객 오브젝트 목록에서 한 번에 — CDS·테이블)
+        lr_names = VALUE #( FOR ls_c IN lt_chain ( sign = 'I' option = 'EQ' low = ls_c-srcname ) ).
+        SELECT ABAPObject, ABAPPackage
+          FROM I_CustABAPObjDirectoryEntry
+          WHERE ABAPObjectType IN ( 'DDLS', 'TABL' )
+            AND ABAPObject     IN @lr_names
+          INTO TABLE @DATA(lt_package).
+
         LOOP AT lt_chain INTO DATA(ls_chain).
+          READ TABLE lt_package INTO DATA(ls_package) WITH KEY ABAPObject = ls_chain-srcname.
           APPEND VALUE #( tobename = lv_tobe
                           srcname  = ls_chain-srcname
-                          srckind  = ls_chain-srckind ) TO lt_result.
+                          srckind  = ls_chain-srckind
+                          package  = COND #( WHEN sy-subrc = 0 THEN ls_package-ABAPPackage ) ) TO lt_result.
         ENDLOOP.
 
       ENDLOOP.
     ENDLOOP.
 
-    " 3) 건수·페이징 (순서는 위에서 아래 순, 요청 정렬 정보는 읽기만)
+    " 4) 건수·페이징 (순서는 위에서 아래 순, 요청 정렬 정보는 읽기만)
     DATA(lt_sort) = io_request->get_sort_elements( ).
 
     IF io_request->is_total_numb_of_rec_requested( ).

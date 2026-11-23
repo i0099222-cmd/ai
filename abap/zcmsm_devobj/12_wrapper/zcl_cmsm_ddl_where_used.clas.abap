@@ -10,8 +10,8 @@
 "! source_chain : CDS 의 메인 데이터 소스를 최하위(테이블)까지 (매핑 상세 'To-Be 데이터 소스')
 "!   CDS 소스 원문(DDDDLSRC)에서 'as select from X' / 'as projection on X' 의 X 를 읽고, X 도 CDS 면 X 의 원문을 또… 반복
 "!   view entity·DDIC 기반 define view·projection·표준 SAP CDS(I_Product → MARA 등) 다 된다. 테이블인지는 DD02L 로 본다
-"!   To-Be 가 CDS 가 아니면(테이블 등) 거꾸로 위로: 사용처 인덱스로 후보를 찾고, 그중 To-Be 를 '메인 소스'로 읽는 Z CDS 만,
-"!   또 그 CDS 들을 메인 소스로 읽는 Z CDS … (단계 순, 유형 칸에 '위 n단계', 최대 10단계·200줄)
+"!   To-Be 가 CDS 가 아니면(테이블 등) 거꾸로: 사용처 인덱스로 후보를 찾고, 그중 To-Be 를 '메인 소스'로 읽는 Z CDS 만
+"!   (바로 위 1단계만, 유형 칸 '읽는 CDS')
 "! 만드는 곳: ABAP 언어 버전 'Standard ABAP' 패키지 (앱 패키지(ABAP Cloud)에서는 이 테이블들을 못 읽음)
 "! 릴리즈: ADT → Properties → API State → Use in Cloud Development = Released
 "! 기술부채로 등록: 개발 오브젝트 ZCL_CMSM_DDL_WHERE_USED, 부채 구분 TAB(미릴리즈 테이블 조회), Debt Level C, 래핑 여부 W
@@ -29,7 +29,7 @@ CLASS zcl_cmsm_ddl_where_used DEFINITION
       tt_usage TYPE STANDARD TABLE OF ty_usage WITH EMPTY KEY,
 
       BEGIN OF ty_source,
-        srckind  TYPE c LENGTH 20,  " CDS / 테이블 / DDIC 뷰 / 도메인 고정값 / 기타
+        srckind  TYPE c LENGTH 20,  " CDS / 테이블 / DDIC 뷰 / 도메인 고정값 / 기타 / 읽는 CDS
         srcname  TYPE c LENGTH 40,  " 데이터 소스 이름 (도메인 고정값이면 도메인 이름)
       END OF ty_source,
       tt_source TYPE STANDARD TABLE OF ty_source WITH EMPTY KEY.
@@ -40,7 +40,7 @@ CLASS zcl_cmsm_ddl_where_used DEFINITION
       RETURNING VALUE(rt_usage) TYPE tt_usage.
 
     "! CDS 의 메인 데이터 소스를 최하위(테이블 등)까지 따라 내려간 목록 (위에서 아래 순, 최대 10단계)
-    "! 이름이 CDS 가 아니면(테이블 등) 거꾸로, 그걸 메인 소스로 읽는 Z CDS 를 위로 따라 올라간 목록
+    "! 이름이 CDS 가 아니면(테이블 등) 거꾸로, 그걸 메인 소스로 읽는 Z CDS 목록 (바로 위 1단계만)
     CLASS-METHODS source_chain
       IMPORTING iv_name          TYPE string
       RETURNING VALUE(rt_source) TYPE tt_source.
@@ -143,55 +143,37 @@ CLASS zcl_cmsm_ddl_where_used IMPLEMENTATION.
         AND as4local = 'A'
       INTO @DATA(lv_tobe_cds).
 
-    " ── To-Be 가 CDS 가 아니면(테이블 등): 거꾸로 위로 ──
-    "    단계마다 '지금 단계 이름'을 메인 소스로 읽는 Z CDS 를 찾아 다음 단계로
+    " ── To-Be 가 CDS 가 아니면(테이블 등): 거꾸로, 그걸 메인 소스로 읽는 Z CDS (바로 위 1단계만) ──
     IF sy-subrc <> 0.
-      DATA(lt_names) = VALUE string_table( ( lv_cur ) ).
-      DO 10 TIMES.
-        DATA(lv_level) = sy-index.
-        DATA(lt_next)  = VALUE string_table( ).
+      " 후보: 사용처 인덱스에서 To-Be 를 쓰는 Z CDS (join·연관으로만 쓰는 것도 섞여 있음)
+      DATA(lv_full) = `\TY:` && lv_cur.
+      SELECT DISTINCT ddlsrc_name
+        FROM ddls_ris_index
+        WHERE used_artifact_fullname = @lv_full
+          AND ddlsrc_name LIKE 'Z%'
+        INTO TABLE @DATA(lt_ddl).
+      IF lt_ddl IS INITIAL.
+        RETURN.
+      ENDIF.
+      lr_ddl = VALUE #( FOR ls_d IN lt_ddl ( sign = 'I' option = 'EQ' low = ls_d-ddlsrc_name ) ).
+      SELECT ddlname, source
+        FROM ddddlsrc
+        WHERE ddlname  IN @lr_ddl
+          AND as4local = 'A'
+        ORDER BY ddlname
+        INTO TABLE @DATA(lt_src).
 
-        LOOP AT lt_names INTO DATA(lv_up).
-          " 후보: 사용처 인덱스에서 이 이름을 쓰는 Z CDS (join·연관으로만 쓰는 것도 섞여 있음)
-          DATA(lv_full) = `\TY:` && lv_up.
-          SELECT DISTINCT ddlsrc_name
-            FROM ddls_ris_index
-            WHERE used_artifact_fullname = @lv_full
-              AND ddlsrc_name LIKE 'Z%'
-            INTO TABLE @DATA(lt_ddl).
-          IF lt_ddl IS INITIAL.
-            CONTINUE.
-          ENDIF.
-          lr_ddl = VALUE #( FOR ls_d IN lt_ddl ( sign = 'I' option = 'EQ' low = ls_d-ddlsrc_name ) ).
-          SELECT ddlname, source
-            FROM ddddlsrc
-            WHERE ddlname  IN @lr_ddl
-              AND as4local = 'A'
-            ORDER BY ddlname
-            INTO TABLE @DATA(lt_src).
-
-          " 그중 이 이름을 '메인 소스'로 읽는 것만 (join·연관으로만 쓰는 CDS 는 '사용처' 섹션에서)
-          LOOP AT lt_src INTO DATA(ls_src).
-            lv_text = ls_src-source.
-            REPLACE ALL OCCURRENCES OF PCRE lc_comment IN lv_text WITH ``.
-            CLEAR lv_main.
-            FIND FIRST OCCURRENCE OF PCRE lc_main IN lv_text IGNORING CASE SUBMATCHES lv_main.
-            IF to_upper( lv_main ) <> lv_up
-               OR ls_src-ddlname = lv_cur
-               OR line_exists( rt_source[ srcname = ls_src-ddlname ] ).   " 이미 나온 것(순환·두 갈래에서 만남)
-              CONTINUE.
-            ENDIF.
-            APPEND VALUE #( srckind = |CDS · 위 { lv_level }단계|
-                            srcname = ls_src-ddlname ) TO rt_source.
-            APPEND CONV string( ls_src-ddlname ) TO lt_next.
-          ENDLOOP.
-        ENDLOOP.
-
-        IF lt_next IS INITIAL OR lines( rt_source ) >= 200.
-          EXIT.
+      " 그중 To-Be 를 '메인 소스'로 읽는 것만 (join·연관으로만 쓰는 CDS 는 '사용처' 섹션에서)
+      LOOP AT lt_src INTO DATA(ls_src).
+        lv_text = ls_src-source.
+        REPLACE ALL OCCURRENCES OF PCRE lc_comment IN lv_text WITH ``.
+        CLEAR lv_main.
+        FIND FIRST OCCURRENCE OF PCRE lc_main IN lv_text IGNORING CASE SUBMATCHES lv_main.
+        IF to_upper( lv_main ) = lv_cur.
+          APPEND VALUE #( srckind = `읽는 CDS`
+                          srcname = ls_src-ddlname ) TO rt_source.
         ENDIF.
-        lt_names = lt_next.
-      ENDDO.
+      ENDLOOP.
       RETURN.
     ENDIF.
 

@@ -328,7 +328,7 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 
 ### 행을 누르면 원래 탭 상세로
 
-통합 조회 행을 누르면 통합 조회 전용 상세 대신 그 행의 원래 탭 상세 화면으로 간다 (To-Be·As-Is → 매핑, VH → Value Help, SB → OData 서비스, TD → 기술부채). 리스트 리포트 컨트롤러 확장 `09_app/ext/controller/MainListExt.controller.js`:
+통합 조회 행을 누르면 통합 조회 전용 상세 대신 그 행의 원래 탭 상세 화면으로 간다 (To-Be·As-Is → 매핑, VH → Value Help, SB → OData 서비스, TD → 기술부채). 리스트 리포트 컨트롤러 확장 `09_app/ext/controller/MainListExt.controller.ts` (TypeScript — `ControllerExtension<ExtensionAPI>` + `static overrides`):
 
 - `routing.onBeforeNavigation` — 통합 조회(`/DevObject…`) 행이면 등록 구분(`RefTab` 또는 `SourceTab`)으로 route·키 필드를 고르고 `getExtensionAPI().routing.navigateToRoute(route, { key: "<키>=<SourceUuid>,IsActiveEntity=true" })`, `true`를 돌려 기본 이동을 막는다
 - manifest `sap.ui5.extends.extensions.sap.ui.controllerExtensions` 에 `sap.fe.templates.ListReport.ListReportController#<앱 ID>::MainList` 로 등록

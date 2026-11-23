@@ -410,7 +410,9 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 - 소스 유형: `xco_cp_abap_repository=>object->ddls->for( )->exists( )` = CDS, `xco_cp_abap_dictionary=>database_table( )->exists( )` = 테이블, `DDCDS_CUSTOMER_DOMAIN_VALUE*` = 도메인 고정값
 - 메인 소스: `view_entity( )->content( )->get( )` 결과에서 `DATA_SOURCE` 항목을 동적으로 찾는다 (항목 이름이 XCO 버전마다 달라 컴파일 에러 대신 빈 값이 되게). 메인 소스가 비어 나오면 ADT에서 `content( )->get( )-` 뒤 Ctrl+Space로 항목 이름을 확인해서 `select` 안 `lt_component` 후보 목록에 넣는다
 
-못 읽는 것: join 대상, Search Help VH, DDIC 기반 CDS 뷰(`define view`), 도메인 기반 VH의 도메인 이름(소스가 `DDCDS_CUSTOMER_DOMAIN_VALUE`로 나옴). 표준 테이블은 XCO가 존재 확인을 못 하면 '확인 불가'.
+도메인 고정값 VH(`DDCDS_CUSTOMER_DOMAIN_VALUE( p_domain_name: '…' )`)는 엔터티 이름 대신 **도메인 이름**을 보여 준다 — XCO `DATA_SOURCE-PARAMETERS[]-VALUE`(오브젝트)의 `MV_VALUE`(공개가 아니면 `GET_VALUE( )`), 따옴표 제거. 못 읽으면 엔터티 이름 그대로.
+
+못 읽는 것: join 대상, Search Help VH, DDIC 기반 CDS 뷰(`define view`). 표준 테이블은 XCO가 존재 확인을 못 하면 '확인 불가'.
 
 시험: 서비스 바인딩 Preview에서 ValueHelpSystemSource를 `VhName eq 'ZI_CMSM_REQVH'` 필터로 열거나, 앱 VH 상세의 '데이터 소스 (자동)' 표.
 

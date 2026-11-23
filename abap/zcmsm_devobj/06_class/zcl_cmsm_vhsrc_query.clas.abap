@@ -3,6 +3,7 @@
 "! VH 이름(CDS view entity)의 정의를 XCO 로 읽어서 데이터 소스의 유형·이름을 돌려준다.
 "!   메인 데이터 소스(select from …) 먼저, 그다음 연관(association) 대상. 같은 이름은 한 번만.
 "! 저장하지 않으니 CDS 를 고치면 다음에 열 때 바로 반영된다.
+"! 도메인 고정값 VH(DDCDS_CUSTOMER_DOMAIN_VALUE)는 파라미터 p_domain_name 값, 즉 도메인 이름을 보여 준다
 "! 읽지 못하는 것: join 대상, Search Help 로 만든 VH, DDIC 기반 CDS 뷰(define view) → 빈 목록
 CLASS zcl_cmsm_vhsrc_query DEFINITION
   PUBLIC
@@ -23,6 +24,10 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
     DATA lt_page   LIKE lt_result.
     DATA lt_names  TYPE string_table.
     DATA lv_pos    TYPE i.
+    DATA lv_main   TYPE string.
+    DATA lv_domain TYPE string.
+    DATA lo_pvalue TYPE REF TO object.
+    FIELD-SYMBOLS <lt_param> TYPE ANY TABLE.
 
     " DATA_SOURCE 안에서 이름을 찾아볼 항목 (빈 값 = DATA_SOURCE 자체가 이름인 경우)
     DATA(lt_component) = VALUE string_table( ( `` ) ( `ENTITY` ) ( `NAME` ) ( `VIEW_ENTITY` ) ( `VIEW` )
@@ -49,7 +54,7 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
           CONTINUE.
         ENDIF.
 
-        CLEAR: lt_names, lv_pos.
+        CLEAR: lt_names, lv_pos, lv_main, lv_domain.
 
         " 2-1) 메인 데이터 소스: content( )->get( ) 결과의 DATA_SOURCE 항목.
         "      XCO 버전마다 구조가 조금씩 달라서 동적으로 찾는다 (이름이 다르면 컴파일 에러 대신 빈 값)
@@ -68,13 +73,58 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
             " 문자형일 때만 이름으로 본다
             DATA(lv_type_kind) = cl_abap_typedescr=>describe_by_data( <la_value> )->type_kind.
             IF lv_type_kind = cl_abap_typedescr=>typekind_char OR lv_type_kind = cl_abap_typedescr=>typekind_string.
-              DATA(lv_main) = condense( CONV string( <la_value> ) ).
+              lv_main = condense( CONV string( <la_value> ) ).
               IF lv_main IS NOT INITIAL.
                 APPEND lv_main TO lt_names.
                 EXIT.
               ENDIF.
             ENDIF.
           ENDLOOP.
+
+          " 2-1-1) 도메인 고정값 VH: 엔터티 이름(DDCDS_CUSTOMER_DOMAIN_VALUE) 대신 파라미터 p_domain_name 값 = 도메인 이름
+          "        XCO: DATA_SOURCE-PARAMETERS[]-VALUE(오브젝트) 의 MV_VALUE. 공개 속성이 아니면 GET_VALUE( ) 로.
+          "        못 읽으면 엔터티 이름 그대로 둔다
+          IF lv_main CP 'DDCDS_CUSTOMER_DOMAIN_VALUE*'.
+            TRY.
+                ASSIGN COMPONENT 'PARAMETERS' OF STRUCTURE <la_ds> TO <lt_param>.
+                IF sy-subrc = 0.
+                  LOOP AT <lt_param> ASSIGNING FIELD-SYMBOL(<ls_param>).
+                    ASSIGN COMPONENT 'VALUE' OF STRUCTURE <ls_param> TO FIELD-SYMBOL(<la_pvalue>).
+                    IF sy-subrc <> 0.
+                      CONTINUE.
+                    ENDIF.
+                    lo_pvalue ?= <la_pvalue>.
+                    ASSIGN lo_pvalue->('MV_VALUE') TO FIELD-SYMBOL(<la_domain>).
+                    IF sy-subrc = 0.
+                      lv_domain = CONV string( <la_domain> ).
+                    ELSE.
+                      " 공개 GET_VALUE( ) 메서드 (반환 파라미터 이름은 RTTI 로)
+                      DATA(lo_class) = CAST cl_abap_classdescr( cl_abap_typedescr=>describe_by_object_ref( lo_pvalue ) ).
+                      LOOP AT lo_class->methods INTO DATA(ls_method)
+                           WHERE name CP '*GET_VALUE' AND visibility = cl_abap_objectdescr=>public.
+                        LOOP AT ls_method-parameters INTO DATA(ls_parm) WHERE parm_kind = cl_abap_objectdescr=>returning.
+                          DATA(lt_ptab) = VALUE abap_parmbind_tab( ( name  = ls_parm-name
+                                                                     kind  = cl_abap_objectdescr=>receiving
+                                                                     value = REF #( lv_domain ) ) ).
+                          CALL METHOD lo_pvalue->(ls_method-name) PARAMETER-TABLE lt_ptab.
+                        ENDLOOP.
+                        EXIT.
+                      ENDLOOP.
+                    ENDIF.
+                    " 'ZDO_DM_MODULE' 처럼 따옴표가 붙어 있으면 뗀다
+                    lv_domain = to_upper( replace( val = condense( lv_domain ) sub = `'` with = `` occ = 0 ) ).
+                    IF lv_domain IS NOT INITIAL.
+                      EXIT.
+                    ENDIF.
+                  ENDLOOP.
+                ENDIF.
+              CATCH cx_root.
+                CLEAR lv_domain.
+            ENDTRY.
+            IF lv_domain IS NOT INITIAL.
+              lt_names[ 1 ] = lv_domain.      " 메인 소스는 맨 앞에 들어가 있다
+            ENDIF.
+          ENDIF.
         ENDIF.
 
         " 2-2) 연관 대상
@@ -94,7 +144,7 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
           ENDIF.
 
           DATA(lv_kind) = COND string(
-            WHEN lv_src CP 'DDCDS_CUSTOMER_DOMAIN_VALUE*'
+            WHEN lv_src CP 'DDCDS_CUSTOMER_DOMAIN_VALUE*' OR ( lv_domain IS NOT INITIAL AND lv_src = lv_domain )
               THEN `도메인 고정값`
             WHEN strlen( lv_src ) <= 30
              AND xco_cp_abap_repository=>object->ddls->for( CONV #( lv_src ) )->exists( ) = abap_true

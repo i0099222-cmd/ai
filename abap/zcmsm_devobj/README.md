@@ -125,7 +125,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 - List Report 하나에 탭 5개 (`views.paths`, 탭마다 `entitySet`), 탭별 건수 표시
 - 탭마다 상세 화면 route (`navigation`)
 - 변경 이력·데이터 소스 행은 상세로 안 넘어간다 (route 없음). 데이터 소스는 표에서 바로 추가 (`creationMode: Inline`)
-- 필터바는 탭 전체가 하나를 쓴다 (메인 엔티티 `Request` 기준). 모듈은 다섯 엔티티 모두 같은 이름이라 공통으로 걸리고, 나머지 필터는 그 필드가 있는 탭에만 해당. 탭마다 필터를 따로 두려면 FPM 커스텀 페이지로
+- 필터바는 탭 전체가 하나를 쓴다 (메인 엔티티 = manifest `MainList` `contextPath`, 지금 `/DevObject` — 통합 조회 MDE의 필터 칸: 등록 구분·모듈·유형·시스템). 모듈은 다섯 엔티티 모두 같은 이름이라 공통으로 걸리고, 나머지 필터는 그 필드가 있는 탭에만 해당. 탭마다 필터를 따로 두려면 FPM 커스텀 페이지로
 
 ## 요청 트랜잭션
 

@@ -46,7 +46,7 @@
           "name": "sap.fe.templates.ListReport",
           "options": {
             "settings": {
-              "contextPath": "/Request",
+              "contextPath": "/DevObject",
               "variantManagement": "Page",
               "initialLoad": "Enabled",
               "navigation": {

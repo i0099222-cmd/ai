@@ -29,7 +29,6 @@ CLASS zcl_cmsm_ddl_where_used DEFINITION
       BEGIN OF ty_source,
         srckind  TYPE c LENGTH 20,  " CDS / 테이블 / DDIC 뷰 / 도메인 고정값 / 기타
         srcname  TYPE c LENGTH 40,  " 데이터 소스 이름 (도메인 고정값이면 도메인 이름)
-        usedby   TYPE c LENGTH 40,  " 그 소스를 읽는 CDS (한 단계 위)
       END OF ty_source,
       tt_source TYPE STANDARD TABLE OF ty_source WITH EMPTY KEY.
 
@@ -183,9 +182,8 @@ CLASS zcl_cmsm_ddl_where_used IMPLEMENTATION.
                           ELSE                           `테이블` ).
       ENDIF.
 
-      APPEND VALUE #( srckind  = lv_kind
-                      srcname  = lv_name
-                      usedby   = lv_cur ) TO rt_source.
+      APPEND VALUE #( srckind = lv_kind
+                      srcname = lv_name ) TO rt_source.
 
       IF lv_kind <> `CDS`.
         EXIT.                                              " 최하위

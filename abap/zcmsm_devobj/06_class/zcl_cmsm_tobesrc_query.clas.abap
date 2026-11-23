@@ -43,8 +43,7 @@ CLASS zcl_cmsm_tobesrc_query IMPLEMENTATION.
         LOOP AT lt_chain INTO DATA(ls_chain).
           APPEND VALUE #( tobename = lv_tobe
                           srcname  = ls_chain-srcname
-                          srckind  = ls_chain-srckind
-                          usedby   = ls_chain-usedby ) TO lt_result.
+                          srckind  = ls_chain-srckind ) TO lt_result.
         ENDLOOP.
 
       ENDLOOP.

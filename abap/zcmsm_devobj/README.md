@@ -403,13 +403,13 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZCL_CMSM_DDL_WHERE_USED` (`12_wrapper`) | **Standard ABAP 패키지**에 만들고 Cloud 개발용으로 릴리즈(C1)하는 래퍼. 표준 테이블 **`DDLS_RIS_INDEX`**(CDS 사용처 인덱스, ADT·SE11 사용처 목록이 읽는 테이블. CDS 활성화 때 SAP가 'DDL 소스 → 쓰는 오브젝트'를 적어 둠)에서 `USED_ARTIFACT_FULLNAME = 'TY:<이름>'`으로 쓰는 Z DDL 소스(`DDLSRC_NAME`)를 바로 찾는다. 텍스트 검색·AMDP 없음. 인덱스엔 쓰는 방식이 없어서 **걸린 소스 몇 개만** `DDDDLSRC` 원문을 읽어 `FIND PCRE`로 구분: `from`/`projection on` → 데이터 소스, `join` → join, `to [parent]`/`composition … of` → 연관, 그 밖(어노테이션 등) → 기타 |
+| `ZCL_CMSM_DDL_WHERE_USED` (`12_wrapper`) | **Standard ABAP 패키지**에 만들고 Cloud 개발용으로 릴리즈(C1)하는 래퍼. 표준 테이블 **`DDLS_RIS_INDEX`**(CDS 사용처 인덱스, ADT·SE11 사용처 목록이 읽는 테이블. CDS 활성화 때 SAP가 'DDL 소스 → 쓰는 오브젝트'를 적어 둠)에서 `USED_ARTIFACT_FULLNAME = '\TY:<이름>'`으로 쓰는 Z DDL 소스(`DDLSRC_NAME`)를 바로 찾는다. 텍스트 검색·AMDP 없음. 인덱스엔 쓰는 방식이 없어서 **걸린 소스 몇 개만** `DDDDLSRC` 원문을 읽어 `FIND PCRE`로 구분: `from`/`projection on` → 데이터 소스, `join` → join, `to [parent]`/`composition … of` → 연관, 그 밖(어노테이션 등) → 기타 |
 | `ZCL_CMSM_TOBEUSE_QUERY` (`06_class`) | 쿼리 클래스: 필터 `TobeName` → 래퍼 `find( )` → `I_CustABAPObjDirectoryEntry`에서 패키지 → 페이징. XCO 스캔 없음 |
 | `ZCE_CMSM_TobeUsage` (`04_projection`) | custom entity: 사용하는 CDS, 사용 방식, 패키지 |
 | `ZC_CMSM_Map` / 서비스 / MDE | 그대로 (`_Usage`, `MappingUsage`, 섹션 '사용처 (Z CDS)') |
 
 - 예전 방식(CDS마다 XCO로 정의 파싱)은 같은 모듈 패키지만 봐도 1분 넘게 걸렸고, 그다음 방식(`DDDDLSRC` 원문 텍스트 검색 AMDP)은 인덱스 방식으로 바꿨다 (커밋 `5966350`에 남아 있음)
-- 먼저 SE16 `DDLS_RIS_INDEX`에서 `USED_ARTIFACT_FULLNAME`이 `TY:ZT0001`처럼 들어 있는지 본다. 형식이 다르면(예: `\TY:ZT0001`) 래퍼의 `lv_full` 한 줄만 맞춘다
+- `USED_ARTIFACT_FULLNAME` 값은 `\TY:ZT0001`처럼 `\TY:`로 시작한다 (SE16에서 확인함). 래퍼의 `lv_full`이 이 형식을 만든다
 - 인덱스에 빠진 CDS가 있으면 개발 시스템에서 SE38 `SDDIC_DDLS_INDEX_ALL_SOURCES`를 한 번 실행 (CDS 인덱스 다시 만듦, SAP Note 2833335). 그 뒤로는 CDS 활성화 때 SAP가 알아서 갱신한다 (배치 등록 필요 없음)
 - 못 찾는 것: ABAP 코드(클래스·프로그램)에서 쓰는 곳, 표준(SAP) CDS에서 쓰는 곳(Z 소스만 봄)
 - 래퍼는 미릴리즈 테이블(`DDLS_RIS_INDEX`, `DDDDLSRC`)을 읽으니 기술부채로 등록: 부채 구분 TAB, Debt Level C, 래핑 여부 W

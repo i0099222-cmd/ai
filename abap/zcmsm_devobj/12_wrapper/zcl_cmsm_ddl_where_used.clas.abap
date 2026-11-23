@@ -44,9 +44,8 @@ CLASS zcl_cmsm_ddl_where_used IMPLEMENTATION.
     DATA(lv_self) = CONV ddlname( lv_name ).
 
     " 1) 사용처 인덱스: 이 오브젝트를 쓰는 Z DDL 소스
-    "    USED_ARTIFACT_FULLNAME = 'TY:' + 이름 (테이블·CDS 는 TY).
-    "    SE16 에서 본 값의 형식이 다르면(예: \TY:ZT0001) 아래 lv_full 만 그 형식으로 바꾼다
-    DATA(lv_full) = |TY:{ lv_name }|.
+    "    USED_ARTIFACT_FULLNAME = '\TY:' + 이름 (예: \TY:ZT0001, 테이블·CDS 는 TY). 백따옴표라 \ 그대로
+    DATA(lv_full) = `\TY:` && lv_name.
     SELECT DISTINCT ddlsrc_name
       FROM ddls_ris_index
       WHERE used_artifact_fullname = @lv_full

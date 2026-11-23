@@ -17,7 +17,7 @@
 | `09_app` | Fiori 앱 manifest의 routing 예시 (탭 + 상세 화면), annotation.xml 예시 | 2 |
 | `10_mail` | 메일 HTML 템플릿 (SMW0 업로드용) | 1 |
 | `11_excel` | 탭별 엑셀 업로드 템플릿 5개 + 생성 스크립트 | 6 |
-| `12_wrapper` | Standard ABAP 래퍼 (Cloud 릴리즈) — CDS 사용처 찾기 `ZCL_CMSM_DDL_WHERE_USED` | 1 |
+| `12_wrapper` | Standard ABAP 래퍼 (Cloud 릴리즈) — CDS 사용처·데이터 소스 `ZCL_CMSM_DDL_WHERE_USED` | 1 |
 
 ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔VhSrc)은 서로 참조하니 **같이 선택해서 한 번에 활성화**한다. 전부 만든 뒤 한꺼번에 활성화해도 된다.
 
@@ -380,21 +380,22 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 - 구분(`MapKind`)은 기본 정보 맨 위
 - 폰처럼 좁으면 두 칸이 위아래로 내려간다
 
-## To-Be 데이터 소스 (최하위까지, custom entity + XCO)
+## To-Be 데이터 소스 (최하위까지, custom entity + 래퍼)
 
-매핑 상세의 'To-Be 데이터 소스' 섹션. To-Be CDS의 메인 데이터 소스(`select from`)를 XCO로 읽고, 그게 CDS면 또 그 CDS의 메인 소스를… 테이블이 나올 때까지 따라 내려간다 (최대 10단계, 순환이면 멈춤). 예: `ZC_…` → `ZR_…` → `ZI_…` → `ZTABLE`.
+매핑 상세의 'To-Be 데이터 소스' 섹션. To-Be CDS의 메인 데이터 소스(`as select from` / `as projection on`)를 CDS 소스 원문에서 읽고, 그게 CDS면 또 그 CDS의 메인 소스를… 테이블이 나올 때까지 따라 내려간다 (최대 10단계, 순환이면 멈춤). 예: `ZCM_I_TEST` → `ZCM_I_TEST01` → `ZTCMTEST`.
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZCE_CMSM_TobeSource` (`04_projection`) | custom entity: 단계, 유형(CDS / 테이블 / 테이블·기타 / 도메인 고정값), 이름, 읽는 오브젝트. 키 = To-Be 이름 + 순번(숨김) |
-| `ZCL_CMSM_TOBESRC_QUERY` (`06_class`) | 쿼리 클래스. 로직은 `select` 하나에 (필터 `TobeName` → `DO 10 TIMES` 메인 소스 따라가기 → 페이징) |
+| `ZCL_CMSM_DDL_WHERE_USED=>source_chain( )` (`12_wrapper`) | 사용처 래퍼에 같이 둔 메서드 (Standard ABAP, C1 릴리즈). `DDDDLSRC` 원문에서 주석을 지우고 PCRE로 메인 소스 이름을 뽑는다. 다음 이름이 `DDDDLSRC`에 있으면 CDS → 계속, 없으면 `DD02L`로 테이블(`TRANSP` 등)·DDIC 뷰(`VIEW`) 구분 → 끝. `DDCDS_CUSTOMER_DOMAIN_VALUE(_T)`면 도메인 이름(`p_domain_name: '…'`)을 보여 주고 끝 |
+| `ZCE_CMSM_TobeSource` (`04_projection`) | custom entity: 단계, 유형(CDS / 테이블 / DDIC 뷰 / 도메인 고정값 / 기타), 이름, 읽는 오브젝트. 키 = To-Be 이름 + 순번(숨김) |
+| `ZCL_CMSM_TOBESRC_QUERY` (`06_class`) | 쿼리 클래스: 필터 `TobeName` → 래퍼 `source_chain( )` → 행 → 페이징. XCO 없음 |
 | `ZC_CMSM_Map` | `association [0..*] to ZCE_CMSM_TobeSource as _TobeSource on $projection.TobeName = _TobeSource.TobeName` + 노출 |
 | 서비스 정의 | `expose ZCE_CMSM_TobeSource as MappingSource;` |
 | MDE `ZC_CMSM_Map` | 섹션 `{ id: 'TobeSrc', type: #LINEITEM_REFERENCE, label: 'To-Be 데이터 소스', targetElement: '_TobeSource', position: 35 }` |
 
-- 메인 소스만 따라간다. join 대상·연관은 안 나온다 (XCO가 join을 안 준다)
-- view entity가 아닌 CDS(DDIC 기반 `define view`)에서 멈춘다
-- 표준 SAP 오브젝트: ABAP Cloud에서 안 보이는 것(릴리즈 안 된 뷰·테이블)은 이름까지만 나오거나(`테이블·기타`) 거기서 멈춘다. 예: `I_Product`가 `select from mara`면 `MARA`는 이름은 나오지만 릴리즈 안 된 테이블이라 유형은 `테이블·기타`
+- 메인 소스만 따라간다. join 대상·연관은 안 나온다 (union이면 첫 번째 select만)
+- view entity·DDIC 기반 `define view`·projection·표준 SAP CDS 다 된다. 예: `I_Product` → … → `MARA`(테이블). 예전 XCO 방식은 view entity가 아니면 멈췄고, ABAP Cloud에서 안 보이는 표준 오브젝트도 못 읽었다
+- 멈추는 경우: custom entity·table function·hierarchy(`select from`이 없음), 괄호로 묶은 join(`select from ( A join B … )`), 다른 CDS의 SQL 뷰 이름을 소스로 쓴 경우(`DDIC 뷰`로 나오고 끝)
 - To-Be가 CDS가 아니면 빈 표. As-Is는 다른 시스템(ECC) 오브젝트라 못 읽는다
 
 ## To-Be 사용처 (Z CDS 전체, 표준 CDS 사용처 인덱스)
@@ -412,7 +413,7 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 - `USED_ARTIFACT_FULLNAME` 값은 `\TY:ZT0001`처럼 `\TY:`로 시작한다 (SE16에서 확인함). 래퍼의 `lv_full`이 이 형식을 만든다
 - 인덱스에 빠진 CDS가 있으면 개발 시스템에서 SE38 `SDDIC_DDLS_INDEX_ALL_SOURCES`를 한 번 실행 (CDS 인덱스 다시 만듦, SAP Note 2833335). 그 뒤로는 CDS 활성화 때 SAP가 알아서 갱신한다 (배치 등록 필요 없음)
 - 못 찾는 것: ABAP 코드(클래스·프로그램)에서 쓰는 곳, 표준(SAP) CDS에서 쓰는 곳(Z 소스만 봄)
-- 래퍼는 미릴리즈 테이블(`DDLS_RIS_INDEX`, `DDDDLSRC`)을 읽으니 기술부채로 등록: 부채 구분 TAB, Debt Level C, 래핑 여부 W
+- 래퍼는 미릴리즈 테이블(`DDLS_RIS_INDEX`, `DDDDLSRC`, `DD02L`)을 읽으니 기술부채로 등록: 부채 구분 TAB, Debt Level C, 래핑 여부 W
 - 필드 이름(`DDLS_RIS_INDEX`: `DDLSRC_NAME`, `USED_ARTIFACT_FULLNAME` / `DDDDLSRC`: `DDLNAME`, `AS4LOCAL`, `SOURCE`)은 SE11에서 확인
 - 다른 표준 테이블은 이 용도에 안 맞음: `DD26S`+`DDLDEPENDENCY`는 DDIC 기반 CDS(`define view` + SQL 뷰)만 (view entity는 `DDLDEPENDENCY`에 `STOB` 줄만 있고 `DD26S`엔 없음), `DD08B`는 연관만, `WBCROSSGT`는 ABAP 코드만
 

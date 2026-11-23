@@ -403,12 +403,13 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZCL_CMSM_DDL_WHERE_USED` (`12_wrapper`) | **Standard ABAP 패키지**에 만들고 Cloud 개발용으로 릴리즈(C1)하는 래퍼. 표준 테이블 `DDDDLSRC`(CDS 소스 원문)의 활성 Z 소스를 500건씩 읽어 `FIND PCRE`로 이름을 단어 단위로 찾는다(`ZT0001` ≠ `ZT00010`, 대소문자 무시). 쓰는 방식: `from`/`projection on` → 데이터 소스, `join` → join, `to [parent]` → 연관, 그 밖(어노테이션·주석) → 기타 |
+| `ZCL_CMSM_DDL_WHERE_USED` (`12_wrapper`) | **Standard ABAP 패키지**에 만들고 Cloud 개발용으로 릴리즈(C1)하는 래퍼. 표준 테이블 `DDDDLSRC`(CDS 소스 원문)에서 **DB(HANA, AMDP `select_sources`)가 이름이 단어로 들어간 활성 Z 소스만** 골라 준다(`LIKE_REGEXPR … FLAG 'i'`, `ZT0001` ≠ `ZT00010`). Z 소스 전체를 앱 서버로 안 가져온다. 걸린 소스만 ABAP `FIND PCRE`로 쓰는 방식: `from`/`projection on` → 데이터 소스, `join` → join, `to [parent]` → 연관, 그 밖(어노테이션·주석) → 기타 |
 | `ZCL_CMSM_TOBEUSE_QUERY` (`06_class`) | 쿼리 클래스: 필터 `TobeName` → 래퍼 `find( )` → `I_CustABAPObjDirectoryEntry`에서 패키지 → 페이징. XCO 스캔 없음 |
 | `ZCE_CMSM_TobeUsage` (`04_projection`) | custom entity: 사용하는 CDS, 사용 방식, 패키지 |
 | `ZC_CMSM_Map` / 서비스 / MDE | 그대로 (`_Usage`, `MappingUsage`, 섹션 '사용처 (Z CDS)') |
 
 - 예전 방식(CDS마다 XCO로 정의 파싱)은 같은 모듈 패키지만 봐도 1분 넘게 걸려서 바꿨다. 소스 텍스트 검색이라 join까지 찾고 패키지 제한도 없다
+- AMDP의 `LIKE_REGEXPR`이 긴 텍스트 칸에서 에러면 주석의 `LOCATE( UPPER( source ), … )` 줄로 바꾼다 (그 경우 단어 경계는 ABAP 쪽에서 다시 확인)
 - 못 찾는 것: ABAP 코드(클래스·프로그램)에서 쓰는 곳, 표준(SAP) CDS에서 쓰는 곳
 - 래퍼는 미릴리즈 테이블(`DDDDLSRC`)을 읽으니 기술부채로 등록: 부채 구분 TAB, Debt Level C, 래핑 여부 W
 - `DDDDLSRC` 필드(`DDLNAME`, `AS4LOCAL`, `SOURCE`)는 SE11에서 확인. Z CDS가 아주 많아 느리면 패키지·이름 조건을 `WHERE`에 더한다

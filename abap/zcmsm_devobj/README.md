@@ -17,6 +17,7 @@
 | `09_app` | Fiori 앱 manifest의 routing 예시 (탭 + 상세 화면), annotation.xml 예시 | 2 |
 | `10_mail` | 메일 HTML 템플릿 (SMW0 업로드용) | 1 |
 | `11_excel` | 탭별 엑셀 업로드 템플릿 5개 + 생성 스크립트 | 6 |
+| `12_wrapper` | Standard ABAP 래퍼 (Cloud 릴리즈) — CDS 사용처 찾기 `ZCL_CMSM_DDL_WHERE_USED` | 1 |
 
 ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔VhSrc)은 서로 참조하니 **같이 선택해서 한 번에 활성화**한다. 전부 만든 뒤 한꺼번에 활성화해도 된다.
 
@@ -396,24 +397,21 @@ FE 기본 폼(MDE 필드그룹)은 넓은 화면에서 칸을 3~4개로 잡는�
 - 표준 SAP 오브젝트: ABAP Cloud에서 안 보이는 것(릴리즈 안 된 뷰·테이블)은 이름까지만 나오거나(`테이블·기타`) 거기서 멈춘다. 예: `I_Product`가 `select from mara`면 `MARA`는 이름은 나오지만 릴리즈 안 된 테이블이라 유형은 `테이블·기타`
 - To-Be가 CDS가 아니면 빈 표. As-Is는 다른 시스템(ECC) 오브젝트라 못 읽는다
 
-## To-Be 사용처 (같은 모듈 패키지 CDS, custom entity + XCO)
+## To-Be 사용처 (Z CDS 전체, 래퍼로 CDS 소스 검색)
 
-매핑 상세의 '사용처 (같은 모듈 CDS)' 섹션. To-Be 오브젝트와 **패키지 앞 3자리가 같은 패키지 전부**(예: To-Be가 `ZCM`이면 `ZCM`, `ZCM01`, `ZCM_FI` …)의 CDS를 열 때 XCO로 읽어서, To-Be를 데이터 소스(`select from`)나 연관 대상으로 쓰는 CDS를 보여 준다 (저장 안 함).
-
-범위 이유: ABAP Cloud에는 where-used 릴리즈 API가 없어서 후보 CDS를 하나씩 읽어야 한다. 시스템 Z CDS 전부(1만 개 이상)는 너무 느리고, 같은 패키지만 보면 다른 패키지(예: `ZCM`의 테이블을 `ZCM01` CDS가 씀)에서 쓰는 곳을 놓친다. 그래서 같은 모듈 패키지로 넓혔다.
+매핑 상세의 '사용처 (Z CDS)' 섹션. To-Be 이름을 쓰는 Z CDS 전부와 쓰는 방식(데이터 소스 / join / 연관 / 기타), 패키지.
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZCE_CMSM_TobeUsage` (`04_projection`) | custom entity: 사용하는 CDS, 사용 방식(데이터 소스 / 연관 / 데이터 소스·연관), 패키지. 키 = To-Be 이름(숨김) + 사용하는 CDS |
-| `ZCL_CMSM_TOBEUSE_QUERY` (`06_class`) | 쿼리 클래스. 로직은 `select` 하나에: 필터 `TobeName` → `I_CustABAPObjDirectoryEntry`에서 To-Be의 패키지(DDLS·TABL만) → 패키지 앞 `lc_prefix_len`(3)자리 + `%` 로 `LIKE` → 그 DDLS 전부 XCO로 메인 소스·연관 대상 → 페이징 |
-| `ZC_CMSM_Map` | `association [0..*] to ZCE_CMSM_TobeUsage as _Usage on $projection.TobeName = _Usage.TobeName` + 노출 |
-| 서비스 정의 | `expose ZCE_CMSM_TobeUsage as MappingUsage;` |
-| MDE `ZC_CMSM_Map` | 섹션 `{ id: 'Usage', type: #LINEITEM_REFERENCE, label: '사용처 (같은 모듈 CDS)', targetElement: '_Usage' }` |
+| `ZCL_CMSM_DDL_WHERE_USED` (`12_wrapper`) | **Standard ABAP 패키지**에 만들고 Cloud 개발용으로 릴리즈(C1)하는 래퍼. 표준 테이블 `DDDDLSRC`(CDS 소스 원문)의 활성 Z 소스를 500건씩 읽어 `FIND PCRE`로 이름을 단어 단위로 찾는다(`ZT0001` ≠ `ZT00010`, 대소문자 무시). 쓰는 방식: `from`/`projection on` → 데이터 소스, `join` → join, `to [parent]` → 연관, 그 밖(어노테이션·주석) → 기타 |
+| `ZCL_CMSM_TOBEUSE_QUERY` (`06_class`) | 쿼리 클래스: 필터 `TobeName` → 래퍼 `find( )` → `I_CustABAPObjDirectoryEntry`에서 패키지 → 페이징. XCO 스캔 없음 |
+| `ZCE_CMSM_TobeUsage` (`04_projection`) | custom entity: 사용하는 CDS, 사용 방식, 패키지 |
+| `ZC_CMSM_Map` / 서비스 / MDE | 그대로 (`_Usage`, `MappingUsage`, 섹션 '사용처 (Z CDS)') |
 
-- 범위 조정: `lc_prefix_len` — 3이면 Z + 모듈 2자리(ZCM*), 2면 ZC* 처럼 더 넓게(느려짐), 큰 값이면 더 좁게
-- 못 찾는 것: 다른 모듈 패키지에서 쓰는 곳, join 대상, view entity가 아닌 CDS(DDIC 기반 `define view`, custom entity 등), 컴포지션 대상
-- To-Be가 클래스·FM·T-code거나 표준 오브젝트면 빈 표
-- CDS 하나를 못 읽어도(비활성 등) 건너뛰고 계속 본다
+- 예전 방식(CDS마다 XCO로 정의 파싱)은 같은 모듈 패키지만 봐도 1분 넘게 걸려서 바꿨다. 소스 텍스트 검색이라 join까지 찾고 패키지 제한도 없다
+- 못 찾는 것: ABAP 코드(클래스·프로그램)에서 쓰는 곳, 표준(SAP) CDS에서 쓰는 곳
+- 래퍼는 미릴리즈 테이블(`DDDDLSRC`)을 읽으니 기술부채로 등록: 부채 구분 TAB, Debt Level C, 래핑 여부 W
+- `DDDDLSRC` 필드(`DDLNAME`, `AS4LOCAL`, `SOURCE`)는 SE11에서 확인. Z CDS가 아주 많아 느리면 패키지·이름 조건을 `WHERE`에 더한다
 
 ## VH 데이터 소스 (자동, custom entity + XCO)
 

@@ -427,7 +427,7 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 - 소스 유형: `xco_cp_abap_repository=>object->ddls->for( )->exists( )` = CDS, `xco_cp_abap_dictionary=>database_table( )->exists( )` = 테이블, `DDCDS_CUSTOMER_DOMAIN_VALUE*` = 도메인 고정값
 - 메인 소스: `view_entity( )->content( )->get( )` 결과에서 `DATA_SOURCE` 항목을 동적으로 찾는다 (항목 이름이 XCO 버전마다 달라 컴파일 에러 대신 빈 값이 되게). 메인 소스가 비어 나오면 ADT에서 `content( )->get( )-` 뒤 Ctrl+Space로 항목 이름을 확인해서 `select` 안 `lt_component` 후보 목록에 넣는다
 
-도메인 고정값 VH(`DDCDS_CUSTOMER_DOMAIN_VALUE( p_domain_name: '…' )`)는 엔터티 이름 대신 **도메인 이름**을 보여 준다 — XCO `DATA_SOURCE-PARAMETERS[]-VALUE`(오브젝트)의 `MV_VALUE`(공개가 아니면 `GET_VALUE( )`), 따옴표 제거. 못 읽으면 엔터티 이름 그대로.
+도메인 고정값 VH(`DDCDS_CUSTOMER_DOMAIN_VALUE( p_domain_name: '…' )`)는 엔터티 이름 대신 **도메인 이름**을 보여 준다 — XCO `DATA_SOURCE-PARAMETERS[]-VALUE`(식 오브젝트, `IF_XCO_DDL_EXPRESSION`)를 공개 인터페이스 `IF_XCO_TEXT`로 캐스트해서 `get_lines( )->value`(DDL 텍스트), 따옴표 제거. (`MV_VALUE`는 비공개, 실제 클래스는 릴리즈 안 돼서 RTTI 불가) 못 읽으면 엔터티 이름 그대로.
 
 못 읽는 것: join 대상, Search Help VH, DDIC 기반 CDS 뷰(`define view`). 표준 테이블은 XCO가 존재 확인을 못 하면 '확인 불가'.
 

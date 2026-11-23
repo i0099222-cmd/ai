@@ -82,7 +82,7 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
           ENDLOOP.
 
           " 2-1-1) 도메인 고정값 VH: 엔터티 이름(DDCDS_CUSTOMER_DOMAIN_VALUE) 대신 파라미터 p_domain_name 값 = 도메인 이름
-          "        XCO: DATA_SOURCE-PARAMETERS[]-VALUE(오브젝트) 의 MV_VALUE. 공개 속성이 아니면 GET_VALUE( ) 로.
+          "        XCO: DATA_SOURCE-PARAMETERS[]-VALUE(식 오브젝트) → IF_XCO_TEXT~GET_LINES( ) 가 DDL 텍스트를 준다.
           "        못 읽으면 엔터티 이름 그대로 둔다
           IF lv_main CP 'DDCDS_CUSTOMER_DOMAIN_VALUE*'.
             TRY.
@@ -94,23 +94,10 @@ CLASS zcl_cmsm_vhsrc_query IMPLEMENTATION.
                       CONTINUE.
                     ENDIF.
                     lo_pvalue ?= <la_pvalue>.
-                    ASSIGN lo_pvalue->('MV_VALUE') TO FIELD-SYMBOL(<la_domain>).
-                    IF sy-subrc = 0.
-                      lv_domain = CONV string( <la_domain> ).
-                    ELSE.
-                      " 공개 GET_VALUE( ) 메서드 (반환 파라미터 이름은 RTTI 로)
-                      DATA(lo_class) = CAST cl_abap_classdescr( cl_abap_typedescr=>describe_by_object_ref( lo_pvalue ) ).
-                      LOOP AT lo_class->methods INTO DATA(ls_method)
-                           WHERE name CP '*GET_VALUE' AND visibility = cl_abap_objectdescr=>public.
-                        LOOP AT ls_method-parameters INTO DATA(ls_parm) WHERE parm_kind = cl_abap_objectdescr=>returning.
-                          DATA(lt_ptab) = VALUE abap_parmbind_tab( ( name  = ls_parm-name
-                                                                     kind  = cl_abap_objectdescr=>receiving
-                                                                     value = REF #( lv_domain ) ) ).
-                          CALL METHOD lo_pvalue->(ls_method-name) PARAMETER-TABLE lt_ptab.
-                        ENDLOOP.
-                        EXIT.
-                      ENDLOOP.
-                    ENDIF.
+                    " 값은 식(expression) 오브젝트 → 공개 인터페이스 IF_XCO_TEXT 로 DDL 텍스트를 읽는다 ('ZDO_DM_MODULE')
+                    "   (MV_VALUE 는 비공개, 실제 클래스는 릴리즈 안 돼서 RTTI 도 못 쓴다)
+                    DATA(lo_text) = CAST if_xco_text( lo_pvalue ).
+                    lv_domain = concat_lines_of( table = lo_text->get_lines( )->value ).
                     " 'ZDO_DM_MODULE' 처럼 따옴표가 붙어 있으면 뗀다
                     lv_domain = to_upper( replace( val = condense( lv_domain ) sub = `'` with = `` occ = 0 ) ).
                     IF lv_domain IS NOT INITIAL.

@@ -69,6 +69,12 @@ CLASS zcl_cmsm_ddl_where_used IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
+      " 단어로 들어갔는지 한 번 더 (DB 를 LOCATE 로 바꿨을 때 ZT00010 같은 것 거르기)
+      FIND FIRST OCCURRENCE OF PCRE lv_any IN ls_source-source IGNORING CASE.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+
       CLEAR lt_kind.
       FIND FIRST OCCURRENCE OF PCRE lv_from IN ls_source-source IGNORING CASE.
       IF sy-subrc = 0.
@@ -100,8 +106,9 @@ CLASS zcl_cmsm_ddl_where_used IMPLEMENTATION.
                         OPTIONS READ-ONLY
                         USING ddddlsrc.
     -- 활성(A) Z CDS 소스 중 정규식에 걸리는 것만 (FLAG 'i' = 대소문자 무시)
-    -- 이 줄에서 에러가 나면(긴 텍스트 칸에 LIKE_REGEXPR 미지원) 아래 주석 줄로 바꾼다:
-    --   AND LOCATE( UPPER( source ), UPPER( :iv_pattern_name ) ) > 0   (이 경우 파라미터에 이름만 넘긴다)
+    -- LIKE_REGEXPR 줄에서 에러가 나면(긴 텍스트 칸 미지원) 그 줄을
+    --   AND LOCATE( UPPER( source ), :iv_pattern ) > 0
+    -- 으로 바꾸고, find 에서 iv_pattern = lv_name(이름만) 으로 넘긴다. 단어 경계는 find 가 다시 확인한다
     et_source = SELECT ddlname, source
                   FROM ddddlsrc
                  WHERE as4local = 'A'

@@ -17,8 +17,7 @@ define view entity ZI_CMSM_SourceTabVH
               when 'SB'   then 'OData 서비스'
               when 'TD'   then '기술부채'
               when 'TS'   then 'To-Be 소스'
-              when 'VS'   then 'VH 소스'
-              when 'VA'   then 'VH 소스(자동)'
+              when 'VA'   then 'VH 소스'
               else ''
             end as abap.char( 20 ) ) as Text
 }

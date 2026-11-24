@@ -6,7 +6,7 @@ import Context from "sap/ui/model/odata/v4/Context";
   리스트 리포트(MainList) 컨트롤러 확장
   - 통합 조회 탭에서 행을 누르면 통합 조회 전용 상세(DevObjectObjectPage) 대신, 그 행의 원래 탭 상세 화면으로 보낸다
       To-Be·As-Is → 매핑 상세 / VH → Value Help 상세 / SB → OData 서비스 상세 / TD → 기술부채 상세
-      소스 줄: To-Be 소스(TS) → 매핑 상세 / VH 소스(VS·VA) → Value Help 상세
+      소스 줄: To-Be 소스(TS) → 매핑 상세 / VH 소스(VA) → Value Help 상세
   - 다른 탭(요청·매핑 …)의 행은 원래대로
   - 위치: webapp/ext/controller/MainListExt.controller.ts
     manifest: sap.ui5.extends.extensions.sap.ui.controllerExtensions 에 등록 (09_app/manifest.routing.sample.json)
@@ -30,7 +30,6 @@ const NAV_TARGETS: Record<string, NavTarget> = {
 	TD: { route: "TechDebtObjectPage", key: "DebtUuid" },
 	// 소스 줄: 주인(매핑·VH) 상세로 — 등록 UUID 가 주인 UUID
 	TS: { route: "MappingObjectPage", key: "MapUuid" },
-	VS: { route: "ValueHelpObjectPage", key: "VhUuid" },
 	VA: { route: "ValueHelpObjectPage", key: "VhUuid" }
 };
 

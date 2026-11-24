@@ -7,8 +7,7 @@
 //   VH   : Value Help                 SB   : OData 서비스        TD : 기술부채의 개발 오브젝트
 //   소스 줄 (검색 칸에 소스 이름을 넣으면 그 소스를 가진 등록 건이 나오게 — 1단계만):
 //   TS   : To-Be 소스 — To-Be CDS 가 바로 쓰는 테이블·CDS (To-Be 가 테이블이면 그 테이블을 바로 쓰는 Z CDS)
-//   VS   : VH 소스 — VH 상세 '데이터 소스' 표에 직접 넣은 이름
-//   VA   : VH 소스(자동) — VH CDS 가 바로 쓰는 테이블·CDS
+//   VA   : VH 소스 — VH CDS 가 바로 쓰는 테이블·CDS (VH 상세 '데이터 소스 (자동)' 쪽)
 //   소스 줄의 등록번호·담당자 등은 주인(매핑·VH) 것, 설명 = 'To-Be: 이름' / 'VH: 이름', 등록 UUID = 주인 UUID (행을 누르면 주인 상세로)
 //   1단계 소스는 사용처 인덱스 래퍼 ZI_CMSM_DdlUse (12_wrapper, Standard ABAP·C1 릴리즈) — select from·join·연관 다 포함
 // 매핑 한 건은 TOBE·ASIS 두 줄 (등록번호 MP-nnnn이 같아서 짝을 알 수 있다), 기술부채는 부채마다 한 줄.
@@ -173,28 +172,6 @@ union all select from ZI_CMSM_Map    as M
 where
       M.TobeType = 'TABLE'
   and U.DdlName  like 'Z%'
-// VS: VH 상세 '데이터 소스' 표에 직접 넣은 이름 (같은 이름을 두 번 넣었어도 한 줄)
-union all select distinct from ZI_CMSM_VhSrc as S
-  inner join                   ZI_CMSM_Vh    as V on V.VhUuid = S.VhUuid
-{
-  key V.VhUuid                                  as SourceUuid,
-  key cast( 'VS' as abap.char( 4 ) )            as SourceTab,
-  key cast( S.SrcName as abap.char( 80 ) )      as DevObj,
-      cast( V.VhId as abap.char( 10 ) )         as SourceId,
-      cast( V.SysId as abap.char( 8 ) )         as SysId,
-      cast( '' as abap.char( 10 ) )             as ObjType,
-      V.SapModule,
-      cast( concat_with_space( 'VH:', V.VhName, 1 ) as abap.char( 120 ) ) as Description,
-      cast( V.OwnerId as abap.char( 12 ) )      as OwnerId,
-      cast( V.ObjCreator as abap.char( 40 ) )   as ObjCreator,
-      cast( V.ReqId as abap.char( 10 ) )        as ReqId,
-      V.CreatedBy,
-      V.CreatedAt,
-      V.LastChangedBy,
-      V.LastChangedAt
-}
-where
-  S.SrcName <> ''
 // VA: VH CDS 가 바로 쓰는 오브젝트 (VH 상세 '데이터 소스 (자동)' 쪽)
 union all select from ZI_CMSM_Vh     as V
   inner join          ZI_CMSM_DdlUse as U on U.DdlName = V.VhName

@@ -18,6 +18,7 @@ define view entity ZI_CMSM_SourceTabVH
               when 'TD'   then '기술부채'
               when 'TS'   then 'To-Be 소스'
               when 'VA'   then 'VH 소스'
+              when 'TR'   then '기술부채 관련'
               else ''
             end as abap.char( 20 ) ) as Text
 }

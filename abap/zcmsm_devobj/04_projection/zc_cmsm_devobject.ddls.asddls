@@ -148,7 +148,7 @@ define view entity ZC_CMSM_DevObject
       cast( case when SourceTab = 'VH' or SourceTab = 'SB' or SourceTab = 'VA'
                  then '' else 'X' end as abap_boolean ) as TestHidden,
       @EndUserText.label: '기술부채 섹션 숨김'
-      cast( case when SourceTab = 'TD'
+      cast( case when SourceTab = 'TD' or SourceTab = 'TR'
                  then '' else 'X' end as abap_boolean ) as DebtHidden,
       @EndUserText.label: '관련 요청 섹션 숨김'
       cast( case when _Req.ReqUuid is null

@@ -30,7 +30,9 @@ const NAV_TARGETS: Record<string, NavTarget> = {
 	TD: { route: "TechDebtObjectPage", key: "DebtUuid" },
 	// 소스 줄: 주인(매핑·VH) 상세로 — 등록 UUID 가 주인 UUID
 	TS: { route: "MappingObjectPage", key: "MapUuid" },
-	VA: { route: "ValueHelpObjectPage", key: "VhUuid" }
+	VA: { route: "ValueHelpObjectPage", key: "VhUuid" },
+	// 기술부채 관련 오브젝트 → 그 기술부채 상세
+	TR: { route: "TechDebtObjectPage", key: "DebtUuid" }
 };
 
 /**

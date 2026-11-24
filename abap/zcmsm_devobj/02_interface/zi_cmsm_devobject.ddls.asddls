@@ -8,6 +8,7 @@
 //   소스 줄 (검색 칸에 소스 이름을 넣으면 그 소스를 가진 등록 건이 나오게 — 1단계만):
 //   TS   : To-Be 소스 — To-Be CDS 가 바로 쓰는 테이블·CDS (To-Be 가 테이블이면 그 테이블을 바로 쓰는 Z CDS)
 //   VA   : VH 소스 — VH CDS 가 바로 쓰는 테이블·CDS (VH 상세 '데이터 소스 (자동)' 쪽)
+//   TR   : 기술부채 관련 — 기술부채 상세 '관련 오브젝트' 표에 넣은 오브젝트 (저장된 값이라 래퍼 없이)
 //   소스 줄: 개발 오브젝트·유형·등록번호·담당자 = 주인(To-Be·VH) 것, 설명(Description) = 소스 이름,
 //            등록 UUID = 주인 UUID (행을 누르면 주인 상세로)
 //   검색 칸(DevObj·Description·SourceId)은 계산식 없이 실제 테이블 칸이어야 한다 — 검색이 HANA CONTAINS(퍼지)라
@@ -195,3 +196,26 @@ union all select from ZI_CMSM_Vh     as V
       V.LastChangedBy,
       V.LastChangedAt
 }
+// TR: 기술부채 관련 오브젝트 (기술부채 상세 '관련 오브젝트' 표 — 자식 ZI_CMSM_DebtItem: ItemUuid·DebtUuid·ObjType·DevObj·ObjDesc)
+//     개발 오브젝트·유형·등록번호·담당자 = 주인 기술부채 것, 설명 = 관련 오브젝트 이름 (실제 칸 — 검색 CONTAINS, 키)
+union all select from ZI_CMSM_DebtItem as R
+  inner join          ZI_CMSM_Debt     as D on D.DebtUuid = R.DebtUuid
+{
+  key D.DebtUuid                                as SourceUuid,
+  key cast( 'TR' as abap.char( 4 ) )            as SourceTab,
+  key cast( D.DevObj as abap.char( 80 ) )       as DevObj,
+  key cast( R.DevObj as abap.char( 120 ) )      as Description,
+      cast( D.DebtId as abap.char( 10 ) )       as SourceId,
+      cast( D.SysId as abap.char( 8 ) )         as SysId,
+      cast( D.ObjType as abap.char( 10 ) )      as ObjType,
+      D.SapModule,
+      cast( D.BizOwner as abap.char( 12 ) )     as OwnerId,
+      cast( '' as abap.char( 40 ) )             as ObjCreator,
+      cast( '' as abap.char( 10 ) )             as ReqId,
+      D.CreatedBy,
+      D.CreatedAt,
+      D.LastChangedBy,
+      D.LastChangedAt
+}
+where
+  R.DevObj <> ''

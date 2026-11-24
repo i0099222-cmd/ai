@@ -326,6 +326,7 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | TS To-Be 소스 | To-Be CDS가 바로 쓰는 테이블·CDS·DDIC 뷰 (select from·join·연관 다) | `ZI_CMSM_DdlUse` (`DdlName = TobeName`) |
 | TS To-Be 소스 | To-Be가 테이블이면(TADIR 기준 — 래퍼의 `ObjType = 'TABLE'`, 매핑 To-Be 유형 코드값과 상관없음) 그 테이블을 바로 쓰는 Z CDS | `ZI_CMSM_DdlUse` (`UsedName = TobeName`) |
 | VA VH 소스 | VH CDS가 바로 쓰는 테이블·CDS·DDIC 뷰 (VH 상세 '데이터 소스 (자동)' 쪽. 직접 입력 '데이터 소스' 표는 안 써서 UNION에 안 넣음) | `ZI_CMSM_DdlUse` (`DdlName = VhName`) |
+| TR 기술부채 관련 | 기술부채 상세 '관련 오브젝트' 표(시스템에서 추가한 자식 — I 뷰 `ZI_CMSM_DebtItem` 가정: `ItemUuid`·`DebtUuid`·`ObjType`·`DevObj`·`ObjDesc`)에 넣은 오브젝트. 설명 = 관련 오브젝트 이름, 나머지는 주인 기술부채 것. 저장된 값이라 래퍼 없이 | `ZI_CMSM_DebtItem` ⋈ `ZI_CMSM_Debt` |
 
 | 오브젝트 | 내용 |
 | --- | --- |
@@ -333,10 +334,10 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | `ZI_CMSM_TadirFull` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `TADIR`(R3TR, TABL·DDLS·VIEW, 삭제 표시 없음) 이름 + `concat( 'TY:', obj_name )`. CDS 문자열 리터럴에 백슬래시를 못 써서(`CL_DD_EXPRESSION_LITERAL` 에러) 양쪽 다 `\`를 뗀 형식으로 맞춘다 |
 | `ZI_CMSM_DdlUse` (`12_wrapper`, Standard ABAP, **C1 릴리즈**) | `ZI_CMSM_DdlUseRaw` ⋈ `ZI_CMSM_TadirFull` (`UsedFull = FullName`, 식끼리) → `DDLSRC_NAME`(쓰는 CDS)·TADIR 이름(쓰이는 오브젝트)·유형(TABL → TABLE, DDLS → CDS). 이름 칸을 식과 `=`로 직접 묶으면 통합 조회 검색(HANA CONTAINS)이 그 식까지 따라가 덤프(SQL code 7) → 이름 칸은 식과 안 엮이게. 기술부채 등록: TAB / C / W |
 | `ZI_CMSM_DevObject` | 키 = 등록 UUID + 등록 구분 + 개발 오브젝트 + 설명 — 소스 줄은 한 건에 여러 줄이고 설명(= 소스 이름)으로 갈린다. 모든 갈래에서 `Description`이 네 번째 `key` |
-| `ZC_CMSM_DevObject` | `key DevObj`, `key Description`, 숨김 플래그: TS는 매핑 섹션, VA는 테스트 섹션(VH). 키가 C 뷰에 빠지면 소스 줄끼리 키가 겹쳐 화면에서 사라진다 |
-| `ZI_CMSM_SourceTabVH` | 텍스트 TS 'To-Be 소스', VA 'VH 소스' |
-| `ZI_CMSM_DevObjectVH` (기술부채 개발 오브젝트 VH) | TS·VA는 뺀다 |
-| `MainListExt.controller.ts` | `NAV_TARGETS`에 TS → 매핑, VA → Value Help |
+| `ZC_CMSM_DevObject` | `key DevObj`, `key Description`, 숨김 플래그: TS는 매핑 섹션, VA는 테스트 섹션(VH), TR은 기술부채 섹션. 키가 C 뷰에 빠지면 소스 줄끼리 키가 겹쳐 화면에서 사라진다 |
+| `ZI_CMSM_SourceTabVH` | 텍스트 TS 'To-Be 소스', VA 'VH 소스', TR '기술부채 관련' |
+| `ZI_CMSM_DevObjectVH` (기술부채 개발 오브젝트 VH) | TS·VA·TR은 뺀다 |
+| `MainListExt.controller.ts` | `NAV_TARGETS`에 TS → 매핑, VA → Value Help, TR → 기술부채 |
 
 - 통합 조회 건수가 소스 줄만큼 늘어난다. 등록 구분 필터로 걸러 본다
 - 검색 대상 칸(개발 오브젝트·설명·등록번호)은 계산식 없이 실제 칸이어야 한다: 검색이 HANA `CONTAINS`(퍼지)라 `concat`·`substring` 결과에 걸리면 덤프(SQL code 7 'contains predicates on expression')

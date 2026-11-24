@@ -6,7 +6,7 @@
 // 상세 화면: 원본 탭(매핑·VH·OData 서비스·기술부채)의 정보를 연관 경로 필드로 꺼내서 보여준다.
 //   한 행에는 원본 연관 하나만 값이 있으니, 아래 숨김 플래그(…Hidden)로 섹션을 숨긴다
 //   (섹션 숨김 연결은 앱 annotation.xml — 09_app/annotation.devobject.sample.xml).
-// 키 = 등록 UUID + 등록 구분 + 개발 오브젝트 (소스 줄 TS·VA 는 한 건에 여러 줄). 소스 줄은 주인(매핑·VH) 섹션이 보인다
+// 키 = 등록 UUID + 등록 구분 + 개발 오브젝트 + 소스 오브젝트 (소스 줄 TS·VA 는 한 건에 여러 줄). 소스 줄은 주인(매핑·VH) 섹션이 보인다
 define view entity ZC_CMSM_DevObject
   as select from ZI_CMSM_DevObject
 
@@ -33,8 +33,15 @@ define view entity ZC_CMSM_DevObject
       @Search.defaultSearchElement: true
       @Search.fuzzinessThreshold: 0.8
   key DevObj,
+      // 검색용 (일반 줄은 개발 오브젝트와 같은 값). 화면 표시는 아래 SourceObj
+      @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
+  key SrcObj,
       @EndUserText.label: '등록 구분 내역'
       _SourceTab.Text      as SourceTabText,
+      @EndUserText.label: '소스 오브젝트'
+      cast( case when SourceTab = 'TS' or SourceTab = 'VA' then SrcObj else '' end
+            as abap.char( 80 ) ) as SourceObj,     // 화면용: 소스 줄만 값 (검색엔 안 씀 — 식이라)
       @Search.defaultSearchElement: true
       @Search.fuzzinessThreshold: 0.8
       SourceId,

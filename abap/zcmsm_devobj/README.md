@@ -330,7 +330,7 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZI_CMSM_DdlUseRaw` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `DDLS_RIS_INDEX`에서 `DDLSRC_NAME` → `USED_ARTIFACT_FULLNAME`의 `\TY:` 뒤 이름(`substring( …, 5, 40 )`), `select distinct` |
+| `ZI_CMSM_DdlUseRaw` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `DDLS_RIS_INDEX`에서 `DDLSRC_NAME` → `USED_ARTIFACT_FULLNAME`(SSTRING 400)을 `CHAR(400)`으로 바꾼 뒤 `\TY:` 뒤 이름(`substring( …, 5, 40 )`), `select distinct`. `\TY:` 조건은 없음 — 다른 형태의 줄은 다음 뷰의 TADIR 조인에서 빠진다 |
 | `ZI_CMSM_DdlUse` (`12_wrapper`, Standard ABAP, **C1 릴리즈**) | 위 + `TADIR`(R3TR, TABL·DDLS·VIEW, 삭제 표시 없음) 조인 — 캐스트에 쓴 데이터 요소 등은 빠진다. 유형 TABL → TABLE, DDLS → CDS. 기술부채 등록: TAB / C / W |
 | `ZI_CMSM_DevObject` | 키에 `DevObj` 추가 (등록 UUID + 등록 구분 + 개발 오브젝트 — 소스 줄은 한 건에 여러 줄). 모든 갈래에서 `DevObj`가 세 번째 `key` |
 | `ZC_CMSM_DevObject` | `key DevObj`, 숨김 플래그: TS는 매핑 섹션, VS·VA는 테스트 섹션(VH) |

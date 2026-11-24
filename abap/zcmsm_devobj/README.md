@@ -324,7 +324,7 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | 등록 구분 | 내용 | 읽는 곳 |
 | --- | --- | --- |
 | TS To-Be 소스 | To-Be CDS가 바로 쓰는 테이블·CDS·DDIC 뷰 (select from·join·연관 다) | `ZI_CMSM_DdlUse` (`DdlName = TobeName`) |
-| TS To-Be 소스 | To-Be 유형이 TABLE이면 그 테이블을 바로 쓰는 Z CDS | `ZI_CMSM_DdlUse` (`UsedName = TobeName`) |
+| TS To-Be 소스 | To-Be가 테이블이면(TADIR 기준 — 래퍼의 `ObjType = 'TABLE'`, 매핑 To-Be 유형 코드값과 상관없음) 그 테이블을 바로 쓰는 Z CDS | `ZI_CMSM_DdlUse` (`UsedName = TobeName`) |
 | VA VH 소스 | VH CDS가 바로 쓰는 테이블·CDS·DDIC 뷰 (VH 상세 '데이터 소스 (자동)' 쪽. 직접 입력 '데이터 소스' 표는 안 써서 UNION에 안 넣음) | `ZI_CMSM_DdlUse` (`DdlName = VhName`) |
 
 | 오브젝트 | 내용 |

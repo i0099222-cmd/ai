@@ -172,7 +172,7 @@ union all select from ZI_CMSM_Map    as M
       M.LastChangedAt
 }
 where
-      M.TobeType = 'TABLE'
+      U.ObjType  = 'TABLE'      // To-Be(= 쓰이는 쪽)가 테이블인지는 TADIR 기준 (매핑 To-Be 유형 코드값과 상관없게)
   and U.DdlName  like 'Z%'
 // VA: VH CDS 가 바로 쓰는 오브젝트 (VH 상세 '데이터 소스 (자동)' 쪽)
 union all select from ZI_CMSM_Vh     as V

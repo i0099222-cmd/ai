@@ -329,7 +329,7 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZI_CMSM_DdlUseRaw` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `DDLS_RIS_INDEX`: `DDLSRC_NAME` 그대로 + `USED_ARTIFACT_FULLNAME`(SSTRING 400)을 CHAR로 바꿔 2번째 글자부터(`\TY:ZT…` → `TY:ZT…`). distinct 안 씀 (검색 CONTAINS는 실제 칸만) |
+| `ZI_CMSM_DdlUseRaw` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `DDLS_RIS_INDEX`: `DDLSRC_NAME` 그대로 + `USED_ARTIFACT_FULLNAME`(SSTRING 400)을 CHAR로 바꿔 2번째 글자부터(`\TY:ZT…` → `TY:ZT…`) + `upper( )` — 인덱스는 CDS 이름을 정의한 대소문자 그대로 적어서(표준 `I_BusinessPlace` 등) 대문자인 TADIR와 맞추려면 필요. distinct 안 씀 (검색 CONTAINS는 실제 칸만) |
 | `ZI_CMSM_TadirFull` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `TADIR`(R3TR, TABL·DDLS·VIEW, 삭제 표시 없음) 이름 + `concat( 'TY:', obj_name )`. CDS 문자열 리터럴에 백슬래시를 못 써서(`CL_DD_EXPRESSION_LITERAL` 에러) 양쪽 다 `\`를 뗀 형식으로 맞춘다 |
 | `ZI_CMSM_DdlUse` (`12_wrapper`, Standard ABAP, **C1 릴리즈**) | `ZI_CMSM_DdlUseRaw` ⋈ `ZI_CMSM_TadirFull` (`UsedFull = FullName`, 식끼리) → `DDLSRC_NAME`(쓰는 CDS)·TADIR 이름(쓰이는 오브젝트)·유형(TABL → TABLE, DDLS → CDS). 이름 칸을 식과 `=`로 직접 묶으면 통합 조회 검색(HANA CONTAINS)이 그 식까지 따라가 덤프(SQL code 7) → 이름 칸은 식과 안 엮이게. 기술부채 등록: TAB / C / W |
 | `ZI_CMSM_DevObject` | 키 = 등록 UUID + 등록 구분 + 개발 오브젝트 + 설명 — 소스 줄은 한 건에 여러 줄이고 설명(= 소스 이름)으로 갈린다. 모든 갈래에서 `Description`이 네 번째 `key` |

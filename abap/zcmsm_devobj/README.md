@@ -159,7 +159,7 @@ ADT: `ZC_CMSM_*` 우클릭 → New Metadata Extension → 이름은 CDS와 같�
 | --- | --- | --- |
 | `setInitialValues` | 생성 | 상태 = R |
 | `setReqId` | 저장 (생성) | 요청번호 RQ-nnnn 채번 (`ZCL_CMSM_DISPLAY_ID`). 실패하면 경고만 내고 번호 없이 저장 |
-| `recordHistory` | 저장 | 생성 C 1줄 / 상태 변경 S (반려·취소면 사유를 '사유'에) / 제목·요청 내용·모듈·담당자·처리 내용·관련 등록번호 수정 U. 긴 텍스트는 1333자에서 자름 |
+| `recordHistory` | 저장 | 생성 C 1줄 / 상태 변경 S (반려·취소면 사유를 '사유'에) / 제목·요청 내용·모듈·담당자·처리 내용·관련 등록번호 수정 U. 긴 텍스트는 1333자에서 자름. 같은 저장 안에서 다시 불려도(setReqId 채번이 인스턴스를 바꾸면 RAP 가 on save determination 을 다시 돌림) 버퍼에만 있는 이력이 있으면 건너뛰어 한 번만 남긴다 |
 | `validateMandatory` | 저장, Prepare | 제목·모듈·담당자 필수 |
 
 ### 만드는 순서

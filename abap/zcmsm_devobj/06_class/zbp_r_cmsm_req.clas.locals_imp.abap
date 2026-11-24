@@ -505,7 +505,32 @@ CLASS lhc_request IMPLEMENTATION.
     SELECT Value, Text FROM zi_cmsm_reqstatusvh
       INTO TABLE @mt_status_text.
 
+    " 같은 저장 안에서 두 번 불릴 수 있다: 다른 on save determination(setReqId 요청번호 채번)이 인스턴스를 바꾸면
+    " RAP 가 on save determination 을 다시 돌린다 → 이력이 두 줄씩 생긴다.
+    " 그래서 이번 저장에서 이미 만든 이력(버퍼엔 있고 DB 엔 아직 없는 것)이 있는 요청은 건너뛴다
+    DATA lt_done TYPE SORTED TABLE OF zr_cmsm_req-ReqUuid WITH UNIQUE KEY table_line.
+
+    READ ENTITIES OF zr_cmsm_req IN LOCAL MODE
+      ENTITY Request BY \_Hist
+        FIELDS ( ReqUuid ) WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_buf_hist).
+    IF lt_buf_hist IS NOT INITIAL.
+      SELECT histuuid FROM ztcmsm00180
+        FOR ALL ENTRIES IN @lt_buf_hist
+        WHERE histuuid = @lt_buf_hist-HistUuid
+        INTO TABLE @DATA(lt_db_hist).
+      LOOP AT lt_buf_hist INTO DATA(ls_buf_hist).
+        IF NOT line_exists( lt_db_hist[ histuuid = ls_buf_hist-HistUuid ] ).
+          INSERT ls_buf_hist-ReqUuid INTO TABLE lt_done.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
     LOOP AT lt_req INTO DATA(ls_req).
+
+      IF line_exists( lt_done[ table_line = ls_req-ReqUuid ] ).
+        CONTINUE.                                          " 이번 저장에서 이미 이력을 남김
+      ENDIF.
 
       DATA(lt_rows) = VALUE tt_hist_row( ).
 

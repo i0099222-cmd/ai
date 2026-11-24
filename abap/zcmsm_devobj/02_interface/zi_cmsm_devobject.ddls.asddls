@@ -8,7 +8,9 @@
 //   소스 줄 (검색 칸에 소스 이름을 넣으면 그 소스를 가진 등록 건이 나오게 — 1단계만):
 //   TS   : To-Be 소스 — To-Be CDS 가 바로 쓰는 테이블·CDS (To-Be 가 테이블이면 그 테이블을 바로 쓰는 Z CDS)
 //   VA   : VH 소스 — VH CDS 가 바로 쓰는 테이블·CDS (VH 상세 '데이터 소스 (자동)' 쪽)
-//   소스 줄의 등록번호·담당자 등은 주인(매핑·VH) 것, 설명 = 'To-Be: 이름' / 'VH: 이름', 등록 UUID = 주인 UUID (행을 누르면 주인 상세로)
+//   소스 줄의 등록번호·담당자 등은 주인(매핑·VH) 것, 설명 = 주인 To-Be·VH 이름, 등록 UUID = 주인 UUID (행을 누르면 주인 상세로)
+//   검색 칸(DevObj·Description·SourceId)은 계산식 없이 실제 테이블 칸이어야 한다 — 검색이 HANA CONTAINS(퍼지)라
+//   식(concat·substring 등)에 걸리면 덤프(SQL code 7 'contains predicates on expression')
 //   1단계 소스는 사용처 인덱스 래퍼 ZI_CMSM_DdlUse (12_wrapper, Standard ABAP·C1 릴리즈) — select from·join·연관 다 포함
 // 매핑 한 건은 TOBE·ASIS 두 줄 (등록번호 MP-nnnn이 같아서 짝을 알 수 있다), 기술부채는 부채마다 한 줄.
 // 키 = 등록 UUID + 등록 구분 + 개발 오브젝트 (소스 줄은 한 건에 여러 줄이라 오브젝트까지 키)
@@ -140,7 +142,7 @@ union all select from ZI_CMSM_Map    as M
       cast( M.TgtSysId as abap.char( 8 ) )      as SysId,
       cast( U.ObjType as abap.char( 10 ) )      as ObjType,
       M.SapModule,
-      cast( concat_with_space( 'To-Be:', M.TobeName, 1 ) as abap.char( 120 ) ) as Description,
+      cast( M.TobeName as abap.char( 120 ) )    as Description,     // 어느 To-Be 의 소스인지 (계산식 X — 검색 CONTAINS 는 실제 칸만)
       cast( M.OwnerId as abap.char( 12 ) )      as OwnerId,
       cast( M.ObjCreator as abap.char( 40 ) )   as ObjCreator,
       cast( M.ReqId as abap.char( 10 ) )        as ReqId,
@@ -160,7 +162,7 @@ union all select from ZI_CMSM_Map    as M
       cast( M.TgtSysId as abap.char( 8 ) )      as SysId,
       cast( 'CDS' as abap.char( 10 ) )          as ObjType,
       M.SapModule,
-      cast( concat_with_space( 'To-Be:', M.TobeName, 1 ) as abap.char( 120 ) ) as Description,
+      cast( M.TobeName as abap.char( 120 ) )    as Description,     // 어느 To-Be 의 소스인지 (계산식 X — 검색 CONTAINS 는 실제 칸만)
       cast( M.OwnerId as abap.char( 12 ) )      as OwnerId,
       cast( M.ObjCreator as abap.char( 40 ) )   as ObjCreator,
       cast( M.ReqId as abap.char( 10 ) )        as ReqId,
@@ -183,7 +185,7 @@ union all select from ZI_CMSM_Vh     as V
       cast( V.SysId as abap.char( 8 ) )         as SysId,
       cast( U.ObjType as abap.char( 10 ) )      as ObjType,
       V.SapModule,
-      cast( concat_with_space( 'VH:', V.VhName, 1 ) as abap.char( 120 ) ) as Description,
+      cast( V.VhName as abap.char( 120 ) )      as Description,     // 어느 VH 의 소스인지
       cast( V.OwnerId as abap.char( 12 ) )      as OwnerId,
       cast( V.ObjCreator as abap.char( 40 ) )   as ObjCreator,
       cast( V.ReqId as abap.char( 10 ) )        as ReqId,

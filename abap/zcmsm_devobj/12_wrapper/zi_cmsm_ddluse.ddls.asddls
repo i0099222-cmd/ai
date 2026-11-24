@@ -8,13 +8,17 @@
 // 기술부채로 등록: 개발 오브젝트 ZI_CMSM_DDLUSE, 부채 구분 TAB(미릴리즈 테이블 조회), Debt Level C, 래핑 여부 W
 define view entity ZI_CMSM_DdlUse
   as select from ZI_CMSM_DdlUseRaw as Use
+    inner join   tadir             as Ddl on  Ddl.pgmid    = 'R3TR'
+                                          and Ddl.object   = 'DDLS'
+                                          and Ddl.obj_name = Use.DdlName
     inner join   tadir             as Obj on  Obj.pgmid    = 'R3TR'
                                           and Obj.obj_name = Use.UsedName
 {
+      // 두 이름 다 TADIR 칸에서 꺼낸다 (Raw 의 substring 결과 말고) — 통합 조회 검색(HANA CONTAINS)은 실제 칸에만 걸린다
       @EndUserText.label: '쓰는 CDS'
-  key Use.DdlName,
+  key Ddl.obj_name as DdlName,
       @EndUserText.label: '쓰이는 오브젝트'
-  key Use.UsedName,
+  key Obj.obj_name as UsedName,
       @EndUserText.label: '오브젝트 유형'
       cast( case Obj.object
               when 'TABL' then 'TABLE'

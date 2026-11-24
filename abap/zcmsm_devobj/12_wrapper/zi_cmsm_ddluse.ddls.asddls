@@ -3,31 +3,23 @@
 // [Standard ABAP 패키지 · Cloud 개발용 릴리즈(C1)] 통합 조회 UNION(ZI_CMSM_DevObject)의 소스 줄용.
 //   DDL 소스(DdlName) → 그 소스가 바로(1단계) 쓰는 테이블·CDS·DDIC 뷰(UsedName)
 //   select from·join·연관을 다 포함하고 쓰는 방식은 구분하지 않는다
-//   캐스트에 쓴 데이터 요소 같은 것은 TADIR 오브젝트 유형(TABL·DDLS·VIEW만)으로 걸러 낸다
+//   캐스트에 쓴 데이터 요소 같은 것은 ZI_CMSM_TadirFull(TABL·DDLS·VIEW만)과 안 맞아서 빠진다
+// 조인: 인덱스 칸(USED_ARTIFACT_FULLNAME, SSTRING)은 그대로 두고 TADIR 쪽에서 만든 '\TY:<이름>' 과 비교한다.
+//   두 이름(DdlName·UsedName)은 실제 칸(DDLSRC_NAME, TADIR OBJ_NAME) — 통합 조회 검색(HANA CONTAINS)은 실제 칸에만 걸린다
 // 릴리즈: ADT → Properties → API State → Use in Cloud Development = Released
 // 기술부채로 등록: 개발 오브젝트 ZI_CMSM_DDLUSE, 부채 구분 TAB(미릴리즈 테이블 조회), Debt Level C, 래핑 여부 W
 define view entity ZI_CMSM_DdlUse
-  as select from ZI_CMSM_DdlUseRaw as Use
-    inner join   tadir             as Ddl on  Ddl.pgmid    = 'R3TR'
-                                          and Ddl.object   = 'DDLS'
-                                          and Ddl.obj_name = Use.DdlName
-    inner join   tadir             as Obj on  Obj.pgmid    = 'R3TR'
-                                          and Obj.obj_name = Use.UsedName
+  as select from ddls_ris_index    as Idx
+    inner join   ZI_CMSM_TadirFull as Obj on Obj.FullName = Idx.used_artifact_fullname
 {
-      // 두 이름 다 TADIR 칸에서 꺼낸다 (Raw 의 substring 결과 말고) — 통합 조회 검색(HANA CONTAINS)은 실제 칸에만 걸린다
       @EndUserText.label: '쓰는 CDS'
-  key Ddl.obj_name as DdlName,
+  key Idx.ddlsrc_name as DdlName,
       @EndUserText.label: '쓰이는 오브젝트'
-  key Obj.obj_name as UsedName,
+  key Obj.ObjName     as UsedName,
       @EndUserText.label: '오브젝트 유형'
-      cast( case Obj.object
+      cast( case Obj.ObjObject
               when 'TABL' then 'TABLE'
               when 'DDLS' then 'CDS'
               else ''
             end as abap.char( 10 ) ) as ObjType
 }
-where
-  (    Obj.object  = 'TABL'
-    or Obj.object  = 'DDLS'
-    or Obj.object  = 'VIEW' )
-  and  Obj.delflag = ''

@@ -17,7 +17,7 @@
 | `09_app` | Fiori 앱 manifest의 routing 예시 (탭 + 상세 화면), annotation.xml 예시 | 2 |
 | `10_mail` | 메일 HTML 템플릿 (SMW0 업로드용) | 1 |
 | `11_excel` | 탭별 엑셀 업로드 템플릿 5개 + 생성 스크립트 | 6 |
-| `12_wrapper` | Standard ABAP 래퍼 (Cloud 릴리즈) — CDS 사용처·데이터 소스 `ZCL_CMSM_DDL_WHERE_USED`, 1단계 소스 CDS `ZI_CMSM_DdlUseRaw` → `ZI_CMSM_DdlUse` | 3 |
+| `12_wrapper` | Standard ABAP 래퍼 (Cloud 릴리즈) — CDS 사용처·데이터 소스 `ZCL_CMSM_DDL_WHERE_USED`, 1단계 소스 CDS `ZI_CMSM_TadirFull` → `ZI_CMSM_DdlUse` | 3 |
 
 ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔VhSrc)은 서로 참조하니 **같이 선택해서 한 번에 활성화**한다. 전부 만든 뒤 한꺼번에 활성화해도 된다.
 
@@ -329,8 +329,8 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 
 | 오브젝트 | 내용 |
 | --- | --- |
-| `ZI_CMSM_DdlUseRaw` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `DDLS_RIS_INDEX`에서 `DDLSRC_NAME` → `USED_ARTIFACT_FULLNAME`(SSTRING 400)을 `CHAR(400)`으로 바꾼 뒤 `\TY:` 뒤 이름(`substring( …, 5, 40 )`), `select distinct`. `\TY:` 조건은 없음 — 다른 형태의 줄은 다음 뷰의 TADIR 조인에서 빠진다 |
-| `ZI_CMSM_DdlUse` (`12_wrapper`, Standard ABAP, **C1 릴리즈**) | 위 + `TADIR` 두 번 조인 — 쓰는 쪽(DDLS)·쓰이는 쪽(R3TR, TABL·DDLS·VIEW, 삭제 표시 없음). 두 이름 다 TADIR 칸에서 꺼낸다 (substring 결과를 내보내면 통합 조회 검색 CONTAINS 덤프) — 캐스트에 쓴 데이터 요소 등은 빠진다. 유형 TABL → TABLE, DDLS → CDS. 기술부채 등록: TAB / C / W |
+| `ZI_CMSM_TadirFull` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `TADIR`(R3TR, TABL·DDLS·VIEW, 삭제 표시 없음)의 이름 + 인덱스 형식 `concat( '\TY:', obj_name )` |
+| `ZI_CMSM_DdlUse` (`12_wrapper`, Standard ABAP, **C1 릴리즈**) | `DDLS_RIS_INDEX` ⋈ `ZI_CMSM_TadirFull` (`FullName = USED_ARTIFACT_FULLNAME`) → `DDLSRC_NAME`(쓰는 CDS)·TADIR 이름(쓰이는 오브젝트)·유형(TABL → TABLE, DDLS → CDS). 인덱스 칸을 잘라(substring) 조인하면 통합 조회 검색(HANA CONTAINS)이 그 식까지 따라가 덤프 → TADIR 쪽에서 인덱스 형식을 만들어 비교한다. 기술부채 등록: TAB / C / W |
 | `ZI_CMSM_DevObject` | 키에 `DevObj` 추가 (등록 UUID + 등록 구분 + 개발 오브젝트 — 소스 줄은 한 건에 여러 줄). 모든 갈래에서 `DevObj`가 세 번째 `key` |
 | `ZC_CMSM_DevObject` | `key DevObj`, 숨김 플래그: TS는 매핑 섹션, VA는 테스트 섹션(VH) |
 | `ZI_CMSM_SourceTabVH` | 텍스트 TS 'To-Be 소스', VA 'VH 소스' |
@@ -340,7 +340,7 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 - 통합 조회 건수가 소스 줄만큼 늘어난다. 등록 구분 필터로 걸러 본다
 - 검색 대상 칸(개발 오브젝트·설명·등록번호)은 계산식 없이 실제 칸이어야 한다: 검색이 HANA `CONTAINS`(퍼지)라 `concat`·`substring` 결과에 걸리면 덤프(SQL code 7 'contains predicates on expression')
 - 시스템에서 이름을 바꿨으면(등록 구분 `RegTab`, UUID `RegUuid`, TOBE/ASIS → TB/AI) 새 갈래도 그 이름으로
-- 활성화 순서: `ZI_CMSM_DdlUseRaw` → `ZI_CMSM_DdlUse`(릴리즈) → `ZI_CMSM_DevObject` → `ZI_CMSM_SourceTabVH`·`ZI_CMSM_DevObjectVH` → `ZC_CMSM_DevObject` → 서비스 바인딩 새로고침 → 앱 TS
+- 활성화 순서: `ZI_CMSM_TadirFull` → `ZI_CMSM_DdlUse`(릴리즈) → `ZI_CMSM_DevObject` → `ZI_CMSM_SourceTabVH`·`ZI_CMSM_DevObjectVH` → `ZC_CMSM_DevObject` → 서비스 바인딩 새로고침 → 앱 TS
 
 ### 통합 조회 상세 화면 (읽기 전용)
 

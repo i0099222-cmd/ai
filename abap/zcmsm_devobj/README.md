@@ -319,7 +319,7 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 
 ### 소스 줄 (TS·VA) — 검색 칸에 소스 이름을 넣으면 그 소스를 가진 매핑·VH가 나온다
 
-`ZI_CMSM_DevObject` UNION에 갈래 3개를 더했다 (1단계만, 재귀 없음). 소스 줄의 개발 오브젝트·유형·등록번호·설명·담당자·모듈은 주인(To-Be·VH) 것, **소스 오브젝트**(`SrcObj`) = 소스 이름, 등록 UUID = 주인 UUID라 행을 누르면 주인 상세로 간다.
+`ZI_CMSM_DevObject` UNION에 갈래 3개를 더했다 (1단계만, 재귀 없음). 소스 줄의 개발 오브젝트·유형·등록번호·담당자·모듈은 주인(To-Be·VH) 것, **설명** = 소스 이름, 등록 UUID = 주인 UUID라 행을 누르면 주인 상세로 간다.
 
 | 등록 구분 | 내용 | 읽는 곳 |
 | --- | --- | --- |
@@ -332,9 +332,8 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | `ZI_CMSM_DdlUseRaw` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `DDLS_RIS_INDEX`: `DDLSRC_NAME` 그대로 + `USED_ARTIFACT_FULLNAME`(SSTRING 400)을 CHAR로 바꿔 2번째 글자부터(`\TY:ZT…` → `TY:ZT…`). distinct 안 씀 (검색 CONTAINS는 실제 칸만) |
 | `ZI_CMSM_TadirFull` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `TADIR`(R3TR, TABL·DDLS·VIEW, 삭제 표시 없음) 이름 + `concat( 'TY:', obj_name )`. CDS 문자열 리터럴에 백슬래시를 못 써서(`CL_DD_EXPRESSION_LITERAL` 에러) 양쪽 다 `\`를 뗀 형식으로 맞춘다 |
 | `ZI_CMSM_DdlUse` (`12_wrapper`, Standard ABAP, **C1 릴리즈**) | `ZI_CMSM_DdlUseRaw` ⋈ `ZI_CMSM_TadirFull` (`UsedFull = FullName`, 식끼리) → `DDLSRC_NAME`(쓰는 CDS)·TADIR 이름(쓰이는 오브젝트)·유형(TABL → TABLE, DDLS → CDS). 이름 칸을 식과 `=`로 직접 묶으면 통합 조회 검색(HANA CONTAINS)이 그 식까지 따라가 덤프(SQL code 7) → 이름 칸은 식과 안 엮이게. 기술부채 등록: TAB / C / W |
-| `ZI_CMSM_DevObject` | 키 = 등록 UUID + 등록 구분 + 개발 오브젝트 + 소스 오브젝트(`SrcObj`) — 소스 줄은 한 건에 여러 줄. 일반 줄의 `SrcObj`는 `DevObj`와 같은 값 (검색 `CONTAINS`는 실제 칸에만 걸려서 빈 값 리터럴 대신) |
-| `ZC_CMSM_DevObject` | `key DevObj`, `key SrcObj`(검색 대상, 화면엔 숨김) + 화면용 `SourceObj`(소스 줄만 값, CASE 식이라 검색 대상 아님), 숨김 플래그: TS는 매핑 섹션, VA는 테스트 섹션(VH) |
-| MDE `ZC_CMSM_DevObject` | `SrcObj` 숨김, `SourceObj` 목록 35번째 '소스 오브젝트' |
+| `ZI_CMSM_DevObject` | 키 = 등록 UUID + 등록 구분 + 개발 오브젝트 + 설명 — 소스 줄은 한 건에 여러 줄이고 설명(= 소스 이름)으로 갈린다. 모든 갈래에서 `Description`이 네 번째 `key` |
+| `ZC_CMSM_DevObject` | `key DevObj`, `key Description`, 숨김 플래그: TS는 매핑 섹션, VA는 테스트 섹션(VH). 키가 C 뷰에 빠지면 소스 줄끼리 키가 겹쳐 화면에서 사라진다 |
 | `ZI_CMSM_SourceTabVH` | 텍스트 TS 'To-Be 소스', VA 'VH 소스' |
 | `ZI_CMSM_DevObjectVH` (기술부채 개발 오브젝트 VH) | TS·VA는 뺀다 |
 | `MainListExt.controller.ts` | `NAV_TARGETS`에 TS → 매핑, VA → Value Help |

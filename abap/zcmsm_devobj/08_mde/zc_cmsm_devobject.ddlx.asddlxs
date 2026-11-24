@@ -75,16 +75,6 @@ annotate entity ZC_CMSM_DevObject with
   }
   DevObj;
 
-  // 소스 오브젝트: 검색용 SrcObj 는 숨기고, 화면엔 소스 줄만 값이 있는 SourceObj
-  @UI.hidden: true
-  SrcObj;
-
-  @UI: {
-    lineItem:       [{ position: 35, importance: #HIGH }],
-    fieldGroup:     [{ qualifier: 'General', position: 15 }]
-  }
-  SourceObj;
-
   @UI: {
     lineItem:       [{ position: 60 }],
     selectionField: [{ position: 20 }],

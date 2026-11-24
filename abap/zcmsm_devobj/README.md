@@ -17,7 +17,7 @@
 | `09_app` | Fiori 앱 manifest의 routing 예시 (탭 + 상세 화면), annotation.xml 예시 | 2 |
 | `10_mail` | 메일 HTML 템플릿 (SMW0 업로드용) | 1 |
 | `11_excel` | 탭별 엑셀 업로드 템플릿 5개 + 생성 스크립트 | 6 |
-| `12_wrapper` | Standard ABAP 래퍼 (Cloud 릴리즈) — CDS 사용처·데이터 소스 `ZCL_CMSM_DDL_WHERE_USED` | 1 |
+| `12_wrapper` | Standard ABAP 래퍼 (Cloud 릴리즈) — CDS 사용처·데이터 소스 `ZCL_CMSM_DDL_WHERE_USED`, 1단계 소스 CDS `ZI_CMSM_DdlUseRaw` → `ZI_CMSM_DdlUse` | 3 |
 
 ADT에서 폴더 순서대로 만들고, 루트와 자식(Req↔ReqHist, Vh↔VhSrc)은 서로 참조하니 **같이 선택해서 한 번에 활성화**한다. 전부 만든 뒤 한꺼번에 활성화해도 된다.
 
@@ -316,6 +316,31 @@ Service Binding 입력: `ZI_CMSM_SysSrvbVH` (`01_vh`) — Z로 시작하는 SRVB
 | manifest | `views.paths`에 `{ "key": "all", "entitySet": "DevObject", … }` + `navigation.DevObject` + 상세 route `DevObjectObjectPage` |
 
 저장된 건만 나온다 (UNION 뷰가 활성 테이블을 읽음). 편집 중인 드래프트는 저장 후 보인다.
+
+### 소스 줄 (TS·VS·VA) — 검색 칸에 소스 이름을 넣으면 그 소스를 가진 매핑·VH가 나온다
+
+`ZI_CMSM_DevObject` UNION에 갈래 4개를 더했다 (1단계만, 재귀 없음). 소스 줄의 등록번호·담당자·모듈은 주인(매핑·VH) 것, 설명 = `To-Be: <이름>` / `VH: <이름>`, 등록 UUID = 주인 UUID라 행을 누르면 주인 상세로 간다.
+
+| 등록 구분 | 내용 | 읽는 곳 |
+| --- | --- | --- |
+| TS To-Be 소스 | To-Be CDS가 바로 쓰는 테이블·CDS·DDIC 뷰 (select from·join·연관 다) | `ZI_CMSM_DdlUse` (`DdlName = TobeName`) |
+| TS To-Be 소스 | To-Be 유형이 TABLE이면 그 테이블을 바로 쓰는 Z CDS | `ZI_CMSM_DdlUse` (`UsedName = TobeName`) |
+| VS VH 소스 | VH 상세 '데이터 소스' 표에 직접 넣은 이름 (같은 이름 두 번이면 한 줄) | `ZI_CMSM_VhSrc` |
+| VA VH 소스(자동) | VH CDS가 바로 쓰는 테이블·CDS·DDIC 뷰 | `ZI_CMSM_DdlUse` (`DdlName = VhName`) |
+
+| 오브젝트 | 내용 |
+| --- | --- |
+| `ZI_CMSM_DdlUseRaw` (`12_wrapper`, Standard ABAP, 릴리즈 안 함) | `DDLS_RIS_INDEX`에서 `DDLSRC_NAME` → `USED_ARTIFACT_FULLNAME`의 `\TY:` 뒤 이름(`substring( …, 5, 40 )`), `select distinct` |
+| `ZI_CMSM_DdlUse` (`12_wrapper`, Standard ABAP, **C1 릴리즈**) | 위 + `TADIR`(R3TR, TABL·DDLS·VIEW, 삭제 표시 없음) 조인 — 캐스트에 쓴 데이터 요소 등은 빠진다. 유형 TABL → TABLE, DDLS → CDS. 기술부채 등록: TAB / C / W |
+| `ZI_CMSM_DevObject` | 키에 `DevObj` 추가 (등록 UUID + 등록 구분 + 개발 오브젝트 — 소스 줄은 한 건에 여러 줄). 모든 갈래에서 `DevObj`가 세 번째 `key` |
+| `ZC_CMSM_DevObject` | `key DevObj`, 숨김 플래그: TS는 매핑 섹션, VS·VA는 테스트 섹션(VH) |
+| `ZI_CMSM_SourceTabVH` | 텍스트 TS 'To-Be 소스', VS 'VH 소스', VA 'VH 소스(자동)' |
+| `ZI_CMSM_DevObjectVH` (기술부채 개발 오브젝트 VH) | TS·VS·VA는 뺀다 |
+| `MainListExt.controller.ts` | `NAV_TARGETS`에 TS → 매핑, VS·VA → Value Help |
+
+- 통합 조회 건수가 소스 줄만큼 늘어난다. 등록 구분 필터로 걸러 본다
+- 시스템에서 이름을 바꿨으면(등록 구분 `RegTab`, UUID `RegUuid`, TOBE/ASIS → TB/AI) 새 갈래도 그 이름으로
+- 활성화 순서: `ZI_CMSM_DdlUseRaw` → `ZI_CMSM_DdlUse`(릴리즈) → `ZI_CMSM_DevObject` → `ZI_CMSM_SourceTabVH`·`ZI_CMSM_DevObjectVH` → `ZC_CMSM_DevObject` → 서비스 바인딩 새로고침 → 앱 TS
 
 ### 통합 조회 상세 화면 (읽기 전용)
 

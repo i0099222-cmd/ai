@@ -6,6 +6,7 @@
 // 상세 화면: 원본 탭(매핑·VH·OData 서비스·기술부채)의 정보를 연관 경로 필드로 꺼내서 보여준다.
 //   한 행에는 원본 연관 하나만 값이 있으니, 아래 숨김 플래그(…Hidden)로 섹션을 숨긴다
 //   (섹션 숨김 연결은 앱 annotation.xml — 09_app/annotation.devobject.sample.xml).
+// 키 = 등록 UUID + 등록 구분 + 개발 오브젝트 (소스 줄 TS·VS·VA 는 한 건에 여러 줄). 소스 줄은 주인(매핑·VH) 섹션이 보인다
 define view entity ZC_CMSM_DevObject
   as select from ZI_CMSM_DevObject
 
@@ -29,6 +30,9 @@ define view entity ZC_CMSM_DevObject
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_SourceTabVH', element: 'SourceTab' } }]
       @ObjectModel.text.element: [ 'SourceTabText' ]
   key SourceTab,
+      @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
+  key DevObj,
       @EndUserText.label: '등록 구분 내역'
       _SourceTab.Text      as SourceTabText,
       @Search.defaultSearchElement: true
@@ -44,9 +48,6 @@ define view entity ZC_CMSM_DevObject
       ObjType,
       @EndUserText.label: '오브젝트 유형 내역'
       _ObjType.Text        as ObjTypeText,
-      @Search.defaultSearchElement: true
-      @Search.fuzzinessThreshold: 0.8
-      DevObj,
       @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_CMSM_ModuleVH', element: 'Value' } }]
       @ObjectModel.text.element: [ 'SapModuleText' ]
       SapModule,
@@ -138,13 +139,13 @@ define view entity ZC_CMSM_DevObject
 
       /* 상세 화면 섹션 숨김 플래그 (X = 숨김) */
       @EndUserText.label: '매핑 섹션 숨김'
-      cast( case when SourceTab = 'TOBE' or SourceTab = 'ASIS'
+      cast( case when SourceTab = 'TOBE' or SourceTab = 'ASIS' or SourceTab = 'TS'
                  then '' else 'X' end as abap_boolean ) as MapHidden,
       @EndUserText.label: 'UI 섹션 숨김'
       cast( case when ( SourceTab = 'TOBE' or SourceTab = 'ASIS' ) and _Map.TobeType = 'TCODE'
                  then '' else 'X' end as abap_boolean ) as UiHidden,
       @EndUserText.label: '테스트 섹션 숨김'
-      cast( case when SourceTab = 'VH' or SourceTab = 'SB'
+      cast( case when SourceTab = 'VH' or SourceTab = 'SB' or SourceTab = 'VS' or SourceTab = 'VA'
                  then '' else 'X' end as abap_boolean ) as TestHidden,
       @EndUserText.label: '기술부채 섹션 숨김'
       cast( case when SourceTab = 'TD'

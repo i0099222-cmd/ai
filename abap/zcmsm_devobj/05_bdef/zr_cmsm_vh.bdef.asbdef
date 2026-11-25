@@ -38,8 +38,9 @@ authorization master ( global )
       OwnerId;
 
   create;
-  update;
-  delete;
+  // 담당자만 편집·삭제 (담당자가 비어 있으면 누구나). 로직은 get_instance_features
+  update ( features : instance );
+  delete ( features : instance );
 
   // 새 VH: 담당자 = 등록한 사람 / VH 이름 → 구현 방식 판별 / 파일 올리면 올린 사람·일시 / 저장할 때 VH- 채번
   determination setInitialValues on modify { create; }

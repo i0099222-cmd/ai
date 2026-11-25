@@ -38,8 +38,9 @@ authorization master ( global )
       DebtReason;
 
   create;
-  update;
-  delete;
+  // 담당자만 편집·삭제 (담당자가 비어 있으면 누구나). 로직은 get_instance_features
+  update ( features : instance );
+  delete ( features : instance );
 
   // 새 부채: 개선상태 = 개선대상(T) / Level이 C가 아니면 래핑 여부 비우기 / 저장할 때 TD- 채번
   determination setInitialValues on modify { create; }

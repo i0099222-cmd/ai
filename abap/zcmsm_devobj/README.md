@@ -541,6 +541,19 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 
 static 액션은 RAP BDEF side effects를 못 건다 (트리거·대상 둘 다 불가). 앱 `annotation.xml`에 액션별 `Common.SideEffects`를 달고 `TargetEntities`를 엔터티셋 절대경로(`/…Container/Mapping` 등)로 주면, 액션이 끝난 뒤 그 목록을 다시 읽는다 — `09_app/annotation.upload-refresh.sample.xml` (탭 5개). 네임스페이스·컨테이너 이름은 `$metadata` 기준으로 맞춘다. 안 되면 리스트 리포트 컨트롤러 확장에서 액션 뒤 `refresh()`.
 
+## 담당자만 편집·삭제 (VH · OData 서비스 · 기술부채)
+
+| BO | 담당자 필드 | BDEF | 핸들러 |
+| --- | --- | --- | --- |
+| Value Help | `OwnerId` | `update ( features : instance ); delete ( features : instance );` | `get_instance_features` 새로 |
+| OData 서비스 | `OwnerId` | 같음 | `get_instance_features` 새로 |
+| 기술부채 | `BizOwner` (업무담당자) | 같음 | 기존 `get_instance_features`에 `%update`·`%delete` 추가 |
+
+- 현재 사용자(`cl_abap_context_info=>get_user_technical_name( )`) ≠ 담당자면 `%update`·`%delete` = disabled → 상세 화면 '편집'·'삭제' 버튼이 꺼진다 (요청 BO와 같은 방식)
+- 담당자가 비어 있으면 누구나 (예전 데이터가 잠기지 않게). 편집 중인 초안(`%is_draft = on`)은 막지 않는다 — 초안에서 담당자를 바꿔도 마저 저장할 수 있게
+- 엑셀 업로드는 `IN LOCAL MODE`라 이 제한을 안 탄다 (생성만 하므로 상관없음)
+- C BDEF는 그대로 (`use update; use delete;`가 기능 제어를 물려받음)
+
 ## 필터바 '오브젝트 유형'을 매핑 탭에도
 
 필터바는 탭이 같이 쓰고(메인 엔터티 `DevObject`), 필터 조건은 **같은 이름의 필드가 있는 탭에만** 걸린다. 매핑에는 `ObjType`이 없어서(`TobeType`·`AsisType`뿐) 안 걸렸다.

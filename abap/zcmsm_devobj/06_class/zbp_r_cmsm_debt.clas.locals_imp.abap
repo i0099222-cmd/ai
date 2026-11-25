@@ -191,20 +191,32 @@ CLASS lhc_techdebt IMPLEMENTATION.
 
   METHOD get_instance_features.
 
+    " 업무담당자(BizOwner)만 편집(Edit)·삭제 가능. 비어 있으면 누구나 (예전 데이터가 잠기지 않게)
+    " 편집 중인 초안은 막지 않는다 — 초안은 이미 편집을 시작한 본인 것이고, 담당자를 바꿔도 마저 저장할 수 있게
+    DATA(lv_user) = cl_abap_context_info=>get_user_technical_name( ).
+
     READ ENTITIES OF zr_cmsm_debt IN LOCAL MODE
       ENTITY TechDebt
-        FIELDS ( DebtLevel ImproveStatus ) WITH CORRESPONDING #( keys )
+        FIELDS ( DebtLevel ImproveStatus BizOwner ) WITH CORRESPONDING #( keys )
       RESULT DATA(lt_debt)
       FAILED failed.
 
-    result = VALUE #( FOR ls_debt IN lt_debt
-                      ( %tky              = ls_debt-%tky
-                        %field-WrapType   = COND #( WHEN ls_debt-DebtLevel = gc_level-unreleased
-                                                    THEN if_abap_behv=>fc-f-mandatory
-                                                    ELSE if_abap_behv=>fc-f-read_only )
-                        %field-DebtReason = COND #( WHEN ls_debt-ImproveStatus = gc_improve-exception
-                                                    THEN if_abap_behv=>fc-f-mandatory
-                                                    ELSE if_abap_behv=>fc-f-unrestricted ) ) ).
+    LOOP AT lt_debt INTO DATA(ls_debt).
+      DATA(lv_fc) = COND #( WHEN ls_debt-%is_draft = if_abap_behv=>mk-on
+                              OR ls_debt-BizOwner IS INITIAL
+                              OR ls_debt-BizOwner = lv_user
+                            THEN if_abap_behv=>fc-o-enabled
+                            ELSE if_abap_behv=>fc-o-disabled ).
+      APPEND VALUE #( %tky              = ls_debt-%tky
+                      %update           = lv_fc
+                      %delete           = lv_fc
+                      %field-WrapType   = COND #( WHEN ls_debt-DebtLevel = gc_level-unreleased
+                                                  THEN if_abap_behv=>fc-f-mandatory
+                                                  ELSE if_abap_behv=>fc-f-read_only )
+                      %field-DebtReason = COND #( WHEN ls_debt-ImproveStatus = gc_improve-exception
+                                                  THEN if_abap_behv=>fc-f-mandatory
+                                                  ELSE if_abap_behv=>fc-f-unrestricted ) ) TO result.
+    ENDLOOP.
 
   ENDMETHOD.
 

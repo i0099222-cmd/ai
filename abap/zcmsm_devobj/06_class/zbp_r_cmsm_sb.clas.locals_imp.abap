@@ -24,6 +24,10 @@ CLASS lhc_odataservice DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
       IMPORTING REQUEST requested_authorizations FOR ODataService RESULT result.
 
+    " 담당자(OwnerId)만 편집·삭제
+    METHODS get_instance_features FOR INSTANCE FEATURES
+      IMPORTING keys REQUEST requested_features FOR ODataService RESULT result.
+
     " 엑셀 업로드 (static action). 로직은 이 메서드 하나에
     METHODS uploadexcel FOR MODIFY
       IMPORTING keys FOR ACTION ODataService~uploadExcel.
@@ -152,6 +156,32 @@ CLASS lhc_odataservice IMPLEMENTATION.
   METHOD get_global_authorizations.
     " strict 모드라 권한 제어 선언이 필수라서 둔 자리.
     " result를 비워두면 전부 허용된다. 권한 오브젝트/DCL 정할 때 채운다.
+  ENDMETHOD.
+
+
+  METHOD get_instance_features.
+
+    " 담당자만 편집(Edit)·삭제 가능. 담당자가 비어 있으면 누구나 (예전 데이터가 잠기지 않게)
+    " 편집 중인 초안은 막지 않는다 — 초안은 이미 편집을 시작한 본인 것이고, 담당자를 바꿔도 마저 저장할 수 있게
+    DATA(lv_user) = cl_abap_context_info=>get_user_technical_name( ).
+
+    READ ENTITIES OF zr_cmsm_sb IN LOCAL MODE
+      ENTITY ODataService
+        FIELDS ( OwnerId ) WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_sb)
+      FAILED failed.
+
+    LOOP AT lt_sb INTO DATA(ls_sb).
+      DATA(lv_fc) = COND #( WHEN ls_sb-%is_draft = if_abap_behv=>mk-on
+                              OR ls_sb-OwnerId IS INITIAL
+                              OR ls_sb-OwnerId = lv_user
+                            THEN if_abap_behv=>fc-o-enabled
+                            ELSE if_abap_behv=>fc-o-disabled ).
+      APPEND VALUE #( %tky    = ls_sb-%tky
+                      %update = lv_fc
+                      %delete = lv_fc ) TO result.
+    ENDLOOP.
+
   ENDMETHOD.
 
 

@@ -33,8 +33,9 @@ authorization master ( global )
       SapModule;
 
   create;
-  update;
-  delete;
+  // 담당자만 편집·삭제 (담당자가 비어 있으면 누구나). 로직은 get_instance_features
+  update ( features : instance );
+  delete ( features : instance );
 
   // 새 서비스: 담당자 = 등록한 사람 / 파일 올리면 올린 사람·일시 / 저장할 때 SB- 채번
   determination setInitialValues on modify { create; }

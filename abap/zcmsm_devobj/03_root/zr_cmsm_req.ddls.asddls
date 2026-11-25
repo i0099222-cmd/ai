@@ -13,6 +13,7 @@ define root view entity ZR_CMSM_Req
       ReqStatus,
       ProcResult,
       RelNo,
+      DueDate,
       DoneDate,
       CloseReason,
       @Semantics.user.createdBy: true

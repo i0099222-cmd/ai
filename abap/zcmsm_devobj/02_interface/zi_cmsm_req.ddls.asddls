@@ -26,6 +26,8 @@ define view entity ZI_CMSM_Req
       procresult         as ProcResult,
       @EndUserText.label: '관련 등록번호'
       relno              as RelNo,
+      @EndUserText.label: '완료 예정일'
+      duedate            as DueDate,
       @EndUserText.label: '완료일'
       donedate           as DoneDate,
       @EndUserText.label: '반려·취소 사유'

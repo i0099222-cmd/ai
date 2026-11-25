@@ -97,6 +97,12 @@ annotate entity ZC_CMSM_Req with
   RelNo;
 
   @UI: {
+    lineItem:       [{ position: 75 }],
+    fieldGroup:     [{ qualifier: 'Process', position: 35 }]
+  }
+  DueDate;
+
+  @UI: {
     lineItem:       [{ position: 80 }],
     fieldGroup:     [{ qualifier: 'Process', position: 40 }]
   }

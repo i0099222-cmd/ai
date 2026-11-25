@@ -29,14 +29,16 @@ authorization master ( global )
   field ( numbering : managed )
       ReqUuid;
 
-  // 요청자: 요청(R)일 때 제목·내용·모듈·담당자 / 담당자: 진행 중(I)일 때 처리 내용·관련 번호
+  // 요청자: 요청(R)일 때 제목·내용·모듈·담당자 / 담당자: 진행 중(I)일 때 처리 내용·관련 번호·완료 예정일
+  //   ※ 이 목록에 없는 필드는 get_instance_features 에서 %field- 를 줘도 무시되고 늘 열려 있다
   field ( features : instance )
       Title,
       ReqText,
       SapModule,
       Assignee,
       ProcResult,
-      RelNo;
+      RelNo,
+      DueDate;
 
   create;
   update ( features : instance );
@@ -51,7 +53,7 @@ authorization master ( global )
   // 새 요청은 상태 R, 저장할 때 요청번호 채번, 변경 내용은 이력으로
   determination setInitialValues on modify { create; }
   determination setReqId         on save   { create; }
-  determination recordHistory    on save   { create; field Title, ReqText, SapModule, Assignee, ReqStatus, ProcResult, RelNo; }
+  determination recordHistory    on save   { create; field Title, ReqText, SapModule, Assignee, ReqStatus, ProcResult, RelNo, DueDate; }
 
   validation validateMandatory on save { create; field Title, SapModule, Assignee; }
 

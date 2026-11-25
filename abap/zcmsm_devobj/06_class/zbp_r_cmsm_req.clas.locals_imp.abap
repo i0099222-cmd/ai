@@ -19,7 +19,7 @@ ENDCLASS.
 "!
 "! 수정 권한 (요청자 = CreatedBy, 담당자 = Assignee)
 "!   요청자: 요청(R)일 때 제목·요청 내용·모듈·담당자, 삭제
-"!   담당자: 진행 중(I)일 때 처리 내용·관련 등록번호
+"!   담당자: 진행 중(I)일 때 처리 내용·관련 등록번호·완료 예정일
 CLASS lhc_request DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
@@ -248,6 +248,7 @@ CLASS lhc_request IMPLEMENTATION.
         %field-ReqText          = lv_requester_free
         %field-ProcResult       = lv_assignee_free
         %field-RelNo            = lv_assignee_free
+        %field-DueDate          = lv_assignee_free
         %action-acceptRequest   = COND #( WHEN lv_active = abap_true AND lv_assignee = abap_true
                                            AND lv_status = gc_status-requested
                                           THEN if_abap_behv=>fc-o-enabled
@@ -561,6 +562,7 @@ CLASS lhc_request IMPLEMENTATION.
         add_change( EXPORTING iv_field = `담당자`        iv_old = CONV #( ls_old-assignee )   iv_new = CONV #( ls_req-Assignee )   CHANGING ct_rows = lt_rows ).
         add_change( EXPORTING iv_field = `처리 내용`     iv_old = CONV #( ls_old-procresult ) iv_new = CONV #( ls_req-ProcResult ) CHANGING ct_rows = lt_rows ).
         add_change( EXPORTING iv_field = `관련 등록번호` iv_old = CONV #( ls_old-relno )      iv_new = CONV #( ls_req-RelNo )      CHANGING ct_rows = lt_rows ).
+        add_change( EXPORTING iv_field = `완료 예정일`   iv_old = CONV #( ls_old-duedate )    iv_new = CONV #( ls_req-DueDate )    CHANGING ct_rows = lt_rows ).
       ENDIF.
 
       IF lt_rows IS INITIAL.

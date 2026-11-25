@@ -32,6 +32,7 @@ define root view entity ZC_CMSM_Req
       _ReqStatus.Text as ReqStatusText,
       ProcResult,
       RelNo,
+      DueDate,
       DoneDate,
       CloseReason,
       @ObjectModel.text.element: [ 'CreatedByName' ]

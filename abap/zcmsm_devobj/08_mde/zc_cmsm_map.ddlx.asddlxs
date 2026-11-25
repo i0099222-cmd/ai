@@ -71,6 +71,10 @@ annotate entity ZC_CMSM_Map with
   @UI.hidden: true
   TobeTypeText;
 
+  // 필터바 '오브젝트 유형'을 매핑 탭에 걸기 위한 필드 (= To-Be 유형). 화면엔 숨김
+  @UI.hidden: true
+  ObjType;
+
   @UI.lineItem: [{ position: 50, importance: #HIGH }]
   TobeName;
 

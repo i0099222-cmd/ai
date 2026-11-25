@@ -43,6 +43,10 @@ define root view entity ZC_CMSM_Map
       TobeType,
       @EndUserText.label: 'To-Be 유형 내역'
       _TobeType.Text as TobeTypeText,
+      // 필터바 '오브젝트 유형'(통합 조회 ObjType)이 매핑 탭에도 걸리게 — 필터는 같은 이름의 필드가 있는 탭에만 걸린다.
+      // 값 = To-Be 유형 (통합 조회의 매핑 To-Be 줄과 같은 뜻). 연관 경로라 읽기 전용, 초안에서도 값이 나온다. 화면엔 숨김(MDE)
+      @EndUserText.label: '오브젝트 유형'
+      _TobeType.Value as ObjType,
       @Search.defaultSearchElement: true
       @Search.fuzzinessThreshold: 0.8
       TobeName,

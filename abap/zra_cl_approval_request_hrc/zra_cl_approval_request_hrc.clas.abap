@@ -17,7 +17,7 @@
 *
 * [2] 템플릿 데이터 (zra_t_html_tpl 에 저장)
 *
-*   ZRA_APPROVAL_MAIL (본문)
+*   ZRA_APPROVAL_MAIL
 *   <html>
 *   <head><meta charset="UTF-8"></head>
 *   <body>
@@ -30,9 +30,6 @@
 *     </table>
 *   </body>
 *   </html>
-*
-*   ZRA_APPROVAL_MAIL_ROW (행 1줄, 조회 건수만큼 반복)
-*   <tr><td>{MATNR}</td><td>{MAKTX}</td><td>{MENGE}</td></tr>
 *----------------------------------------------------------------------*
 CLASS zra_cl_approval_request_hrc DEFINITION
  PUBLIC
@@ -121,13 +118,9 @@ ENDCLASS.
 *
 *   DATA lv_rows TYPE string.
 *
-*   " 1. 조회 건수만큼 행 템플릿 치환해서 이어 붙이기
+*   " 1. 조회 건수만큼 행 만들기
 *   LOOP AT lt_item INTO DATA(ls_item).
-*     lv_rows = lv_rows && zra_cl_approval_request_hrc=>get_html_template(
-*                            iv_template_id = 'ZRA_APPROVAL_MAIL_ROW'
-*                            it_replace     = VALUE #( ( key = '{MATNR}' value = ls_item-matnr )
-*                                                      ( key = '{MAKTX}' value = ls_item-maktx )
-*                                                      ( key = '{MENGE}' value = |{ ls_item-menge NUMBER = USER }| ) ) ).
+*     lv_rows = lv_rows && |<tr><td>{ ls_item-matnr }</td><td>{ ls_item-maktx }</td><td>{ ls_item-menge NUMBER = USER }</td></tr>|.
 *   ENDLOOP.
 *
 *   " 2. 본문에 값 + 행 넣기

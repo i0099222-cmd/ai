@@ -554,6 +554,10 @@ static 액션은 RAP BDEF side effects를 못 건다 (트리거·대상 둘 다 
 - 엑셀 업로드는 `IN LOCAL MODE`라 이 제한을 안 탄다 (생성만 하므로 상관없음)
 - C BDEF는 그대로 (`use update; use delete;`가 기능 제어를 물려받음)
 
+## 테스트 파일 칸 정렬 에러
+
+VH·OData 서비스 목록에서 테스트 파일(`TestFile`, `@Semantics.largeObject` 스트림) 칸으로 정렬하면 'stream property TestFile not allowed in $orderby' 에러. C 뷰 `ZC_CMSM_Sb`·`ZC_CMSM_Vh`의 `TestFile`에 `@ObjectModel.sort.enabled: false`·`@ObjectModel.filter.enabled: false` → 정렬·필터 메뉴에서 빠진다. 파일 이름으로 정렬하려면 `TestFileName`을 목록 칸으로 쓴다 (MDE `@UI.hidden` 대신 `lineItem`).
+
 ## 필터바 '오브젝트 유형'을 매핑 탭에도
 
 필터바는 탭이 같이 쓰고(메인 엔터티 `DevObject`), 필터 조건은 **같은 이름의 필드가 있는 탭에만** 걸린다. 매핑에는 `ObjType`이 없어서(`TobeType`·`AsisType`뿐) 안 걸렸다.

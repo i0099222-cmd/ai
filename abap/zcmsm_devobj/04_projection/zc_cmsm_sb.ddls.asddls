@@ -40,6 +40,9 @@ define root view entity ZC_CMSM_Sb
       ReqId,
       @EndUserText.label: '요청 제목'
       _Request.Title as ReqTitle,
+      // 파일(스트림) 칸은 정렬·필터 불가 — 목록에서 정렬하면 'stream property … not allowed in $orderby' 에러
+      @ObjectModel.sort.enabled: false
+      @ObjectModel.filter.enabled: false
       @Semantics.largeObject: { mimeType: 'TestMimeType',
                                 fileName: 'TestFileName',
                                 contentDispositionPreference: #ATTACHMENT }

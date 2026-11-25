@@ -554,6 +554,10 @@ static 액션은 RAP BDEF side effects를 못 건다 (트리거·대상 둘 다 
 - 엑셀 업로드는 `IN LOCAL MODE`라 이 제한을 안 탄다 (생성만 하므로 상관없음)
 - C BDEF는 그대로 (`use update; use delete;`가 기능 제어를 물려받음)
 
+## 요청 편집 화면의 변경 이력 표: 생성·삭제 버튼 숨김
+
+이력은 `recordHistory`(저장 시)만 만든다 — R BDEF `association _Hist { internal create; … }`, C BDEF `use association _Hist { with draft; }`(create 없음). 그래도 편집 화면 이력 표에 '생성'이 보여서 MDE `ZC_CMSM_ReqHist` 머리에 `createHidden: true`, `deleteHidden: true` (`UI.CreateHidden`·`UI.DeleteHidden`). C BDEF에 `use association _Hist { create; … }`가 있으면 `create`를 빼는 게 먼저.
+
 ## 테스트 파일 칸 정렬 에러
 
 VH·OData 서비스 목록에서 테스트 파일(`TestFile`, `@Semantics.largeObject` 스트림) 칸으로 정렬하면 'stream property TestFile not allowed in $orderby' 에러. C 뷰 `ZC_CMSM_Sb`·`ZC_CMSM_Vh`의 `TestFile`에 `@ObjectModel.sort.enabled: false`·`@ObjectModel.filter.enabled: false` → 정렬·필터 메뉴에서 빠진다. 파일 이름으로 정렬하려면 `TestFileName`을 목록 칸으로 쓴다 (MDE `@UI.hidden` 대신 `lineItem`).

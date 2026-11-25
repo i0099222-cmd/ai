@@ -5,7 +5,10 @@
     typeNamePlural: '변경 이력',
     title:       { type: #STANDARD, value: 'FieldName' }
   },
-  presentationVariant: [{ sortOrder: [{ by: 'ChangedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] }]
+  presentationVariant: [{ sortOrder: [{ by: 'ChangedAt', direction: #DESC }], visualizations: [{ type: #AS_LINEITEM }] }],
+  // 이력은 저장할 때 시스템이 남긴다 (recordHistory) — 요청 편집 화면의 이력 표에 생성·삭제 버튼을 안 보이게
+  createHidden: true,
+  deleteHidden: true
 }
 annotate entity ZC_CMSM_ReqHist with
 {

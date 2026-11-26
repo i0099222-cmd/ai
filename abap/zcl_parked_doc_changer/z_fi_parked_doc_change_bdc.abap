@@ -42,13 +42,13 @@
 *&   SAPLF040 0332  추가데이터 팝업 - 채권/채무용  (상세화면에서 '=ZK')
 *&   SAPLKACB 0002  계정지정 팝업 - G/L 명세를 상세화면에서 저장할 때. 'ENTE'
 *&
-*&   저장('=BP')은 마지막으로 값을 넣은 화면에서 한다.
+*&   저장('=BP')은 항상 명세 상세화면에서 한다.
 *&     상세화면 필드만   -> 상세화면에서 '=BP'
-*&     추가데이터 팝업   -> 팝업에서 '=BP'
+*&     추가데이터 팝업   -> 팝업을 Enter 로 확인 -> 상세화면에서 '=BP'
 *&     헤더만            -> 개요화면에서 '=BP'
 *&   G/L 명세는 저장할 때 계정지정 팝업(SAPLKACB 0002)이 한 번 뜬다.
 *&
-*&   '=RW'(뒤로)는 쓰지 않는다. 그 화면에 넣은 값이 반영되지 않는다.
+*&   팝업을 '=RW'(뒤로)나 '=BP'(저장)로 닫으면 팝업에 넣은 값이 반영되지 않는다.
 *&
 *&   명세 상세화면 번호는 명세 유형마다 다르므로 FM 이 직접 판단한다.
 *&   (파킹 전표 명세는 계정유형별 테이블로 나뉜다:
@@ -91,6 +91,10 @@ FUNCTION z_fi_parked_doc_change_bdc.
     lc_ok_enter   TYPE bdcdata-fval    VALUE '=ENTR',  " 초기화면 진행
     lc_ok_item    TYPE bdcdata-fval    VALUE '=PI',    " 개요화면 -> 명세 상세
     lc_ok_more    TYPE bdcdata-fval    VALUE '=ZK',    " 상세화면 -> 추가데이터 팝업
+    " 추가데이터 팝업 확인(Enter). 녹화에서는 '=RW'(뒤로) / '=BP'(저장)로
+    " 닫았는데 둘 다 팝업에 넣은 값이 반영되지 않았다. 값을 넘기려면
+    " 팝업을 확인하고 나와야 한다. '/00' 으로 안 되면 '=ENTR' 을 시도한다.
+    lc_ok_popok   TYPE bdcdata-fval    VALUE '/00',
     lc_ok_kacb    TYPE bdcdata-fval    VALUE 'ENTE',   " 계정지정 팝업 확인
     lc_ok_save    TYPE bdcdata-fval    VALUE '=BP',    " 저장(트랜잭션 종료)
     " 화면 표시 모드. 운영은 'N'(무화면).
@@ -244,12 +248,17 @@ FUNCTION z_fi_parked_doc_change_bdc.
                       fval = COND #( WHEN lt_f2 IS INITIAL THEN lc_ok_save ELSE lc_ok_more ) ) TO lt_bdc.
       APPEND LINES OF lt_f1 TO lt_bdc.
 
-      " 3-4) 추가 데이터 팝업 - 이 팝업에서 바로 저장한다.
-      " '=RW'(뒤로)로 닫으면 팝업에 넣은 값이 반영되지 않으므로 쓰지 않는다.
+      " 3-4) 추가 데이터 팝업 - Enter 로 확인해 값을 넘기고,
+      "      상세화면으로 돌아와서 저장한다.
+      "      팝업에서 바로 '=BP'(저장)나 '=RW'(뒤로)로 닫으면
+      "      팝업에 넣은 값이 반영되지 않는다.
       IF lt_f2 IS NOT INITIAL.
         APPEND VALUE #( program = lc_prog_more dynpro = lv_dynp_more dynbegin = 'X' ) TO lt_bdc.
-        APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_save ) TO lt_bdc.
+        APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_popok ) TO lt_bdc.
         APPEND LINES OF lt_f2 TO lt_bdc.
+
+        APPEND VALUE #( program = lc_prog_item dynpro = lv_dynp dynbegin = 'X' ) TO lt_bdc.
+        APPEND VALUE #( fnam = 'BDC_OKCODE' fval = lc_ok_save ) TO lt_bdc.
       ENDIF.
 
       " 3-5) G/L 명세는 저장할 때 CO 계정지정 팝업이 뜬다.

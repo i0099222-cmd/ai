@@ -138,6 +138,16 @@
             "settings": {
               "contextPath": "/Mapping",
               "editableHeaderContent": false,
+              "controlConfiguration": {
+                "_Comp/@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable",
+                    "creationMode": {
+                      "name": "Inline"
+                    }
+                  }
+                }
+              },
               "content": {
                 "body": {
                   "sections": {

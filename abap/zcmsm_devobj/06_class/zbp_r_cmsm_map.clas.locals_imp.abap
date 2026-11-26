@@ -551,6 +551,52 @@ CLASS lhc_mapping IMPLEMENTATION.
 ENDCLASS.
 
 
+"! 매핑 구성요소(자식) 핸들러 — As-Is·To-Be 구성요소 중 하나는 필수
+CLASS lhc_mappingcomponent DEFINITION INHERITING FROM cl_abap_behavior_handler.
+
+  PRIVATE SECTION.
+
+    METHODS validatecomp FOR VALIDATE ON SAVE
+      IMPORTING keys FOR MappingComponent~validateComp.
+
+ENDCLASS.
+
+CLASS lhc_mappingcomponent IMPLEMENTATION.
+
+  METHOD validatecomp.
+
+    READ ENTITIES OF zr_cmsm_map IN LOCAL MODE
+      ENTITY MappingComponent
+        FIELDS ( MapUuid AsisComp TobeComp ) WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_comp).
+
+    LOOP AT lt_comp INTO DATA(ls_comp).
+
+      APPEND VALUE #( %tky        = ls_comp-%tky
+                      %state_area = 'MANDATORY' ) TO reported-mappingcomponent.
+
+      IF ls_comp-AsisComp IS INITIAL AND ls_comp-TobeComp IS INITIAL.
+        " %path: 메시지를 부모(매핑) 화면의 구성요소 행에 붙이기 위함
+        APPEND VALUE #( %tky              = ls_comp-%tky
+                        %state_area       = 'MANDATORY'
+                        %element-AsisComp = if_abap_behv=>mk-on
+                        %element-TobeComp = if_abap_behv=>mk-on
+                        %path             = VALUE #( mapping-%is_draft = ls_comp-%is_draft
+                                                     mapping-MapUuid   = ls_comp-MapUuid )
+                        %msg              = new_message_with_text(
+                                              severity = if_abap_behv_message=>severity-error
+                                              text     = 'As-Is·To-Be 구성요소 중 하나는 입력하세요.' ) )
+               TO reported-mappingcomponent.
+        APPEND VALUE #( %tky = ls_comp-%tky ) TO failed-mappingcomponent.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
 "! 저장 뒤 처리 — 엑셀 업로드 성공 메시지만 (BDEF: managed with additional save)
 CLASS lsc_zr_cmsm_map DEFINITION INHERITING FROM cl_abap_behavior_saver.
 

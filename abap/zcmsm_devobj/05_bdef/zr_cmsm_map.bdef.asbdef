@@ -76,7 +76,38 @@ authorization master ( global )
     validation validateMandatory;
     validation validateObjectType;
     validation validateDuplicate;
+    validation MappingComponent~validateComp;
   }
 
+  // 구성요소 매핑 (메서드·필드 등) — 매핑 상세 표에서 추가
+  association _Comp { create; with draft; }
+
   mapping for ztcmsm00190 corresponding;
+}
+
+// 매핑 구성요소: As-Is 구성요소 → To-Be 구성요소 (예: 메서드 이름이 바뀐 경우), 설명
+define behavior for ZR_CMSM_MapComp alias MappingComponent
+persistent table ztcmsm00250
+draft table ztcmsm00250_d
+etag master LocalLastChangedAt
+lock dependent by _Map
+authorization dependent by _Map
+{
+  field ( readonly )
+      CompUuid,
+      MapUuid,
+      LocalLastChangedAt;
+
+  field ( numbering : managed )
+      CompUuid;
+
+  update;
+  delete;
+
+  // As-Is·To-Be 구성요소 중 하나는 있어야 한다 (신규면 As-Is 만 비고, 없어진 거면 To-Be 만 빈다)
+  validation validateComp on save { create; field AsisComp, TobeComp; }
+
+  association _Map { with draft; }
+
+  mapping for ztcmsm00250 corresponding;
 }

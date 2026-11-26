@@ -17,4 +17,15 @@ use etag
   use action Discard;
   use action Resume;
   use action Prepare;
+
+  use association _Comp { create; with draft; }
+}
+
+define behavior for ZC_CMSM_MapComp alias MappingComponent
+use etag
+{
+  use update;
+  use delete;
+
+  use association _Map { with draft; }
 }

@@ -543,6 +543,25 @@ XCO로 읽는 것 (SAP abap-cheat-sheets 예제로 확인한 API)
 
 static 액션은 RAP BDEF side effects를 못 건다 (트리거·대상 둘 다 불가). 앱 `annotation.xml`에 액션별 `Common.SideEffects`를 달고 `TargetEntities`를 엔터티셋 절대경로(`/…Container/Mapping` 등)로 주면, 액션이 끝난 뒤 그 목록을 다시 읽는다 — `09_app/annotation.upload-refresh.sample.xml` (탭 5개). 네임스페이스·컨테이너 이름은 `$metadata` 기준으로 맞춘다. 안 되면 리스트 리포트 컨트롤러 확장에서 액션 뒤 `refresh()`.
 
+## 매핑 구성요소 (composition `_Comp`)
+
+As-Is 클래스는 그대로 To-Be 클래스로 가는데 안의 메서드 이름이 바뀌는 경우처럼, 매핑 한 건 아래 하위 단위(메서드·필드·폼 등)를 여러 줄로 남긴다. 매핑 상세의 '구성요소 매핑' 표에서 바로 추가(Inline).
+
+| 오브젝트 | 내용 |
+| --- | --- |
+| 테이블 `ztcmsm00250` (`00_table`) | `compuuid`(키), `mapuuid`, `asiscomp` CHAR 80, `tobecomp` CHAR 80, `compdesc` CHAR 255, `locallastchangedat`. 번호 00250은 가정. 드래프트 `ztcmsm00250_d`는 R BDEF에서 ADT 빠른 수정으로 생성 |
+| `ZI_CMSM_MapComp` / `ZR_CMSM_MapComp` / `ZC_CMSM_MapComp` | I(테이블) → R(BO 자식, `association to parent ZR_CMSM_Map as _Map`) → C(`_Map : redirected to parent`). 필드 `CompUuid`, `MapUuid`, `AsisComp`(As-Is 구성요소), `TobeComp`(To-Be 구성요소), `CompDesc`(설명) |
+| `ZR_CMSM_Map` / `ZC_CMSM_Map` | `composition [0..*] of ZR_CMSM_MapComp as _Comp` + 노출 / `_Comp : redirected to composition child ZC_CMSM_MapComp` |
+| R BDEF | 부모 `association _Comp { create; with draft; }`, Prepare에 `validation MappingComponent~validateComp;`. 자식 `ZR_CMSM_MapComp alias MappingComponent` (persistent/draft table, `lock dependent by _Map`, `authorization dependent by _Map`, `update; delete;`, `validateComp`) |
+| C BDEF | 부모 `use association _Comp { create; with draft; }`, 자식 `use update; use delete; use association _Map { with draft; }` |
+| 핸들러 `ZBP_R_CMSM_MAP` | 로컬 클래스 `lhc_mappingcomponent` — `validatecomp`: As-Is·To-Be 구성요소 둘 다 비면 에러(메시지는 `%path`로 매핑 화면의 그 행에) |
+| 서비스 | `expose ZC_CMSM_MapComp as MappingComponent;` |
+| MDE | 부모 facet `{ id: 'Comp', type: #LINEITEM_REFERENCE, label: '구성요소 매핑', targetElement: '_Comp', position: 25 }`, 자식 `ZC_CMSM_MapComp` 목록: As-Is 구성요소 · To-Be 구성요소 · 설명 |
+| manifest | `MappingObjectPage` `controlConfiguration` `_Comp/@com.sap.vocabularies.UI.v1.LineItem` → `creationMode: Inline` |
+
+- 활성화 순서: 테이블 → `ZI_CMSM_MapComp` → `ZR_CMSM_MapComp` + `ZR_CMSM_Map`(같이) → `ZC_CMSM_MapComp` + `ZC_CMSM_Map`(같이) → R BDEF(드래프트 테이블 생성) + 핸들러 → C BDEF → MDE 2개 → 서비스 정의·바인딩 → 앱 manifest
+- 엑셀 업로드·통합 조회에는 아직 안 들어감 (필요하면 업로드 시트 추가, 통합 조회 갈래 추가로 메서드 이름 검색)
+
 ## 담당자만 편집·삭제 (VH · OData 서비스 · 기술부채)
 
 | BO | 담당자 필드 | BDEF | 핸들러 |

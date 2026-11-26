@@ -85,5 +85,6 @@ define root view entity ZC_CMSM_Map
       LocalLastChangedAt,
 
       _Usage,
-      _TobeSource
+      _TobeSource,
+      _Comp : redirected to composition child ZC_CMSM_MapComp
 }

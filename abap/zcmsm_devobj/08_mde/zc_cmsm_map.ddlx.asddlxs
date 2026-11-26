@@ -22,6 +22,7 @@ annotate entity ZC_CMSM_Map with
   @UI.facet: [
     { id: 'Header',     purpose: #HEADER, type: #FIELDGROUP_REFERENCE, targetQualifier: 'Header', position: 10 },
     { id: 'General',    type: #FIELDGROUP_REFERENCE, label: '기본 정보', targetQualifier: 'General', position: 10 },
+    { id: 'Comp',       type: #LINEITEM_REFERENCE, label: '구성요소 매핑', targetElement: '_Comp', position: 25 },
     { id: 'Ui',         type: #FIELDGROUP_REFERENCE, label: 'UI 연결 (To-Be가 T-code일 때)', targetQualifier: 'Ui', position: 30 },
     { id: 'TobeSrc',    type: #LINEITEM_REFERENCE, label: 'To-Be 데이터 소스', targetElement: '_TobeSource', position: 35 },
     { id: 'Usage',      type: #LINEITEM_REFERENCE, label: '사용처 (Z CDS)', targetElement: '_Usage', position: 40 },

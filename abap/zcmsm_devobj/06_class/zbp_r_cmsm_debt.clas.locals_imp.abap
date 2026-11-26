@@ -210,6 +210,7 @@ CLASS lhc_techdebt IMPLEMENTATION.
       APPEND VALUE #( %tky              = ls_debt-%tky
                       %update           = lv_fc
                       %delete           = lv_fc
+                      %action-Edit      = lv_fc              " 화면 '편집' 버튼
                       %field-WrapType   = COND #( WHEN ls_debt-DebtLevel = gc_level-unreleased
                                                   THEN if_abap_behv=>fc-f-mandatory
                                                   ELSE if_abap_behv=>fc-f-read_only )

@@ -59,7 +59,8 @@ authorization master ( global )
     field ImproveStatus affects permissions ( field DebtReason );
   }
 
-  draft action Edit;
+  // 화면의 '편집' 버튼은 이 Edit 의 기능 제어를 따른다 (%update 만으로는 안 꺼짐) — get_instance_features 의 %action-Edit
+  draft action ( features : instance ) Edit;
   draft action Activate optimized;
   draft action Discard;
   draft action Resume;

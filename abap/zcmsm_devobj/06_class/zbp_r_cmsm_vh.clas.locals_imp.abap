@@ -190,9 +190,10 @@ CLASS lhc_valuehelp IMPLEMENTATION.
                               OR ls_vh-OwnerId = lv_user
                             THEN if_abap_behv=>fc-o-enabled
                             ELSE if_abap_behv=>fc-o-disabled ).
-      APPEND VALUE #( %tky    = ls_vh-%tky
-                      %update = lv_fc
-                      %delete = lv_fc ) TO result.
+      APPEND VALUE #( %tky         = ls_vh-%tky
+                      %update      = lv_fc
+                      %delete      = lv_fc
+                      %action-Edit = lv_fc ) TO result.     " 화면 '편집' 버튼
     ENDLOOP.
 
   ENDMETHOD.
